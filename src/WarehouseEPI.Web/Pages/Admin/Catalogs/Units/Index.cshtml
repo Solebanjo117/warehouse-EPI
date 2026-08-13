@@ -1,0 +1,20 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Units.IndexModel
+@{ ViewData["Title"] = "Unidades"; }
+<h1 class="h2">Unidades</h1>
+<p class="text-muted">Unidades base disponibles para los productos.</p>
+@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
+<form method="post" asp-page-handler="Save" class="card card-body mb-4">
+    <input asp-for="Input.Id" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-2"><label asp-for="Input.Code" class="form-label">Código</label><input asp-for="Input.Code" class="form-control text-uppercase" /><span asp-validation-for="Input.Code" class="text-danger"></span></div>
+        <div class="col-12 col-md-5"><label asp-for="Input.Name" class="form-label">Nombre</label><input asp-for="Input.Name" class="form-control" /><span asp-validation-for="Input.Name" class="text-danger"></span></div>
+        <div class="col-12 col-md-2"><div class="form-check"><input asp-for="Input.AllowsDecimals" class="form-check-input" /><label asp-for="Input.AllowsDecimals" class="form-check-label">Permite decimales</label></div></div>
+        <div class="col-12 col-md-3"><button class="btn btn-primary">@(Model.Input.Id == 0 ? "Agregar" : "Guardar")</button> @if(Model.Input.Id != 0){<a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>}</div>
+    </div>
+</form>
+<div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Código</th><th>Nombre</th><th>Decimales</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead><tbody>
+@foreach(var item in Model.Items){<tr><td><strong>@item.Code</strong></td><td>@item.Name</td><td>@(item.AllowsDecimals ? "Sí" : "No")</td><td>@(item.IsActive ? "Activo" : "Inactivo")</td><td class="text-end">@if(item.IsSystem){<span class="badge text-bg-secondary">Reservada</span>}else{<a asp-route-editId="@item.Id" class="btn btn-outline-primary btn-sm">Editar</a> <form method="post" asp-page-handler="Toggle" class="d-inline"><input type="hidden" name="id" value="@item.Id"/><button class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Desactivar" : "Activar")</button></form>}</td></tr>}
+</tbody></table></div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

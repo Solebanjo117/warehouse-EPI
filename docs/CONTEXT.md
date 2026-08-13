@@ -134,6 +134,8 @@ Ya existen estas entidades iniciales:
 - `Role`
 - `User`
 - `Unit`
+- `ProductType`
+- `ProductClass`
 - `Product`
 - `ProductBarcode`
 - `Location`
@@ -143,10 +145,14 @@ También existe `WarehouseDbContext`, con:
 - nombres de tablas y columnas en `snake_case`;
 - claves, relaciones, índices únicos y restricciones iniciales;
 - roles sembrados: administrador y operador;
-- unidad base sembrada: pieza (`EA`);
+- 18 unidades sembradas con cantidades decimales habilitadas, incluida
+  `UNASSIGNED` con el nombre visible `Sin asignar`;
+- tipos de producto `FG` y `RAW`, y 26 clases normalizadas sembradas;
 - NIP separado en `PinLookup` y `PinHash`;
 - NIP numérico de 4 a 8 dígitos, sin bloqueo por intentos fallidos;
 - SKU, código de barras y código de ubicación únicos;
+- producto identificado por SKU obligatorio y descripción opcional sin límite
+  artificial de longitud; no existe un campo separado de nombre de producto;
 - Code 128 como formato predeterminado;
 - lotes y caducidad desactivados por defecto;
 - inventario negativo permitido por defecto;
@@ -180,14 +186,19 @@ recuperación para una base nueva es:
   -- --create-admin
 ```
 
-Existen pruebas de entidades, criptografía, servicio de NIP y pipeline web. La
+Existen pruebas de entidades, catálogos, criptografía, servicio de NIP y pipeline
+web. La
 última verificación completada el 13 de agosto de 2026 fue:
 
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 19 pruebas finalizaron correctamente, incluida la autenticación NIP,
-  unicidad, usuario inactivo, antiforgery, cookie y autorización de páginas.
+- las 54 pruebas finalizaron correctamente, incluida la autenticación NIP,
+  normalización y unicidad de catálogos, reglas de productos y códigos de barras,
+  usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
+  de productos desde Excel;
+- la prueba opcional contra el archivo real se ejecutó mediante la variable de
+  proceso `WAREHOUSE_EPI_PRODUCT_WORKBOOK`, sin insertar productos.
 
 En algunas terminales `dotnet` no está disponible en `PATH`; en ese caso se debe
 usar `& "C:\Program Files\dotnet\dotnet.exe"` o corregir `PATH` y abrir una
@@ -224,19 +235,30 @@ terminal nueva.
   Core `10.0.10`.
 - La migración `20260813153505_RemovePinLockout` fue revisada y aplicada; retiró
   únicamente `failed_pin_attempts`, `locked_until` y su restricción `CHECK`.
-- PostgreSQL contiene las semillas `ADMIN`, `OPERATOR` y `EA`; usuarios,
-  productos, códigos de barras y ubicaciones permanecen vacíos.
+- La migración `20260813171350_CatalogsAndProductReference` fue generada, revisada
+  y aplicada después de confirmar nuevamente que `products` estaba vacía. Antes
+  de retirar las columnas anteriores se respaldó el esquema `public` en formato
+  custom dentro de `BackupDatabase/`; el archivo está ignorado por Git.
+- La migración `20260813175106_RemoveProductName` fue respaldada, revisada y
+  aplicada después de confirmar que `products` continuaba vacía. Eliminó
+  exclusivamente `products.name`; `description` permanece como `text` nullable.
+- La migración `20260813185432_AddUnassignedUnit` fue revisada y aplicada. Solo
+  agregó la unidad activa `UNASSIGNED`, con nombre `Sin asignar` y cantidades
+  decimales habilitadas; no modificó productos ni otras tablas.
+- PostgreSQL contiene 18 unidades con decimales habilitados, los tipos `FG` y
+  `RAW`, y 26 clases normalizadas. Productos, códigos de barras y ubicaciones
+  permanecen vacíos.
 - La auditoría directa confirmó tipos, nulabilidad, valores predeterminados,
   restricciones, acciones referenciales e índices, incluido el índice parcial
   que permite un solo código principal por producto.
 
-La base técnica, el esquema inicial y la implementación de seguridad por NIP y
-administración de usuarios están terminados. PostgreSQL contiene un administrador
-activo creado mediante el comando interactivo; no se registraron su nombre, NIP
-ni campos protegidos en este documento. No se debe avanzar a catálogos,
-movimientos ni otra fase hasta que el usuario cambie la prioridad. Sigue
-pendiente crear un commit base después de revisar el conjunto completo de
-cambios existentes.
+La base técnica, el esquema inicial, la seguridad por NIP, la administración de
+usuarios y los catálogos de la fase 3 están terminados. PostgreSQL contiene un
+administrador activo creado mediante el comando interactivo; no se registraron su
+nombre, NIP ni campos protegidos en este documento. No se debe avanzar a
+ubicaciones, producción, movimientos ni otra fase hasta que el usuario cambie la
+prioridad. Sigue pendiente crear un commit base después de revisar el conjunto
+completo de cambios existentes.
 
 Si `dotnet` no está en `PATH`, sustituirlo por:
 
@@ -265,11 +287,35 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 ### Fase 3: catálogos
 
-- CRUD de unidades.
-- CRUD de productos.
-- Alta y búsqueda por códigos de barras.
-- Activación y desactivación sin eliminar registros históricos.
-- Validaciones de SKU, códigos duplicados, decimales, lotes y caducidad.
+- Catálogos ADMIN de unidades, tipos y clases con búsqueda, alta, edición,
+  activación y desactivación sin borrado físico.
+- Catálogo ADMIN de productos con búsqueda, filtros, paginación, unidad base,
+  tipo y clase opcionales, referencia externa y reglas de lotes/caducidad. El
+  producto se identifica mediante SKU y una descripción opcional.
+- Códigos de barras integrados en el producto, con reactivación, desactivación y
+  cambio transaccional del código principal.
+- Normalización y reserva de SKU y códigos de catálogo, y preservación exacta de
+  códigos de barras salvo espacios externos.
+- Semillas de 18 unidades, 2 tipos y 26 clases derivadas de los Excel de
+  referencia, sin copiar ni importar esos archivos.
+- Importador ADMIN en `/Admin/Catalogs/Products/Import`, basado en ClosedXML
+  `0.105.1`, para archivos `.xlsx` de hasta 10 MB y 10,000 filas con una hoja
+  `ITEMS`. La vista previa se conserva 30 minutos en memoria, está ligada al
+  administrador y no escribe en PostgreSQL. La confirmación revalida catálogos y
+  SKU y realiza una sola transacción; el token se retira después del éxito.
+- El importador agrega únicamente SKU nuevos, omite activos e inactivos ya
+  existentes y consolida duplicados compatibles. No importa rutas de producción,
+  códigos de barras, ubicaciones, usuarios ni credenciales. No se agregó una
+  migración y no se ejecutó la primera carga real.
+- La auditoría del archivo real confirmó 1,613 filas fuente, 1,612 SKU únicos,
+  123 referencias vacías y el duplicado compatible `THREAD-TK92-BURGUNDY`.
+  Las 65 filas con `U/M` vacío se asignan a `UNASSIGNED / Sin asignar` y se
+  muestran como advertencias para su corrección posterior; no se infiere `EA`.
+  Esta unidad está reservada: no puede editarse ni desactivarse desde el catálogo.
+  La vista previa real termina con 1,612 candidatos y cero errores, sin insertar
+  productos antes de confirmar.
+- Migraciones, respaldos, auditoría PostgreSQL, compilación y 54 pruebas completadas
+  el 13 de agosto de 2026.
 
 ### Fase 4: ubicaciones y layout
 
@@ -386,6 +432,16 @@ cantidad, ubicación, NIP, historial y una vista producto por ubicación. El nue
 sistema debe conservar la rapidez operativa del archivo sin copiar sus problemas
 de seguridad, validación y trazabilidad.
 
+El archivo `C:\Users\JUANANTONIOCASTILLAO\Downloads\PROGRAMA DE PRODUCCION.xlsx`
+también fue revisado como referencia para unidades, tipos, clases y referencias
+de producto. Ninguno de los Excel fue copiado al repositorio ni se importaron
+usuarios, credenciales o datos operativos.
+
+La hoja `ITEMS` es la única fuente admitida por el importador de productos. Las
+65 filas con `U/M` vacío se importan con la unidad `UNASSIGNED / Sin asignar` y
+una advertencia visible. Esto permite confirmar el archivo sin asumir que esas
+filas corresponden a `EA`; posteriormente pueden filtrarse y reasignarse.
+
 ## 12. Contexto breve para pegar en otro chat
 
 ```text
@@ -408,20 +464,31 @@ son opcionales y están desactivados por defecto; después se usará FEFO. Los
 movimientos serán Entrada, Salida, Transferencia y Ajuste. Los confirmados son
 inmutables: las correcciones se hacen mediante reverso y reemplazo auditable.
 
-Ya existen Role, User, Unit, Product, ProductBarcode, Location y
-WarehouseDbContext. Program.cs registra Npgsql, seguridad por NIP, cookie
+Ya existen Role, User, Unit, ProductType, ProductClass, Product, ProductBarcode,
+Location y WarehouseDbContext. Program.cs registra Npgsql, seguridad por NIP, cookie
 administrativa y autorización ADMIN. El NIP admite 4 a 8 dígitos, se protege con
 HMAC-SHA256 y PBKDF2-SHA256, es único y no tiene bloqueo por intentos. Existen
-páginas para iniciar sesión y administrar usuarios. La compilación fue verificada
-con .NET SDK 10.0.400 sin errores. Las 19 pruebas pasan.
+páginas para iniciar sesión, administrar usuarios y administrar los catálogos de
+la fase 3. Los productos usan SKU obligatorio y descripción opcional, sin un
+campo separado de nombre. La compilación fue verificada con .NET SDK 10.0.400
+sin errores ni advertencias. Las 54 pruebas pasan, incluida la vista previa del
+archivo real sin escribir en PostgreSQL.
 
 La base real es warehouseEPI y ConnectionStrings:Warehouse fue validada sin
 mostrar la contraseña. InitialSchema está creada, revisada y aplicada en public;
 PostgreSQL contiene las seis tablas de dominio, el historial EF y las semillas
 ADMIN, OPERATOR y EA. El esquema prototipo anterior fue respaldado localmente y
 eliminado después de verificar el esquema nuevo. RemovePinLockout también está
-aplicada y ya no existen failed_pin_attempts ni locked_until. Security:PinLookupKey
+aplicada y ya no existen failed_pin_attempts ni locked_until.
+CatalogsAndProductReference está aplicada; existen 18 unidades, 2 tipos y 26
+clases. RemoveProductName también está aplicada y `products.name` ya no existe;
+los productos y códigos de barras siguen vacíos. Existe un importador ADMIN de
+productos `.xlsx` para la hoja ITEMS, con vista previa en memoria y confirmación
+transaccional; la carga real no se ha confirmado. Las 65 filas con U/M vacío
+usan `UNASSIGNED / Sin asignar` con advertencia, sin inferir `EA`.
+Security:PinLookupKey
 está en User Secrets. PostgreSQL contiene exactamente un ADMIN activo creado de
-forma interactiva; sus credenciales no se leyeron ni documentaron. No avances a
-otra fase salvo que yo cambie la prioridad.
+forma interactiva; sus credenciales no se leyeron ni documentaron. La fase 3 de
+catálogos está completa. No avances a ubicaciones, producción o movimientos salvo
+que yo cambie la prioridad.
 ```

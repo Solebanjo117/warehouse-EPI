@@ -28,6 +28,15 @@
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-page="/Admin/Users/Index">Usuarios</a>
                             </li>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown">Catálogos</a>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" asp-page="/Admin/Catalogs/Products/Index">Productos</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Catalogs/Units/Index">Unidades</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Catalogs/ProductTypes/Index">Tipos</a></li>
+                                    <li><a class="dropdown-item" asp-page="/Admin/Catalogs/ProductClasses/Index">Clases</a></li>
+                                </ul>
+                            </li>
                         }
                     </ul>
                     <div class="d-flex align-items-center gap-2">

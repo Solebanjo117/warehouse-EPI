@@ -1,4 +1,5 @@
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Core;
 
 namespace WarehouseEPI.Tests.Entities;
 
@@ -23,8 +24,7 @@ public sealed class EntityDefaultsTests
     {
         var product = new Product
         {
-            Sku = "SKU-001",
-            Name = "Producto de prueba"
+            Sku = "SKU-001"
         };
 
         Assert.True(product.AllowsNegativeStock);
@@ -52,5 +52,27 @@ public sealed class EntityDefaultsTests
 
         Assert.Equal("CODE_128", barcode.Format);
         Assert.True(barcode.IsActive);
+    }
+
+    [Theory]
+    [InlineData(" sku-001 ", "SKU-001")]
+    [InlineData("raw material", "RAW MATERIAL")]
+    public void Catalog_codes_are_trimmed_and_uppercase(string value, string expected)
+    {
+        Assert.Equal(expected, CatalogNormalization.NormalizeCode(value));
+    }
+
+    [Fact]
+    public void Product_supports_optional_catalogs_and_external_reference()
+    {
+        var product = new Product
+        {
+            Sku = "SKU-001",
+            ExternalReference = "RM:SKU-001"
+        };
+
+        Assert.Null(product.ProductTypeId);
+        Assert.Null(product.ProductClassId);
+        Assert.Equal("RM:SKU-001", product.ExternalReference);
     }
 }

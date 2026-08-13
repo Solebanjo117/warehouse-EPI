@@ -35,6 +35,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var home = await client.GetAsync("/");
         var login = await client.GetAsync("/Admin/Login");
         var users = await client.GetAsync("/Admin/Users");
+        var products = await client.GetAsync("/Admin/Catalogs/Products");
+        var productImport = await client.GetAsync("/Admin/Catalogs/Products/Import");
         var loginBody = await login.Content.ReadAsStringAsync();
 
         Assert.Equal(System.Net.HttpStatusCode.OK, home.StatusCode);
@@ -45,6 +47,10 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("Acceso administrativo", loginBody);
         Assert.Equal(System.Net.HttpStatusCode.Redirect, users.StatusCode);
         Assert.Equal("/Admin/Login", users.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, products.StatusCode);
+        Assert.Equal("/Admin/Login", products.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, productImport.StatusCode);
+        Assert.Equal("/Admin/Login", productImport.Headers.Location?.AbsolutePath);
     }
 
     [Fact]
@@ -53,7 +59,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
-            if (!await dbContext.Users.AnyAsync())
+            if (!await dbContext.Users.AnyAsync(user => user.FullName == "Administrador de prueba"))
             {
                 var role = await dbContext.Roles.SingleAsync(candidate => candidate.Code == "ADMIN");
                 var user = new User
@@ -98,10 +104,41 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var usersHtml = await users.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, users.StatusCode);
         Assert.Contains("Administrador de prueba", usersHtml);
+
+        var products = await client.GetAsync("/Admin/Catalogs/Products");
+        Assert.Equal(HttpStatusCode.OK, products.StatusCode);
+        Assert.Contains("Crear producto", await products.Content.ReadAsStringAsync());
+
+        var createPage = await client.GetAsync("/Admin/Catalogs/Products/Create");
+        var createHtml = await createPage.Content.ReadAsStringAsync();
+        var createToken = Regex.Match(
+            createHtml,
+            "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+        Assert.True(createToken.Success, "No se encontró el token antiforgery del producto.");
+
+        var createResponse = await client.PostAsync(
+            "/Admin/Catalogs/Products/Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Sku"] = "WEB-NO-DESCRIPTION",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "0",
+                ["Input.AllowsNegativeStock"] = "true",
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = WebUtility.HtmlDecode(createToken.Groups[1].Value)
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, createResponse.StatusCode);
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        var savedProduct = await verificationDb.Products.SingleAsync(product => product.Sku == "WEB-NO-DESCRIPTION");
+        Assert.Null(savedProduct.Description);
     }
 
     public sealed class WarehouseApplicationFactory : WebApplicationFactory<Program>
     {
+        private readonly string databaseName = $"WarehouseWebTests-{Guid.NewGuid():N}";
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.ConfigureAppConfiguration((_, configuration) =>
@@ -120,7 +157,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
                 services.RemoveAll<DbContextOptions<WarehouseDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<WarehouseDbContext>>();
                 services.AddDbContext<WarehouseDbContext>(options =>
-                    options.UseInMemoryDatabase("WarehouseWebTests"));
+                    options.UseInMemoryDatabase(databaseName));
 
                 using var provider = services.BuildServiceProvider();
                 using var scope = provider.CreateScope();

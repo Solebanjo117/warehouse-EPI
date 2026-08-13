@@ -1,19 +1,35 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Imports;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Bootstrap;
+using WarehouseEPI.Web.Imports;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages(options =>
-    options.Conventions.AuthorizeFolder("/Admin/Users", "AdminOnly"));
+{
+    options.Conventions.AuthorizeFolder("/Admin/Users", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Admin/Catalogs", "AdminOnly");
+});
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("Warehouse")));
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IProductSpreadsheetReader, ProductSpreadsheetReader>();
+builder.Services.AddSingleton<ProductImportPreviewStore>();
+builder.Services.AddScoped<ProductImportService>();
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = ProductImportLimits.MaxRequestBytes;
+    options.MemoryBufferThreshold = checked((int)ProductImportLimits.MaxRequestBytes);
+});
 
 var pinLookupKey = builder.Configuration["Security:PinLookupKey"];
 if (string.IsNullOrWhiteSpace(pinLookupKey))

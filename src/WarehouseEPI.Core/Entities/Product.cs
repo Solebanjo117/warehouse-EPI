@@ -4,10 +4,10 @@ public sealed class Product
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string Sku { get; set; }
-    public required string Name { get; set; }
     public string? Description { get; set; }
-    public string? TypeCode { get; set; }
-    public string? ClassCode { get; set; }
+    public string? ExternalReference { get; set; }
+    public short? ProductTypeId { get; set; }
+    public short? ProductClassId { get; set; }
     public short BaseUnitId { get; set; }
     public decimal MinimumStock { get; set; }
     public bool TracksLots { get; set; }
@@ -18,5 +18,7 @@ public sealed class Product
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public Unit BaseUnit { get; set; } = null!;
+    public ProductType? ProductType { get; set; }
+    public ProductClass? ProductClass { get; set; }
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
 }

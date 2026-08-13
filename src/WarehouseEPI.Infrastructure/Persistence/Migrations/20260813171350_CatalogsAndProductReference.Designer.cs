@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using WarehouseEPI.Infrastructure.Persistence;
 namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WarehouseDbContext))]
-    partial class WarehouseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260813171350_CatalogsAndProductReference")]
+    partial class CatalogsAndProductReference
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -137,6 +140,12 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("minimum_stock");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("character varying(180)")
+                        .HasColumnName("name");
 
                     b.Property<short?>("ProductClassId")
                         .HasColumnType("smallint")
@@ -757,14 +766,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                             Code = "OZ",
                             IsActive = true,
                             Name = "Onza"
-                        },
-                        new
-                        {
-                            Id = (short)18,
-                            AllowsDecimals = true,
-                            Code = "UNASSIGNED",
-                            IsActive = true,
-                            Name = "Sin asignar"
                         });
                 });
 

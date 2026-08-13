@@ -1,0 +1,138 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.ImportModel
+@{ ViewData["Title"] = "Importar productos"; }
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Importar productos</h1>
+        <p class="text-muted mb-0">Valida y previsualiza la hoja ITEMS antes de insertar productos.</p>
+    </div>
+    <a asp-page="Index" class="btn btn-outline-secondary">Volver a productos</a>
+</div>
+
+@if (Model.ImportMessage is not null)
+{
+    <div class="alert alert-success" role="status">@Model.ImportMessage</div>
+}
+@if (Model.ImportError is not null)
+{
+    <div class="alert alert-danger" role="alert">@Model.ImportError</div>
+}
+
+<div class="card card-body mb-4">
+    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
+        <div asp-validation-summary="All" class="text-danger mb-2"></div>
+        <label asp-for="Upload" class="form-label fw-semibold">Archivo de productos</label>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-8">
+                <input asp-for="Upload" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="form-control form-control-lg" />
+                <span asp-validation-for="Upload" class="text-danger"></span>
+            </div>
+            <div class="col-12 col-md-4">
+                <button type="submit" class="btn btn-primary btn-lg w-100">Analizar archivo</button>
+            </div>
+        </div>
+        <div class="form-text mt-2">Solo .xlsx, máximo 10 MB y 10,000 filas. Debe contener la hoja ITEMS con las columnas originales.</div>
+    </form>
+</div>
+
+@if (Model.Preview is { } preview)
+{
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h2 class="h4 mb-1">Vista previa</h2>
+            <div class="text-muted text-break">@preview.FileName · vence a las @preview.ExpiresAt.ToLocalTime().ToString("HH:mm")</div>
+        </div>
+        @if (preview.CanConfirm)
+        {
+            <form method="post" asp-page-handler="Confirm">
+                <input type="hidden" name="token" value="@preview.Token" />
+                <button type="submit" class="btn btn-success btn-lg">Confirmar importación</button>
+            </form>
+        }
+        else
+        {
+            <button type="button" class="btn btn-secondary btn-lg" disabled>Corrige los errores para confirmar</button>
+        }
+    </div>
+
+    <div class="row row-cols-2 row-cols-lg-4 g-2 mb-3">
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Filas fuente</span><strong class="fs-4">@preview.SourceRowCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Productos nuevos</span><strong class="fs-4 text-success">@preview.NewCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">SKU existentes</span><strong class="fs-4">@preview.ExistingCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Consolidados</span><strong class="fs-4">@preview.ConsolidatedCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Referencias vacías</span><strong class="fs-4">@preview.MissingExternalReferenceCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Advertencias</span><strong class="fs-4 text-warning">@preview.WarningCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Errores</span><strong class="fs-4 text-danger">@preview.ErrorCount.ToString("N0")</strong></div></div>
+        <div class="col"><div class="card card-body h-100"><span class="text-muted">Tipo</span><strong class="fs-5">Sin asignar</strong></div></div>
+    </div>
+
+    @if (preview.Issues.Count > 0)
+    {
+        <div class="card mb-3">
+            <div class="card-header fw-semibold">Incidencias del archivo</div>
+            <ul class="list-group list-group-flush">
+                @foreach (var issue in preview.Issues.Take(100))
+                {
+                    <li class="list-group-item @(issue.IsError ? "list-group-item-danger" : "list-group-item-warning")">
+                        @if (issue.RowNumber is not null) { <strong>Fila @issue.RowNumber:</strong> }
+                        @issue.Message
+                    </li>
+                }
+            </ul>
+            @if (preview.Issues.Count > 100)
+            {
+                <div class="card-footer text-muted">Se muestran las primeras 100 incidencias de @preview.Issues.Count.ToString("N0").</div>
+            }
+        </div>
+    }
+
+    <nav class="nav nav-pills flex-wrap gap-1 mb-3" aria-label="Filtros de la vista previa">
+        @foreach (var option in new[] { ("all", "Todos"), ("new", "Nuevos"), ("existing", "Omitidos"), ("consolidated", "Consolidados"), ("warnings", "Advertencias"), ("errors", "Errores") })
+        {
+            <a class="nav-link @(Model.Filter == option.Item1 ? "active" : "")" asp-route-token="@preview.Token" asp-route-filter="@option.Item1">@option.Item2</a>
+        }
+    </nav>
+
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead><tr><th>Fila(s)</th><th>SKU / descripción</th><th>Unidad</th><th>Clase</th><th>Referencia</th><th>Resultado</th></tr></thead>
+            <tbody>
+            @if (Model.Rows.Count == 0)
+            {
+                <tr><td colspan="6" class="text-center text-muted py-4">No hay filas para este filtro.</td></tr>
+            }
+            else
+            {
+                @foreach (var row in Model.Rows)
+                {
+                    <tr>
+                        <td>@string.Join(", ", row.SourceRows)</td>
+                        <td><strong>@row.Sku</strong>@if (row.Description is not null) { <div class="text-break">@row.Description</div> }</td>
+                        <td>@row.UnitDisplay</td>
+                        <td>@(row.ClassCode ?? "—")</td>
+                        <td class="text-break">@(row.ExternalReference ?? "—")</td>
+                        <td>
+                            @if (row.HasError) { <span class="badge text-bg-danger">Error</span> }
+                            else if (row.IsExisting) { <span class="badge text-bg-secondary">Omitir</span> }
+                            else if (row.IsConsolidated) { <span class="badge text-bg-info">Consolidado</span> }
+                            else { <span class="badge text-bg-success">Nuevo</span> }
+                            @if (row.HasWarning) { <span class="badge text-bg-warning">Advertencia</span> }
+                            @if (row.Message is not null) { <div class="small mt-1">@row.Message</div> }
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav aria-label="Paginación de la vista previa"><ul class="pagination justify-content-center">
+            <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-page="@(Model.CurrentPage - 1)">Anterior</a></li>
+            <li class="page-item disabled"><span class="page-link">@Model.CurrentPage de @Model.TotalPages</span></li>
+            <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-page="@(Model.CurrentPage + 1)">Siguiente</a></li>
+        </ul></nav>
+    }
+}
