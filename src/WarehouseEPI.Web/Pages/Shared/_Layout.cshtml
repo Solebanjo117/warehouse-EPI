@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,7 +13,7 @@
     <header>
         <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
             <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">WarehouseEPI.Web</a>
+                <a class="navbar-brand" asp-area="" asp-page="/Index">Warehouse EPI</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
                         aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
@@ -21,12 +21,28 @@
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
+                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Inicio</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
-                        </li>
+                        @if (User.IsInRole("ADMIN"))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-page="/Admin/Users/Index">Usuarios</a>
+                            </li>
+                        }
                     </ul>
+                    <div class="d-flex align-items-center gap-2">
+                        @if (User.Identity?.IsAuthenticated == true)
+                        {
+                            <span class="text-muted">@User.Identity.Name</span>
+                            <form method="post" asp-page="/Admin/Logout">
+                                <button type="submit" class="btn btn-outline-secondary">Salir</button>
+                            </form>
+                        }
+                        else
+                        {
+                            <a asp-page="/Admin/Login" class="btn btn-outline-primary">Administrar</a>
+                        }
+                    </div>
                 </div>
             </div>
         </nav>
@@ -39,7 +55,7 @@
 
     <footer class="border-top footer text-muted">
         <div class="container">
-            &copy; 2026 - WarehouseEPI.Web - <a asp-area="" asp-page="/Privacy">Privacy</a>
+            &copy; 2026 - Warehouse EPI
         </div>
     </footer>
 

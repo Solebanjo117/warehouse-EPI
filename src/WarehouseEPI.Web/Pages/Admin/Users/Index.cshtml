@@ -1,0 +1,50 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Users.IndexModel
+@{
+    ViewData["Title"] = "Usuarios";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="h2 mb-1">Usuarios</h1>
+        <p class="text-muted mb-0">Administra responsables, roles y NIP.</p>
+    </div>
+    <a asp-page="Create" class="btn btn-primary btn-lg">Crear usuario</a>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Rol</th>
+                <th>Estado</th>
+                <th class="text-end">Acción</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Users.Count == 0)
+        {
+            <tr><td colspan="4" class="text-center text-muted py-4">No hay usuarios.</td></tr>
+        }
+        else
+        {
+            @foreach (var user in Model.Users)
+            {
+                <tr>
+                    <td>@user.FullName</td>
+                    <td><span class="badge text-bg-secondary">@user.RoleCode</span> @user.RoleName</td>
+                    <td>
+                        <span class="badge @(user.IsActive ? "text-bg-success" : "text-bg-secondary")">
+                            @(user.IsActive ? "Activo" : "Inactivo")
+                        </span>
+                    </td>
+                    <td class="text-end">
+                        <a asp-page="Edit" asp-route-id="@user.Id" class="btn btn-outline-primary">Editar</a>
+                    </td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>

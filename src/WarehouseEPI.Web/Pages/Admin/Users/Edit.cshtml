@@ -1,0 +1,60 @@
+@page "{id:guid}"
+@model WarehouseEPI.Web.Pages.Admin.Users.EditModel
+@{
+    ViewData["Title"] = "Editar usuario";
+}
+
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-7">
+        <h1 class="h2 mb-4">Editar usuario</h1>
+        <form method="post" class="card shadow-sm">
+            <div class="card-body p-4">
+                <input type="hidden" asp-for="Input.Id" />
+                <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.FullName" class="form-label">Nombre completo</label>
+                    <input asp-for="Input.FullName" class="form-control form-control-lg" autocomplete="off" autofocus />
+                    <span asp-validation-for="Input.FullName" class="text-danger"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label asp-for="Input.RoleId" class="form-label">Rol</label>
+                    <select asp-for="Input.RoleId" asp-items="Model.Roles" class="form-select form-select-lg"></select>
+                    <span asp-validation-for="Input.RoleId" class="text-danger"></span>
+                </div>
+
+                <p class="fw-semibold mb-2">Cambiar NIP</p>
+                <p class="text-muted small">Déjalo vacío para conservar el NIP actual.</p>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Input.NewPin" class="form-label">Nuevo NIP</label>
+                        <input asp-for="Input.NewPin" class="form-control form-control-lg" inputmode="numeric"
+                               pattern="[0-9]{4,8}" autocomplete="new-password" />
+                        <span asp-validation-for="Input.NewPin" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Input.ConfirmPin" class="form-label">Confirmar NIP</label>
+                        <input asp-for="Input.ConfirmPin" class="form-control form-control-lg" inputmode="numeric"
+                               pattern="[0-9]{4,8}" autocomplete="new-password" />
+                        <span asp-validation-for="Input.ConfirmPin" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="form-check form-switch mb-4">
+                    <input asp-for="Input.IsActive" class="form-check-input" />
+                    <label asp-for="Input.IsActive" class="form-check-label">Usuario activo</label>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" class="btn btn-primary btn-lg">Guardar cambios</button>
+                    <a asp-page="Index" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
