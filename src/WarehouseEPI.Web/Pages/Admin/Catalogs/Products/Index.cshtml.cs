@@ -15,9 +15,9 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
     public int CurrentPage { get; private set; } = 1;
     public int TotalPages { get; private set; }
 
-    public async Task OnGetAsync(string? search, string status = "active", int page = 1, CancellationToken token = default)
+    public async Task OnGetAsync(string? search, string status = "active", int pageNumber = 1, CancellationToken token = default)
     {
-        Search = search?.Trim(); Status = status is "all" or "inactive" ? status : "active"; CurrentPage = Math.Max(1, page);
+        Search = search?.Trim(); Status = status is "all" or "inactive" ? status : "active"; CurrentPage = Math.Max(1, pageNumber);
         var query = dbContext.Products.AsNoTracking();
         if (Status == "active") query = query.Where(x => x.IsActive);
         else if (Status == "inactive") query = query.Where(x => !x.IsActive);

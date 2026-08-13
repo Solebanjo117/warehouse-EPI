@@ -130,9 +130,9 @@
     @if (Model.TotalPages > 1)
     {
         <nav aria-label="Paginación de la vista previa"><ul class="pagination justify-content-center">
-            <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-page="@(Model.CurrentPage - 1)">Anterior</a></li>
+            <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-pageNumber="@(Model.CurrentPage - 1)">Anterior</a></li>
             <li class="page-item disabled"><span class="page-link">@Model.CurrentPage de @Model.TotalPages</span></li>
-            <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-page="@(Model.CurrentPage + 1)">Siguiente</a></li>
+            <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-pageNumber="@(Model.CurrentPage + 1)">Siguiente</a></li>
         </ul></nav>
     }
 }

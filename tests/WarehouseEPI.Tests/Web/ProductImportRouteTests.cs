@@ -39,6 +39,40 @@ public sealed class ProductImportRouteTests : IClassFixture<AdminRouteTests.Ware
     }
 
     [Fact]
+    public async Task Product_list_uses_page_number_query_without_route_binding_errors()
+    {
+        await EnsureAdminAsync();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            if (!await db.Products.AnyAsync(product => product.Sku.StartsWith("PAGE-")))
+            {
+                db.Products.AddRange(Enumerable.Range(1, 60).Select(number => new Product
+                {
+                    Sku = $"PAGE-{number:000}",
+                    Description = $"Producto de paginación {number}",
+                    BaseUnitId = 1
+                }));
+                await db.SaveChangesAsync();
+            }
+        }
+
+        using var client = await SignInAsync();
+        var firstResponse = await client.GetAsync("/Admin/Catalogs/Products?status=all");
+        var firstHtml = WebUtility.HtmlDecode(await firstResponse.Content.ReadAsStringAsync());
+        var secondResponse = await client.GetAsync("/Admin/Catalogs/Products?status=all&pageNumber=2");
+        var secondHtml = WebUtility.HtmlDecode(await secondResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(HttpStatusCode.OK, firstResponse.StatusCode);
+        Assert.Contains("pageNumber=2", firstHtml);
+        Assert.DoesNotContain("is not valid", firstHtml);
+        Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
+        Assert.Contains("2 de 2", secondHtml);
+        Assert.Contains("PAGE-060", secondHtml);
+        Assert.DoesNotContain("is not valid", secondHtml);
+    }
+
+    [Fact]
     public async Task Admin_can_preview_and_confirm_with_antiforgery_and_token_is_one_use()
     {
         await EnsureAdminAsync();
@@ -46,6 +80,7 @@ public sealed class ProductImportRouteTests : IClassFixture<AdminRouteTests.Ware
         var before = await ProductCountAsync();
         var importPage = await client.GetAsync("/Admin/Catalogs/Products/Import");
         var importHtml = await importPage.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("is not valid", WebUtility.HtmlDecode(importHtml));
         var uploadToken = Antiforgery(importHtml);
 
         using var workbook = Workbook("WEB-IMPORT-UNIQUE");

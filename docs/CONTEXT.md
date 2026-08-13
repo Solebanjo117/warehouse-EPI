@@ -193,7 +193,7 @@ web. La
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 54 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 55 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
   de productos desde Excel;
@@ -292,6 +292,8 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Catálogo ADMIN de productos con búsqueda, filtros, paginación, unidad base,
   tipo y clase opcionales, referencia externa y reglas de lotes/caducidad. El
   producto se identifica mediante SKU y una descripción opcional.
+- La paginación de productos y de la vista previa usa el parámetro
+  `pageNumber`; no usa la clave reservada `page` de Razor Pages.
 - Códigos de barras integrados en el producto, con reactivación, desactivación y
   cambio transaccional del código principal.
 - Normalización y reserva de SKU y códigos de catálogo, y preservación exacta de
@@ -314,7 +316,7 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   Esta unidad está reservada: no puede editarse ni desactivarse desde el catálogo.
   La vista previa real termina con 1,612 candidatos y cero errores, sin insertar
   productos antes de confirmar.
-- Migraciones, respaldos, auditoría PostgreSQL, compilación y 54 pruebas completadas
+- Migraciones, respaldos, auditoría PostgreSQL, compilación y 55 pruebas completadas
   el 13 de agosto de 2026.
 
 ### Fase 4: ubicaciones y layout
@@ -471,7 +473,7 @@ HMAC-SHA256 y PBKDF2-SHA256, es único y no tiene bloqueo por intentos. Existen
 páginas para iniciar sesión, administrar usuarios y administrar los catálogos de
 la fase 3. Los productos usan SKU obligatorio y descripción opcional, sin un
 campo separado de nombre. La compilación fue verificada con .NET SDK 10.0.400
-sin errores ni advertencias. Las 54 pruebas pasan, incluida la vista previa del
+sin errores ni advertencias. Las 55 pruebas pasan, incluida la vista previa del
 archivo real sin escribir en PostgreSQL.
 
 La base real es warehouseEPI y ConnectionStrings:Warehouse fue validada sin

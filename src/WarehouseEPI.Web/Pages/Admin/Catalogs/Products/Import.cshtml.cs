@@ -25,7 +25,7 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
     [TempData]
     public string? ImportError { get; set; }
 
-    public IActionResult OnGet(string? token, string filter = "all", int page = 1)
+    public IActionResult OnGet(string? token, string filter = "all", int pageNumber = 1)
     {
         if (string.IsNullOrWhiteSpace(token))
             return Page();
@@ -35,7 +35,7 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
             return RedirectToPage();
         }
 
-        LoadPreview(preview, filter, page);
+        LoadPreview(preview, filter, pageNumber);
         return Page();
     }
 
@@ -76,7 +76,7 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
         return RedirectToPage();
     }
 
-    private void LoadPreview(ProductImportPreview preview, string filter, int page)
+    private void LoadPreview(ProductImportPreview preview, string filter, int pageNumber)
     {
         Preview = preview;
         Filter = filter is "new" or "existing" or "consolidated" or "warnings" or "errors" ? filter : "all";
@@ -92,7 +92,7 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
         };
         var filtered = query.ToList();
         TotalPages = Math.Max(1, (int)Math.Ceiling(filtered.Count / (double)PageSize));
-        CurrentPage = Math.Clamp(page, 1, TotalPages);
+        CurrentPage = Math.Clamp(pageNumber, 1, TotalPages);
         Rows = filtered.Skip((CurrentPage - 1) * PageSize).Take(PageSize).ToList();
     }
 
