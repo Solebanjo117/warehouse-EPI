@@ -1,6 +1,6 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 13 de agosto de 2026.
+Actualizado: 14 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
@@ -75,13 +75,32 @@ El sistema debe priorizar:
 ### Ubicaciones
 
 - Existe un solo almacén.
-- La nomenclatura física usa pasillo, estante, nivel/rack y, si se necesita,
-  posición de tarima.
-- El código de ubicación es la identidad operativa y debe aceptar códigos
-  existentes compactos como `1A1`.
-- Los componentes separados (`Aisle`, `Shelf`, `LevelNumber` y
-  `PalletPosition`) siguen siendo opcionales hasta validar el layout real.
-- Se proporcionará posteriormente el layout del almacén.
+- El layout físico fue proporcionado el 14 de agosto de 2026 mediante las
+  imágenes `shared image (20).jpg` y `shared image (19).jpg`, fuera del
+  repositorio. Antes de cargar ubicaciones se deben validar en sitio los racks
+  y posiciones realmente disponibles.
+- Para ubicaciones de rack, el código operativo canónico será
+  `Fila-Rack-Pallet`, por ejemplo `A-1-8`. La fila se identifica con una letra;
+  el rack es el espacio físico entre columnas; y el pallet identifica la
+  posición dentro del rack.
+- Un rack normalmente tiene nueve posiciones: tres inferiores, tres medias y
+  tres superiores. La numeración usa la distribución de un teclado numérico:
+  inferior `1, 2, 3`; media `4, 5, 6`; superior `7, 8, 9`. Por tanto,
+  `A-1-8` representa la posición central del nivel superior del rack 1 de la
+  fila A. El modelo debe admitir excepciones donde un rack físico no tenga las
+  nueve posiciones.
+- La identidad se almacenará además en componentes separados de fila, número de
+  rack y posición de pallet, para permitir búsqueda, orden numérico y filtros;
+  el código compuesto seguirá siendo único.
+- Las áreas que no son racks —por ejemplo WIP, Shipping, Carton, FC Rolls o
+  KPA— serán ubicaciones especiales con código propio y no se forzarán al
+  formato `Fila-Rack-Pallet`. El significado operativo de los colores del
+  croquis y el catálogo definitivo de esas áreas siguen pendientes de
+  confirmación.
+- La etiqueta de referencia mostrada en el layout usa el código grande
+  `A-1-8` y dimensiones aproximadas de 6 por 4 pulgadas. La fase 4 deberá
+  validar el formato físico final antes de imprimir etiquetas con código de
+  barras.
 - Más adelante se agregará un croquis interactivo para visualizar estantes,
   existencias y ubicaciones.
 
@@ -321,8 +340,16 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 ### Fase 4: ubicaciones y layout
 
-- Importar o capturar las ubicaciones reales.
-- Validar la nomenclatura con el layout que entregará el usuario.
+- Incorporar el layout entregado y capturar las ubicaciones reales.
+- Usar `Fila-Rack-Pallet` como nomenclatura canónica de los racks, con la
+  distribución de pallet `1` a `9` de teclado numérico y soporte para racks
+  incompletos.
+- Registrar por separado fila, rack y pallet, conservar el código compuesto
+  único y permitir búsqueda y orden físicos.
+- Registrar por separado las áreas especiales que no usan rack, sin inventar
+  su semántica a partir de los colores del croquis.
+- Validar en sitio el sentido de numeración y todas las posiciones existentes
+  antes de cualquier carga masiva.
 - Etiquetar ubicaciones con código de barras.
 - Permitir bloquear o desactivar ubicaciones.
 
@@ -412,7 +439,9 @@ Antes de implementar el área correspondiente, confirmar:
 - periodo máximo que deberá funcionar sin conexión;
 - versión/año exactos de QuickBooks Desktop y datos a intercambiar;
 - protocolo, controlador y formato de los paneles LED;
-- nomenclatura definitiva y dimensiones del layout del almacén.
+- listado físico definitivo de racks y pallets disponibles, sentido de
+  numeración por fila y semántica de las áreas y colores del layout;
+- formato físico final de las etiquetas de ubicación.
 
 ## 10. Reglas para continuar el desarrollo
 
@@ -443,6 +472,13 @@ La hoja `ITEMS` es la única fuente admitida por el importador de productos. Las
 65 filas con `U/M` vacío se importan con la unidad `UNASSIGNED / Sin asignar` y
 una advertencia visible. Esto permite confirmar el archivo sin asumir que esas
 filas corresponden a `EA`; posteriormente pueden filtrarse y reasignarse.
+
+El layout recibido el 14 de agosto de 2026 fija la nomenclatura de rack como
+`Fila-Rack-Pallet`, por ejemplo `A-1-8`. Cada rack tiene normalmente nueve
+posiciones distribuidas como un teclado numérico: `1,2,3` abajo; `4,5,6` en
+medio; y `7,8,9` arriba. Las áreas que no son racks conservarán códigos propios.
+Antes de cargarlas se validarán en sitio las posiciones existentes, el sentido de
+numeración y el significado de los colores del croquis.
 
 ## 12. Contexto breve para pegar en otro chat
 
@@ -493,4 +529,10 @@ está en User Secrets. PostgreSQL contiene exactamente un ADMIN activo creado de
 forma interactiva; sus credenciales no se leyeron ni documentaron. La fase 3 de
 catálogos está completa. No avances a ubicaciones, producción o movimientos salvo
 que yo cambie la prioridad.
+
+El layout físico ya fue entregado. Para racks, el código canónico será
+`Fila-Rack-Pallet` —por ejemplo `A-1-8`— y el pallet usa nueve posiciones como
+teclado numérico (`1-3` abajo, `4-6` medio, `7-9` arriba). Áreas no rack usan
+códigos propios. La fase 4 debe validar físicamente los racks, posiciones,
+sentido de numeración y significado de colores antes de cargarlos.
 ```
