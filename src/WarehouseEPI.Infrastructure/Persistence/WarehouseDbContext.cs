@@ -21,6 +21,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
     public DbSet<InventoryBalanceChange> InventoryBalanceChanges => Set<InventoryBalanceChange>();
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
+    public DbSet<InventoryMovementCorrection> InventoryMovementCorrections => Set<InventoryMovementCorrection>();
+    public DbSet<ProductLotDateChange> ProductLotDateChanges => Set<ProductLotDateChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +42,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureInventoryMovementLine(modelBuilder);
         ConfigureInventoryBalanceChange(modelBuilder);
         ConfigureInventoryBalance(modelBuilder);
+        ConfigureInventoryMovementCorrection(modelBuilder);
+        ConfigureProductLotDateChange(modelBuilder);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -178,9 +182,6 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.ToTable("products", table =>
         {
             table.HasCheckConstraint("ck_products_minimum_stock", "minimum_stock >= 0");
-            table.HasCheckConstraint(
-                "ck_products_expiration_requires_lots",
-                "NOT tracks_expiration OR tracks_lots");
             table.HasCheckConstraint("ck_products_sku_normalized", "sku = upper(btrim(sku)) AND sku <> ''");
             table.HasCheckConstraint(
                 "ck_products_external_reference_trimmed",
@@ -195,8 +196,6 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(product => product.ProductClassId).HasColumnName("product_class_id");
         entity.Property(product => product.BaseUnitId).HasColumnName("base_unit_id");
         entity.Property(product => product.MinimumStock).HasColumnName("minimum_stock").HasPrecision(18, 4);
-        entity.Property(product => product.TracksLots).HasColumnName("tracks_lots").HasDefaultValue(false);
-        entity.Property(product => product.TracksExpiration).HasColumnName("tracks_expiration").HasDefaultValue(false);
         entity.Property(product => product.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(product => product.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(product => product.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
@@ -310,7 +309,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(lot => lot.ProductId).HasColumnName("product_id");
         entity.Property(lot => lot.Number).HasColumnName("number").HasMaxLength(100).IsRequired();
         entity.Property(lot => lot.NormalizedNumber).HasColumnName("normalized_number").HasMaxLength(100).IsRequired();
-        entity.Property(lot => lot.ExpirationDate).HasColumnName("expiration_date");
+        entity.Property(lot => lot.LotDate).HasColumnName("lot_date");
+        entity.HasIndex(lot => new { lot.ProductId, lot.LotDate });
         entity.Property(lot => lot.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.HasIndex(lot => new { lot.ProductId, lot.NormalizedNumber }).IsUnique();
         entity.HasOne(lot => lot.Product)
@@ -365,6 +365,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(line => line.SourceLocationId).HasColumnName("source_location_id");
         entity.Property(line => line.DestinationLocationId).HasColumnName("destination_location_id");
         entity.Property(line => line.LotId).HasColumnName("lot_id");
+        entity.Property(line => line.LotAllocationMode).HasColumnName("lot_allocation_mode").HasDefaultValue(InventoryLotAllocationMode.None)
+            .HasConversion(value => LotAllocationModeToDatabase(value), value => LotAllocationModeFromDatabase(value));
         entity.Property(line => line.PreviousQuantity).HasColumnName("previous_quantity").HasPrecision(18, 4);
         entity.Property(line => line.AdjustmentDelta).HasColumnName("adjustment_delta").HasPrecision(18, 4);
         entity.HasIndex(line => new { line.MovementId, line.LineNumber }).IsUnique();
@@ -398,6 +400,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(change => change.MovementLineId).HasColumnName("movement_line_id");
         entity.Property(change => change.LocationId).HasColumnName("location_id");
         entity.Property(change => change.LotId).HasColumnName("lot_id");
+        entity.Property(change => change.LotNumberSnapshot).HasColumnName("lot_number_snapshot").HasMaxLength(100);
+        entity.Property(change => change.LotDateSnapshot).HasColumnName("lot_date_snapshot");
         entity.Property(change => change.DeltaQuantity).HasColumnName("delta_quantity").HasPrecision(18, 4);
         entity.Property(change => change.PreviousQuantity).HasColumnName("previous_quantity").HasPrecision(18, 4);
         entity.Property(change => change.ResultingQuantity).HasColumnName("resulting_quantity").HasPrecision(18, 4);
@@ -409,6 +413,28 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
             .HasForeignKey(change => change.LocationId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(change => change.Lot).WithMany()
             .HasForeignKey(change => change.LotId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureProductLotDateChange(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<ProductLotDateChange>();
+        entity.ToTable("product_lot_date_changes");
+        entity.HasKey(item => item.Id);
+        entity.Property(item => item.Id).HasColumnName("id");
+        entity.Property(item => item.OperationId).HasColumnName("operation_id");
+        entity.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        entity.Property(item => item.ProductLotId).HasColumnName("product_lot_id");
+        entity.Property(item => item.PreviousLotDate).HasColumnName("previous_lot_date");
+        entity.Property(item => item.NewLotDate).HasColumnName("new_lot_date");
+        entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+        entity.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        entity.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        entity.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        entity.HasIndex(item => item.OperationId).IsUnique();
+        entity.HasIndex(item => new { item.ProductLotId, item.RecordedAt });
+        entity.HasOne(item => item.ProductLot).WithMany().HasForeignKey(item => item.ProductLotId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureInventoryBalance(ModelBuilder modelBuilder)
@@ -438,6 +464,36 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
             .HasForeignKey(balance => balance.LotId).OnDelete(DeleteBehavior.Restrict);
     }
 
+    private static void ConfigureInventoryMovementCorrection(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InventoryMovementCorrection>();
+        entity.ToTable("inventory_movement_corrections", table =>
+            table.HasCheckConstraint("ck_inventory_movement_corrections_type", "type IN ('REVERSAL', 'REPLACEMENT')"));
+        entity.HasKey(item => item.Id);
+        entity.Property(item => item.Id).HasColumnName("id");
+        entity.Property(item => item.OperationId).HasColumnName("operation_id");
+        entity.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        entity.Property(item => item.Type).HasColumnName("type").HasMaxLength(20).HasConversion(
+            value => value == InventoryMovementCorrectionType.Reversal ? "REVERSAL" : "REPLACEMENT",
+            value => value == "REVERSAL" ? InventoryMovementCorrectionType.Reversal : InventoryMovementCorrectionType.Replacement);
+        entity.Property(item => item.OriginalMovementId).HasColumnName("original_movement_id");
+        entity.Property(item => item.ReversalMovementId).HasColumnName("reversal_movement_id");
+        entity.Property(item => item.ReplacementMovementId).HasColumnName("replacement_movement_id");
+        entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+        entity.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        entity.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        entity.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        entity.HasIndex(item => item.OperationId).IsUnique();
+        entity.HasIndex(item => item.OriginalMovementId).IsUnique();
+        entity.HasIndex(item => item.ReversalMovementId).IsUnique();
+        entity.HasIndex(item => item.ReplacementMovementId).IsUnique().HasFilter("replacement_movement_id IS NOT NULL");
+        entity.HasOne(item => item.OriginalMovement).WithMany().HasForeignKey(item => item.OriginalMovementId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.ReversalMovement).WithMany().HasForeignKey(item => item.ReversalMovementId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.ReplacementMovement).WithMany().HasForeignKey(item => item.ReplacementMovementId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         EnsureMovementHistoryIsImmutable();
@@ -455,7 +511,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange &&
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or ProductLotDateChange &&
                 entry.State is EntityState.Modified or EntityState.Deleted);
 
         if (changedHistory)
@@ -478,5 +534,19 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "TRANSFER" => InventoryMovementType.Transfer,
         "ADJUSTMENT" => InventoryMovementType.Adjustment,
         _ => throw new InvalidOperationException("Tipo de movimiento almacenado no soportado.")
+    };
+
+    private static string LotAllocationModeToDatabase(InventoryLotAllocationMode value) => value switch
+    {
+        InventoryLotAllocationMode.DailyLot => "DAILY_LOT",
+        InventoryLotAllocationMode.AutomaticFefo => "AUTOMATIC_FEFO",
+        _ => "NONE"
+    };
+
+    private static InventoryLotAllocationMode LotAllocationModeFromDatabase(string value) => value switch
+    {
+        "DAILY_LOT" => InventoryLotAllocationMode.DailyLot,
+        "AUTOMATIC_FEFO" => InventoryLotAllocationMode.AutomaticFefo,
+        _ => InventoryLotAllocationMode.None
     };
 }

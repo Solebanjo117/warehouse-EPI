@@ -60,7 +60,7 @@
                 <div class="lookup-results list-group" data-lookup-results></div>
                 <div class="selected-record @(product is null ? "d-none" : null)" data-selected-record
                      data-unit="@product?.UnitCode" data-allows-decimals="@(product?.AllowsDecimals == true ? "true" : "false")"
-                     data-tracks-lots="@(product?.TracksLots == true ? "true" : "false")">
+                     >
                     <strong data-selected-title>@product?.Sku</strong>
                     <span data-selected-detail>@product?.Description</span>
                     <small data-selected-meta>@product?.UnitCode</small>

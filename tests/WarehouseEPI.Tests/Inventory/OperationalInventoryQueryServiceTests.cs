@@ -31,7 +31,7 @@ public sealed class OperationalInventoryQueryServiceTests
     {
         await using var db = CreateDbContext();
         var inactive = new Product { Sku = "INACTIVE-SCAN", BaseUnitId = 1, IsActive = false };
-        var lotProduct = new Product { Sku = "LOT-SCAN", BaseUnitId = 1, TracksLots = true };
+        var lotProduct = new Product { Sku = "LOT-SCAN", BaseUnitId = 1 };
         var blocked = new Location
         {
             Code = "BLOCKED-SCAN",
@@ -49,7 +49,7 @@ public sealed class OperationalInventoryQueryServiceTests
         var service = new OperationalInventoryQueryService(db);
 
         Assert.Null(await service.ResolveProductAsync(inactive.Sku));
-        Assert.True((await service.ResolveProductAsync(lotProduct.Sku))?.TracksLots);
+        Assert.NotNull(await service.ResolveProductAsync(lotProduct.Sku));
         Assert.Null(await service.ResolveLocationAsync(blocked.Code));
         Assert.NotNull(await service.ResolveLocationAsync(blocked.Code, false));
         Assert.Empty(await service.GetProductLocationsAsync(lotProduct.Id));
@@ -110,6 +110,48 @@ public sealed class OperationalInventoryQueryServiceTests
         Assert.Equal(-1m, products.Single(item => item.Sku == "REL-BALANCE").Quantity);
         Assert.True(products.Single(item => item.Sku == "REL-MAIN").HasActiveAssignment);
         Assert.True(products.Single(item => item.Sku == "REL-MAIN").HasNonZeroBalance);
+    }
+
+    [Fact]
+    public async Task Public_inventory_positions_include_active_assignments_and_nonzero_balances()
+    {
+        await using var db = CreateDbContext();
+        var product = new Product { Sku = "PUBLIC-MAIN", BaseUnitId = 1 };
+        var inactiveProduct = new Product { Sku = "PUBLIC-INACTIVE", BaseUnitId = 1, IsActive = false };
+        var assigned = new Location { Code = "PUBLIC-A", Kind = LocationKind.Area };
+        var both = new Location { Code = "PUBLIC-B", Kind = LocationKind.Area };
+        var balanceOnly = new Location { Code = "PUBLIC-C", Kind = LocationKind.Area };
+        var inactiveAssignment = new Location { Code = "PUBLIC-D", Kind = LocationKind.Area };
+        var blocked = new Location { Code = "PUBLIC-E", Kind = LocationKind.Area, IsBlocked = true, BlockReason = "Prueba" };
+        db.AddRange(product, inactiveProduct, assigned, both, balanceOnly, inactiveAssignment, blocked);
+        db.ProductLocationAssignments.AddRange(
+            new ProductLocationAssignment { Product = product, Location = assigned },
+            new ProductLocationAssignment { Product = product, Location = both },
+            new ProductLocationAssignment { Product = product, Location = inactiveAssignment, IsActive = false },
+            new ProductLocationAssignment { Product = product, Location = blocked },
+            new ProductLocationAssignment { Product = inactiveProduct, Location = both });
+        db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = product, Location = both, Quantity = 3m },
+            new InventoryBalance { Product = product, Location = balanceOnly, Quantity = -1m });
+        await db.SaveChangesAsync();
+        var assignmentsBefore = await db.ProductLocationAssignments.CountAsync();
+        var balancesBefore = await db.InventoryBalances.CountAsync();
+        var queries = new InventoryQueryService(db);
+
+        var productPositions = await queries.GetProductInventoryAsync(product.Id);
+        Assert.Equal(["PUBLIC-A", "PUBLIC-B", "PUBLIC-C", "PUBLIC-E"], productPositions.Select(item => item.LocationCode));
+        Assert.True(productPositions.Single(item => item.LocationCode == "PUBLIC-A").HasActiveAssignment);
+        Assert.Equal(0m, productPositions.Single(item => item.LocationCode == "PUBLIC-A").Quantity);
+        Assert.True(productPositions.Single(item => item.LocationCode == "PUBLIC-B").HasNonZeroBalance);
+        Assert.True(productPositions.Single(item => item.LocationCode == "PUBLIC-C").IsNegative);
+        Assert.True(productPositions.Single(item => item.LocationCode == "PUBLIC-E").LocationIsBlocked);
+
+        var locationPositions = await queries.GetLocationInventoryAsync(both.Id);
+        Assert.Equal(["PUBLIC-INACTIVE", "PUBLIC-MAIN"], locationPositions.Select(item => item.ProductSku));
+        Assert.False(locationPositions.Single(item => item.ProductSku == "PUBLIC-INACTIVE").ProductIsActive);
+        Assert.Equal(3m, locationPositions.Single(item => item.ProductSku == "PUBLIC-MAIN").Quantity);
+        Assert.Equal(assignmentsBefore, await db.ProductLocationAssignments.CountAsync());
+        Assert.Equal(balancesBefore, await db.InventoryBalances.CountAsync());
     }
 
     private static WarehouseDbContext CreateDbContext()

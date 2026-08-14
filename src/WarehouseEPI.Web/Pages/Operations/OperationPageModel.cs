@@ -80,10 +80,6 @@ public abstract class OperationPageModel(
                 ModelState.AddModelError(string.Empty,
                     "El saldo cambió. Se recargó el conteo actual; revísalo y vuelve a introducir tu NIP.");
                 break;
-            case InventoryMovementStatus.LotSupportPending:
-                ModelState.AddModelError(string.Empty,
-                    "Este producto controla lotes y estará disponible en la fase 9.");
-                break;
             case InventoryMovementStatus.IdempotencyConflict:
                 ModelState.AddModelError(string.Empty,
                     "La operación ya fue utilizada con otro contenido o responsable. Inicia una operación nueva.");
@@ -144,8 +140,6 @@ public abstract class OperationPageModel(
             SelectedProduct = await operationalQuery.GetProductAsync(productId, cancellationToken: cancellationToken);
             if (SelectedProduct is null)
                 ModelState.AddModelError("Input.ProductId", "El producto no existe o está inactivo.");
-            else if (SelectedProduct.TracksLots)
-                ModelState.AddModelError("Input.ProductId", "Este producto controla lotes y estará disponible en la fase 9.");
         }
 
         if (Input.SourceLocationId is Guid sourceId)

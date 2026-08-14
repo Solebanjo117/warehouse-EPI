@@ -173,19 +173,40 @@ public sealed class InventoryMovementServiceTests
     }
 
     [Fact]
-    public async Task Invalid_inactive_and_lot_controlled_users_or_products_do_not_move_stock()
+    public async Task Invalid_pin_is_rejected_and_every_product_uses_internal_daily_lots()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var product = await fixture.AddProductAsync("LOT-PRODUCT", tracksLots: true);
+        var product = await fixture.AddProductAsync("LOT-PRODUCT");
         var location = await fixture.AddLocationAsync("LOT-AREA");
         var command = new InventoryMovementCommand(
             Guid.NewGuid(), InventoryMovementType.Entry, "9999",
             [new(product.Id, 1m, DestinationLocationId: location.Id)]);
 
         Assert.Equal(InventoryMovementStatus.InvalidPin, (await fixture.Service.ConfirmAsync(command)).Status);
-        Assert.Equal(InventoryMovementStatus.LotSupportPending,
+        Assert.Equal(InventoryMovementStatus.Success,
             (await fixture.Service.ConfirmAsync(command with { Pin = fixture.OperatorPin })).Status);
-        Assert.False(await fixture.Db.InventoryMovements.AnyAsync());
+        Assert.Single(await fixture.Db.ProductLots.ToListAsync());
+        Assert.Single(await fixture.Db.InventoryMovements.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Exit_consumes_internal_lot_and_keeps_operator_capture_aggregate()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("AUTO-LOT");
+        var location = await fixture.AddLocationAsync("AUTO-AREA");
+        await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 5m, DestinationLocationId: location.Id)]));
+
+        var result = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Exit, fixture.OperatorPin,
+            [new(product.Id, 7m, SourceLocationId: location.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        var movement = await fixture.Db.InventoryMovements.Include(item => item.Lines).ThenInclude(item => item.BalanceChanges)
+            .SingleAsync(item => item.Type == InventoryMovementType.Exit);
+        Assert.Equal(InventoryLotAllocationMode.AutomaticFefo, movement.Lines.Single().LotAllocationMode);
+        Assert.Equal(-7m, movement.Lines.Single().BalanceChanges.Sum(change => change.DeltaQuantity));
+        Assert.Equal(-2m, (await fixture.Db.InventoryBalances.Where(item => item.ProductId == product.Id).SumAsync(item => item.Quantity)));
     }
 
     [Fact]
@@ -227,6 +248,27 @@ public sealed class InventoryMovementServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Db.SaveChangesAsync());
     }
 
+    [Fact]
+    public async Task Admin_correction_reverses_entry_and_keeps_original_immutable()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("REVERSAL");
+        var location = await fixture.AddLocationAsync("REVERSAL-A");
+        var original = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 3.5m, DestinationLocationId: location.Id)]));
+        var admin = await fixture.AddUserAsync("Administrador", 1, "1357");
+
+        var result = await fixture.CorrectionService.ConfirmAsync(new(Guid.NewGuid(), original.MovementId!.Value, admin.Id, "1357", "Cantidad capturada por error"));
+
+        Assert.Equal(InventoryCorrectionStatus.Success, result.Status);
+        Assert.Equal(0m, (await fixture.Db.InventoryBalances.SingleAsync()).Quantity);
+        Assert.Equal(2, await fixture.Db.InventoryMovements.CountAsync());
+        var correction = await fixture.Db.InventoryMovementCorrections.SingleAsync();
+        Assert.Equal(original.MovementId, correction.OriginalMovementId);
+        Assert.Equal(admin.Id, correction.RequestedByUserId);
+        Assert.Equal(admin.Id, correction.AuthorizedByUserId);
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private const string LookupKey =
@@ -235,11 +277,13 @@ public sealed class InventoryMovementServiceTests
         public Guid OperatorId { get; }
         public WarehouseDbContext Db { get; }
         public InventoryMovementService Service { get; }
+        public InventoryCorrectionService CorrectionService { get; }
 
-        private Fixture(WarehouseDbContext db, InventoryMovementService service, Guid operatorId)
+        private Fixture(WarehouseDbContext db, InventoryMovementService service, InventoryCorrectionService correctionService, Guid operatorId)
         {
             Db = db;
             Service = service;
+            CorrectionService = correctionService;
             OperatorId = operatorId;
         }
 
@@ -259,7 +303,8 @@ public sealed class InventoryMovementServiceTests
             Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(user, "2468"));
             db.Users.Add(user);
             await db.SaveChangesAsync();
-            return new(db, new InventoryMovementService(db, pinService, TimeProvider.System), user.Id);
+            var service = new InventoryMovementService(db, pinService, TimeProvider.System);
+            return new(db, service, new InventoryCorrectionService(db, pinService, service, TimeProvider.System), user.Id);
         }
 
         public async Task<User> AddUserAsync(string name, short roleId, string pin)
@@ -278,9 +323,9 @@ public sealed class InventoryMovementServiceTests
             return user;
         }
 
-        public async Task<Product> AddProductAsync(string sku, bool tracksLots = false)
+        public async Task<Product> AddProductAsync(string sku)
         {
-            var product = new Product { Sku = sku, BaseUnitId = 1, TracksLots = tracksLots };
+            var product = new Product { Sku = sku, BaseUnitId = 1 };
             Db.Products.Add(product);
             await Db.SaveChangesAsync();
             return product;

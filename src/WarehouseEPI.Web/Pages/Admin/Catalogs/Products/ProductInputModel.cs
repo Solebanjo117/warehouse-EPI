@@ -26,7 +26,5 @@ public sealed class ProductInputModel
     public short BaseUnitId { get; set; }
     [Range(typeof(decimal), "0", "99999999999999.9999", ErrorMessage = "El stock mínimo debe ser mayor o igual que cero.")]
     public decimal MinimumStock { get; set; }
-    public bool TracksLots { get; set; }
-    public bool TracksExpiration { get; set; }
     public bool IsActive { get; set; } = true;
 }

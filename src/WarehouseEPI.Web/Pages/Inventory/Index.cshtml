@@ -61,19 +61,31 @@
         <section class="operation-card">
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
-                    <thead><tr><th>Producto</th><th>Ubicación</th><th class="text-end">Cantidad</th></tr></thead>
+                    <thead><tr><th>Producto</th><th>Ubicación</th><th>Estado</th><th class="text-end">Cantidad</th></tr></thead>
                     <tbody>
-                    @foreach (var balance in Model.Balances)
+                    @foreach (var position in Model.Positions)
                     {
-                        <tr class="@(balance.IsNegative ? "table-warning" : null)">
-                            <td><strong>@balance.ProductSku</strong></td>
-                            <td>@balance.LocationCode</td>
-                            <td class="text-end"><strong>@balance.Quantity.ToString("0.####")</strong>@(balance.IsNegative ? " ⚠" : null)</td>
+                        <tr class="@(position.IsNegative ? "table-warning" : null)">
+                            <td>
+                                <strong>@position.ProductSku</strong>
+                                @if (!position.ProductIsActive) { <span class="badge text-bg-secondary ms-1">Producto inactivo</span> }
+                                @if (position.ProductDescription is not null) { <div class="small text-muted">@position.ProductDescription</div> }
+                            </td>
+                            <td>
+                                @position.LocationCode
+                                @if (!position.LocationIsActive) { <span class="badge text-bg-secondary ms-1">Ubicación inactiva</span> }
+                                else if (position.LocationIsBlocked) { <span class="badge text-bg-warning ms-1">Ubicación bloqueada</span> }
+                            </td>
+                            <td>
+                                @if (position.HasActiveAssignment) { <span class="badge text-bg-success">Asignado</span> }
+                                else { <span class="badge text-bg-secondary">Saldo sin asignación activa</span> }
+                            </td>
+                            <td class="text-end"><strong>@position.Quantity.ToString("0.####") @position.UnitCode</strong>@(position.IsNegative ? " ⚠" : null)</td>
                         </tr>
                     }
-                    @if (Model.Balances.Count == 0)
+                    @if (Model.Positions.Count == 0)
                     {
-                        <tr><td colspan="3" class="text-center text-muted py-4">No hay saldos registrados.</td></tr>
+                        <tr><td colspan="4" class="text-center text-muted py-4">No hay asignaciones activas ni saldos distintos de cero.</td></tr>
                     }
                     </tbody>
                 </table>

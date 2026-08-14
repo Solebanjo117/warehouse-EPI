@@ -242,11 +242,8 @@
       if (lookupKind === "product") {
         lookup.record.dataset.unit = item.unitCode;
         lookup.record.dataset.allowsDecimals = item.allowsDecimals;
-        lookup.record.dataset.tracksLots = item.tracksLots;
         unitLabel.textContent = item.unitCode;
         quantityInput.step = item.allowsDecimals ? "0.0001" : "1";
-        if (item.tracksLots)
-          lookup.input.setCustomValidity("Este producto controla lotes y estará disponible en la fase 9.");
       }
       lookup.record.classList.remove("d-none");
       lookup.results.replaceChildren();

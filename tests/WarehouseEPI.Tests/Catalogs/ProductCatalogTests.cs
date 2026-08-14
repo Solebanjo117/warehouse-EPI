@@ -28,11 +28,11 @@ public sealed class ProductCatalogTests
     }
 
     [Fact]
-    public async Task Product_validation_normalizes_and_rejects_duplicate_sku_and_expiration_without_lots()
+    public async Task Product_validation_normalizes_and_rejects_duplicate_sku()
     {
         await using var db = CreateContext(); await db.Database.EnsureCreatedAsync();
         db.Products.Add(new Product { Sku = "SKU-001", BaseUnitId = 1 }); await db.SaveChangesAsync();
-        var input = new ProductInputModel { Sku = " sku-001 ", Description = " Descripción ", BaseUnitId = 1, TracksExpiration = true };
+        var input = new ProductInputModel { Sku = " sku-001 ", Description = " Descripción ", BaseUnitId = 1 };
         ProductPageSupport.Normalize(input); var state = new ModelStateDictionary();
 
         await ProductPageSupport.ValidateAsync(db, input, state, CancellationToken.None);
@@ -40,7 +40,6 @@ public sealed class ProductCatalogTests
         Assert.Equal("SKU-001", input.Sku);
         Assert.Equal("Descripción", input.Description);
         Assert.True(state.ContainsKey("Input.Sku"));
-        Assert.True(state.ContainsKey("Input.TracksExpiration"));
     }
 
     [Fact]

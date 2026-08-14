@@ -11,8 +11,7 @@ public sealed record OperationalProductResult(
     string? Description,
     string? ExternalReference,
     string UnitCode,
-    bool AllowsDecimals,
-    bool TracksLots);
+    bool AllowsDecimals);
 
 public sealed record OperationalLocationResult(
     Guid Id,
@@ -36,7 +35,6 @@ public sealed record OperationalLocationProductResult(
     string? ExternalReference,
     string UnitCode,
     bool AllowsDecimals,
-    bool TracksLots,
     decimal Quantity,
     bool HasActiveAssignment,
     bool HasNonZeroBalance);
@@ -66,11 +64,14 @@ public sealed record InventoryReceipt(
     string? Reference,
     string? Notes,
     DateTimeOffset OccurredAt,
-    IReadOnlyList<InventoryReceiptLine> Lines)
+    IReadOnlyList<InventoryReceiptLine> Lines,
+    InventoryReceiptCorrection? Correction = null)
 {
     public bool HasNegativeBalance => Lines.SelectMany(line => line.Changes)
         .Any(change => change.ResultingQuantity < 0);
 }
+
+public sealed record InventoryReceiptCorrection(Guid OriginalMovementId, Guid ReversalMovementId, Guid? ReplacementMovementId, string Reason);
 
 public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContext)
 {
@@ -205,7 +206,6 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 assignment.Product.ExternalReference,
                 assignment.Product.BaseUnit.Code,
                 assignment.Product.BaseUnit.AllowsDecimals,
-                assignment.Product.TracksLots,
                 0m,
                 true,
                 false))
@@ -221,7 +221,6 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 balance.Product.ExternalReference,
                 balance.Product.BaseUnit.Code,
                 balance.Product.BaseUnit.AllowsDecimals,
-                balance.Product.TracksLots,
                 balance.Quantity,
                 false,
                 true))
@@ -246,6 +245,10 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         if (movement is null)
             return null;
 
+        var correction = await dbContext.InventoryMovementCorrections.AsNoTracking()
+            .Where(item => item.OriginalMovementId == movementId || item.ReversalMovementId == movementId || item.ReplacementMovementId == movementId)
+            .Select(item => new InventoryReceiptCorrection(item.OriginalMovementId, item.ReversalMovementId, item.ReplacementMovementId, item.Reason))
+            .SingleOrDefaultAsync(cancellationToken);
         return new(
             movement.Id,
             movement.OperationId,
@@ -268,7 +271,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                         change.Location.Code,
                         change.PreviousQuantity,
                         change.DeltaQuantity,
-                        change.ResultingQuantity)).ToArray())).ToArray());
+                        change.ResultingQuantity)).ToArray())).ToArray(), correction);
     }
 
     private IQueryable<Product> ProductQuery(bool activeOnly)
@@ -290,8 +293,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             product.Description,
             product.ExternalReference,
             product.BaseUnit.Code,
-            product.BaseUnit.AllowsDecimals,
-            product.TracksLots);
+            product.BaseUnit.AllowsDecimals);
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
         location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked);

@@ -9,7 +9,7 @@ public sealed class IndexModel(
 {
     public OperationalProductResult? Product { get; private set; }
     public OperationalLocationResult? Location { get; private set; }
-    public IReadOnlyList<InventoryBalanceView> Balances { get; private set; } = [];
+    public IReadOnlyList<InventoryPositionView> Positions { get; private set; } = [];
     public decimal ProductTotal { get; private set; }
     public string? ErrorMessage { get; private set; }
 
@@ -30,7 +30,7 @@ public sealed class IndexModel(
                 ErrorMessage = "No se encontró el producto.";
                 return;
             }
-            Balances = await inventoryQuery.GetProductBalancesAsync(Product.Id, cancellationToken);
+            Positions = await inventoryQuery.GetProductInventoryAsync(Product.Id, cancellationToken);
             ProductTotal = await inventoryQuery.GetProductTotalAsync(Product.Id, cancellationToken);
             return;
         }
@@ -45,7 +45,7 @@ public sealed class IndexModel(
                 ErrorMessage = "No se encontró la ubicación.";
                 return;
             }
-            Balances = await inventoryQuery.GetLocationContentsAsync(Location.Id, cancellationToken);
+            Positions = await inventoryQuery.GetLocationInventoryAsync(Location.Id, cancellationToken);
         }
     }
 }

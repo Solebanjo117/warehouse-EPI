@@ -11,6 +11,7 @@ public sealed class InventoryMovementLine
     public Guid? SourceLocationId { get; set; }
     public Guid? DestinationLocationId { get; set; }
     public Guid? LotId { get; set; }
+    public InventoryLotAllocationMode LotAllocationMode { get; set; }
     public decimal? PreviousQuantity { get; set; }
     public decimal? AdjustmentDelta { get; set; }
 

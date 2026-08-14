@@ -7,8 +7,9 @@ un chat nuevo, se debe leer este archivo y verificar el estado actual del
 repositorio. Las decisiones marcadas como pendientes no deben convertirse en
 requisitos definitivos sin confirmación.
 
-**Estado general:** las fases 1 a 6 están completadas. El siguiente bloque de
-desarrollo es la fase 7, historial y correcciones. La validación física completa
+**Estado general:** las fases 1 a 7 están completadas. La fase 8 de paquetes y
+conversiones fue descartada por decisión del negocio; la fase 9 usa lotes
+internos automáticos para todo el catálogo. La validación física completa
 de las ubicaciones cargadas sigue siendo una comprobación operativa pendiente,
 pero no cambia el cierre técnico de la fase 4.
 
@@ -24,7 +25,7 @@ El sistema debe priorizar:
 - inventario por producto y ubicación;
 - trazabilidad completa de los movimientos;
 - interfaz ligera para tablets lentas;
-- posibilidad de crecer a lotes, caducidades, operación sin conexión,
+- posibilidad de crecer a lotes internos, operación sin conexión,
   QuickBooks Desktop, croquis del almacén y paneles LED.
 
 ## 2. Operación confirmada
@@ -52,22 +53,22 @@ El sistema debe priorizar:
   asignación permanece aunque el saldo sea cero; no sustituye al saldo real.
 - Al confirmar una entrada, la cantidad queda ligada al producto y a la
   ubicación seleccionada.
-- La fuente de verdad será el saldo de `producto + ubicación`; cuando el
-  producto controle lotes, será `producto + ubicación + lote`.
+- La fuente física de verdad es el saldo de `producto + ubicación + lote`;
+  las pantallas operativas muestran siempre su suma por producto y ubicación.
 - El total general de un producto se obtiene sumando sus saldos por ubicación;
   no debe mantenerse como otro saldo independiente.
 - Las cantidades normalmente son enteras, pero el modelo permite decimales con
   precisión `numeric(18,4)`.
-- Cada producto tendrá una unidad base. Las conversiones por paquete o
-  presentación se implementarán después de definir sus reglas.
+- Cada producto tiene una sola unidad base, por ejemplo `EA`, `ROLL` o `KG`.
+  Las cantidades se capturan, almacenan y muestran directamente en esa unidad;
+  no se implementarán paquetes, factores de conversión ni equivalencias.
 - El inventario negativo está permitido. Cuando no sea posible comprobar la
   existencia o una salida exceda el saldo, se registra el movimiento y el saldo
   puede quedar negativo. El sistema debe advertirlo claramente sin bloquearlo;
   no existe una configuración por producto que impida saldos negativos.
-- Algunos productos manejarán lote y caducidad. Ambas funciones son opcionales
-  y estarán desactivadas de forma predeterminada.
-- Para productos con caducidad, la salida automática deberá sugerir primero el
-  lote con vencimiento más próximo (FEFO).
+- Todos los productos manejan lotes internos automáticos. El operador no los
+  captura, selecciona ni consulta.
+- La salida automática consume primero la fecha interna de lote más antigua.
 
 ### Movimientos
 
@@ -192,7 +193,7 @@ También existe `WarehouseDbContext`, con:
 - producto identificado por SKU obligatorio y descripción opcional sin límite
   artificial de longitud; no existe un campo separado de nombre de producto;
 - Code 128 como formato predeterminado;
-- lotes y caducidad desactivados por defecto;
+- lotes internos automáticos para todo el catálogo, sin caducidad;
 - inventario negativo permitido globalmente y señalado mediante advertencia;
 - campos de ubicación desglosados opcionales.
 
@@ -209,9 +210,10 @@ asignaciones producto-ubicación se crean o reactivan dentro de la misma
 transacción; si el pallet ya contiene otros productos se devuelve una solicitud
 de confirmación específica antes de escribir.
 
-El esquema de lotes está preparado, pero los movimientos de productos con
-`TracksLots` continúan bloqueados hasta implementar el soporte funcional y FEFO
-en la fase 9.
+Los movimientos resuelven internamente un lote diario `AUTO-YYYYMMDD` por
+producto usando la fecha local `America/Matamoros`. Entrada y aumentos de
+ajuste usan el lote diario; salida, transferencia y disminuciones consumen los
+lotes por fecha interna más antigua. Ninguna captura pública recibe un lote.
 
 `Program.cs` registra `WarehouseDbContext`, autenticación por cookie para la
 administración, autorización `AdminOnly`, `PinProtector` y `UserPinService`.
@@ -248,7 +250,7 @@ web. La
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 101 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 105 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
   de productos desde Excel, además de las reglas, generación y administración de
@@ -343,11 +345,11 @@ terminal nueva.
   `allows_negative_stock` y cero movimientos, líneas, cambios, saldos y lotes.
 
 La base técnica, el esquema inicial, la seguridad por NIP, la administración de
-usuarios, los catálogos, las ubicaciones y el núcleo de inventario están
-terminados. PostgreSQL contiene un administrador activo creado mediante el
-comando interactivo; no se registraron su nombre, NIP ni campos protegidos en
-este documento. Las fases 1 a 6 están cerradas y el siguiente bloque es la fase
-7, historial y correcciones. Las 153
+usuarios, los catálogos, las ubicaciones, el núcleo de inventario y el historial
+auditable están terminados. PostgreSQL contiene un administrador activo creado
+mediante el comando interactivo; no se registraron su nombre, NIP ni campos
+protegidos en este documento. Las fases 1 a 7 están cerradas, la fase 8 fue
+descartada y el siguiente bloque es la fase 9. Las 153
 ubicaciones ya están cargadas; únicamente sigue pendiente comprobar en sitio que
 cubran todas las posiciones y excepciones físicas del almacén.
 
@@ -484,31 +486,66 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   saldo inexistente y solo se acepta cuando la misma transacción crea la fila;
   una creación concurrente devuelve `BalanceChanged`.
 - Consulta pública por producto o ubicación, sin NIP y sin escritura.
+- Las consultas de detalle filtran y ordenan las entidades antes de proyectar
+  sus resultados, con traducción verificada directamente contra PostgreSQL.
+- La consulta pública combina asignaciones activas y saldos distintos de cero
+  en ambas direcciones. Una asignación sin saldo se muestra con cantidad cero;
+  los registros inactivos se conservan como información y nunca se modifican.
 - Interfaz responsive verificada en escritorio y viewport de tablet, con controles
   grandes, foco secuencial y prevención de doble envío.
-- Compilación sin advertencias y 101 pruebas aprobadas el 14 de agosto de 2026,
+- Compilación sin advertencias y 105 pruebas aprobadas el 14 de agosto de 2026,
   incluidas cinco pruebas PostgreSQL aisladas en `warehouse_epi_test`.
 
-### Fase 7: historial y correcciones — siguiente
+### Fase 7: historial y correcciones — completada
 
-- Consulta y filtros de movimientos.
-- Detalle completo del responsable, fecha, producto y ubicaciones.
-- Reverso y reemplazo auditables.
-- Exportación inicial a Excel o CSV.
-- Alertas de inventario negativo y stock mínimo.
+- `/Admin/Inventory` queda protegido con `AdminOnly` e incluye historial,
+  detalle, corrección, exportación CSV/XLSX y alertas derivadas.
+- `InventoryMovementCorrection` conserva original, reverso, reemplazo opcional,
+  motivo, solicitante autenticado y autorizador por NIP ADMIN; no se guarda el
+  NIP.
+- El reverso se calcula desde los cambios históricos de saldo y el reemplazo
+  usa el motor transaccional existente. Los comprobantes públicos muestran los
+  movimientos relacionados sin proporcionar un buscador público.
+- La migración `InventoryMovementCorrections` fue revisada en
+  `docs/sql/InventoryMovementCorrections.sql`, validada primero en
+  `warehouse_epi_test` y aplicada posteriormente a `warehouseEPI`.
+- Compilación sin advertencias, ocho pruebas PostgreSQL aisladas y 106 pruebas
+  totales aprobadas el 14 de agosto de 2026.
+- Las páginas y la funcionalidad de corrección fueron comprobadas manualmente
+  por el usuario después de aplicar la migración operativa.
 
-### Fase 8: paquetes y presentaciones
+### Fase 8: paquetes y presentaciones — descartada
 
-- Definir conversiones con el negocio.
-- Registrar factor entre paquete y unidad base.
-- Mantener el saldo en unidad base y mostrar equivalencias.
+- No se implementarán presentaciones ni factores de conversión.
+- Cada producto opera exclusivamente con su unidad base configurada, como
+  `EA`, `ROLL` o `KG`.
+- La cantidad capturada en las operaciones es la misma que se registra en los
+  movimientos y saldos, sin conversiones ni redondeos adicionales.
 
-### Fase 9: lotes, caducidad y FEFO
+### Fase 9: lotes internos automáticos globales — implementada
 
-- Crear lotes y saldos por lote/ubicación.
-- Capturar lote existente de compra y fecha de caducidad cuando aplique.
-- Sugerir automáticamente el lote con vencimiento más próximo.
-- Permitir sustitución autorizada y dejar trazabilidad.
+- Todo producto crea y reutiliza por producto el lote interno diario
+  `AUTO-YYYYMMDD`; no existe el campo ni el selector `TracksLots` y no se
+  capturan datos del proveedor.
+- Entrada y aumentos por ajuste usan el lote diario. Salida, Transferencia y
+  disminuciones por ajuste distribuyen automáticamente desde los lotes más
+  antiguos.
+- La interfaz pública y comprobantes muestran solo saldos agregados. El detalle
+  queda en administración, historial y cambios de saldo.
+- No existe caducidad ni `TracksExpiration`; la fecha interna nullable es
+  `ProductLot.LotDate`.
+- La migración `GlobalInternalLots` crea/reutiliza el lote local del día de
+  migración para los productos históricos, convierte los saldos sin lote y
+  después elimina `products.tracks_lots`. Los movimientos y cambios históricos
+  conservan su `LotId` nulo como evidencia; sus reversos se aplican al lote
+  inicial de migración, sin volver a crear saldos sin lote.
+- `20260817090000_GlobalInternalLots` se aplicó a `warehouseEPI` el 14 de
+  agosto de 2026 después del respaldo validado
+  `BackupDatabase/public-before-global-internal-lots-20260814-135141.dump`.
+  La auditoría final confirmó 1,612 productos, 216 ubicaciones, 5 asignaciones,
+  9 movimientos, 4 saldos y 3 lotes; no queda ningún saldo sin lote ni columna
+  `tracks_lots`. Compilación y 107 pruebas, incluida la fixture PostgreSQL
+  aislada `warehouse_epi_test`, aprobadas.
 
 ### Fase 10: tablets, escáner y PWA
 
@@ -550,7 +587,6 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 Antes de implementar el área correspondiente, confirmar:
 
 - referencia o documento operativo de entradas y salidas;
-- reglas exactas de paquetes y conversiones;
 - campos obligatorios del lote y origen de la fecha de caducidad;
 - política de conflictos cuando una salida fuera de línea produce saldo negativo;
 - periodo máximo que deberá funcionar sin conexión;
@@ -613,11 +649,13 @@ Android lentas usarán Chrome. Roles: ADMIN y OPERATOR; ambos hacen movimientos 
 ajustes, ADMIN administra usuarios. Cada usuario tiene un NIP único, sin número
 de empleado, solicitado en cada movimiento; nunca se almacena en texto plano.
 
-El inventario se controla por producto + ubicación y, cuando aplique, lote. Los
-totales se derivan de esos saldos. Se permiten cantidades decimal(18,4), saldo
-negativo, múltiples ubicaciones y varios códigos por producto. Lotes y caducidad
-son opcionales y están desactivados por defecto; después se usará FEFO. Los
-movimientos serán Entrada, Salida, Transferencia y Ajuste. Los confirmados son
+El inventario se controla físicamente por producto + ubicación + lote interno;
+las consultas y capturas operativas usan los saldos agregados por producto y
+ubicación. Los totales se derivan de esos saldos. Se permiten cantidades
+decimal(18,4), saldo negativo, múltiples ubicaciones y varios códigos por
+producto. Todo producto usa automáticamente un lote diario interno y no existe
+caducidad ni control de lote por operador. Los movimientos serán Entrada,
+Salida, Transferencia y Ajuste. Los confirmados son
 inmutables: las correcciones se hacen mediante reverso y reemplazo auditable.
 
 Ya existen Role, User, Unit, ProductType, ProductClass, Product, ProductBarcode,
@@ -681,6 +719,31 @@ no predecible y no repite la operación al recargar. La versión cero permite el
 primer ajuste de un saldo inexistente sin perder el control concurrente. El
 escaneo operativo muestra relaciones en ambos sentidos, combinando asignaciones
 activas con saldos distintos de cero; solo autocompleta una contraparte única y
-las parejas nuevas se crean exclusivamente al confirmar con NIP. El
-siguiente trabajo es la fase 7: historial, reversos y reemplazos auditables.
+las parejas nuevas se crean exclusivamente al confirmar con NIP. La fase 7 de
+historial y correcciones fue validada manualmente. La fase 8 fue descartada.
+
+La fase 9 implementa lotes internos automáticos para todo el catálogo: el
+operador no captura, selecciona ni consulta lotes. El sistema crea por producto
+y fecha local (`America/Matamoros`) el lote `AUTO-YYYYMMDD`; Entrada y aumentos
+por ajuste suman en ese lote, mientras Salida,
+Transferencia y disminuciones por ajuste distribuyen automáticamente desde los
+lotes con fecha más antigua. El término FEFO se conserva como nombre operativo,
+pero la política es FIFO por fecha interna. Se eliminó caducidad y
+`TracksExpiration`; `ProductLot.LotDate` conserva la fecha interna. Los cambios
+por lote se registran en `InventoryBalanceChange`, aunque las páginas públicas
+y comprobantes siguen mostrando únicamente cantidades agregadas. La fecha de
+lote puede inspeccionarse y corregirse con auditoría y NIP ADMIN desde
+`/Admin/Inventory/Lots`.
+
+La migración `20260816090000_InternalDailyLots` fue aplicada a `warehouseEPI`
+el 14 de agosto de 2026 después del respaldo validado
+`BackupDatabase/public-before-internal-daily-lots-20260814-133308.dump`.
+La auditoría posterior confirmó 1,612 productos, 216 ubicaciones, 4
+asignaciones, 7 movimientos, 3 saldos, cero lotes y cero cambios de fecha;
+`tracks_expiration` y `expiration_date` ya no existen, y `lot_date` está
+presente. Posteriormente `20260817090000_GlobalInternalLots` eliminó
+`tracks_lots`, creó/reutilizó los lotes iniciales de la fecha local y convirtió
+los cuatro saldos existentes; la auditoría verificó cero saldos sin lote y los
+conteos 1,612 productos, 216 ubicaciones, 5 asignaciones, 9 movimientos y 3
+lotes.
 ```

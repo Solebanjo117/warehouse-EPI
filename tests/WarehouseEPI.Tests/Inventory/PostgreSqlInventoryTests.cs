@@ -33,6 +33,55 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
     }
 
     [Fact]
+    public async Task Balance_detail_filters_translate_on_postgresql()
+    {
+        var seed = await fixture.SeedAsync("PG-DETAIL-QUERY", "PG-DETAIL-AREA", "3106");
+        var movement = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Exit, seed.Pin,
+            [new(seed.ProductId, 2.5m, SourceLocationId: seed.LocationId)]));
+        Assert.Equal(InventoryMovementStatus.Success, movement.Status);
+
+        await using var db = fixture.CreateDbContext();
+        var queries = new InventoryQueryService(db);
+        var byProduct = await queries.GetProductBalancesAsync(seed.ProductId);
+        var byLocation = await queries.GetLocationContentsAsync(seed.LocationId);
+        var negatives = await queries.GetNegativeBalancesAsync();
+
+        Assert.Single(byProduct);
+        Assert.Equal(seed.LocationId, byProduct[0].LocationId);
+        Assert.Equal(-2.5m, byProduct[0].Quantity);
+        Assert.Single(byLocation);
+        Assert.Equal(seed.ProductId, byLocation[0].ProductId);
+        Assert.Contains(negatives, item => item.ProductId == seed.ProductId && item.LocationId == seed.LocationId);
+    }
+
+    [Fact]
+    public async Task Public_inventory_positions_translate_on_postgresql()
+    {
+        var seed = await fixture.SeedAsync("PG-PUBLIC-POSITION", "PG-PUBLIC-AREA", "3107");
+        await using (var setup = fixture.CreateDbContext())
+        {
+            setup.ProductLocationAssignments.Add(new ProductLocationAssignment
+            {
+                ProductId = seed.ProductId,
+                LocationId = seed.LocationId
+            });
+            await setup.SaveChangesAsync();
+        }
+
+        await using var db = fixture.CreateDbContext();
+        var queries = new InventoryQueryService(db);
+        var byProduct = await queries.GetProductInventoryAsync(seed.ProductId);
+        var byLocation = await queries.GetLocationInventoryAsync(seed.LocationId);
+
+        Assert.Single(byProduct);
+        Assert.True(byProduct[0].HasActiveAssignment);
+        Assert.Equal(0m, byProduct[0].Quantity);
+        Assert.Single(byLocation);
+        Assert.Equal(seed.ProductId, byLocation[0].ProductId);
+    }
+
+    [Fact]
     public async Task Concurrent_entries_do_not_lose_updates()
     {
         var seed = await fixture.SeedAsync("PG-CONCURRENT", "PG-AREA-1", "3101");

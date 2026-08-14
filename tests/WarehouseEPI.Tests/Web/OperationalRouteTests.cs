@@ -198,6 +198,38 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
             movement.Lines.Any(line => line.ProductId == seed.ProductId)).ToListAsync());
     }
 
+    [Fact]
+    public async Task Public_inventory_shows_active_assignments_without_a_balance_in_both_directions()
+    {
+        var seed = await SeedAsync("WEB-PUBLIC-ASSIGNMENT", "WEB-PUBLIC-AREA", "4206");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            db.ProductLocationAssignments.Add(new ProductLocationAssignment
+            {
+                ProductId = seed.ProductId,
+                LocationId = seed.LocationId
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = CreateClient();
+        var byProduct = await (await client.GetAsync($"/Inventory?productCode={seed.Sku}")).Content.ReadAsStringAsync();
+        var byLocation = await (await client.GetAsync($"/Inventory?locationCode={seed.LocationCode}")).Content.ReadAsStringAsync();
+
+        Assert.Contains(seed.LocationCode, byProduct);
+        Assert.Contains("Asignado", byProduct);
+        Assert.Contains(seed.Sku, byLocation);
+        Assert.Contains("Asignado", byLocation);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        Assert.Empty(await verificationDb.InventoryBalances.Where(balance =>
+            balance.ProductId == seed.ProductId && balance.LocationId == seed.LocationId).ToListAsync());
+        Assert.Empty(await verificationDb.InventoryMovements.Where(movement =>
+            movement.Lines.Any(line => line.ProductId == seed.ProductId)).ToListAsync());
+    }
+
     private HttpClient CreateClient() => factory.CreateClient(new WebApplicationFactoryClientOptions
     {
         AllowAutoRedirect = false,

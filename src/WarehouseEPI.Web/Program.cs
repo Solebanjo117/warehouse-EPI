@@ -20,6 +20,7 @@ builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/Admin/Users", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Catalogs", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Admin/Inventory", "AdminOnly");
 });
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseNpgsql(
@@ -34,6 +35,9 @@ builder.Services.AddScoped<LocationGenerationService>();
 builder.Services.AddScoped<LocationLookupService>();
 builder.Services.AddScoped<ProductLocationAssignmentService>();
 builder.Services.AddScoped<InventoryMovementService>();
+builder.Services.AddScoped<InventoryCorrectionService>();
+builder.Services.AddScoped<InventoryHistoryService>();
+builder.Services.AddScoped<ProductLotAdministrationService>();
 builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
 builder.Services.Configure<FormOptions>(options =>

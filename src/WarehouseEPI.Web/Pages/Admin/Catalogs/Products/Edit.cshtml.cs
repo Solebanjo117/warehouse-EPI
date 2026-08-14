@@ -29,7 +29,7 @@ public sealed class EditModel(
     {
         LocationSearch=locationSearch?.Trim();
         var product=await dbContext.Products.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==id,token); if(product is null)return NotFound();
-        Input=new ProductInputModel{Id=product.Id,Sku=product.Sku,Description=product.Description,ExternalReference=product.ExternalReference,ProductTypeId=product.ProductTypeId,ProductClassId=product.ProductClassId,BaseUnitId=product.BaseUnitId,MinimumStock=product.MinimumStock,TracksLots=product.TracksLots,TracksExpiration=product.TracksExpiration,IsActive=product.IsActive};
+        Input=new ProductInputModel{Id=product.Id,Sku=product.Sku,Description=product.Description,ExternalReference=product.ExternalReference,ProductTypeId=product.ProductTypeId,ProductClassId=product.ProductClassId,BaseUnitId=product.BaseUnitId,MinimumStock=product.MinimumStock,IsActive=product.IsActive};
         await LoadAsync(token);return Page();
     }
 

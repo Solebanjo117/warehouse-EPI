@@ -18,26 +18,15 @@ internal static class ProductPageSupport
 
     public static async Task ValidateAsync(WarehouseDbContext db, ProductInputModel input, ModelStateDictionary state, CancellationToken token)
     {
-        if (input.TracksExpiration && !input.TracksLots)
-            state.AddModelError("Input.TracksExpiration", "La caducidad requiere control de lotes.");
 
         if (input.Id != Guid.Empty)
         {
             var current = await db.Products.AsNoTracking()
                 .Where(product => product.Id == input.Id)
-                .Select(product => new { product.TracksLots, product.BaseUnitId })
+                .Select(product => new { product.BaseUnitId })
                 .SingleOrDefaultAsync(token);
             if (current is not null)
             {
-                if (!current.TracksLots && input.TracksLots && await db.InventoryBalances.AsNoTracking()
-                        .AnyAsync(balance => balance.ProductId == input.Id && balance.LotId == null && balance.Quantity != 0, token))
-                    state.AddModelError("Input.TracksLots", "No se puede activar lotes mientras exista inventario sin lote.");
-
-                if (current.TracksLots && !input.TracksLots &&
-                    (await db.InventoryBalances.AsNoTracking().AnyAsync(balance => balance.ProductId == input.Id && balance.LotId != null, token) ||
-                     await db.InventoryMovementLines.AsNoTracking().AnyAsync(line => line.ProductId == input.Id && line.LotId != null, token)))
-                    state.AddModelError("Input.TracksLots", "No se puede desactivar lotes porque ya existe historial o inventario por lote.");
-
                 if (current.BaseUnitId != input.BaseUnitId && await db.InventoryMovementLines.AsNoTracking()
                         .AnyAsync(line => line.ProductId == input.Id, token))
                     state.AddModelError("Input.BaseUnitId", "No se puede cambiar la unidad base después de registrar movimientos.");
@@ -72,8 +61,6 @@ internal static class ProductPageSupport
         product.ProductClassId = input.ProductClassId;
         product.BaseUnitId = input.BaseUnitId;
         product.MinimumStock = input.MinimumStock;
-        product.TracksLots = input.TracksLots;
-        product.TracksExpiration = input.TracksExpiration;
         product.IsActive = input.IsActive;
         product.UpdatedAt = DateTimeOffset.UtcNow;
     }

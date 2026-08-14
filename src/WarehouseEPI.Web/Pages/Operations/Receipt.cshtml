@@ -51,6 +51,20 @@
         </div>
     </section>
 
+    @if (Model.Receipt.Correction is not null)
+    {
+        <section class="operation-card border-warning">
+            <h2 class="h5">Comprobante relacionado con una corrección</h2>
+            <p class="mb-2">@Model.Receipt.Correction.Reason</p>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@Model.Receipt.Correction.OriginalMovementId">Original</a>
+                <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@Model.Receipt.Correction.ReversalMovementId">Reverso</a>
+                @if (Model.Receipt.Correction.ReplacementMovementId is Guid replacement)
+                { <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@replacement">Reemplazo</a> }
+            </div>
+        </section>
+    }
+
     @foreach (var line in Model.Receipt.Lines)
     {
         <section class="operation-card">

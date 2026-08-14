@@ -17,8 +17,7 @@ public sealed record InventoryMovementLineCommand(
     Guid? SourceLocationId = null,
     Guid? DestinationLocationId = null,
     Guid? LocationId = null,
-    uint? ExpectedBalanceVersion = null,
-    Guid? LotId = null);
+    uint? ExpectedBalanceVersion = null);
 
 public sealed record SharedAssignmentApproval(Guid ProductId, Guid LocationId);
 
@@ -29,7 +28,6 @@ public enum InventoryMovementStatus
     ValidationFailed,
     RequiresLocationSharingConfirmation,
     BalanceChanged,
-    LotSupportPending,
     IdempotencyConflict
 }
 

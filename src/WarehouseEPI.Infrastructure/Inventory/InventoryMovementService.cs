@@ -41,8 +41,8 @@ public sealed class InventoryMovementService(
         var productErrors = ValidateProductsAndQuantities(normalized, products);
         if (productErrors.Count > 0)
             return new(InventoryMovementStatus.ValidationFailed, Errors: productErrors);
-        if (products.Values.Any(product => product.TracksLots))
-            return new(InventoryMovementStatus.LotSupportPending);
+        if (products.Count != 0)
+            return await ConfirmTrackedLotsAsync(normalized, user, products, cancellationToken);
 
         var fingerprint = CreateFingerprint(normalized, user.Id);
         var existingResult = await GetExistingResultAsync(
@@ -52,9 +52,10 @@ public sealed class InventoryMovementService(
         if (existingResult is not null)
             return existingResult;
 
-        await using var transaction = dbContext.Database.IsRelational()
+        var ownsTransaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction is null;
+        var transaction = ownsTransaction
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
-            : null;
+            : dbContext.Database.CurrentTransaction;
 
         try
         {
@@ -172,8 +173,11 @@ public sealed class InventoryMovementService(
 
             dbContext.InventoryMovements.Add(movement);
             await dbContext.SaveChangesAsync(cancellationToken);
-            if (transaction is not null)
+            if (ownsTransaction && transaction is not null)
+            {
                 await transaction.CommitAsync(cancellationToken);
+                await transaction.DisposeAsync();
+            }
 
             return new(
                 InventoryMovementStatus.Success,
@@ -201,6 +205,202 @@ public sealed class InventoryMovementService(
             dbContext.ChangeTracker.Clear();
             return await GetExistingResultAsync(normalized.OperationId, fingerprint, cancellationToken) ??
                 new(InventoryMovementStatus.IdempotencyConflict);
+        }
+    }
+
+    private async Task<InventoryMovementResult> ConfirmTrackedLotsAsync(
+        InventoryMovementCommand command,
+        User user,
+        IReadOnlyDictionary<Guid, Product> products,
+        CancellationToken cancellationToken)
+    {
+        var fingerprint = CreateFingerprint(command, user.Id);
+        var existing = await GetExistingResultAsync(command.OperationId, fingerprint, cancellationToken);
+        if (existing is not null) return existing;
+
+        var ownsTransaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction is null;
+        var transaction = ownsTransaction ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : dbContext.Database.CurrentTransaction;
+        try
+        {
+            var pairs = GetLocationPairs(command).ToArray();
+            var locationIds = pairs.Select(pair => pair.LocationId).Distinct().Order().ToArray();
+            if (transaction is not null) await LockRowsAsync("locations", locationIds, transaction, cancellationToken);
+            var locations = await dbContext.Locations.AsNoTracking().Where(item => locationIds.Contains(item.Id))
+                .ToDictionaryAsync(item => item.Id, cancellationToken);
+            var locationErrors = ValidateLocations(locationIds, locations);
+            if (locationErrors.Count != 0)
+                return await AbortAsync(transaction, new(InventoryMovementStatus.ValidationFailed, Errors: locationErrors), cancellationToken);
+
+            var conflicts = await FindSharingConflictsAsync(pairs, products, locations,
+                command.ApprovedSharedAssignments ?? [], cancellationToken);
+            if (conflicts.Count != 0)
+                return await AbortAsync(transaction, new(InventoryMovementStatus.RequiresLocationSharingConfirmation,
+                    SharingConflicts: conflicts), cancellationToken);
+
+            var now = timeProvider.GetUtcNow();
+            var lotDate = GetWarehouseDate(now);
+            var lots = new Dictionary<Guid, List<ProductLot>>();
+            foreach (var product in products.Values)
+                lots[product.Id] = await GetOrCreateDailyLotAsync(product.Id, lotDate, now, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            var balanceKeys = new HashSet<BalanceKey>();
+            foreach (var line in command.Lines)
+            {
+                var productLots = lots[line.ProductId];
+                foreach (var location in GetLocations(line, command.Type))
+                    foreach (var lot in productLots)
+                        balanceKeys.Add(new(line.ProductId, location, lot.Id));
+            }
+            await EnsureBalancesExistAsync(balanceKeys, cancellationToken);
+            if (transaction is not null) await LockBalancesAsync(balanceKeys, transaction, cancellationToken);
+
+            var productIds = balanceKeys.Select(key => key.ProductId).Distinct().ToArray();
+            var allBalanceLocations = balanceKeys.Select(key => key.LocationId).Distinct().ToArray();
+            var balances = await dbContext.InventoryBalances
+                .Where(item => productIds.Contains(item.ProductId) && allBalanceLocations.Contains(item.LocationId) && item.LotId != null)
+                .ToDictionaryAsync(item => new BalanceKey(item.ProductId, item.LocationId, item.LotId), cancellationToken);
+
+            foreach (var line in command.Lines.Where(item => command.Type == InventoryMovementType.Adjustment))
+            {
+                var related = balances.Where(item => item.Key.ProductId == line.ProductId && item.Key.LocationId == line.LocationId!.Value)
+                    .Select(item => item.Value).ToArray();
+                var token = AggregateVersion(related);
+                var acceptsLegacySingleVersion = related.Length == 1 && line.ExpectedBalanceVersion == related[0].Version;
+                var acceptsInitialZero = line.ExpectedBalanceVersion == 0 && related.All(item => item.Quantity == 0);
+                if (!acceptsInitialZero && !acceptsLegacySingleVersion && line.ExpectedBalanceVersion != token)
+                    return await AbortAsync(transaction, new(InventoryMovementStatus.BalanceChanged,
+                        Errors: ["El saldo cambió desde que fue consultado."]), cancellationToken);
+            }
+
+            await UpsertAssignmentsAsync(pairs, cancellationToken);
+            var movement = new InventoryMovement
+            {
+                OperationId = command.OperationId, RequestFingerprint = fingerprint, Type = command.Type,
+                ResponsibleUserId = user.Id, Reference = command.Reference, Notes = command.Notes,
+                OccurredAt = now, RecordedAt = now
+            };
+            foreach (var (commandLine, index) in command.Lines.Select((item, index) => (item, index)))
+            {
+                var product = products[commandLine.ProductId];
+                var line = new InventoryMovementLine
+                {
+                    LineNumber = index + 1, ProductId = product.Id, UnitId = product.BaseUnitId,
+                    Quantity = commandLine.Quantity, SourceLocationId = commandLine.SourceLocationId,
+                    DestinationLocationId = commandLine.DestinationLocationId,
+                    LotAllocationMode = command.Type == InventoryMovementType.Entry
+                        ? InventoryLotAllocationMode.DailyLot : InventoryLotAllocationMode.AutomaticFefo
+                };
+                var productLots = lots[product.Id];
+                var daily = productLots.Single(item => item.NormalizedNumber == DailyLotNumber(lotDate));
+                ApplyTrackedLine(command.Type, commandLine, line, balances, productLots, daily, now);
+                movement.Lines.Add(line);
+            }
+            dbContext.InventoryMovements.Add(movement);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (ownsTransaction && transaction is not null) await transaction.CommitAsync(cancellationToken);
+            var resulting = balances.Values.GroupBy(item => new { item.ProductId, item.LocationId })
+                .Select(group => new InventoryBalanceResult(group.Key.ProductId, group.Key.LocationId, null,
+                    group.Sum(item => item.Quantity), AggregateVersion(group), group.Any(item => item.Quantity < 0))).ToArray();
+            return new(InventoryMovementStatus.Success, movement.Id, user.Id, user.FullName, resulting);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return await AbortAsync(transaction, new(InventoryMovementStatus.BalanceChanged,
+                Errors: ["El inventario cambió mientras se confirmaba la operación."]), cancellationToken);
+        }
+        catch (DbUpdateException exception) when (IsOperationIdConflict(exception))
+        {
+            if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
+            dbContext.ChangeTracker.Clear();
+            return await GetExistingResultAsync(command.OperationId, fingerprint, cancellationToken)
+                ?? new(InventoryMovementStatus.IdempotencyConflict);
+        }
+    }
+
+    private async Task<List<ProductLot>> GetOrCreateDailyLotAsync(Guid productId, DateOnly lotDate, DateTimeOffset now, CancellationToken cancellationToken)
+    {
+        var number = DailyLotNumber(lotDate);
+        var existing = await dbContext.ProductLots.Where(item => item.ProductId == productId).ToListAsync(cancellationToken);
+        if (existing.All(item => item.NormalizedNumber != number))
+        {
+            existing.Add(new ProductLot { ProductId = productId, Number = number, NormalizedNumber = number, LotDate = lotDate, CreatedAt = now });
+            dbContext.ProductLots.Add(existing[^1]);
+        }
+        return existing;
+    }
+
+    private static string DailyLotNumber(DateOnly lotDate) => $"AUTO-{lotDate:yyyyMMdd}";
+
+    private static DateOnly GetWarehouseDate(DateTimeOffset now)
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/Matamoros");
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now, zone).DateTime);
+    }
+
+    private static IEnumerable<Guid> GetLocations(InventoryMovementLineCommand line, InventoryMovementType type) => type switch
+    {
+        InventoryMovementType.Entry => [line.DestinationLocationId!.Value],
+        InventoryMovementType.Exit => [line.SourceLocationId!.Value],
+        InventoryMovementType.Transfer => [line.SourceLocationId!.Value, line.DestinationLocationId!.Value],
+        _ => [line.LocationId!.Value]
+    };
+
+    private static IEnumerable<AssignmentKey> GetLocationPairs(InventoryMovementCommand command) => command.Lines
+        .SelectMany(line => GetLocations(line, command.Type).Select(location => new AssignmentKey(line.ProductId, location)))
+        .Distinct();
+
+    private static uint AggregateVersion(IEnumerable<InventoryBalance> balances)
+    {
+        var text = string.Join('|', balances.OrderBy(item => item.LotId).Select(item =>
+            $"{item.LotId:N}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
+        if (text.Length == 0) return 0;
+        return BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
+    }
+
+    private static void ApplyTrackedLine(InventoryMovementType type, InventoryMovementLineCommand command,
+        InventoryMovementLine line, IReadOnlyDictionary<BalanceKey, InventoryBalance> balances,
+        IReadOnlyList<ProductLot> lots, ProductLot daily, DateTimeOffset now)
+    {
+        InventoryBalance Balance(Guid location, ProductLot lot) => balances[new(command.ProductId, location, lot.Id)];
+        var ordered = lots.OrderBy(item => item.LotDate is null).ThenBy(item => item.LotDate)
+            .ThenBy(item => item.CreatedAt).ThenBy(item => item.NormalizedNumber, StringComparer.Ordinal).ToArray();
+        void Add(InventoryBalance balance, ProductLot lot, decimal delta) => ApplyChange(line, balance, delta, now, lot);
+        IEnumerable<(InventoryBalance Balance, ProductLot Lot, decimal Delta)> Consume(Guid location, decimal quantity)
+        {
+            var remaining = quantity;
+            ProductLot? last = null;
+            foreach (var lot in ordered)
+            {
+                var balance = Balance(location, lot);
+                if (balance.Quantity <= 0) continue;
+                var take = Math.Min(remaining, balance.Quantity);
+                if (take > 0) { remaining -= take; last = lot; yield return (balance, lot, -take); }
+                if (remaining == 0) yield break;
+            }
+            var fallback = last ?? ordered.FirstOrDefault() ?? daily;
+            if (remaining > 0) yield return (Balance(location, fallback), fallback, -remaining);
+        }
+        switch (type)
+        {
+            case InventoryMovementType.Entry:
+                Add(Balance(command.DestinationLocationId!.Value, daily), daily, command.Quantity); break;
+            case InventoryMovementType.Exit:
+                foreach (var change in Consume(command.SourceLocationId!.Value, command.Quantity)) Add(change.Balance, change.Lot, change.Delta); break;
+            case InventoryMovementType.Transfer:
+                foreach (var change in Consume(command.SourceLocationId!.Value, command.Quantity))
+                {
+                    Add(change.Balance, change.Lot, change.Delta);
+                    Add(Balance(command.DestinationLocationId!.Value, change.Lot), change.Lot, -change.Delta);
+                }
+                break;
+            case InventoryMovementType.Adjustment:
+                var current = lots.Sum(lot => Balance(command.LocationId!.Value, lot).Quantity);
+                var delta = command.Quantity - current;
+                line.PreviousQuantity = current; line.AdjustmentDelta = delta;
+                if (delta >= 0) Add(Balance(command.LocationId!.Value, daily), daily, delta);
+                else foreach (var change in Consume(command.LocationId!.Value, -delta)) Add(change.Balance, change.Lot, change.Delta);
+                break;
         }
     }
 
@@ -232,8 +432,6 @@ public sealed class InventoryMovementService(
             var label = $"Línea {index + 1}";
             if (line.ProductId == Guid.Empty)
                 errors.Add($"{label}: el producto es obligatorio.");
-            if (line.LotId is not null)
-                errors.Add($"{label}: los lotes todavía no están habilitados para movimientos.");
             if (decimal.Round(line.Quantity, 4) != line.Quantity || Math.Abs(line.Quantity) > MaximumQuantity)
                 errors.Add($"{label}: la cantidad excede la precisión numeric(18,4).");
 
@@ -372,8 +570,8 @@ public sealed class InventoryMovementService(
                 var now = timeProvider.GetUtcNow();
                 var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($$"""
                     INSERT INTO inventory_balances (id, product_id, location_id, lot_id, quantity, updated_at)
-                    VALUES ({{id}}, {{key.ProductId}}, {{key.LocationId}}, NULL, 0, {{now}})
-                    ON CONFLICT (product_id, location_id) WHERE lot_id IS NULL DO NOTHING
+                    VALUES ({{id}}, {{key.ProductId}}, {{key.LocationId}}, {{key.LotId}}, 0, {{now}})
+                    ON CONFLICT DO NOTHING
                     """, cancellationToken);
                 if (inserted == 1)
                     created.Add(key);
@@ -480,6 +678,14 @@ public sealed class InventoryMovementService(
         InventoryBalance balance,
         decimal delta,
         DateTimeOffset now)
+        => ApplyChange(line, balance, delta, now, null);
+
+    private static void ApplyChange(
+        InventoryMovementLine line,
+        InventoryBalance balance,
+        decimal delta,
+        DateTimeOffset now,
+        ProductLot? lot)
     {
         var previous = balance.Quantity;
         var resulting = previous + delta;
@@ -491,6 +697,8 @@ public sealed class InventoryMovementService(
         {
             LocationId = balance.LocationId,
             LotId = balance.LotId,
+            LotNumberSnapshot = lot?.Number,
+            LotDateSnapshot = lot?.LotDate,
             DeltaQuantity = delta,
             PreviousQuantity = previous,
             ResultingQuantity = resulting
@@ -534,8 +742,7 @@ public sealed class InventoryMovementService(
         await using var command = CreateCommand(transaction, """
             SELECT id
             FROM inventory_balances
-            WHERE lot_id IS NULL
-              AND product_id = ANY (@product_ids)
+            WHERE product_id = ANY (@product_ids)
               AND location_id = ANY (@location_ids)
             ORDER BY product_id, location_id
             FOR UPDATE
@@ -625,7 +832,7 @@ public sealed class InventoryMovementService(
         var locationIds = keys.Select(key => key.LocationId).Distinct().ToArray();
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => productIds.Contains(balance.ProductId) &&
-                locationIds.Contains(balance.LocationId) && balance.LotId == null)
+                locationIds.Contains(balance.LocationId))
             .Select(balance => new InventoryBalanceResult(
                 balance.ProductId,
                 balance.LocationId,
@@ -670,8 +877,7 @@ public sealed class InventoryMovementService(
                 .Append(':').Append(line.SourceLocationId?.ToString("N") ?? string.Empty)
                 .Append(':').Append(line.DestinationLocationId?.ToString("N") ?? string.Empty)
                 .Append(':').Append(line.LocationId?.ToString("N") ?? string.Empty)
-                .Append(':').Append(line.ExpectedBalanceVersion?.ToString(CultureInfo.InvariantCulture) ?? string.Empty)
-                .Append(':').Append(line.LotId?.ToString("N") ?? string.Empty);
+                .Append(':').Append(line.ExpectedBalanceVersion?.ToString(CultureInfo.InvariantCulture) ?? string.Empty);
         }
         foreach (var approval in command.ApprovedSharedAssignments ?? [])
         {

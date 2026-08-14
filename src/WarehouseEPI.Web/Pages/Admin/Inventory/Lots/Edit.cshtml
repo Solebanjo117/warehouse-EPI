@@ -1,0 +1,5 @@
+@page "{id:guid}"
+@model WarehouseEPI.Web.Pages.Admin.Inventory.Lots.EditModel
+@{ ViewData["Title"] = "Fecha de lote"; }
+<h1 class="h3 mb-3">@Model.Title</h1>
+<form method="post" class="card card-body col-lg-6"><div asp-validation-summary="ModelOnly" class="text-danger"></div><input asp-for="Input.OperationId" type="hidden"/><input asp-for="Input.LotId" type="hidden"/><div class="mb-3"><label asp-for="Input.LotDate" class="form-label">Fecha de lote</label><input asp-for="Input.LotDate" class="form-control" type="date"/></div><div class="mb-3"><label asp-for="Input.Reason" class="form-label">Motivo</label><textarea asp-for="Input.Reason" class="form-control" required></textarea></div><div class="mb-3"><label asp-for="Input.Pin" class="form-label">NIP ADMIN</label><input asp-for="Input.Pin" class="form-control" inputmode="numeric" autocomplete="off" required /></div><div><button class="btn btn-primary">Guardar</button> <a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a></div></form>

@@ -10,8 +10,6 @@ public sealed class Product
     public short? ProductClassId { get; set; }
     public short BaseUnitId { get; set; }
     public decimal MinimumStock { get; set; }
-    public bool TracksLots { get; set; }
-    public bool TracksExpiration { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

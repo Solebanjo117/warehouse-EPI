@@ -28,8 +28,6 @@ public sealed class EntityDefaultsTests
         };
 
         Assert.True(product.IsActive);
-        Assert.False(product.TracksLots);
-        Assert.False(product.TracksExpiration);
     }
 
     [Fact]
