@@ -7,6 +7,11 @@ un chat nuevo, se debe leer este archivo y verificar el estado actual del
 repositorio. Las decisiones marcadas como pendientes no deben convertirse en
 requisitos definitivos sin confirmación.
 
+**Estado general:** las fases 1, 2, 3, 4 y 5 están completadas. El siguiente
+bloque de desarrollo es la fase 6, pantallas operativas. La validación física completa
+de las ubicaciones cargadas sigue siendo una comprobación operativa pendiente,
+pero no cambia el cierre técnico de la fase 4.
+
 ## 1. Objetivo
 
 Construir un sistema web local para registrar y consultar movimientos de
@@ -32,6 +37,10 @@ El sistema debe priorizar:
   usuarios.
 - Cada usuario tiene un NIP único; no se usará número de empleado.
 - El NIP identifica al responsable y se solicita en cada movimiento.
+- El operador no inicia sesión. Las futuras páginas operativas serán públicas
+  dentro de la red local y cada cambio de inventario pedirá el NIP al confirmar.
+- La cookie administrativa no sustituye el NIP operativo: incluso un
+  administrador autenticado debe confirmarlo en cada movimiento.
 - Nunca se almacenará el NIP en texto plano. El diseño actual usa un HMAC para
   localizarlo (`PinLookup`) y un hash independiente para validarlo (`PinHash`).
 
@@ -53,7 +62,8 @@ El sistema debe priorizar:
   presentación se implementarán después de definir sus reglas.
 - El inventario negativo está permitido. Cuando no sea posible comprobar la
   existencia o una salida exceda el saldo, se registra el movimiento y el saldo
-  puede quedar negativo.
+  puede quedar negativo. El sistema debe advertirlo claramente sin bloquearlo;
+  no existe una configuración por producto que impida saldos negativos.
 - Algunos productos manejarán lote y caducidad. Ambas funciones son opcionales
   y estarán desactivadas de forma predeterminada.
 - Para productos con caducidad, la salida automática deberá sugerir primero el
@@ -80,8 +90,8 @@ El sistema debe priorizar:
 - Existe un solo almacén.
 - El layout físico fue proporcionado el 14 de agosto de 2026 mediante las
   imágenes `shared image (20).jpg` y `shared image (19).jpg`, fuera del
-  repositorio. Antes de cargar ubicaciones se deben validar en sitio los racks
-  y posiciones realmente disponibles.
+  repositorio. Ya existe una carga inicial; todavía se debe validar en sitio que
+  los racks y posiciones cargados correspondan con los realmente disponibles.
 - Para ubicaciones de rack, el código operativo canónico será
   `Fila-Rack-Pallet`, por ejemplo `A-1-8`. La fila se identifica con una letra;
   el rack es el espacio físico entre columnas; y el pallet identifica la
@@ -162,6 +172,11 @@ Ya existen estas entidades iniciales:
 - `ProductBarcode`
 - `Location`
 - `ProductLocationAssignment`
+- `ProductLot`
+- `InventoryMovement`
+- `InventoryMovementLine`
+- `InventoryBalanceChange`
+- `InventoryBalance`
 
 También existe `WarehouseDbContext`, con:
 
@@ -178,8 +193,25 @@ También existe `WarehouseDbContext`, con:
   artificial de longitud; no existe un campo separado de nombre de producto;
 - Code 128 como formato predeterminado;
 - lotes y caducidad desactivados por defecto;
-- inventario negativo permitido por defecto;
+- inventario negativo permitido globalmente y señalado mediante advertencia;
 - campos de ubicación desglosados opcionales.
+
+El núcleo de inventario implementa movimientos de encabezado y varias líneas,
+saldos por producto y ubicación, cambios de saldo auditables, transacciones
+atómicas, bloqueo ordenado de filas, idempotencia mediante UUID y `xmin` para
+detectar ajustes basados en un saldo desactualizado. Una entrada suma, una
+salida resta, una transferencia actualiza origen y destino y un ajuste recibe
+el conteo final, conservando saldo anterior y diferencia.
+
+Cada confirmación valida directamente el NIP de un usuario activo `ADMIN` u
+`OPERATOR`, sin crear sesión y sin almacenar el NIP en el movimiento. Las
+asignaciones producto-ubicación se crean o reactivan dentro de la misma
+transacción; si el pallet ya contiene otros productos se devuelve una solicitud
+de confirmación específica antes de escribir.
+
+El esquema de lotes está preparado, pero los movimientos de productos con
+`TracksLots` continúan bloqueados hasta implementar el soporte funcional y FEFO
+en la fase 9.
 
 `Program.cs` registra `WarehouseDbContext`, autenticación por cookie para la
 administración, autorización `AdminOnly`, `PinProtector` y `UserPinService`.
@@ -216,11 +248,13 @@ web. La
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 75 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 89 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
   de productos desde Excel, además de las reglas, generación y administración de
-  ubicaciones y la búsqueda de productos por rack asignado;
+  ubicaciones, la búsqueda de productos por rack asignado y el núcleo de
+  inventario. Tres pruebas usan PostgreSQL real en `warehouse_epi_test` para
+  comprobar concurrencia, idempotencia simultánea y el token `xmin`;
 - la prueba opcional contra el archivo real se ejecutó mediante la variable de
   proceso `WAREHOUSE_EPI_PRODUCT_WORKBOOK`, sin insertar productos.
 
@@ -249,7 +283,9 @@ terminal nueva.
 ## 7. Estado actual de Entity Framework
 
 - Existe `dotnet-tools.json` en la raíz con `dotnet-ef` versión `10.0.10`.
-- `dotnet-ef` fue restaurado correctamente con `dotnet tool restore`.
+- `dotnet-ef` fue restaurado correctamente durante el desarrollo. Como las
+  herramientas locales dependen de la caché de cada entorno, si el comando no
+  está disponible en una terminal nueva se debe ejecutar `dotnet tool restore`.
 - Existe la migración `20260813150854_InitialSchema` en
   `src/WarehouseEPI.Infrastructure/Persistence/Migrations`.
 - El SQL generado fue revisado antes de aplicarse: crea las seis tablas de
@@ -292,14 +328,27 @@ terminal nueva.
 - La auditoría directa confirmó tipos, nulabilidad, valores predeterminados,
   restricciones, acciones referenciales e índices, incluido el índice parcial
   que permite un solo código principal por producto.
+- La migración `20260814142411_InventoryCore` fue generada y su SQL revisado.
+  Eliminó la opción por producto `allows_negative_stock` y creó
+  `inventory_movements`, `inventory_movement_lines`,
+  `inventory_balance_changes`, `inventory_balances` y `product_lots`, con
+  claves foráneas `RESTRICT`, precisión `numeric(18,4)`, índices parciales,
+  UUID de idempotencia único y concurrencia mediante `xmin`.
+- Antes de aplicarla se auditó la base y se respaldó `public` en
+  `BackupDatabase/public-before-inventory-core-20260814-093343.dump`. El archivo
+  custom fue validado con `pg_restore --list` y permanece ignorado por Git.
+- `InventoryCore` está aplicada en `warehouseEPI`. La auditoría posterior
+  confirmó 1,612 productos, 153 ubicaciones, 2 asignaciones activas, ausencia de
+  `allows_negative_stock` y cero movimientos, líneas, cambios, saldos y lotes.
 
 La base técnica, el esquema inicial, la seguridad por NIP, la administración de
-usuarios, los catálogos y la implementación técnica de ubicaciones están terminados. PostgreSQL contiene un
-administrador activo creado mediante el comando interactivo; no se registraron su
-nombre, NIP ni campos protegidos en este documento. No se debe avanzar a
-inventario, producción, movimientos ni otra fase hasta que el usuario cambie la
-prioridad. Sigue pendiente validar y cargar las ubicaciones físicas y crear un commit base después de revisar el conjunto
-completo de cambios existentes.
+usuarios, los catálogos, las ubicaciones y el núcleo de inventario están
+terminados. PostgreSQL contiene un administrador activo creado mediante el
+comando interactivo; no se registraron su nombre, NIP ni campos protegidos en
+este documento. Las fases 1 a 5 están cerradas y el siguiente bloque es la fase
+6, pantallas operativas. Las 153
+ubicaciones ya están cargadas; únicamente sigue pendiente comprobar en sitio que
+cubran todas las posiciones y excepciones físicas del almacén.
 
 Si `dotnet` no está en `PATH`, sustituirlo por:
 
@@ -307,15 +356,16 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 & "C:\Program Files\dotnet\dotnet.exe"
 ```
 
-## 8. Fases restantes
+## 8. Estado de fases y trabajo restante
 
-### Fase 1: base técnica y esquema inicial
+### Fase 1: base técnica y esquema inicial — completada
 
 - `dotnet-ef`, conexión, migración inicial y verificación física completados el
   13 de agosto de 2026.
-- Crear un commit base una vez revisados los cambios actuales.
+- Los cambios de esta base y de las fases posteriores están registrados en Git;
+  el repositorio estaba limpio al revisar este contexto el 14 de agosto de 2026.
 
-### Fase 2: seguridad por NIP y usuarios
+### Fase 2: seguridad por NIP y usuarios — completada
 
 - Clave HMAC externa, `PinLookup`, PBKDF2, autenticación y administración web
   completados el 13 de agosto de 2026.
@@ -326,7 +376,7 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Primer administrador creado mediante el comando local interactivo y verificado
   directamente en PostgreSQL, sin leer ni mostrar su NIP o campos protegidos.
 
-### Fase 3: catálogos
+### Fase 3: catálogos — completada
 
 - Catálogos ADMIN de unidades, tipos y clases con búsqueda, alta, edición,
   activación y desactivación sin borrado físico.
@@ -358,10 +408,11 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   Esta unidad está reservada: no puede editarse ni desactivarse desde el catálogo.
   La vista previa real termina con 1,612 candidatos y cero errores, sin insertar
   productos antes de confirmar.
-- Migraciones, respaldos, auditoría PostgreSQL, compilación y 74 pruebas completadas
-  el 13 de agosto de 2026.
+- Migraciones, respaldos, auditoría PostgreSQL, compilación y 74 pruebas
+  completadas al cierre de la fase el 13 de agosto de 2026. La suite general
+  creció a 75 pruebas al completar la fase 4.
 
-### Fase 4: ubicaciones y layout
+### Fase 4: ubicaciones y layout — completada
 
 - Modelo, migración y catálogo ADMIN implementados el 14 de agosto de 2026.
 - Se usa `Fila-Rack-Pallet` como nomenclatura canónica de los racks, con la
@@ -395,23 +446,31 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - La impresión de etiquetas se pospuso porque la bodega ya está etiquetada.
 - PostgreSQL contiene actualmente 153 ubicaciones y 2 asignaciones activas.
   Sigue pendiente confirmar que ese listado cubra físicamente todas las
-  posiciones y excepciones del almacén.
+  posiciones y excepciones del almacén; esta comprobación operativa no deja
+  abierta la implementación técnica de la fase.
 
-### Fase 5: núcleo de inventario
+### Fase 5: núcleo de inventario — completada
 
-- Crear entidades de movimientos, detalles y saldos.
-- Crear tipos Entrada, Salida, Transferencia y Ajuste.
-- Implementar transacción atómica, concurrencia e idempotencia.
-- Derivar el total del producto desde los saldos por ubicación.
-- Permitir y señalar saldos negativos.
-- Agregar pruebas de dominio, persistencia y concurrencia.
+- Encabezados con varias líneas para Entrada, Salida, Transferencia y Ajuste.
+- Movimientos y cambios de saldo inmutables, con responsable validado por NIP.
+- Saldos `numeric(18,4)` por producto y ubicación, y estructura opcional por
+  lote preparada para la fase 9.
+- Ajustes por conteo final con saldo anterior, diferencia y validación `xmin`.
+- Transacción atómica, bloqueo ordenado, UUID idempotente y asignación automática
+  o confirmación explícita para pallets compartidos.
+- Inventario negativo permitido globalmente y devuelto como advertencia.
+- Consultas de saldos, total derivado, negativos y productos bajo mínimo.
+- Migración, respaldo, auditoría PostgreSQL, compilación y 89 pruebas completadas
+  el 14 de agosto de 2026.
 
-### Fase 6: pantallas operativas
+### Fase 6: pantallas operativas — siguiente
 
 - Entrada: NIP, producto/código, cantidad, ubicación y confirmación.
 - Salida: NIP, producto/código, cantidad, ubicación y confirmación.
 - Transferencia: origen, destino, cantidad y confirmación.
 - Ajuste: cantidad, motivo y confirmación.
+- Mantener las páginas operativas públicas, sin inicio de sesión de operador, y
+  solicitar NIP en la confirmación de cada operación, incluido ADMIN.
 - Optimizar foco, tamaño de controles y número de pasos para tablets.
 - Evitar dobles envíos y mostrar confirmación clara.
 
@@ -476,7 +535,6 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 Antes de implementar el área correspondiente, confirmar:
 
 - referencia o documento operativo de entradas y salidas;
-- estructura definitiva de movimientos de una o varias líneas;
 - reglas exactas de paquetes y conversiones;
 - campos obligatorios del lote y origen de la fecha de caducidad;
 - política de conflictos cuando una salida fuera de línea produce saldo negativo;
@@ -521,8 +579,9 @@ El layout recibido el 14 de agosto de 2026 fija la nomenclatura de rack como
 `Fila-Rack-Pallet`, por ejemplo `A-1-8`. Cada rack tiene normalmente nueve
 posiciones distribuidas como un teclado numérico: `1,2,3` abajo; `4,5,6` en
 medio; y `7,8,9` arriba. Las áreas que no son racks conservarán códigos propios.
-Antes de cargarlas se validarán en sitio las posiciones existentes, el sentido de
-numeración y el significado de los colores del croquis.
+Ya se realizó una carga inicial de 153 ubicaciones. Sigue pendiente validar en
+sitio que cubra las posiciones existentes, excepciones y sentido de numeración,
+además de confirmar el significado de los colores del croquis.
 
 ## 12. Contexto breve para pegar en otro chat
 
@@ -547,14 +606,14 @@ movimientos serán Entrada, Salida, Transferencia y Ajuste. Los confirmados son
 inmutables: las correcciones se hacen mediante reverso y reemplazo auditable.
 
 Ya existen Role, User, Unit, ProductType, ProductClass, Product, ProductBarcode,
-Location y WarehouseDbContext. Program.cs registra Npgsql, seguridad por NIP, cookie
+Location, ProductLot, movimientos, cambios y saldos en WarehouseDbContext. Program.cs registra Npgsql, seguridad por NIP, cookie
 administrativa y autorización ADMIN. El NIP admite 4 a 8 dígitos, se protege con
 HMAC-SHA256 y PBKDF2-SHA256, es único y no tiene bloqueo por intentos. Existen
 páginas para iniciar sesión, administrar usuarios y administrar los catálogos de
 la fase 3. Los productos usan SKU obligatorio y descripción opcional, sin un
 campo separado de nombre. La compilación fue verificada con .NET SDK 10.0.400
-sin errores ni advertencias. Las 75 pruebas pasan, incluida la vista previa del
-archivo real sin escribir en PostgreSQL y la búsqueda por rack asignado.
+sin errores ni advertencias. Las 89 pruebas pasan, incluidas pruebas reales de
+concurrencia, idempotencia y `xmin` contra `warehouse_epi_test`.
 
 La base real es warehouseEPI y ConnectionStrings:Warehouse fue validada sin
 mostrar la contraseña. InitialSchema está creada, revisada y aplicada en public;
@@ -571,14 +630,14 @@ usan `UNASSIGNED / Sin asignar` con advertencia, sin inferir `EA`.
 Security:PinLookupKey
 está en User Secrets. PostgreSQL contiene exactamente un ADMIN activo creado de
 forma interactiva; sus credenciales no se leyeron ni documentaron. La fase 3 de
-catálogos está completa. No avances a producción o movimientos salvo
-que yo cambie la prioridad.
+catálogos está completa.
 
 El layout físico ya fue entregado. Para racks, el código canónico será
 `Fila-Rack-Pallet` —por ejemplo `A-1-8`— y el pallet usa nueve posiciones como
 teclado numérico (`1-3` abajo, `4-6` medio, `7-9` arriba). Áreas no rack usan
 códigos propios. La fase 4 debe validar físicamente los racks, posiciones,
-sentido de numeración y significado de colores antes de cargarlos.
+sentido de numeración y significado de colores. La carga inicial ya fue
+realizada; esta validación en sitio permanece como comprobación operativa.
 
 LocationLayoutStructure está aplicada. Existe el catálogo ADMIN de ubicaciones
 y un generador por bloques con vista previa, exclusiones, hoja de validación y
@@ -589,5 +648,14 @@ ubicaciones. ProductLocationAssignments también está aplicada y permite
 asignaciones fijas muchos-a-muchos sin ubicación principal, conservadas aunque
 el saldo llegue a cero. Ubicaciones y Productos permiten buscar y navegar en
 ambos sentidos; desde Productos también se puede buscar por el código del rack
-o área asignada. Las cantidades reales siguen reservadas para la fase 5.
+o área asignada.
+
+InventoryCore está aplicada. El motor registra Entrada, Salida, Transferencia y
+Ajuste con varias líneas, NIP por operación, transacción atómica, UUID
+idempotente, bloqueo de saldos, ajuste por conteo final, `xmin`, asignación
+automática o confirmación de pallet compartido e inventario negativo permitido
+con advertencia. Los lotes están preparados en esquema, pero permanecen
+bloqueados funcionalmente hasta la fase 9. La fase 5 está completada y el
+siguiente trabajo es la fase 6: páginas operativas públicas y ligeras que pidan
+NIP únicamente al confirmar cada cambio de inventario.
 ```

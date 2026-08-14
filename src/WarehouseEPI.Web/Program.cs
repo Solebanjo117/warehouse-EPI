@@ -10,6 +10,7 @@ using WarehouseEPI.Web.Bootstrap;
 using WarehouseEPI.Web.Imports;
 using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Infrastructure.Locations;
+using WarehouseEPI.Infrastructure.Inventory;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +32,8 @@ builder.Services.AddSingleton<LocationGenerationPreviewStore>();
 builder.Services.AddScoped<LocationGenerationService>();
 builder.Services.AddScoped<LocationLookupService>();
 builder.Services.AddScoped<ProductLocationAssignmentService>();
+builder.Services.AddScoped<InventoryMovementService>();
+builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = ProductImportLimits.MaxRequestBytes;

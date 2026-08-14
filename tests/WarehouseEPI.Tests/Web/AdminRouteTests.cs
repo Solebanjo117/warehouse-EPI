@@ -132,7 +132,6 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
                 ["Input.Sku"] = "WEB-NO-DESCRIPTION",
                 ["Input.BaseUnitId"] = "1",
                 ["Input.MinimumStock"] = "0",
-                ["Input.AllowsNegativeStock"] = "true",
                 ["Input.IsActive"] = "true",
                 ["__RequestVerificationToken"] = WebUtility.HtmlDecode(createToken.Groups[1].Value)
             }));
@@ -161,7 +160,6 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
                 ["Input.BaseUnitId"] = "1",
                 ["Input.MinimumStock"] = "3.5",
                 ["__Invariant"] = "Input.MinimumStock",
-                ["Input.AllowsNegativeStock"] = "true",
                 ["Input.IsActive"] = "true",
                 ["__RequestVerificationToken"] = WebUtility.HtmlDecode(editToken.Groups[1].Value)
             }));

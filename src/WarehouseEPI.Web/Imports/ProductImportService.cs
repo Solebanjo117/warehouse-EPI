@@ -104,7 +104,6 @@ public sealed class ProductImportService(
                     MinimumStock = 0m,
                     TracksLots = false,
                     TracksExpiration = false,
-                    AllowsNegativeStock = true,
                     IsActive = true
                 });
             }

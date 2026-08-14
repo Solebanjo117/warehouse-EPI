@@ -34,7 +34,6 @@ public sealed class ProductImportServiceTests
         Assert.Equal(0m, saved.MinimumStock);
         Assert.False(saved.TracksLots);
         Assert.False(saved.TracksExpiration);
-        Assert.True(saved.AllowsNegativeStock);
         Assert.True(saved.IsActive);
 
         var reused = await fixture.Service.ConfirmAsync(preview.Token, fixture.Owner);

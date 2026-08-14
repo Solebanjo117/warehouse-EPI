@@ -28,6 +28,5 @@ public sealed class ProductInputModel
     public decimal MinimumStock { get; set; }
     public bool TracksLots { get; set; }
     public bool TracksExpiration { get; set; }
-    public bool AllowsNegativeStock { get; set; } = true;
     public bool IsActive { get; set; } = true;
 }

@@ -20,14 +20,13 @@ public sealed class EntityDefaultsTests
     }
 
     [Fact]
-    public void Product_allows_negative_stock_and_disables_lots_by_default()
+    public void Product_disables_lots_by_default()
     {
         var product = new Product
         {
             Sku = "SKU-001"
         };
 
-        Assert.True(product.AllowsNegativeStock);
         Assert.True(product.IsActive);
         Assert.False(product.TracksLots);
         Assert.False(product.TracksExpiration);

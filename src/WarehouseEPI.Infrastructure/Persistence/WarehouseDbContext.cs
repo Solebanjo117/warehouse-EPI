@@ -16,6 +16,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<ProductLocationAssignment> ProductLocationAssignments => Set<ProductLocationAssignment>();
+    public DbSet<ProductLot> ProductLots => Set<ProductLot>();
+    public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
+    public DbSet<InventoryMovementLine> InventoryMovementLines => Set<InventoryMovementLine>();
+    public DbSet<InventoryBalanceChange> InventoryBalanceChanges => Set<InventoryBalanceChange>();
+    public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +35,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureProductBarcode(modelBuilder);
         ConfigureLocation(modelBuilder);
         ConfigureProductLocationAssignment(modelBuilder);
+        ConfigureProductLot(modelBuilder);
+        ConfigureInventoryMovement(modelBuilder);
+        ConfigureInventoryMovementLine(modelBuilder);
+        ConfigureInventoryBalanceChange(modelBuilder);
+        ConfigureInventoryBalance(modelBuilder);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -187,7 +197,6 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(product => product.MinimumStock).HasColumnName("minimum_stock").HasPrecision(18, 4);
         entity.Property(product => product.TracksLots).HasColumnName("tracks_lots").HasDefaultValue(false);
         entity.Property(product => product.TracksExpiration).HasColumnName("tracks_expiration").HasDefaultValue(false);
-        entity.Property(product => product.AllowsNegativeStock).HasColumnName("allows_negative_stock").HasDefaultValue(true);
         entity.Property(product => product.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(product => product.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(product => product.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
@@ -287,4 +296,187 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
             .HasForeignKey(assignment => assignment.LocationId)
             .OnDelete(DeleteBehavior.Restrict);
     }
+
+    private static void ConfigureProductLot(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<ProductLot>();
+
+        entity.ToTable("product_lots", table =>
+            table.HasCheckConstraint(
+                "ck_product_lots_normalized_number",
+                "normalized_number = upper(btrim(normalized_number)) AND normalized_number <> ''"));
+        entity.HasKey(lot => lot.Id);
+        entity.Property(lot => lot.Id).HasColumnName("id");
+        entity.Property(lot => lot.ProductId).HasColumnName("product_id");
+        entity.Property(lot => lot.Number).HasColumnName("number").HasMaxLength(100).IsRequired();
+        entity.Property(lot => lot.NormalizedNumber).HasColumnName("normalized_number").HasMaxLength(100).IsRequired();
+        entity.Property(lot => lot.ExpirationDate).HasColumnName("expiration_date");
+        entity.Property(lot => lot.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        entity.HasIndex(lot => new { lot.ProductId, lot.NormalizedNumber }).IsUnique();
+        entity.HasOne(lot => lot.Product)
+            .WithMany(product => product.Lots)
+            .HasForeignKey(lot => lot.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInventoryMovement(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InventoryMovement>();
+
+        entity.ToTable("inventory_movements", table =>
+            table.HasCheckConstraint(
+                "ck_inventory_movements_type",
+                "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')"));
+        entity.HasKey(movement => movement.Id);
+        entity.Property(movement => movement.Id).HasColumnName("id");
+        entity.Property(movement => movement.OperationId).HasColumnName("operation_id");
+        entity.Property(movement => movement.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        entity.Property(movement => movement.Type).HasColumnName("type").HasMaxLength(20)
+            .HasConversion(
+                value => MovementTypeToDatabase(value),
+                value => MovementTypeFromDatabase(value));
+        entity.Property(movement => movement.ResponsibleUserId).HasColumnName("responsible_user_id");
+        entity.Property(movement => movement.Reference).HasColumnName("reference").HasMaxLength(120);
+        entity.Property(movement => movement.Notes).HasColumnName("notes").HasMaxLength(500);
+        entity.Property(movement => movement.OccurredAt).HasColumnName("occurred_at").HasDefaultValueSql("now()");
+        entity.Property(movement => movement.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        entity.HasIndex(movement => movement.OperationId).IsUnique();
+        entity.HasIndex(movement => movement.OccurredAt);
+        entity.HasIndex(movement => new { movement.ResponsibleUserId, movement.OccurredAt });
+        entity.HasOne(movement => movement.ResponsibleUser)
+            .WithMany()
+            .HasForeignKey(movement => movement.ResponsibleUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInventoryMovementLine(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InventoryMovementLine>();
+
+        entity.ToTable("inventory_movement_lines", table =>
+            table.HasCheckConstraint("ck_inventory_movement_lines_number", "line_number > 0"));
+        entity.HasKey(line => line.Id);
+        entity.Property(line => line.Id).HasColumnName("id");
+        entity.Property(line => line.MovementId).HasColumnName("movement_id");
+        entity.Property(line => line.LineNumber).HasColumnName("line_number");
+        entity.Property(line => line.ProductId).HasColumnName("product_id");
+        entity.Property(line => line.UnitId).HasColumnName("unit_id");
+        entity.Property(line => line.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        entity.Property(line => line.SourceLocationId).HasColumnName("source_location_id");
+        entity.Property(line => line.DestinationLocationId).HasColumnName("destination_location_id");
+        entity.Property(line => line.LotId).HasColumnName("lot_id");
+        entity.Property(line => line.PreviousQuantity).HasColumnName("previous_quantity").HasPrecision(18, 4);
+        entity.Property(line => line.AdjustmentDelta).HasColumnName("adjustment_delta").HasPrecision(18, 4);
+        entity.HasIndex(line => new { line.MovementId, line.LineNumber }).IsUnique();
+        entity.HasIndex(line => line.ProductId);
+        entity.HasIndex(line => line.SourceLocationId);
+        entity.HasIndex(line => line.DestinationLocationId);
+        entity.HasOne(line => line.Movement).WithMany(movement => movement.Lines)
+            .HasForeignKey(line => line.MovementId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(line => line.Product).WithMany()
+            .HasForeignKey(line => line.ProductId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(line => line.Unit).WithMany()
+            .HasForeignKey(line => line.UnitId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(line => line.SourceLocation).WithMany()
+            .HasForeignKey(line => line.SourceLocationId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(line => line.DestinationLocation).WithMany()
+            .HasForeignKey(line => line.DestinationLocationId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(line => line.Lot).WithMany()
+            .HasForeignKey(line => line.LotId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInventoryBalanceChange(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InventoryBalanceChange>();
+
+        entity.ToTable("inventory_balance_changes", table =>
+            table.HasCheckConstraint(
+                "ck_inventory_balance_changes_arithmetic",
+                "previous_quantity + delta_quantity = resulting_quantity"));
+        entity.HasKey(change => change.Id);
+        entity.Property(change => change.Id).HasColumnName("id");
+        entity.Property(change => change.MovementLineId).HasColumnName("movement_line_id");
+        entity.Property(change => change.LocationId).HasColumnName("location_id");
+        entity.Property(change => change.LotId).HasColumnName("lot_id");
+        entity.Property(change => change.DeltaQuantity).HasColumnName("delta_quantity").HasPrecision(18, 4);
+        entity.Property(change => change.PreviousQuantity).HasColumnName("previous_quantity").HasPrecision(18, 4);
+        entity.Property(change => change.ResultingQuantity).HasColumnName("resulting_quantity").HasPrecision(18, 4);
+        entity.HasIndex(change => change.MovementLineId);
+        entity.HasIndex(change => change.LocationId);
+        entity.HasOne(change => change.MovementLine).WithMany(line => line.BalanceChanges)
+            .HasForeignKey(change => change.MovementLineId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(change => change.Location).WithMany()
+            .HasForeignKey(change => change.LocationId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(change => change.Lot).WithMany()
+            .HasForeignKey(change => change.LotId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureInventoryBalance(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<InventoryBalance>();
+
+        entity.ToTable("inventory_balances");
+        entity.HasKey(balance => balance.Id);
+        entity.Property(balance => balance.Id).HasColumnName("id");
+        entity.Property(balance => balance.ProductId).HasColumnName("product_id");
+        entity.Property(balance => balance.LocationId).HasColumnName("location_id");
+        entity.Property(balance => balance.LotId).HasColumnName("lot_id");
+        entity.Property(balance => balance.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        entity.Property(balance => balance.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        entity.Property(balance => balance.Version).IsRowVersion().HasColumnName("xmin");
+        entity.HasIndex(balance => new { balance.ProductId, balance.LocationId })
+            .IsUnique().HasFilter("lot_id IS NULL");
+        entity.HasIndex(balance => new { balance.ProductId, balance.LocationId, balance.LotId })
+            .IsUnique().HasFilter("lot_id IS NOT NULL");
+        entity.HasIndex(balance => balance.LocationId);
+        entity.HasIndex(balance => balance.Quantity).HasFilter("quantity < 0");
+        entity.HasOne(balance => balance.Product).WithMany()
+            .HasForeignKey(balance => balance.ProductId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(balance => balance.Location).WithMany()
+            .HasForeignKey(balance => balance.LocationId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(balance => balance.Lot).WithMany()
+            .HasForeignKey(balance => balance.LotId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        EnsureMovementHistoryIsImmutable();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureMovementHistoryIsImmutable();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void EnsureMovementHistoryIsImmutable()
+    {
+        var changedHistory = ChangeTracker.Entries()
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange &&
+                entry.State is EntityState.Modified or EntityState.Deleted);
+
+        if (changedHistory)
+            throw new InvalidOperationException("Los movimientos confirmados y su historial son inmutables.");
+    }
+
+    private static string MovementTypeToDatabase(InventoryMovementType value) => value switch
+    {
+        InventoryMovementType.Entry => "ENTRY",
+        InventoryMovementType.Exit => "EXIT",
+        InventoryMovementType.Transfer => "TRANSFER",
+        InventoryMovementType.Adjustment => "ADJUSTMENT",
+        _ => throw new InvalidOperationException("Tipo de movimiento no soportado.")
+    };
+
+    private static InventoryMovementType MovementTypeFromDatabase(string value) => value switch
+    {
+        "ENTRY" => InventoryMovementType.Entry,
+        "EXIT" => InventoryMovementType.Exit,
+        "TRANSFER" => InventoryMovementType.Transfer,
+        "ADJUSTMENT" => InventoryMovementType.Adjustment,
+        _ => throw new InvalidOperationException("Tipo de movimiento almacenado no soportado.")
+    };
 }

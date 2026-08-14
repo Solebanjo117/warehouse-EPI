@@ -12,7 +12,6 @@ public sealed class Product
     public decimal MinimumStock { get; set; }
     public bool TracksLots { get; set; }
     public bool TracksExpiration { get; set; }
-    public bool AllowsNegativeStock { get; set; } = true;
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -22,4 +21,5 @@ public sealed class Product
     public ProductClass? ProductClass { get; set; }
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
     public ICollection<ProductLocationAssignment> LocationAssignments { get; set; } = [];
+    public ICollection<ProductLot> Lots { get; set; } = [];
 }
