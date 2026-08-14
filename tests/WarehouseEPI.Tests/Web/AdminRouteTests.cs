@@ -248,6 +248,12 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.True(productSearch.StatusCode == HttpStatusCode.OK,
             $"Productos devolvió {productSearch.StatusCode}: {productSearchBody}");
         Assert.Contains("Z-1-9", productSearchBody);
+
+        var productRackSearch = await client.GetAsync("/Admin/Catalogs/Products?search=Z-1-9");
+        var productRackSearchBody = await productRackSearch.Content.ReadAsStringAsync();
+        Assert.True(productRackSearch.StatusCode == HttpStatusCode.OK,
+            $"Búsqueda por rack devolvió {productRackSearch.StatusCode}: {productRackSearchBody}");
+        Assert.Contains("WEB-EDITED", productRackSearchBody);
     }
 
     public sealed class WarehouseApplicationFactory : WebApplicationFactory<Program>

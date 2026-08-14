@@ -63,7 +63,9 @@ internal static class ProductPageSupport
             product.Sku.ToUpper().Contains(term) ||
             (product.Description != null && product.Description.ToUpper().Contains(term)) ||
             (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(term)) ||
-            product.Barcodes.Any(barcode => barcode.Barcode.ToUpper().Contains(term)));
+            product.Barcodes.Any(barcode => barcode.Barcode.ToUpper().Contains(term)) ||
+            product.LocationAssignments.Any(assignment =>
+                assignment.IsActive && assignment.Location.Code.ToUpper().Contains(term)));
     }
 
     public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes)> LoadOptionsAsync(

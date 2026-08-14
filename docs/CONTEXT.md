@@ -216,11 +216,11 @@ web. La
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 74 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 75 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
   de productos desde Excel, además de las reglas, generación y administración de
-  ubicaciones;
+  ubicaciones y la búsqueda de productos por rack asignado;
 - la prueba opcional contra el archivo real se ejecutó mediante la variable de
   proceso `WAREHOUSE_EPI_PRODUCT_WORKBOOK`, sin insertar productos.
 
@@ -270,8 +270,9 @@ terminal nueva.
   agregó la unidad activa `UNASSIGNED`, con nombre `Sin asignar` y cantidades
   decimales habilitadas; no modificó productos ni otras tablas.
 - PostgreSQL contiene 18 unidades con decimales habilitados, los tipos `FG` y
-  `RAW`, 26 clases normalizadas, 1,612 productos importados y 153 ubicaciones.
-  Los códigos de barras y las asignaciones producto-ubicación permanecen vacíos.
+  `RAW`, 26 clases normalizadas, 1,612 productos importados, 153 ubicaciones y
+  2 asignaciones producto-ubicación activas. Los códigos de barras permanecen
+  vacíos.
 - La migración `20260814121053_LocationLayoutStructure` fue respaldada, revisada
   y aplicada después de confirmar que `locations` estaba vacía. Sustituyó los
   componentes provisionales por tipo, fila, rack, pallet y motivo de bloqueo,
@@ -386,11 +387,15 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Cada posición muestra hasta tres SKU y permite navegar al producto; Productos
   muestra hasta tres ubicaciones y permite navegar al rack. No se muestran
   cantidades antes de implementar los saldos en la fase 5.
+- La búsqueda de Productos acepta también el código de rack o área asignada y
+  devuelve los productos con una asignación activa a ubicaciones coincidentes,
+  incluso si la ubicación está bloqueada o inactiva temporalmente.
 - El código visible normalizado será el valor leído por el escáner; la pantalla
   operativa se implementará en la fase 6.
 - La impresión de etiquetas se pospuso porque la bodega ya está etiquetada.
-- PostgreSQL contiene actualmente 153 ubicaciones. Sigue pendiente confirmar que
-  ese listado cubra físicamente todas las posiciones y excepciones del almacén.
+- PostgreSQL contiene actualmente 153 ubicaciones y 2 asignaciones activas.
+  Sigue pendiente confirmar que ese listado cubra físicamente todas las
+  posiciones y excepciones del almacén.
 
 ### Fase 5: núcleo de inventario
 
@@ -548,8 +553,8 @@ HMAC-SHA256 y PBKDF2-SHA256, es único y no tiene bloqueo por intentos. Existen
 páginas para iniciar sesión, administrar usuarios y administrar los catálogos de
 la fase 3. Los productos usan SKU obligatorio y descripción opcional, sin un
 campo separado de nombre. La compilación fue verificada con .NET SDK 10.0.400
-sin errores ni advertencias. Las 74 pruebas pasan, incluida la vista previa del
-archivo real sin escribir en PostgreSQL.
+sin errores ni advertencias. Las 75 pruebas pasan, incluida la vista previa del
+archivo real sin escribir en PostgreSQL y la búsqueda por rack asignado.
 
 La base real es warehouseEPI y ConnectionStrings:Warehouse fue validada sin
 mostrar la contraseña. InitialSchema está creada, revisada y aplicada en public;
@@ -583,5 +588,6 @@ etiquetada; el código visible será el valor escaneado. PostgreSQL contiene 153
 ubicaciones. ProductLocationAssignments también está aplicada y permite
 asignaciones fijas muchos-a-muchos sin ubicación principal, conservadas aunque
 el saldo llegue a cero. Ubicaciones y Productos permiten buscar y navegar en
-ambos sentidos; las cantidades reales siguen reservadas para la fase 5.
+ambos sentidos; desde Productos también se puede buscar por el código del rack
+o área asignada. Las cantidades reales siguen reservadas para la fase 5.
 ```

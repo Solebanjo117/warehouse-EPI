@@ -73,7 +73,7 @@ public sealed class ProductCatalogTests
     }
 
     [Fact]
-    public void Product_search_uses_description_reference_and_barcode_without_name()
+    public void Product_search_uses_description_reference_barcode_and_active_location_without_name()
     {
         var options = new DbContextOptionsBuilder<WarehouseDbContext>()
             .UseNpgsql("Host=localhost;Database=unused;Username=unused")
@@ -85,7 +85,36 @@ public sealed class ProductCatalogTests
         Assert.Contains("description", sql);
         Assert.Contains("external_reference", sql);
         Assert.Contains("product_barcodes", sql);
+        Assert.Contains("product_location_assignments", sql);
+        Assert.Contains("locations", sql);
+        Assert.Contains("is_active", sql);
         Assert.DoesNotContain("products\".\"name", sql);
+    }
+
+    [Fact]
+    public async Task Product_search_by_rack_returns_only_products_with_an_active_assignment()
+    {
+        await using var db = CreateContext();
+        await db.Database.EnsureCreatedAsync();
+        var assigned = new Product { Sku = "ASSIGNED", BaseUnitId = 1 };
+        var inactive = new Product { Sku = "INACTIVE", BaseUnitId = 1 };
+        var location = new Location
+        {
+            Code = "A-1-8",
+            Kind = LocationKind.Rack,
+            RowCode = "A",
+            RackNumber = 1,
+            PalletNumber = 8
+        };
+        db.AddRange(assigned, inactive, location);
+        db.ProductLocationAssignments.AddRange(
+            new ProductLocationAssignment { Product = assigned, Location = location },
+            new ProductLocationAssignment { Product = inactive, Location = location, IsActive = false });
+        await db.SaveChangesAsync();
+
+        var matches = await ProductPageSupport.ApplySearch(db.Products, " a-1-8 ").ToListAsync();
+
+        Assert.Collection(matches, product => Assert.Equal("ASSIGNED", product.Sku));
     }
 
     [Fact]
