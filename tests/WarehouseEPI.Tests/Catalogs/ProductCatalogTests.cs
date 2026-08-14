@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
@@ -94,9 +95,9 @@ public sealed class ProductCatalogTests
         var product = new Product { Sku = "SKU-001", BaseUnitId = 1 }; db.Products.Add(product); await db.SaveChangesAsync();
         var page = CreateEditModel(db);
         page.BarcodeInput = new EditModel.BarcodeInputModel { Barcode = "CODE-1", IsPrimary = true };
-        await page.OnPostAddBarcodeAsync(product.Id, CancellationToken.None);
+        await page.OnPostAddBarcodeAsync(product.Id, page.BarcodeInput, CancellationToken.None);
         page.BarcodeInput = new EditModel.BarcodeInputModel { Barcode = "CODE-2", IsPrimary = true };
-        await page.OnPostAddBarcodeAsync(product.Id, CancellationToken.None);
+        await page.OnPostAddBarcodeAsync(product.Id, page.BarcodeInput, CancellationToken.None);
 
         Assert.Equal(2, await db.ProductBarcodes.CountAsync());
         Assert.Equal("CODE-2", (await db.ProductBarcodes.SingleAsync(x => x.IsPrimary)).Barcode);
@@ -111,7 +112,7 @@ public sealed class ProductCatalogTests
         db.Products.AddRange(first, second); db.ProductBarcodes.Add(new ProductBarcode { Product = first, Barcode = "RESERVED" }); await db.SaveChangesAsync();
         var page = CreateEditModel(db); page.BarcodeInput = new EditModel.BarcodeInputModel { Barcode = " RESERVED " };
 
-        await page.OnPostAddBarcodeAsync(second.Id, CancellationToken.None);
+        await page.OnPostAddBarcodeAsync(second.Id, page.BarcodeInput, CancellationToken.None);
 
         Assert.Contains("otro producto", page.TempData["Error"]?.ToString());
         Assert.Single(await db.ProductBarcodes.ToListAsync());
@@ -151,7 +152,7 @@ public sealed class ProductCatalogTests
 
     private static EditModel CreateEditModel(WarehouseDbContext db)
     {
-        var page = new EditModel(db);
+        var page = new EditModel(db, new ProductLocationAssignmentService(db));
         page.TempData = new TempDataDictionary(new DefaultHttpContext(), new MemoryTempDataProvider());
         return page;
     }

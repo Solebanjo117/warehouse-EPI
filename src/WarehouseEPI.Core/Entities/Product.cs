@@ -21,4 +21,5 @@ public sealed class Product
     public ProductType? ProductType { get; set; }
     public ProductClass? ProductClass { get; set; }
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
+    public ICollection<ProductLocationAssignment> LocationAssignments { get; set; } = [];
 }

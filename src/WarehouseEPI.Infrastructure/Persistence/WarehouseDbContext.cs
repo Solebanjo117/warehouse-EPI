@@ -15,6 +15,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<Location> Locations => Set<Location>();
+    public DbSet<ProductLocationAssignment> ProductLocationAssignments => Set<ProductLocationAssignment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureProduct(modelBuilder);
         ConfigureProductBarcode(modelBuilder);
         ConfigureLocation(modelBuilder);
+        ConfigureProductLocationAssignment(modelBuilder);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -236,21 +238,53 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
 
         entity.ToTable("locations", table =>
         {
-            table.HasCheckConstraint("ck_locations_shelf", "shelf IS NULL OR shelf > 0");
-            table.HasCheckConstraint("ck_locations_level", "level_number IS NULL OR level_number > 0");
+            table.HasCheckConstraint("ck_locations_kind", "kind IN ('RACK', 'AREA')");
+            table.HasCheckConstraint("ck_locations_code_normalized", "code = upper(btrim(code)) AND code <> ''");
+            table.HasCheckConstraint("ck_locations_structure", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND pallet_number BETWEEN 1 AND 9 AND code = row_code || '-' || rack_number::text || '-' || pallet_number::text) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND pallet_number IS NULL AND code ~ '^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$')");
+            table.HasCheckConstraint("ck_locations_block", "(is_blocked = FALSE AND block_reason IS NULL) OR (is_active = TRUE AND is_blocked = TRUE AND block_reason IS NOT NULL AND btrim(block_reason) <> '')");
         });
         entity.HasKey(location => location.Id);
         entity.Property(location => location.Id).HasColumnName("id");
         entity.Property(location => location.Code).HasColumnName("code").HasMaxLength(40).IsRequired();
-        entity.Property(location => location.Aisle).HasColumnName("aisle").HasMaxLength(10);
-        entity.Property(location => location.Shelf).HasColumnName("shelf");
-        entity.Property(location => location.LevelNumber).HasColumnName("level_number");
-        entity.Property(location => location.PalletPosition).HasColumnName("pallet_position").HasMaxLength(10);
+        entity.Property(location => location.Kind).HasColumnName("kind").HasMaxLength(10)
+            .HasConversion(value => value == LocationKind.Rack ? "RACK" : "AREA",
+                value => value == "RACK" ? LocationKind.Rack : LocationKind.Area);
+        entity.Property(location => location.RowCode).HasColumnName("row_code").HasMaxLength(1);
+        entity.Property(location => location.RackNumber).HasColumnName("rack_number");
+        entity.Property(location => location.PalletNumber).HasColumnName("pallet_number");
         entity.Property(location => location.Description).HasColumnName("description").HasMaxLength(200);
         entity.Property(location => location.IsBlocked).HasColumnName("is_blocked").HasDefaultValue(false);
+        entity.Property(location => location.BlockReason).HasColumnName("block_reason").HasMaxLength(200);
         entity.Property(location => location.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(location => location.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(location => location.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        entity.Ignore(location => location.IsOperational);
+        entity.Ignore(location => location.LevelNumber);
+        entity.Ignore(location => location.HorizontalPosition);
         entity.HasIndex(location => location.Code).IsUnique();
+        entity.HasIndex(location => new { location.RowCode, location.RackNumber, location.PalletNumber })
+            .IsUnique().HasFilter("kind = 'RACK'");
+    }
+
+    private static void ConfigureProductLocationAssignment(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<ProductLocationAssignment>();
+
+        entity.ToTable("product_location_assignments");
+        entity.HasKey(assignment => new { assignment.ProductId, assignment.LocationId });
+        entity.Property(assignment => assignment.ProductId).HasColumnName("product_id");
+        entity.Property(assignment => assignment.LocationId).HasColumnName("location_id");
+        entity.Property(assignment => assignment.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+        entity.Property(assignment => assignment.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        entity.Property(assignment => assignment.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        entity.HasIndex(assignment => assignment.LocationId);
+        entity.HasOne(assignment => assignment.Product)
+            .WithMany(product => product.LocationAssignments)
+            .HasForeignKey(assignment => assignment.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(assignment => assignment.Location)
+            .WithMany(location => location.ProductAssignments)
+            .HasForeignKey(assignment => assignment.LocationId)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

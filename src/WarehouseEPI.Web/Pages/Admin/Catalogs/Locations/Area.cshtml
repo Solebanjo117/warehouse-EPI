@@ -1,0 +1,9 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.AreaModel
+@{ ViewData["Title"] = Model.IsEdit ? "Editar área" : "Crear área"; }
+<h1 class="h2">@ViewData["Title"]</h1><p class="text-muted">Las áreas especiales no utilizan fila, rack ni pallet.</p>
+<form method="post" class="card card-body"><input asp-for="Input.Id" type="hidden"/><div asp-validation-summary="ModelOnly" class="text-danger"></div><div class="row g-3">
+<div class="col-12 col-md-5"><label asp-for="Input.Code" class="form-label">Código</label><input asp-for="Input.Code" class="form-control form-control-lg text-uppercase" placeholder="SHIPPING"/><span asp-validation-for="Input.Code" class="text-danger"></span></div>
+<div class="col-12 col-md-7"><label asp-for="Input.Description" class="form-label">Descripción</label><input asp-for="Input.Description" class="form-control form-control-lg" maxlength="200"/><span asp-validation-for="Input.Description" class="text-danger"></span></div>
+<div class="col-12"><button class="btn btn-primary btn-lg">Guardar área</button> <a asp-page="Index" class="btn btn-outline-secondary btn-lg">Cancelar</a></div></div></form>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

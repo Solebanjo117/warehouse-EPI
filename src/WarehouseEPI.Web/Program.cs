@@ -8,6 +8,8 @@ using WarehouseEPI.Infrastructure.Imports;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Bootstrap;
 using WarehouseEPI.Web.Imports;
+using WarehouseEPI.Web.Locations;
+using WarehouseEPI.Infrastructure.Locations;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +27,10 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IProductSpreadsheetReader, ProductSpreadsheetReader>();
 builder.Services.AddSingleton<ProductImportPreviewStore>();
 builder.Services.AddScoped<ProductImportService>();
+builder.Services.AddSingleton<LocationGenerationPreviewStore>();
+builder.Services.AddScoped<LocationGenerationService>();
+builder.Services.AddScoped<LocationLookupService>();
+builder.Services.AddScoped<ProductLocationAssignmentService>();
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = ProductImportLimits.MaxRequestBytes;

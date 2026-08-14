@@ -38,6 +38,9 @@ El sistema debe priorizar:
 ### Productos e inventario
 
 - Un producto puede existir en múltiples ubicaciones.
+- Un producto puede tener varias ubicaciones fijas asignadas, sin una ubicación
+  principal, y una ubicación puede estar asignada a varios productos. La
+  asignación permanece aunque el saldo sea cero; no sustituye al saldo real.
 - Al confirmar una entrada, la cantidad queda ligada al producto y a la
   ubicación seleccionada.
 - La fuente de verdad será el saldo de `producto + ubicación`; cuando el
@@ -158,6 +161,7 @@ Ya existen estas entidades iniciales:
 - `Product`
 - `ProductBarcode`
 - `Location`
+- `ProductLocationAssignment`
 
 También existe `WarehouseDbContext`, con:
 
@@ -207,15 +211,16 @@ recuperación para una base nueva es:
 
 Existen pruebas de entidades, catálogos, criptografía, servicio de NIP y pipeline
 web. La
-última verificación completada el 13 de agosto de 2026 fue:
+última verificación completada el 14 de agosto de 2026 fue:
 
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 55 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 74 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
-  de productos desde Excel;
+  de productos desde Excel, además de las reglas, generación y administración de
+  ubicaciones;
 - la prueba opcional contra el archivo real se ejecutó mediante la variable de
   proceso `WAREHOUSE_EPI_PRODUCT_WORKBOOK`, sin insertar productos.
 
@@ -265,18 +270,34 @@ terminal nueva.
   agregó la unidad activa `UNASSIGNED`, con nombre `Sin asignar` y cantidades
   decimales habilitadas; no modificó productos ni otras tablas.
 - PostgreSQL contiene 18 unidades con decimales habilitados, los tipos `FG` y
-  `RAW`, y 26 clases normalizadas. Productos, códigos de barras y ubicaciones
-  permanecen vacíos.
+  `RAW`, 26 clases normalizadas, 1,612 productos importados y 153 ubicaciones.
+  Los códigos de barras y las asignaciones producto-ubicación permanecen vacíos.
+- La migración `20260814121053_LocationLayoutStructure` fue respaldada, revisada
+  y aplicada después de confirmar que `locations` estaba vacía. Sustituyó los
+  componentes provisionales por tipo, fila, rack, pallet y motivo de bloqueo,
+  con cuatro restricciones `CHECK` y un índice único parcial para racks.
+- El respaldo previo de `public` quedó en
+  `BackupDatabase/public-before-location-layout-20260814-071239.dump`; tiene
+  formato custom, fue validado con `pg_restore --list` y permanece ignorado por
+  Git. La auditoría posterior confirmó cero ubicaciones y 1,612 productos.
+- La migración `20260814124317_ProductLocationAssignments` fue generada,
+  revisada y aplicada. Crea solamente `product_location_assignments`, con clave
+  primaria compuesta, claves foráneas `RESTRICT` e índice por ubicación.
+- Antes de aplicarla se respaldó `public` en
+  `BackupDatabase/public-before-product-locations-20260814-075917.dump`; el
+  archivo custom fue validado con `pg_restore --list` y está ignorado por Git.
+  La auditoría final confirmó 1,612 productos, 153 ubicaciones y cero
+  asignaciones iniciales.
 - La auditoría directa confirmó tipos, nulabilidad, valores predeterminados,
   restricciones, acciones referenciales e índices, incluido el índice parcial
   que permite un solo código principal por producto.
 
 La base técnica, el esquema inicial, la seguridad por NIP, la administración de
-usuarios y los catálogos de la fase 3 están terminados. PostgreSQL contiene un
+usuarios, los catálogos y la implementación técnica de ubicaciones están terminados. PostgreSQL contiene un
 administrador activo creado mediante el comando interactivo; no se registraron su
 nombre, NIP ni campos protegidos en este documento. No se debe avanzar a
-ubicaciones, producción, movimientos ni otra fase hasta que el usuario cambie la
-prioridad. Sigue pendiente crear un commit base después de revisar el conjunto
+inventario, producción, movimientos ni otra fase hasta que el usuario cambie la
+prioridad. Sigue pendiente validar y cargar las ubicaciones físicas y crear un commit base después de revisar el conjunto
 completo de cambios existentes.
 
 Si `dotnet` no está en `PATH`, sustituirlo por:
@@ -327,7 +348,8 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - El importador agrega únicamente SKU nuevos, omite activos e inactivos ya
   existentes y consolida duplicados compatibles. No importa rutas de producción,
   códigos de barras, ubicaciones, usuarios ni credenciales. No se agregó una
-  migración y no se ejecutó la primera carga real.
+  migración. La primera carga real fue confirmada posteriormente y agregó 1,612
+  productos.
 - La auditoría del archivo real confirmó 1,613 filas fuente, 1,612 SKU únicos,
   123 referencias vacías y el duplicado compatible `THREAD-TK92-BURGUNDY`.
   Las 65 filas con `U/M` vacío se asignan a `UNASSIGNED / Sin asignar` y se
@@ -335,23 +357,40 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   Esta unidad está reservada: no puede editarse ni desactivarse desde el catálogo.
   La vista previa real termina con 1,612 candidatos y cero errores, sin insertar
   productos antes de confirmar.
-- Migraciones, respaldos, auditoría PostgreSQL, compilación y 55 pruebas completadas
+- Migraciones, respaldos, auditoría PostgreSQL, compilación y 74 pruebas completadas
   el 13 de agosto de 2026.
 
 ### Fase 4: ubicaciones y layout
 
-- Incorporar el layout entregado y capturar las ubicaciones reales.
-- Usar `Fila-Rack-Pallet` como nomenclatura canónica de los racks, con la
+- Modelo, migración y catálogo ADMIN implementados el 14 de agosto de 2026.
+- Se usa `Fila-Rack-Pallet` como nomenclatura canónica de los racks, con la
   distribución de pallet `1` a `9` de teclado numérico y soporte para racks
   incompletos.
-- Registrar por separado fila, rack y pallet, conservar el código compuesto
+- Se registran por separado fila, rack y pallet, conservando el código compuesto
   único y permitir búsqueda y orden físicos.
-- Registrar por separado las áreas especiales que no usan rack, sin inventar
+- Las áreas especiales se crean individualmente, sin inventar
   su semántica a partir de los colores del croquis.
-- Validar en sitio el sentido de numeración y todas las posiciones existentes
-  antes de cualquier carga masiva.
-- Etiquetar ubicaciones con código de barras.
-- Permitir bloquear o desactivar ubicaciones.
+- Existe un generador ADMIN con bloques, vista previa de 30 minutos ligada al
+  administrador, exclusión de posiciones y confirmación transaccional de un solo
+  uso. También produce una hoja imprimible de validación física.
+- El catálogo permite buscar, filtrar, crear áreas, bloquear con motivo,
+  desbloquear, activar y desactivar sin borrado físico.
+- La vista principal alterna entre un plano por filas/racks con distribución de
+  teclado numérico y una tabla administrativa paginada. La búsqueda acepta
+  código o descripción de ubicación y también SKU, descripción, referencia o
+  código de barras de productos asignados.
+- Existe una asignación fija muchos-a-muchos entre productos y ubicaciones, sin
+  ubicación principal. Las asignaciones se desactivan y reactivan sin borrado,
+  permanecen visibles aunque posteriormente el saldo sea cero y se administran
+  desde ambos detalles.
+- Cada posición muestra hasta tres SKU y permite navegar al producto; Productos
+  muestra hasta tres ubicaciones y permite navegar al rack. No se muestran
+  cantidades antes de implementar los saldos en la fase 5.
+- El código visible normalizado será el valor leído por el escáner; la pantalla
+  operativa se implementará en la fase 6.
+- La impresión de etiquetas se pospuso porque la bodega ya está etiquetada.
+- PostgreSQL contiene actualmente 153 ubicaciones. Sigue pendiente confirmar que
+  ese listado cubra físicamente todas las posiciones y excepciones del almacén.
 
 ### Fase 5: núcleo de inventario
 
@@ -509,7 +548,7 @@ HMAC-SHA256 y PBKDF2-SHA256, es único y no tiene bloqueo por intentos. Existen
 páginas para iniciar sesión, administrar usuarios y administrar los catálogos de
 la fase 3. Los productos usan SKU obligatorio y descripción opcional, sin un
 campo separado de nombre. La compilación fue verificada con .NET SDK 10.0.400
-sin errores ni advertencias. Las 55 pruebas pasan, incluida la vista previa del
+sin errores ni advertencias. Las 74 pruebas pasan, incluida la vista previa del
 archivo real sin escribir en PostgreSQL.
 
 La base real es warehouseEPI y ConnectionStrings:Warehouse fue validada sin
@@ -520,14 +559,14 @@ eliminado después de verificar el esquema nuevo. RemovePinLockout también est�
 aplicada y ya no existen failed_pin_attempts ni locked_until.
 CatalogsAndProductReference está aplicada; existen 18 unidades, 2 tipos y 26
 clases. RemoveProductName también está aplicada y `products.name` ya no existe;
-los productos y códigos de barras siguen vacíos. Existe un importador ADMIN de
+PostgreSQL contiene 1,612 productos importados y cero códigos de barras. Existe un importador ADMIN de
 productos `.xlsx` para la hoja ITEMS, con vista previa en memoria y confirmación
-transaccional; la carga real no se ha confirmado. Las 65 filas con U/M vacío
+transaccional; la carga real ya fue confirmada. Las 65 filas con U/M vacío
 usan `UNASSIGNED / Sin asignar` con advertencia, sin inferir `EA`.
 Security:PinLookupKey
 está en User Secrets. PostgreSQL contiene exactamente un ADMIN activo creado de
 forma interactiva; sus credenciales no se leyeron ni documentaron. La fase 3 de
-catálogos está completa. No avances a ubicaciones, producción o movimientos salvo
+catálogos está completa. No avances a producción o movimientos salvo
 que yo cambie la prioridad.
 
 El layout físico ya fue entregado. Para racks, el código canónico será
@@ -535,4 +574,14 @@ El layout físico ya fue entregado. Para racks, el código canónico será
 teclado numérico (`1-3` abajo, `4-6` medio, `7-9` arriba). Áreas no rack usan
 códigos propios. La fase 4 debe validar físicamente los racks, posiciones,
 sentido de numeración y significado de colores antes de cargarlos.
+
+LocationLayoutStructure está aplicada. Existe el catálogo ADMIN de ubicaciones
+y un generador por bloques con vista previa, exclusiones, hoja de validación y
+confirmación transaccional. Las áreas se capturan individualmente y los bloqueos
+requieren motivo. Las etiquetas no se imprimirán porque la bodega ya está
+etiquetada; el código visible será el valor escaneado. PostgreSQL contiene 153
+ubicaciones. ProductLocationAssignments también está aplicada y permite
+asignaciones fijas muchos-a-muchos sin ubicación principal, conservadas aunque
+el saldo llegue a cero. Ubicaciones y Productos permiten buscar y navegar en
+ambos sentidos; las cantidades reales siguen reservadas para la fase 5.
 ```

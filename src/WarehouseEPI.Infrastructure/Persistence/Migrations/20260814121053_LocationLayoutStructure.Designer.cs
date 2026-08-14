@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using WarehouseEPI.Infrastructure.Persistence;
 namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WarehouseDbContext))]
-    partial class WarehouseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260814121053_LocationLayoutStructure")]
+    partial class LocationLayoutStructure
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -487,41 +490,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductLocationAssignment", b =>
-                {
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("product_id");
-
-                    b.Property<Guid>("LocationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("location_id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.HasKey("ProductId", "LocationId");
-
-                    b.HasIndex("LocationId");
-
-                    b.ToTable("product_location_assignments", (string)null);
-                });
-
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductType", b =>
                 {
                     b.Property<short>("Id")
@@ -910,25 +878,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Product");
                 });
 
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductLocationAssignment", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
-                        .WithMany("ProductAssignments")
-                        .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
-                        .WithMany("LocationAssignments")
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Location");
-
-                    b.Navigation("Product");
-                });
-
             modelBuilder.Entity("WarehouseEPI.Core.Entities.User", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.Role", "Role")
@@ -940,16 +889,9 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Role");
                 });
 
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.Location", b =>
-                {
-                    b.Navigation("ProductAssignments");
-                });
-
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.Navigation("Barcodes");
-
-                    b.Navigation("LocationAssignments");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductClass", b =>

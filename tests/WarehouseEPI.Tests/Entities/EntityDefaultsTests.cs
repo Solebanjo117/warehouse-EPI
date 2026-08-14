@@ -34,14 +34,15 @@ public sealed class EntityDefaultsTests
     }
 
     [Fact]
-    public void Location_accepts_existing_compact_codes_without_parsed_components()
+    public void Location_defaults_to_available_area_structure()
     {
-        var location = new Location { Code = "1A1" };
+        var location = new Location { Code = "SHIPPING", Kind = LocationKind.Area };
 
-        Assert.Equal("1A1", location.Code);
-        Assert.Null(location.Aisle);
-        Assert.Null(location.Shelf);
+        Assert.Equal("SHIPPING", location.Code);
+        Assert.Null(location.RowCode);
+        Assert.Null(location.RackNumber);
         Assert.Null(location.LevelNumber);
+        Assert.True(location.IsOperational);
         Assert.True(location.IsActive);
     }
 

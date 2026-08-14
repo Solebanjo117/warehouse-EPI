@@ -1,0 +1,79 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.IndexModel
+@{ ViewData["Title"] = "Ubicaciones"; }
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div><h1 class="h2 mb-1">Ubicaciones</h1><p class="text-muted mb-0">Consulta física y administración del almacén.</p></div>
+    <div class="d-flex flex-wrap gap-2"><a asp-page="Generate" class="btn btn-outline-primary btn-lg">Preparar racks</a><a asp-page="Area" class="btn btn-primary btn-lg">Crear área</a></div>
+</div>
+@if(Model.Message is not null){<div class="alert alert-success">@Model.Message</div>}
+@if(Model.Error is not null){<div class="alert alert-danger">@Model.Error</div>}
+
+<div class="location-summary mb-3">
+    <div><strong>@Model.Summary.Available</strong><span>Disponibles</span></div>
+    <div><strong>@Model.Summary.Blocked</strong><span>Bloqueadas</span></div>
+    <div><strong>@Model.Summary.Inactive</strong><span>Inactivas</span></div>
+    <div><strong>@Model.Summary.Racks</strong><span>Posiciones</span></div>
+    <div><strong>@Model.Summary.Areas</strong><span>Áreas</span></div>
+</div>
+
+<form method="get" class="card card-body mb-3"><input type="hidden" name="viewMode" value="@Model.ViewMode"/><div class="row g-2">
+    <div class="col-12 col-lg-4"><label for="search" class="form-label">Buscar ubicación o producto</label><input id="search" name="search" value="@Model.Search" class="form-control form-control-lg" placeholder="Código, SKU, descripción, referencia o barras" /></div>
+    <div class="col-6 col-md-4 col-lg-2"><label for="status" class="form-label">Estado</label><select id="status" name="status" class="form-select form-select-lg"><option value="active" selected="@(Model.Status=="active")">Disponibles</option><option value="blocked" selected="@(Model.Status=="blocked")">Bloqueadas</option><option value="inactive" selected="@(Model.Status=="inactive")">Inactivas</option><option value="all" selected="@(Model.Status=="all")">Todas</option></select></div>
+    <div class="col-6 col-md-4 col-lg-2"><label for="kind" class="form-label">Tipo</label><select id="kind" name="kind" class="form-select form-select-lg"><option value="all">Todos</option><option value="rack" selected="@(Model.Kind=="rack")">Rack</option><option value="area" selected="@(Model.Kind=="area")">Área</option></select></div>
+    <div class="col-6 col-md-4 col-lg-2"><label for="rowCode" class="form-label">Fila</label><select id="rowCode" name="rowCode" class="form-select form-select-lg"><option value="">Todas</option>@foreach(var row in Model.Rows){<option value="@row" selected="@(Model.RowCode==row)">@row</option>}</select></div>
+    <div class="col-6 col-lg-2 d-flex align-items-end gap-1"><button class="btn btn-outline-primary btn-lg flex-grow-1">Buscar</button><a asp-page="Index" asp-route-viewMode="@Model.ViewMode" class="btn btn-outline-secondary btn-lg" title="Limpiar filtros">×</a></div>
+</div></form>
+
+<div class="nav nav-pills mb-3" aria-label="Vista de ubicaciones">
+    <a class="nav-link @(Model.ViewMode=="layout"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="layout">Plano por filas</a>
+    <a class="nav-link @(Model.ViewMode=="table"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="table">Tabla administrativa</a>
+</div>
+
+@if(Model.ViewMode=="layout")
+{
+    @if(Model.LayoutRacks.Count==0 && Model.LayoutAreas.Count==0){<div class="card card-body text-center text-muted py-5">No hay ubicaciones que coincidan.</div>}
+    @foreach(var rowGroup in Model.LayoutRacks.GroupBy(rack => rack.RowCode))
+    {
+        <section class="mb-4"><h2 class="h4 border-bottom pb-2">Fila @rowGroup.Key</h2><div class="rack-layout-list">
+        @foreach(var rack in rowGroup)
+        {
+            <article class="rack-card"><h3 class="h6">Rack @rack.RackNumber</h3><div class="rack-keypad">
+            @foreach(var position in rack.Positions)
+            {
+                @if(position is null){<div class="location-slot missing" aria-label="Posición inexistente"></div>}
+                else
+                {
+                    var stateClass = !position.IsActive ? "inactive" : position.IsBlocked ? "blocked" : "available";
+                    <a asp-page="Details" asp-route-id="@position.Id" class="location-slot @stateClass" title="Abrir @position.Code">
+                        <strong>@position.PalletNumber</strong><small>@position.Code</small>
+                        @foreach(var sku in position.Skus){<span class="sku-chip">@sku</span>}
+                        @if(position.ProductCount>position.Skus.Count){<span class="sku-more">+@(position.ProductCount-position.Skus.Count)</span>}
+                    </a>
+                }
+            }
+            </div></article>
+        }
+        </div></section>
+    }
+    @if(Model.LayoutAreas.Count>0){<section><h2 class="h4 border-bottom pb-2">Áreas especiales</h2><div class="area-layout-list">@foreach(var area in Model.LayoutAreas){<a asp-page="Details" asp-route-id="@area.Id" class="location-area-card"><strong>@area.Code</strong><span>@(area.Description??"Área especial")</span><small>@area.ProductCount producto(s) asignado(s)</small></a>}</div></section>}
+}
+else
+{
+    <div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Código</th><th>Tipo / posición</th><th>Productos asignados</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead><tbody>
+    @if(Model.Locations.Count==0){<tr><td colspan="5" class="text-center text-muted py-4">No hay ubicaciones que coincidan.</td></tr>}
+    @foreach(var item in Model.Locations){<tr><td><a asp-page="Details" asp-route-id="@item.Id" class="fw-bold">@item.Code</a>@if(item.Description is not null){<div class="small text-muted">@item.Description</div>}</td><td>@(item.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack?$"Fila {item.RowCode}, rack {item.RackNumber}, pallet {item.PalletNumber}":"Área especial")</td><td>@foreach(var sku in item.Skus){<span class="badge text-bg-light border me-1">@sku</span>}@if(item.ProductCount>item.Skus.Count){<span class="badge text-bg-secondary">+@(item.ProductCount-item.Skus.Count)</span>}@if(item.ProductCount==0){<span class="text-muted">Sin asignar</span>}</td><td>@if(!item.IsActive){<span class="badge text-bg-secondary">Inactiva</span>}else if(item.IsBlocked){<span class="badge text-bg-warning">Bloqueada</span><div class="small">@item.BlockReason</div>}else{<span class="badge text-bg-success">Disponible</span>}</td><td class="text-end"><div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Acciones</button><ul class="dropdown-menu dropdown-menu-end"><li><a asp-page="Details" asp-route-id="@item.Id" class="dropdown-item">Ver productos</a></li>@if(item.Kind==WarehouseEPI.Core.Entities.LocationKind.Area){<li><a asp-page="Area" asp-route-locationId="@item.Id" class="dropdown-item">Editar área</a></li>}<li><hr class="dropdown-divider"/></li>@if(item.IsActive&&!item.IsBlocked){<li><button type="button" class="dropdown-item text-warning block-location" data-bs-toggle="modal" data-bs-target="#blockModal" data-location-id="@item.Id" data-location-code="@item.Code">Bloquear</button></li>}else if(item.IsBlocked){<li><form method="post" asp-page-handler="Unblock"><input type="hidden" name="id" value="@item.Id"/><button class="dropdown-item text-success">Desbloquear</button></form></li>}<li><form method="post" asp-page-handler="Toggle"><input type="hidden" name="id" value="@item.Id"/><button class="dropdown-item">@(item.IsActive?"Desactivar":"Activar")</button></form></li></ul></div></td></tr>}
+    </tbody></table></div>
+    @if(Model.TotalPages>1){<nav aria-label="Paginación"><ul class="pagination justify-content-center flex-wrap"><li class="page-item @(Model.CurrentPage<=1?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(1)">Primera</a></li><li class="page-item @(Model.CurrentPage<=1?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(Model.CurrentPage-1)">Anterior</a></li>@foreach(var pageNumber in Model.VisiblePages){<li class="page-item @(pageNumber==Model.CurrentPage?"active":"")"><a class="page-link" asp-all-route-data="@RouteValues(pageNumber)">@pageNumber</a></li>}<li class="page-item @(Model.CurrentPage>=Model.TotalPages?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(Model.CurrentPage+1)">Siguiente</a></li><li class="page-item @(Model.CurrentPage>=Model.TotalPages?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(Model.TotalPages)">Última</a></li></ul></nav>}
+}
+
+<div class="modal fade" id="blockModal" tabindex="-1" aria-labelledby="blockModalLabel" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="post" asp-page-handler="Block"><div class="modal-header"><h2 class="modal-title fs-5" id="blockModalLabel">Bloquear ubicación</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><input type="hidden" id="blockLocationId" name="id"/><p id="blockLocationText"></p><label for="blockReason" class="form-label">Motivo</label><textarea id="blockReason" name="reason" class="form-control" maxlength="200" rows="3" required></textarea></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-warning">Bloquear</button></div></form></div></div></div>
+
+@functions{
+    private Dictionary<string,string?> RouteValues(int pageNumber) => new()
+    {
+        ["search"] = Model.Search, ["status"] = Model.Status, ["kind"] = Model.Kind,
+        ["rowCode"] = Model.RowCode, ["viewMode"] = "table", ["pageNumber"] = pageNumber.ToString()
+    };
+}
+@section Scripts{<script>document.querySelectorAll('.block-location').forEach(button=>button.addEventListener('click',()=>{document.getElementById('blockLocationId').value=button.dataset.locationId;document.getElementById('blockLocationText').textContent=`Ubicación ${button.dataset.locationCode}`;document.getElementById('blockReason').value='';}));</script>}

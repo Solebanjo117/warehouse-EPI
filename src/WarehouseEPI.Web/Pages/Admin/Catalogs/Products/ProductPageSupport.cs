@@ -58,12 +58,12 @@ internal static class ProductPageSupport
 
     public static IQueryable<Product> ApplySearch(IQueryable<Product> query, string search)
     {
-        var term = $"%{search}%";
+        var term = search.Trim().ToUpperInvariant();
         return query.Where(product =>
-            EF.Functions.ILike(product.Sku, term) ||
-            (product.Description != null && EF.Functions.ILike(product.Description, term)) ||
-            (product.ExternalReference != null && EF.Functions.ILike(product.ExternalReference, term)) ||
-            product.Barcodes.Any(barcode => EF.Functions.ILike(barcode.Barcode, term)));
+            product.Sku.ToUpper().Contains(term) ||
+            (product.Description != null && product.Description.ToUpper().Contains(term)) ||
+            (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(term)) ||
+            product.Barcodes.Any(barcode => barcode.Barcode.ToUpper().Contains(term)));
     }
 
     public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes)> LoadOptionsAsync(
