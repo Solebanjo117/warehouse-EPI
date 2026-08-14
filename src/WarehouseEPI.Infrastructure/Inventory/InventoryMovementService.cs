@@ -104,7 +104,7 @@ public sealed class InventoryMovementService(
                     SharingConflicts: conflicts), cancellationToken);
             }
 
-            await EnsureBalancesExistAsync(balanceKeys, cancellationToken);
+            var createdBalanceKeys = await EnsureBalancesExistAsync(balanceKeys, cancellationToken);
             if (transaction is not null)
                 await LockBalancesAsync(balanceKeys, transaction, cancellationToken);
 
@@ -127,7 +127,9 @@ public sealed class InventoryMovementService(
                     continue;
 
                 var balance = balances[new BalanceKey(line.ProductId, line.LocationId!.Value, null)];
-                if (line.ExpectedBalanceVersion != balance.Version)
+                var key = new BalanceKey(line.ProductId, line.LocationId!.Value, null);
+                var acceptsMissingBalance = line.ExpectedBalanceVersion == 0 && createdBalanceKeys.Contains(key);
+                if (!acceptsMissingBalance && line.ExpectedBalanceVersion != balance.Version)
                 {
                     return await AbortAsync(transaction, new(
                         InventoryMovementStatus.BalanceChanged,
@@ -357,23 +359,26 @@ public sealed class InventoryMovementService(
         return conflicts;
     }
 
-    private async Task EnsureBalancesExistAsync(
+    private async Task<HashSet<BalanceKey>> EnsureBalancesExistAsync(
         IReadOnlyCollection<BalanceKey> keys,
         CancellationToken cancellationToken)
     {
+        var created = new HashSet<BalanceKey>();
         if (dbContext.Database.IsRelational())
         {
             foreach (var key in keys)
             {
                 var id = Guid.NewGuid();
                 var now = timeProvider.GetUtcNow();
-                await dbContext.Database.ExecuteSqlInterpolatedAsync($$"""
+                var inserted = await dbContext.Database.ExecuteSqlInterpolatedAsync($$"""
                     INSERT INTO inventory_balances (id, product_id, location_id, lot_id, quantity, updated_at)
                     VALUES ({{id}}, {{key.ProductId}}, {{key.LocationId}}, NULL, 0, {{now}})
                     ON CONFLICT (product_id, location_id) WHERE lot_id IS NULL DO NOTHING
                     """, cancellationToken);
+                if (inserted == 1)
+                    created.Add(key);
             }
-            return;
+            return created;
         }
 
         foreach (var key in keys)
@@ -382,6 +387,7 @@ public sealed class InventoryMovementService(
                     balance.ProductId == key.ProductId && balance.LocationId == key.LocationId &&
                     balance.LotId == key.LotId, cancellationToken))
             {
+                created.Add(key);
                 dbContext.InventoryBalances.Add(new InventoryBalance
                 {
                     ProductId = key.ProductId,
@@ -393,6 +399,7 @@ public sealed class InventoryMovementService(
             }
         }
         await dbContext.SaveChangesAsync(cancellationToken);
+        return created;
     }
 
     private async Task UpsertAssignmentsAsync(

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -34,6 +35,7 @@ builder.Services.AddScoped<LocationLookupService>();
 builder.Services.AddScoped<ProductLocationAssignmentService>();
 builder.Services.AddScoped<InventoryMovementService>();
 builder.Services.AddScoped<InventoryQueryService>();
+builder.Services.AddScoped<OperationalInventoryQueryService>();
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = ProductImportLimits.MaxRequestBytes;
@@ -87,6 +89,9 @@ builder.Services
 builder.Services.AddAuthorization(options =>
     options.AddPolicy("AdminOnly", policy =>
         policy.RequireAuthenticatedUser().RequireRole("ADMIN")));
+if (builder.Environment.IsDevelopment() &&
+    builder.Configuration.GetValue<bool>("Development:UseEphemeralDataProtection"))
+    builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
 
 var app = builder.Build();
 

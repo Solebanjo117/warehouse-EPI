@@ -22,8 +22,36 @@ public sealed record ProductStockSummary(
     decimal MinimumStock,
     bool IsBelowMinimum);
 
+public sealed record InventoryBalanceSnapshot(
+    Guid ProductId,
+    Guid LocationId,
+    decimal Quantity,
+    uint Version,
+    bool Exists,
+    bool IsNegative);
+
 public sealed class InventoryQueryService(WarehouseDbContext dbContext)
 {
+    public async Task<InventoryBalanceSnapshot> GetBalanceAsync(
+        Guid productId,
+        Guid locationId,
+        CancellationToken cancellationToken = default)
+    {
+        var balance = await dbContext.InventoryBalances.AsNoTracking()
+            .Where(candidate => candidate.ProductId == productId &&
+                candidate.LocationId == locationId && candidate.LotId == null)
+            .Select(candidate => new InventoryBalanceSnapshot(
+                productId,
+                locationId,
+                candidate.Quantity,
+                candidate.Version,
+                true,
+                candidate.Quantity < 0))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return balance ?? new(productId, locationId, 0m, 0, false, false);
+    }
+
     public async Task<IReadOnlyList<InventoryBalanceView>> GetProductBalancesAsync(
         Guid productId,
         CancellationToken cancellationToken = default) =>

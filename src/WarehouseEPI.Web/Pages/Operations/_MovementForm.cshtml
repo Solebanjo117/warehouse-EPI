@@ -1,0 +1,206 @@
+@using System.Globalization
+@using WarehouseEPI.Core.Entities
+@model WarehouseEPI.Web.Pages.Operations.OperationPageModel
+@{
+    var product = Model.SelectedProduct;
+    var source = Model.SelectedSource;
+    var destination = Model.SelectedDestination;
+    var location = Model.SelectedLocation;
+    var lookupUrl = Url.Page("/Operations/Lookup");
+}
+
+<div class="operation-shell" data-operation="@Model.MovementType.ToString().ToLowerInvariant()" data-lookup-url="@lookupUrl">
+    <div class="d-flex align-items-start justify-content-between gap-3 mb-4">
+        <div>
+            <a asp-page="/Index" class="small text-decoration-none">← Menú operativo</a>
+            <h1 class="h2 mt-2 mb-1">@Model.PageTitle</h1>
+            <p class="text-muted mb-0">@Model.PageHelp</p>
+        </div>
+        <span class="operation-step">1 producto</span>
+    </div>
+
+    <form method="post" data-operation-form>
+        <input asp-for="Input.OperationId" type="hidden" />
+        <input asp-for="Input.ProductId" type="hidden" data-selected-id="product" />
+        <input asp-for="Input.SourceLocationId" type="hidden" data-selected-id="source" />
+        <input asp-for="Input.DestinationLocationId" type="hidden" data-selected-id="destination" />
+        <input asp-for="Input.LocationId" type="hidden" data-selected-id="location" />
+        <input asp-for="Input.ExpectedBalanceVersion" type="hidden" data-balance-version />
+
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        @if (Model.NeedsSharingApproval)
+        {
+            <section class="alert alert-warning operation-warning" aria-labelledby="sharing-title">
+                <h2 id="sharing-title" class="h5">El pallet ya contiene otros productos</h2>
+                <p>Confirma expresamente que deseas compartir la ubicación. No se realizó ningún cambio.</p>
+                @foreach (var conflict in Model.SharingConflicts)
+                {
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox"
+                               name="Input.ApprovedSharedLocationIds" value="@conflict.LocationId"
+                               id="approve-@conflict.LocationId" required />
+                        <label class="form-check-label" for="approve-@conflict.LocationId">
+                            Agregar <strong>@conflict.ProductSku</strong> a <strong>@conflict.LocationCode</strong>,
+                            compartiendo con @string.Join(", ", conflict.ExistingProductSkus)
+                        </label>
+                    </div>
+                }
+                <p class="mb-0 small">Deberás introducir nuevamente tu NIP al confirmar.</p>
+            </section>
+        }
+
+        <section class="operation-card">
+            <h2 class="h5">Producto</h2>
+            <div class="lookup-field" data-lookup-field="product">
+                <label for="product-code" class="form-label">SKU o código de barras</label>
+                <input id="product-code" class="form-control form-control-lg" type="search"
+                       value="@product?.Sku" autocomplete="off" autocapitalize="characters"
+                       placeholder="Escanea o escribe el código" autofocus data-lookup-input />
+                <div class="lookup-results list-group" data-lookup-results></div>
+                <div class="selected-record @(product is null ? "d-none" : null)" data-selected-record
+                     data-unit="@product?.UnitCode" data-allows-decimals="@(product?.AllowsDecimals == true ? "true" : "false")"
+                     data-tracks-lots="@(product?.TracksLots == true ? "true" : "false")">
+                    <strong data-selected-title>@product?.Sku</strong>
+                    <span data-selected-detail>@product?.Description</span>
+                    <small data-selected-meta>@product?.UnitCode</small>
+                </div>
+                <div class="relationship-panel d-none" data-relationship-panel aria-live="polite"></div>
+                <span asp-validation-for="Input.ProductId" class="text-danger"></span>
+            </div>
+        </section>
+
+        <section class="operation-card">
+            <h2 class="h5">Ubicación y cantidad</h2>
+            <div class="row g-3">
+                @if (Model.MovementType is InventoryMovementType.Exit or InventoryMovementType.Transfer)
+                {
+                    <div class="col-12 @(Model.MovementType == InventoryMovementType.Transfer ? "col-md-6" : null)">
+                        <div class="lookup-field" data-lookup-field="source">
+                            <label for="source-code" class="form-label">Ubicación origen</label>
+                            <input id="source-code" class="form-control form-control-lg" type="search"
+                                   value="@source?.Code" autocomplete="off" autocapitalize="characters"
+                                   placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                            <div class="lookup-results list-group" data-lookup-results></div>
+                            <div class="selected-record @(source is null ? "d-none" : null)" data-selected-record>
+                                <strong data-selected-title>@source?.Code</strong>
+                                <span data-selected-detail>@source?.Description</span>
+                            </div>
+                            <div class="relationship-panel d-none" data-relationship-panel aria-live="polite"></div>
+                            <span asp-validation-for="Input.SourceLocationId" class="text-danger"></span>
+                        </div>
+                    </div>
+                }
+                @if (Model.MovementType is InventoryMovementType.Entry or InventoryMovementType.Transfer)
+                {
+                    <div class="col-12 @(Model.MovementType == InventoryMovementType.Transfer ? "col-md-6" : null)">
+                        <div class="lookup-field" data-lookup-field="destination">
+                            <label for="destination-code" class="form-label">Ubicación destino</label>
+                            <input id="destination-code" class="form-control form-control-lg" type="search"
+                                   value="@destination?.Code" autocomplete="off" autocapitalize="characters"
+                                   placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                            <div class="lookup-results list-group" data-lookup-results></div>
+                            <div class="selected-record @(destination is null ? "d-none" : null)" data-selected-record>
+                                <strong data-selected-title>@destination?.Code</strong>
+                                <span data-selected-detail>@destination?.Description</span>
+                            </div>
+                            <div class="relationship-panel d-none" data-relationship-panel aria-live="polite"></div>
+                            <span asp-validation-for="Input.DestinationLocationId" class="text-danger"></span>
+                        </div>
+                    </div>
+                }
+                @if (Model.MovementType == InventoryMovementType.Adjustment)
+                {
+                    <div class="col-12">
+                        <div class="lookup-field" data-lookup-field="location">
+                            <label for="location-code" class="form-label">Ubicación</label>
+                            <input id="location-code" class="form-control form-control-lg" type="search"
+                                   value="@location?.Code" autocomplete="off" autocapitalize="characters"
+                                   placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                            <div class="lookup-results list-group" data-lookup-results></div>
+                            <div class="selected-record @(location is null ? "d-none" : null)" data-selected-record>
+                                <strong data-selected-title>@location?.Code</strong>
+                                <span data-selected-detail>@location?.Description</span>
+                            </div>
+                            <div class="relationship-panel d-none" data-relationship-panel aria-live="polite"></div>
+                            <span asp-validation-for="Input.LocationId" class="text-danger"></span>
+                        </div>
+                    </div>
+                }
+
+                <div class="col-12 col-md-6">
+                    <label asp-for="Input.Quantity" class="form-label">
+                        @(Model.MovementType == InventoryMovementType.Adjustment ? "Conteo final" : "Cantidad")
+                    </label>
+                    <div class="input-group input-group-lg">
+                        <input asp-for="Input.Quantity" class="form-control" inputmode="decimal" required
+                               min="@(Model.MovementType == InventoryMovementType.Adjustment ? null : "0.0001")" data-quantity />
+                        <span class="input-group-text" data-unit-label>@(product?.UnitCode ?? "Unidad")</span>
+                    </div>
+                    <span asp-validation-for="Input.Quantity" class="text-danger"></span>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <div class="balance-preview" data-balance-preview
+                         data-source="@((Model.SourceBalance?.Quantity ?? 0m).ToString(CultureInfo.InvariantCulture))"
+                         data-destination="@((Model.DestinationBalance?.Quantity ?? 0m).ToString(CultureInfo.InvariantCulture))"
+                         data-location="@((Model.LocationBalance?.Quantity ?? 0m).ToString(CultureInfo.InvariantCulture))">
+                        <span class="text-muted">Saldo y resultado</span>
+                        <strong data-balance-text>Selecciona producto y ubicación</strong>
+                        <span class="text-danger d-none" data-negative-warning>Advertencia: el saldo resultante será negativo.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="operation-card">
+            <h2 class="h5">Datos de respaldo</h2>
+            <div class="row g-3">
+                <div class="col-12 col-md-5">
+                    <label asp-for="Input.Reference" class="form-label">Referencia <span class="text-muted">(opcional)</span></label>
+                    <input asp-for="Input.Reference" class="form-control form-control-lg" maxlength="120" />
+                    <span asp-validation-for="Input.Reference" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-7">
+                    <label asp-for="Input.Notes" class="form-label">
+                        @(Model.MovementType == InventoryMovementType.Adjustment ? "Motivo del ajuste" : "Observaciones (opcional)")
+                    </label>
+                    <textarea asp-for="Input.Notes" class="form-control" rows="2" maxlength="500"
+                              required="@(Model.MovementType == InventoryMovementType.Adjustment ? "required" : null)"></textarea>
+                    <span asp-validation-for="Input.Notes" class="text-danger"></span>
+                </div>
+            </div>
+        </section>
+
+        <div class="operation-actions">
+            <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+            <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-review-button>
+                Revisar y confirmar
+            </button>
+        </div>
+
+        <div class="modal fade" id="confirm-operation" tabindex="-1" aria-labelledby="confirm-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="confirm-title">Confirmar @Model.PageTitle.ToLowerInvariant()</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="confirmation-summary mb-3" data-confirmation-summary></div>
+                        <label asp-for="Input.Pin" class="form-label fw-semibold">NIP del responsable</label>
+                        <input asp-for="Input.Pin" value="" class="form-control form-control-lg pin-input"
+                               type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+                               autocomplete="off" data-pin-input />
+                        <span asp-validation-for="Input.Pin" class="text-danger"></span>
+                        <p class="small text-muted mt-2 mb-0">El NIP se usa solo para esta operación y no se conservará.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Volver</button>
+                        <button type="submit" class="btn btn-primary btn-lg" data-submit-button>Confirmar operación</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>

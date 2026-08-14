@@ -1,0 +1,91 @@
+@page "{id:guid}"
+@using WarehouseEPI.Core.Entities
+@model WarehouseEPI.Web.Pages.Operations.ReceiptModel
+@{
+    ViewData["Title"] = "Operación confirmada";
+    var typeName = Model.Receipt.Type switch
+    {
+        InventoryMovementType.Entry => "Entrada",
+        InventoryMovementType.Exit => "Salida",
+        InventoryMovementType.Transfer => "Transferencia",
+        InventoryMovementType.Adjustment => "Ajuste",
+        _ => "Movimiento"
+    };
+    var newPage = Model.Receipt.Type switch
+    {
+        InventoryMovementType.Entry => "/Operations/Entry",
+        InventoryMovementType.Exit => "/Operations/Exit",
+        InventoryMovementType.Transfer => "/Operations/Transfer",
+        InventoryMovementType.Adjustment => "/Operations/Adjustment",
+        _ => "/Index"
+    };
+}
+
+<div class="receipt-shell">
+    <div class="receipt-status @(Model.Receipt.HasNegativeBalance ? "receipt-warning" : "receipt-success")">
+        <span class="receipt-icon" aria-hidden="true">@(Model.Receipt.HasNegativeBalance ? "!" : "✓")</span>
+        <div>
+            <h1 class="h3 mb-1">@typeName confirmada</h1>
+            <p class="mb-0">
+                @if (Model.Receipt.HasNegativeBalance)
+                {
+                    <text>La operación se guardó, pero existe un saldo negativo.</text>
+                }
+                else
+                {
+                    <text>El inventario se actualizó correctamente.</text>
+                }
+            </p>
+        </div>
+    </div>
+
+    <section class="operation-card mt-4">
+        <div class="receipt-meta">
+            <div><span>Responsable</span><strong>@Model.Receipt.ResponsibleName</strong></div>
+            <div><span>Fecha</span><strong>@Model.Receipt.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong></div>
+            <div><span>Folio</span><strong class="receipt-id">@Model.Receipt.MovementId</strong></div>
+            @if (Model.Receipt.Reference is not null)
+            {
+                <div><span>Referencia</span><strong>@Model.Receipt.Reference</strong></div>
+            }
+        </div>
+    </section>
+
+    @foreach (var line in Model.Receipt.Lines)
+    {
+        <section class="operation-card">
+            <h2 class="h5 mb-1">@line.ProductSku</h2>
+            @if (line.ProductDescription is not null)
+            {
+                <p class="text-muted">@line.ProductDescription</p>
+            }
+            <p><strong>@line.Quantity.ToString("0.####") @line.UnitCode</strong></p>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Ubicación</th><th>Anterior</th><th>Cambio</th><th>Final</th></tr></thead>
+                    <tbody>
+                    @foreach (var change in line.Changes)
+                    {
+                        <tr class="@(change.ResultingQuantity < 0 ? "table-warning" : null)">
+                            <td><strong>@change.LocationCode</strong></td>
+                            <td>@change.PreviousQuantity.ToString("0.####")</td>
+                            <td>@(change.DeltaQuantity > 0 ? "+" : null)@change.DeltaQuantity.ToString("0.####")</td>
+                            <td><strong>@change.ResultingQuantity.ToString("0.####")</strong></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+
+    @if (Model.Receipt.Notes is not null)
+    {
+        <section class="operation-card"><strong>Observaciones / motivo</strong><p class="mb-0 mt-1">@Model.Receipt.Notes</p></section>
+    }
+
+    <div class="operation-actions">
+        <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">Menú</a>
+        <a asp-page="@newPage" class="btn btn-primary btn-lg flex-grow-1">Nueva operación</a>
+    </div>
+</div>

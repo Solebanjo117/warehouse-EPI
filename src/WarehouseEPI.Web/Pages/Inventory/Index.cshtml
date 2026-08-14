@@ -1,0 +1,83 @@
+@page "/Inventory"
+@model WarehouseEPI.Web.Pages.Inventory.IndexModel
+@{
+    ViewData["Title"] = "Consultar inventario";
+}
+
+<div class="inventory-shell" data-inventory-query data-lookup-url="@Url.Page("/Operations/Lookup")">
+    <a asp-page="/Index" class="small text-decoration-none">← Menú operativo</a>
+    <h1 class="h2 mt-2">Consultar inventario</h1>
+    <p class="text-muted">Consulta saldos sin iniciar sesión ni introducir NIP.</p>
+
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-lg-6">
+            <form method="get" class="operation-card h-100" data-query-form="product">
+                <h2 class="h5">Por producto</h2>
+                <input type="hidden" name="productId" data-query-selected-id />
+                <div class="lookup-field" data-query-lookup="product">
+                    <label for="inventory-product" class="form-label">SKU o código de barras</label>
+                    <input id="inventory-product" name="productCode" class="form-control form-control-lg"
+                           type="search" autocomplete="off" placeholder="Escanea o escribe el código" data-query-input autofocus />
+                    <div class="lookup-results list-group" data-query-results></div>
+                </div>
+                <button class="btn btn-primary btn-lg mt-3 w-100">Consultar producto</button>
+            </form>
+        </div>
+        <div class="col-12 col-lg-6">
+            <form method="get" class="operation-card h-100" data-query-form="location">
+                <h2 class="h5">Por ubicación</h2>
+                <input type="hidden" name="locationId" data-query-selected-id />
+                <div class="lookup-field" data-query-lookup="location">
+                    <label for="inventory-location" class="form-label">Código de ubicación</label>
+                    <input id="inventory-location" name="locationCode" class="form-control form-control-lg"
+                           type="search" autocomplete="off" placeholder="Escanea o escribe la ubicación" data-query-input />
+                    <div class="lookup-results list-group" data-query-results></div>
+                </div>
+                <button class="btn btn-primary btn-lg mt-3 w-100">Consultar ubicación</button>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.ErrorMessage is not null)
+    {
+        <div class="alert alert-warning">@Model.ErrorMessage</div>
+    }
+    else if (Model.Product is not null)
+    {
+        <section class="operation-card">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+                <div><h2 class="h4 mb-1">@Model.Product.Sku</h2><p class="text-muted mb-0">@Model.Product.Description</p></div>
+                <div class="inventory-total"><span>Total</span><strong>@Model.ProductTotal.ToString("0.####") @Model.Product.UnitCode</strong></div>
+            </div>
+        </section>
+    }
+    else if (Model.Location is not null)
+    {
+        <section class="operation-card"><h2 class="h4 mb-1">@Model.Location.Code</h2><p class="text-muted mb-0">@Model.Location.Description</p></section>
+    }
+
+    @if (Model.Product is not null || Model.Location is not null)
+    {
+        <section class="operation-card">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead><tr><th>Producto</th><th>Ubicación</th><th class="text-end">Cantidad</th></tr></thead>
+                    <tbody>
+                    @foreach (var balance in Model.Balances)
+                    {
+                        <tr class="@(balance.IsNegative ? "table-warning" : null)">
+                            <td><strong>@balance.ProductSku</strong></td>
+                            <td>@balance.LocationCode</td>
+                            <td class="text-end"><strong>@balance.Quantity.ToString("0.####")</strong>@(balance.IsNegative ? " ⚠" : null)</td>
+                        </tr>
+                    }
+                    @if (Model.Balances.Count == 0)
+                    {
+                        <tr><td colspan="3" class="text-center text-muted py-4">No hay saldos registrados.</td></tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+</div>

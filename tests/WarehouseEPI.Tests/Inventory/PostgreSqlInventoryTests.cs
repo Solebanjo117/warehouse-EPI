@@ -93,6 +93,41 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(11m, (await verification.InventoryBalances.SingleAsync(balance =>
             balance.ProductId == seed.ProductId && balance.LocationId == seed.LocationId)).Quantity);
     }
+
+    [Fact]
+    public async Task Initial_adjustment_accepts_missing_balance_version_zero()
+    {
+        var seed = await fixture.SeedAsync("PG-INITIAL-COUNT", "PG-AREA-4", "3104");
+
+        var result = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Adjustment, seed.Pin,
+            [new(seed.ProductId, 14.5m, LocationId: seed.LocationId, ExpectedBalanceVersion: 0)],
+            Notes: "Conteo inicial"));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(14.5m, (await db.InventoryBalances.SingleAsync(balance =>
+            balance.ProductId == seed.ProductId && balance.LocationId == seed.LocationId)).Quantity);
+    }
+
+    [Fact]
+    public async Task Missing_balance_version_zero_rejects_when_another_movement_created_the_balance()
+    {
+        var seed = await fixture.SeedAsync("PG-INITIAL-RACE", "PG-AREA-5", "3105");
+        await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, seed.Pin,
+            [new(seed.ProductId, 1m, DestinationLocationId: seed.LocationId)]));
+
+        var result = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Adjustment, seed.Pin,
+            [new(seed.ProductId, 8m, LocationId: seed.LocationId, ExpectedBalanceVersion: 0)],
+            Notes: "Conteo que partió de saldo inexistente"));
+
+        Assert.Equal(InventoryMovementStatus.BalanceChanged, result.Status);
+        await using var db = fixture.CreateDbContext();
+        Assert.Equal(1m, (await db.InventoryBalances.SingleAsync(balance =>
+            balance.ProductId == seed.ProductId && balance.LocationId == seed.LocationId)).Quantity);
+    }
 }
 
 public sealed class PostgreSqlInventoryFixture : IAsyncLifetime

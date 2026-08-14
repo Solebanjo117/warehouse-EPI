@@ -7,8 +7,8 @@ un chat nuevo, se debe leer este archivo y verificar el estado actual del
 repositorio. Las decisiones marcadas como pendientes no deben convertirse en
 requisitos definitivos sin confirmación.
 
-**Estado general:** las fases 1, 2, 3, 4 y 5 están completadas. El siguiente
-bloque de desarrollo es la fase 6, pantallas operativas. La validación física completa
+**Estado general:** las fases 1 a 6 están completadas. El siguiente bloque de
+desarrollo es la fase 7, historial y correcciones. La validación física completa
 de las ubicaciones cargadas sigue siendo una comprobación operativa pendiente,
 pero no cambia el cierre técnico de la fase 4.
 
@@ -248,13 +248,14 @@ web. La
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 89 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 101 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
   de productos desde Excel, además de las reglas, generación y administración de
   ubicaciones, la búsqueda de productos por rack asignado y el núcleo de
-  inventario. Tres pruebas usan PostgreSQL real en `warehouse_epi_test` para
-  comprobar concurrencia, idempotencia simultánea y el token `xmin`;
+  inventario y las páginas operativas públicas. Cinco pruebas usan PostgreSQL
+  real en `warehouse_epi_test` para comprobar concurrencia, idempotencia
+  simultánea, el token `xmin` y el ajuste inicial sobre un saldo inexistente;
 - la prueba opcional contra el archivo real se ejecutó mediante la variable de
   proceso `WAREHOUSE_EPI_PRODUCT_WORKBOOK`, sin insertar productos.
 
@@ -345,8 +346,8 @@ La base técnica, el esquema inicial, la seguridad por NIP, la administración d
 usuarios, los catálogos, las ubicaciones y el núcleo de inventario están
 terminados. PostgreSQL contiene un administrador activo creado mediante el
 comando interactivo; no se registraron su nombre, NIP ni campos protegidos en
-este documento. Las fases 1 a 5 están cerradas y el siguiente bloque es la fase
-6, pantallas operativas. Las 153
+este documento. Las fases 1 a 6 están cerradas y el siguiente bloque es la fase
+7, historial y correcciones. Las 153
 ubicaciones ya están cargadas; únicamente sigue pendiente comprobar en sitio que
 cubran todas las posiciones y excepciones físicas del almacén.
 
@@ -463,18 +464,32 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Migración, respaldo, auditoría PostgreSQL, compilación y 89 pruebas completadas
   el 14 de agosto de 2026.
 
-### Fase 6: pantallas operativas — siguiente
+### Fase 6: pantallas operativas — completada
 
-- Entrada: NIP, producto/código, cantidad, ubicación y confirmación.
-- Salida: NIP, producto/código, cantidad, ubicación y confirmación.
-- Transferencia: origen, destino, cantidad y confirmación.
-- Ajuste: cantidad, motivo y confirmación.
-- Mantener las páginas operativas públicas, sin inicio de sesión de operador, y
-  solicitar NIP en la confirmación de cada operación, incluido ADMIN.
-- Optimizar foco, tamaño de controles y número de pasos para tablets.
-- Evitar dobles envíos y mostrar confirmación clara.
+- Menú público y páginas `/Operations/Entry`, `/Operations/Exit`,
+  `/Operations/Transfer`, `/Operations/Adjustment` y `/Inventory` terminadas.
+- Cada confirmación contiene un producto, conserva un UUID durante los reintentos,
+  usa antiforgery y solicita el NIP al final, incluso cuando existe cookie ADMIN.
+- Búsqueda operativa por SKU, código de barras, descripción o referencia y por
+  código o descripción de ubicación, con selección por escáner HID y Enter.
+- El escaneo es bidireccional: un producto muestra ubicaciones con asignación
+  activa o saldo distinto de cero y una ubicación muestra sus productos bajo la
+  misma regla. Una única relación se autocompleta; varias exigen selección. Una
+  pareja nueva se anuncia en pantalla y solo se crea al confirmar con NIP.
+- En transferencias, el producto puede autocompletar únicamente el origen. El
+  destino muestra su contenido sin reemplazar el producto seleccionado.
+- Saldos actuales y estimados, advertencias negativas sin bloqueo, aprobación
+  específica de pallet compartido y comprobante recargable sin repetir el POST.
+- Ajuste por conteo final con motivo obligatorio. La versión cero representa un
+  saldo inexistente y solo se acepta cuando la misma transacción crea la fila;
+  una creación concurrente devuelve `BalanceChanged`.
+- Consulta pública por producto o ubicación, sin NIP y sin escritura.
+- Interfaz responsive verificada en escritorio y viewport de tablet, con controles
+  grandes, foco secuencial y prevención de doble envío.
+- Compilación sin advertencias y 101 pruebas aprobadas el 14 de agosto de 2026,
+  incluidas cinco pruebas PostgreSQL aisladas en `warehouse_epi_test`.
 
-### Fase 7: historial y correcciones
+### Fase 7: historial y correcciones — siguiente
 
 - Consulta y filtros de movimientos.
 - Detalle completo del responsable, fecha, producto y ubicaciones.
@@ -655,7 +670,17 @@ Ajuste con varias líneas, NIP por operación, transacción atómica, UUID
 idempotente, bloqueo de saldos, ajuste por conteo final, `xmin`, asignación
 automática o confirmación de pallet compartido e inventario negativo permitido
 con advertencia. Los lotes están preparados en esquema, pero permanecen
-bloqueados funcionalmente hasta la fase 9. La fase 5 está completada y el
-siguiente trabajo es la fase 6: páginas operativas públicas y ligeras que pidan
-NIP únicamente al confirmar cada cambio de inventario.
+bloqueados funcionalmente hasta la fase 9.
+
+La fase 6 está completada. Existen páginas públicas y ligeras para las cuatro
+operaciones y para consultar existencias por producto o ubicación. La captura
+operativa usa una línea por confirmación, búsqueda manual o escáner HID, muestra
+saldos estimados y pide el NIP únicamente en la confirmación final. Los POST usan
+antiforgery y el servicio transaccional; el comprobante se consulta por un UUID
+no predecible y no repite la operación al recargar. La versión cero permite el
+primer ajuste de un saldo inexistente sin perder el control concurrente. El
+escaneo operativo muestra relaciones en ambos sentidos, combinando asignaciones
+activas con saldos distintos de cero; solo autocompleta una contraparte única y
+las parejas nuevas se crean exclusivamente al confirmar con NIP. El
+siguiente trabajo es la fase 7: historial, reversos y reemplazos auditables.
 ```

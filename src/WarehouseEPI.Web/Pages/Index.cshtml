@@ -4,8 +4,17 @@
     ViewData["Title"] = "Inicio";
 }
 
-<div class="text-center py-5">
-    <h1 class="display-4">Warehouse EPI</h1>
-    <p class="lead text-muted">Sistema local de operación de almacén.</p>
-    <a asp-page="/Admin/Login" class="btn btn-primary btn-lg mt-3">Administrar</a>
+<div class="operations-home py-4">
+    <div class="text-center mb-4">
+        <span class="eyebrow">Operación de almacén</span>
+        <h1 class="display-5 fw-semibold">¿Qué vas a registrar?</h1>
+        <p class="lead text-muted">El NIP se solicitará únicamente al confirmar.</p>
+    </div>
+    <div class="operation-menu">
+        <a asp-page="/Operations/Entry" class="operation-menu-card entry"><span aria-hidden="true">＋</span><strong>Entrada</strong><small>Recibir material</small></a>
+        <a asp-page="/Operations/Exit" class="operation-menu-card exit"><span aria-hidden="true">−</span><strong>Salida</strong><small>Retirar material</small></a>
+        <a asp-page="/Operations/Transfer" class="operation-menu-card transfer"><span aria-hidden="true">⇄</span><strong>Transferencia</strong><small>Mover entre ubicaciones</small></a>
+        <a asp-page="/Operations/Adjustment" class="operation-menu-card adjustment"><span aria-hidden="true">✓</span><strong>Ajuste</strong><small>Registrar conteo físico</small></a>
+        <a asp-page="/Inventory/Index" class="operation-menu-card inventory"><span aria-hidden="true">⌕</span><strong>Consultar</strong><small>Ver existencias</small></a>
+    </div>
 </div>
