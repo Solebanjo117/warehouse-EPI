@@ -25,6 +25,61 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
     }
 
     [Fact]
+    public async Task Html_responses_include_security_headers_and_no_inline_script_handlers()
+    {
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
+        Assert.Equal("no-referrer", response.Headers.GetValues("Referrer-Policy").Single());
+        Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+        Assert.Equal("no-store", response.Headers.GetValues("Cache-Control").Single());
+        var csp = response.Headers.GetValues("Content-Security-Policy").Single();
+        Assert.Contains("script-src 'self'", csp, StringComparison.Ordinal);
+        Assert.DoesNotContain("script-src 'self' 'unsafe-inline'", csp, StringComparison.Ordinal);
+        Assert.DoesNotContain("upgrade-insecure-requests", csp, StringComparison.Ordinal);
+        Assert.DoesNotContain("onclick=", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<script>", html, StringComparison.OrdinalIgnoreCase);
+        Assert.True(response.Headers.TryGetValues("X-Correlation-ID", out var correlations));
+        Assert.True(Guid.TryParse(correlations.Single(), out _));
+    }
+
+    [Fact]
+    public async Task Login_posts_are_rate_limited_by_remote_address_when_enabled()
+    {
+        using var limitedFactory = new WarehouseApplicationFactory();
+        using var client = limitedFactory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            var page = await client.GetStringAsync("/Admin/Login");
+            var token = Antiforgery(page);
+            var response = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Pin"] = "9999",
+                ["__RequestVerificationToken"] = token
+            }));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var blockedPage = await client.GetStringAsync("/Admin/Login");
+        var blocked = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Input.Pin"] = "9999",
+            ["__RequestVerificationToken"] = Antiforgery(blockedPage)
+        }));
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, blocked.StatusCode);
+        Assert.True(blocked.Headers.RetryAfter?.Delta > TimeSpan.Zero);
+    }
+
+    [Fact]
     public async Task Public_pages_render_and_users_require_admin_session()
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -40,6 +95,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var locations = await client.GetAsync("/Admin/Catalogs/Locations");
         var locationGeneration = await client.GetAsync("/Admin/Catalogs/Locations/Generate");
         var locationDetails = await client.GetAsync($"/Admin/Catalogs/Locations/{Guid.NewGuid()}");
+        var system = await client.GetAsync("/Admin/System");
         var loginBody = await login.Content.ReadAsStringAsync();
 
         Assert.Equal(System.Net.HttpStatusCode.OK, home.StatusCode);
@@ -60,6 +116,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Equal("/Admin/Login", locationGeneration.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, locationDetails.StatusCode);
         Assert.Equal("/Admin/Login", locationDetails.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, system.StatusCode);
+        Assert.Equal("/Admin/Login", system.Headers.Location?.AbsolutePath);
     }
 
     [Fact]
@@ -284,5 +342,12 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
                     .Database.EnsureCreated();
             });
         }
+    }
+
+    private static string Antiforgery(string html)
+    {
+        var tokenMatch = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
+        Assert.True(tokenMatch.Success, "No se encontró el token antiforgery.");
+        return WebUtility.HtmlDecode(tokenMatch.Groups[1].Value);
     }
 }

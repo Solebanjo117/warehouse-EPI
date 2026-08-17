@@ -26,6 +26,37 @@ flowchart LR
 - **Tests** valida dominio, seguridad, catalogos, rutas web y concurrencia real
   contra PostgreSQL aislado.
 
+## Perimetro de seguridad de produccion
+
+La laptop publica Kestrel directamente en la LAN con TLS 1.2/1.3, certificado
+emitido por una CA local y nombre `warehouse-epi` más IP reservada. El proceso
+web no confía en encabezados reenviados hasta que exista un proxy explícito.
+
+Las cookies administrativas y antiforgery son `__Host-`, seguras y estrictas.
+Data Protection persiste sus claves protegidas con DPAPI en una ruta ACL privada
+para conservar sesiones entre reinicios. La capa web aplica CSP sin scripts
+inline, encabezados defensivos, respuestas HTML sin caché y límites por IP solo
+para POST.
+
+PostgreSQL separa el rol de ejecución `warehouse_epi_app` del administrador de
+migraciones. El primero recibe DML y secuencias sobre `public`, pero no puede
+crear, alterar, truncar ni eliminar objetos de esquema.
+
+## Observabilidad local
+
+En producción, la aplicación escribe eventos JSON acotados en
+`C:\ProgramData\WarehouseEPI\Logs`; el directorio se crea fuera del repositorio
+con ACL para la cuenta de aplicación y administradores. La salida admite solo
+metadatos seguros de solicitud y falla, por lo que nunca contiene query string,
+NIP, cookies, formularios, secretos, cadenas de conexión ni excepciones crudas.
+
+El middleware emite y devuelve `X-Correlation-ID` UUID por solicitud. La única
+ruta de health sin autenticación es `/health/live`, restringida a loopback y
+limitada a la salud del proceso. PostgreSQL se consulta mediante una operación
+de conectividad sin escritura; su resultado y los conteos agregados se muestran
+solo a ADMIN en `/Admin/System`, junto con un buffer acotado de fallas
+sanitizadas.
+
 La dependencia permitida es `Web -> Infrastructure -> Core`; Web tambien puede
 referenciar Core para contratos compartidos. Core no referencia los demas
 proyectos.

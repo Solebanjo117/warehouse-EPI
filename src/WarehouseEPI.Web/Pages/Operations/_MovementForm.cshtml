@@ -54,9 +54,14 @@
             <h2 class="h5">Producto</h2>
             <div class="lookup-field" data-lookup-field="product">
                 <label for="product-code" class="form-label">SKU o código de barras</label>
-                <input id="product-code" class="form-control form-control-lg" type="search"
-                       value="@product?.Sku" autocomplete="off" autocapitalize="characters"
-                       placeholder="Escanea o escribe el código" autofocus data-lookup-input />
+                <div class="input-group input-group-lg">
+                    <input id="product-code" class="form-control" type="search"
+                           value="@product?.Sku" autocomplete="off" autocapitalize="characters"
+                           placeholder="Escanea o escribe el código" autofocus data-lookup-input />
+                    <button type="button" class="btn btn-outline-secondary" data-camera-scan aria-label="Escanear producto con cámara" title="Escanear con cámara">
+                        <svg aria-hidden="true" viewBox="0 0 16 16" width="1.2em" height="1.2em" fill="currentColor"><path d="M1 4.5A1.5 1.5 0 0 1 2.5 3h1.586l.707-.707A1 1 0 0 1 5.5 2h5a1 1 0 0 1 .707.293L11.914 3H13.5A1.5 1.5 0 0 1 15 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 11.5zm7 1a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5m0 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3" /></svg>
+                    </button>
+                </div>
                 <div class="lookup-results list-group" data-lookup-results></div>
                 <div class="selected-record @(product is null ? "d-none" : null)" data-selected-record
                      data-unit="@product?.UnitCode" data-allows-decimals="@(product?.AllowsDecimals == true ? "true" : "false")"
@@ -78,9 +83,14 @@
                     <div class="col-12 @(Model.MovementType == InventoryMovementType.Transfer ? "col-md-6" : null)">
                         <div class="lookup-field" data-lookup-field="source">
                             <label for="source-code" class="form-label">Ubicación origen</label>
-                            <input id="source-code" class="form-control form-control-lg" type="search"
-                                   value="@source?.Code" autocomplete="off" autocapitalize="characters"
-                                   placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                            <div class="input-group input-group-lg">
+                                <input id="source-code" class="form-control" type="search"
+                                       value="@source?.Code" autocomplete="off" autocapitalize="characters"
+                                       placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                                <button type="button" class="btn btn-outline-secondary" data-camera-scan aria-label="Escanear ubicación origen con cámara" title="Escanear con cámara">
+                                    <svg aria-hidden="true" viewBox="0 0 16 16" width="1.2em" height="1.2em" fill="currentColor"><path d="M1 4.5A1.5 1.5 0 0 1 2.5 3h1.586l.707-.707A1 1 0 0 1 5.5 2h5a1 1 0 0 1 .707.293L11.914 3H13.5A1.5 1.5 0 0 1 15 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 11.5zm7 1a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5m0 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3" /></svg>
+                                </button>
+                            </div>
                             <div class="lookup-results list-group" data-lookup-results></div>
                             <div class="selected-record @(source is null ? "d-none" : null)" data-selected-record>
                                 <strong data-selected-title>@source?.Code</strong>
@@ -96,9 +106,14 @@
                     <div class="col-12 @(Model.MovementType == InventoryMovementType.Transfer ? "col-md-6" : null)">
                         <div class="lookup-field" data-lookup-field="destination">
                             <label for="destination-code" class="form-label">Ubicación destino</label>
-                            <input id="destination-code" class="form-control form-control-lg" type="search"
-                                   value="@destination?.Code" autocomplete="off" autocapitalize="characters"
-                                   placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                            <div class="input-group input-group-lg">
+                                <input id="destination-code" class="form-control" type="search"
+                                       value="@destination?.Code" autocomplete="off" autocapitalize="characters"
+                                       placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                                <button type="button" class="btn btn-outline-secondary" data-camera-scan aria-label="Escanear ubicación destino con cámara" title="Escanear con cámara">
+                                    <svg aria-hidden="true" viewBox="0 0 16 16" width="1.2em" height="1.2em" fill="currentColor"><path d="M1 4.5A1.5 1.5 0 0 1 2.5 3h1.586l.707-.707A1 1 0 0 1 5.5 2h5a1 1 0 0 1 .707.293L11.914 3H13.5A1.5 1.5 0 0 1 15 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 11.5zm7 1a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5m0 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3" /></svg>
+                                </button>
+                            </div>
                             <div class="lookup-results list-group" data-lookup-results></div>
                             <div class="selected-record @(destination is null ? "d-none" : null)" data-selected-record>
                                 <strong data-selected-title>@destination?.Code</strong>
@@ -114,9 +129,14 @@
                     <div class="col-12">
                         <div class="lookup-field" data-lookup-field="location">
                             <label for="location-code" class="form-label">Ubicación</label>
-                            <input id="location-code" class="form-control form-control-lg" type="search"
-                                   value="@location?.Code" autocomplete="off" autocapitalize="characters"
-                                   placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                            <div class="input-group input-group-lg">
+                                <input id="location-code" class="form-control" type="search"
+                                       value="@location?.Code" autocomplete="off" autocapitalize="characters"
+                                       placeholder="Escanea o escribe la ubicación" data-lookup-input />
+                                <button type="button" class="btn btn-outline-secondary" data-camera-scan aria-label="Escanear ubicación con cámara" title="Escanear con cámara">
+                                    <svg aria-hidden="true" viewBox="0 0 16 16" width="1.2em" height="1.2em" fill="currentColor"><path d="M1 4.5A1.5 1.5 0 0 1 2.5 3h1.586l.707-.707A1 1 0 0 1 5.5 2h5a1 1 0 0 1 .707.293L11.914 3H13.5A1.5 1.5 0 0 1 15 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 11.5zm7 1a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5m0 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3" /></svg>
+                                </button>
+                            </div>
                             <div class="lookup-results list-group" data-lookup-results></div>
                             <div class="selected-record @(location is null ? "d-none" : null)" data-selected-record>
                                 <strong data-selected-title>@location?.Code</strong>
@@ -198,6 +218,31 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Volver</button>
                         <button type="submit" class="btn btn-primary btn-lg" data-submit-button>Confirmar operación</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal fade" id="camera-barcode-scanner" tabindex="-1" aria-labelledby="camera-barcode-scanner-title" aria-hidden="true" data-camera-scanner>
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="camera-barcode-scanner-title">Escanear código de barras</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted">Centra un código de barras dentro del recuadro.</p>
+                        <div class="camera-preview" data-camera-preview>
+                            <video class="w-100" autoplay muted playsinline data-camera-video></video>
+                        </div>
+                        <p class="mb-0 mt-3" role="status" aria-live="polite" data-camera-status>Preparando cámara…</p>
+                    </div>
+                    <div class="modal-footer">
+                        <label class="btn btn-outline-primary btn-lg mb-0" for="camera-barcode-photo" data-camera-photo-trigger>
+                            Tomar foto
+                        </label>
+                        <input id="camera-barcode-photo" class="visually-hidden" type="file" accept="image/*" capture="environment" data-camera-photo />
+                        <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Cancelar</button>
                     </div>
                 </div>
             </div>
