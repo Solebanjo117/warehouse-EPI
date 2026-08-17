@@ -54,6 +54,30 @@ public sealed class InventoryMovementServiceTests
     }
 
     [Fact]
+    public async Task Entry_that_overflows_an_existing_daily_lot_propagates_the_historical_exception()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("MAXIMUM-BALANCE");
+        var location = await fixture.AddLocationAsync("MAXIMUM-AREA");
+        var maximum = 99_999_999_999_999.9999m;
+        var first = await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, maximum, DestinationLocationId: location.Id)]));
+        var movementsBeforeOverflow = await fixture.Db.InventoryMovements.CountAsync(item => item.Lines
+            .Any(line => line.ProductId == product.Id));
+
+        var exception = await Assert.ThrowsAnyAsync<Exception>(() => fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 0.0001m, DestinationLocationId: location.Id)])));
+
+        Assert.Equal("El saldo resultante excede la precisión numeric(18,4).", exception.Message);
+        fixture.Db.ChangeTracker.Clear();
+        Assert.Equal(movementsBeforeOverflow, await fixture.Db.InventoryMovements.CountAsync(item => item.Lines
+            .Any(line => line.ProductId == product.Id)));
+        Assert.Equal(1, await fixture.Db.InventoryMovements.CountAsync(item => item.Id == first.MovementId));
+    }
+
+    [Fact]
     public async Task Exit_allows_negative_balance_and_returns_warning()
     {
         await using var fixture = await Fixture.CreateAsync();
@@ -267,6 +291,119 @@ public sealed class InventoryMovementServiceTests
         Assert.Equal(original.MovementId, correction.OriginalMovementId);
         Assert.Equal(admin.Id, correction.RequestedByUserId);
         Assert.Equal(admin.Id, correction.AuthorizedByUserId);
+    }
+
+    [Fact]
+    public async Task Transfer_consumes_oldest_lots_and_preserves_each_lot_at_destination()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("FEFO-TRANSFER");
+        var source = await fixture.AddLocationAsync("FEFO-SOURCE");
+        var destination = await fixture.AddLocationAsync("FEFO-DESTINATION");
+        var oldest = new ProductLot
+        {
+            ProductId = product.Id,
+            Number = "AUTO-20240101",
+            NormalizedNumber = "AUTO-20240101",
+            LotDate = new DateOnly(2024, 1, 1),
+            CreatedAt = new DateTimeOffset(2024, 1, 1, 12, 0, 0, TimeSpan.Zero)
+        };
+        fixture.Db.Add(oldest);
+        fixture.Db.InventoryBalances.Add(new InventoryBalance
+        {
+            ProductId = product.Id,
+            LocationId = source.Id,
+            LotId = oldest.Id,
+            Quantity = 2m
+        });
+        await fixture.Db.SaveChangesAsync();
+        await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 3m, DestinationLocationId: source.Id)]));
+
+        var result = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Transfer, fixture.OperatorPin,
+            [new(product.Id, 4m, SourceLocationId: source.Id, DestinationLocationId: destination.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        var transfer = await fixture.Db.InventoryMovements.Include(item => item.Lines)
+            .ThenInclude(item => item.BalanceChanges)
+            .SingleAsync(item => item.Id == result.MovementId);
+        var changes = transfer.Lines.Single().BalanceChanges;
+        Assert.Contains(changes, item => item.LotId == oldest.Id && item.DeltaQuantity == -2m);
+        Assert.Contains(changes, item => item.LotId == oldest.Id && item.DeltaQuantity == 2m);
+        Assert.All(changes, item => Assert.NotNull(item.LotId));
+        Assert.Equal(4m, (await fixture.Db.InventoryBalances.Where(item =>
+            item.ProductId == product.Id && item.LocationId == destination.Id).SumAsync(item => item.Quantity)));
+    }
+
+    [Fact]
+    public async Task Correction_is_idempotent_and_historical_null_lot_is_reversed_to_initial_lot()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("HISTORICAL-LOT");
+        var location = await fixture.AddLocationAsync("HISTORICAL-AREA");
+        var initialLot = new ProductLot
+        {
+            ProductId = product.Id,
+            Number = "AUTO-20240101",
+            NormalizedNumber = "AUTO-20240101",
+            LotDate = new DateOnly(2024, 1, 1),
+            CreatedAt = new DateTimeOffset(2024, 1, 1, 12, 0, 0, TimeSpan.Zero)
+        };
+        var original = new InventoryMovement
+        {
+            Type = InventoryMovementType.Entry,
+            ResponsibleUserId = fixture.OperatorId,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('A', 64),
+            OccurredAt = DateTimeOffset.UtcNow,
+            RecordedAt = DateTimeOffset.UtcNow,
+            Lines =
+            [
+                new InventoryMovementLine
+                {
+                    LineNumber = 1,
+                    ProductId = product.Id,
+                    UnitId = product.BaseUnitId,
+                    Quantity = 3m,
+                    DestinationLocationId = location.Id,
+                    BalanceChanges =
+                    [
+                        new InventoryBalanceChange
+                        {
+                            LocationId = location.Id,
+                            DeltaQuantity = 3m,
+                            PreviousQuantity = 0m,
+                            ResultingQuantity = 3m
+                        }
+                    ]
+                }
+            ]
+        };
+        fixture.Db.AddRange(initialLot, original);
+        fixture.Db.InventoryBalances.Add(new InventoryBalance
+        {
+            ProductId = product.Id,
+            LocationId = location.Id,
+            LotId = initialLot.Id,
+            Quantity = 3m
+        });
+        var admin = await fixture.AddUserAsync("Administrador histórico", 1, "1357");
+        await fixture.Db.SaveChangesAsync();
+        var command = new InventoryCorrectionCommand(Guid.NewGuid(), original.Id, admin.Id, "1357", "Corrección histórica");
+
+        var first = await fixture.CorrectionService.ConfirmAsync(command);
+        var repeated = await fixture.CorrectionService.ConfirmAsync(command);
+        var changed = await fixture.CorrectionService.ConfirmAsync(command with { Reason = "Otro motivo" });
+
+        Assert.Equal(InventoryCorrectionStatus.Success, first.Status);
+        Assert.Equal(first.CorrectionId, repeated.CorrectionId);
+        Assert.Equal(InventoryCorrectionStatus.IdempotencyConflict, changed.Status);
+        Assert.Equal(0m, (await fixture.Db.InventoryBalances.SingleAsync(item => item.LotId == initialLot.Id)).Quantity);
+        var reversal = await fixture.Db.InventoryMovements.Include(item => item.Lines)
+            .ThenInclude(item => item.BalanceChanges)
+            .SingleAsync(item => item.Id == first.ReversalMovementId);
+        Assert.All(reversal.Lines.SelectMany(item => item.BalanceChanges), item => Assert.Equal(initialLot.Id, item.LotId));
+        Assert.All(await fixture.Db.InventoryBalances.ToListAsync(), item => Assert.NotNull(item.LotId));
     }
 
     private sealed class Fixture : IAsyncDisposable

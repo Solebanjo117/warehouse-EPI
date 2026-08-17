@@ -44,6 +44,13 @@ proyectos.
 6. El comprobante se consulta con un UUID no predecible y volver a cargarlo no
    repite el POST.
 
+`InventoryMovementService` es la fachada del flujo: autentica el NIP y coordina
+la transacción. `InventoryMovementRules` normaliza y valida, `InventoryLotEngine`
+resuelve lotes diarios y su consumo, y `InventoryMovementStore` concentra
+bloqueos y persistencia. `InventoryCorrectionService` coordina autorización y
+auditoría; `InventoryReversalService` construye el reverso, incluso para cambios
+históricos cuyo lote era nulo.
+
 ## Invariantes de datos
 
 - La verdad fisica es `producto + ubicacion + lote`; las pantallas operativas

@@ -21,6 +21,9 @@ trim_trailing_whitespace = false
 
 # Baseline de analizadores de fase 10.2. Las migraciones aplicadas no se editan;
 # las mejoras de implementacion indicadas quedan para la fase 10.3.
+# La fase 10.3 retira CA1822 del baseline global. Las reglas restantes se
+# conservan temporalmente porque afectan pantallas y contratos fuera de este
+# refactor; se reducirán mediante cambios funcionales revisados por separado.
 [*.cs]
 dotnet_diagnostic.CA1304.severity = none
 dotnet_diagnostic.CA1305.severity = none
@@ -28,7 +31,6 @@ dotnet_diagnostic.CA1311.severity = none
 dotnet_diagnostic.CA1512.severity = none
 dotnet_diagnostic.CA1716.severity = none
 dotnet_diagnostic.CA1725.severity = none
-dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1826.severity = none
 dotnet_diagnostic.CA1859.severity = none
 dotnet_diagnostic.CA1861.severity = none
@@ -51,11 +53,6 @@ dotnet_diagnostic.CA1859.severity = none
 dotnet_diagnostic.CA1862.severity = none
 
 [src/WarehouseEPI.Infrastructure/Inventory/InventoryQueryService.cs]
-dotnet_diagnostic.CA1859.severity = none
-
-[src/WarehouseEPI.Infrastructure/Inventory/InventoryMovementService.cs]
-dotnet_diagnostic.CA1512.severity = none
-dotnet_diagnostic.CA1822.severity = none
 dotnet_diagnostic.CA1859.severity = none
 
 [tests/**.cs]

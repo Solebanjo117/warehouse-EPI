@@ -177,12 +177,45 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(1m, (await db.InventoryBalances.SingleAsync(balance =>
             balance.ProductId == seed.ProductId && balance.LocationId == seed.LocationId)).Quantity);
     }
+
+    [Fact]
+    public async Task Failed_replacement_rolls_back_reversal_and_correction_on_postgresql()
+    {
+        var seed = await fixture.SeedAsync("PG-CORRECTION-ROLLBACK", "PG-AREA-CORRECTION", "3108");
+        var original = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, seed.Pin,
+            [new(seed.ProductId, 3m, DestinationLocationId: seed.LocationId)]));
+        var admin = await fixture.AddAdminAsync("Administrador de prueba", "3109");
+        await using var db = fixture.CreateDbContext();
+        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+        var movements = new InventoryMovementService(db, pins, TimeProvider.System);
+        var corrections = new InventoryCorrectionService(db, pins, movements, TimeProvider.System);
+        var movementsBeforeReplacement = await db.InventoryMovements.CountAsync(item => item.Lines
+            .Any(line => line.ProductId == seed.ProductId));
+
+        var result = await corrections.ConfirmAsync(new(
+            Guid.NewGuid(),
+            original.MovementId!.Value,
+            admin.Id,
+            admin.Pin,
+            "Reemplazo inválido",
+            new(InventoryMovementType.Entry, [new(seed.ProductId, 1m)])));
+
+        Assert.Equal(InventoryCorrectionStatus.ValidationFailed, result.Status);
+        db.ChangeTracker.Clear();
+        Assert.Equal(movementsBeforeReplacement, await db.InventoryMovements.CountAsync(item => item.Lines
+            .Any(line => line.ProductId == seed.ProductId)));
+        Assert.Equal(1, await db.InventoryMovements.CountAsync(item => item.Id == original.MovementId));
+        Assert.False(await db.InventoryMovementCorrections.AnyAsync(item => item.OriginalMovementId == original.MovementId));
+        Assert.Equal(3m, await db.InventoryBalances.Where(item =>
+            item.ProductId == seed.ProductId && item.LocationId == seed.LocationId).SumAsync(item => item.Quantity));
+    }
 }
 
 public sealed class PostgreSqlInventoryFixture : IAsyncLifetime
 {
     private const string TestDatabase = "warehouse_epi_test";
-    private const string LookupKey =
+    internal const string LookupKey =
         "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
     private string connectionString = string.Empty;
 
@@ -255,6 +288,24 @@ public sealed class PostgreSqlInventoryFixture : IAsyncLifetime
         await db.SaveChangesAsync();
         return new(product.Id, location.Id, pin);
     }
+
+    public async Task<InventoryAdmin> AddAdminAsync(string name, string pin)
+    {
+        await using var db = CreateDbContext();
+        var pinService = new UserPinService(db, new PinProtector(LookupKey));
+        var user = new User
+        {
+            FullName = name,
+            RoleId = 1,
+            PinLookup = string.Empty,
+            PinHash = string.Empty
+        };
+        Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(user, pin));
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        return new(user.Id, pin);
+    }
 }
 
 public sealed record InventorySeed(Guid ProductId, Guid LocationId, string Pin);
+public sealed record InventoryAdmin(Guid Id, string Pin);
