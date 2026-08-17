@@ -9,8 +9,9 @@ requisitos definitivos sin confirmación.
 
 **Estado general:** las fases 1 a 9 y 10.1 están completadas. La fase 8 de
 paquetes y conversiones fue descartada por decisión del negocio; la fase 9 usa
-lotes internos automáticos para todo el catálogo. La fase 10.2 incorpora una
-puerta reproducible de calidad antes de exigirla en `main`; la validación física
+lotes internos automáticos para todo el catálogo. Las fases 10.2 y 10.3 ya
+validaron la puerta reproducible de calidad y la protección de `main` exige el
+check `Quality`. La validación física
 completa de las ubicaciones cargadas sigue siendo una comprobación operativa
 pendiente, pero no cambia el cierre técnico de la fase 4.
 
@@ -559,7 +560,7 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Crear documentación de entrada, arquitectura y desarrollo.
 - Consolidar `CONTEXT.md` como estado vivo, sin datos presentes contradictorios.
 
-#### Fase 10.2: calidad automatizada — implementada localmente; pendiente primera ejecución verde en GitHub
+#### Fase 10.2: calidad automatizada — completada
 
 - `scripts/quality.ps1` concentra restauración bloqueada, formato, compilación
   Release, validación de migraciones, SQL idempotente, pruebas y cobertura.
@@ -573,13 +574,22 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   se abordarán en la fase 10.3.
 - `.github/workflows/quality.yml` usa PostgreSQL 18.4 efímero y exclusivamente
   `warehouse_epi_test`; publica TRX, Cobertura y SQL de migraciones.
-- Tras la primera ejecución verde, queda pendiente activar la regla de `main`
-  que exija el check `Quality`.
+- El workflow `Quality` está verde y la regla de protección de `main` exige ese
+  check antes de integrar cambios.
 
-#### Fase 10.3: refactorización controlada
+#### Fase 10.3: refactorización controlada — completada
 
-- Dividir responsabilidades del motor de movimientos, retirar flujos obsoletos
-  y mejorar mantenibilidad sin modificar contratos ni comportamiento.
+- `InventoryMovementService` conserva su contrato público y ahora coordina
+  reglas, lotes y persistencia mediante colaboradores internos; se retiró el
+  flujo operativo sin lotes.
+- `InventoryCorrectionService` conserva sus contratos y delega la creación de
+  reversos, incluidos los cambios históricos con `LotId` nulo, a un colaborador
+  interno transaccional.
+- Se agregaron pruebas de distribución FEFO por lote, transferencia entre lotes
+  y reverso histórico idempotente. La validación final obtuvo 111/111 pruebas,
+  92.9% de líneas y 53.1% de ramas.
+- Se retiró `CA1822` de la baseline global; las demás excepciones heredadas se
+  mantienen documentadas hasta que se revisen sus cambios funcionales.
 
 #### Fase 10.4: seguridad de producción
 
@@ -593,8 +603,8 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 #### Fase 10.6: respaldo y recuperación
 
-- Automatizar respaldo, retención, copia externa, validación y restauración real
-  de PostgreSQL.
+- Automatizar respaldo, retención, copia externa cifrada, validación y
+  restauración real de PostgreSQL.
 
 #### Fase 10.7: publicación y servicio
 
@@ -611,6 +621,12 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Definir sistema visual, componentes reutilizables y navegación consistente.
 - Rediseñar captura operativa, comprobantes, consulta y administración para
   tablets lentas, escáner HID, teclado, accesibilidad y estados claros.
+- Optimizar el flujo de escaneo: foco automático en el siguiente campo,
+  confirmación visual y sonora, y errores de producto o ubicación claramente
+  accionables.
+- Mostrar sugerencias de ubicaciones previamente asignadas y su saldo al
+  registrar entradas, sin convertir todavía la sugerencia en una asignación
+  dirigida obligatoria.
 
 ### Fase 12: validación física y piloto conectado
 
@@ -618,6 +634,9 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   requiere.
 - Validar racks, pallets, áreas especiales, rendimiento y operaciones reales en
   red local.
+- Validar etiquetas de producto y ubicación con lecturas reales; los lectores
+  Bluetooth o USB en modo HID deben funcionar como teclado sin modificar el
+  núcleo de inventario.
 - Ejecutar un piloto conectado y conciliar inventario físico contra sistema.
 
 ### Fase 13: reportes y croquis
@@ -625,6 +644,12 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Reporte de existencias por producto, ubicación y lote interno.
 - Reporte de movimientos por fechas, usuario, tipo y producto; negativos,
   mínimos, conteos cíclicos y exportaciones.
+- Incorporar un tablero diario con movimientos, saldos negativos, mínimos,
+  ajustes recientes y conteos pendientes.
+- Implementar conteos cíclicos por ubicación: captura ciega, discrepancia,
+  recuento y ajuste autorizado, conservando trazabilidad completa.
+- Agregar alertas para discrepancias, ubicaciones bloqueadas y saldo en una
+  ubicación sin asignación activa.
 - Croquis SVG manipulable con colores, ocupación y búsqueda visual.
 
 ### Fase 14: PWA y operación sin conexión
@@ -639,6 +664,11 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 - Configurar laptop servidor, dirección estable, capacitación, manuales y
   aceptación formal del piloto.
+- Mantener la laptop y PostgreSQL en red local como operación primaria, de modo
+  que el almacén continúe aun si falla Internet.
+- Evaluar una VPS solamente como respaldo externo y consulta remota tras el
+  piloto; no exponer PostgreSQL a Internet ni convertir la VPS en dependencia
+  única sin una decisión explícita de conectividad y operación sin conexión.
 
 ### Fase 16: QuickBooks Desktop
 
@@ -732,7 +762,7 @@ Las fases 1 a 9 están completadas; la fase 8 fue descartada. La base real es
 warehouseEPI, el esquema operativo es public y los secretos están en User
 Secrets. Existe una migración aplicada para lotes internos globales. La última
 auditoría confirmó 1,612 productos, 216 ubicaciones, 5 asignaciones activas, 9
-movimientos, 4 saldos y 3 lotes, sin saldos sin lote. La suite tiene 107 pruebas,
+movimientos, 4 saldos y 3 lotes, sin saldos sin lote. La suite tiene 111 pruebas,
 incluidas pruebas PostgreSQL aisladas en warehouse_epi_test.
 
 El layout físico usa la nomenclatura Fila-Rack-Pallet, por ejemplo A-1-8, y el
@@ -740,11 +770,10 @@ pallet se distribuye como teclado numérico. Las áreas no rack conservan códig
 propios. Sigue pendiente validar físicamente posiciones, excepciones, sentido de
 numeración y colores del layout.
 
-Las fases 10.1 y 10.2 están implementadas localmente. Antes de marcar 10.2 como
-cerrada, ejecutar `pwsh ./scripts/quality.ps1`, publicar el changeset conjunto,
-confirmar el workflow `Quality` verde y exigir dicho check en `main`. Después
-sigue la fase 10.3 de refactorización controlada.
-Después siguen refactorización, seguridad, observabilidad, respaldo, publicación,
+Las fases 10.1, 10.2 y 10.3 están completadas. `Quality` está verde y es
+obligatorio en `main`; el motor de inventario usa exclusivamente lotes internos
+automáticos en movimientos nuevos y conserva el reverso de historial antiguo.
+Después siguen seguridad, observabilidad, respaldo, publicación,
 UX, piloto conectado, reportes, PWA/offline, liberación v1.0, QuickBooks y
 paneles LED. No agregues QuickBooks ni LED antes de esas fases.
 ```

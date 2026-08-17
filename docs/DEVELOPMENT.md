@@ -50,9 +50,10 @@ ni reformatees migraciones ya aplicadas. La puerta de calidad requiere al menos
 85% de cobertura de lineas y 45% de ramas globalmente.
 
 Los analizadores se ejecutan con advertencias como errores. `.editorconfig`
-mantiene una baseline explícita de reglas heredadas (migraciones inmutables,
-comparaciones culturales existentes y convenciones de nombres de pruebas); no
-debe extenderse para cambios nuevos y se reducirá durante la fase 10.3.
+mantiene una baseline explícita y documentada solo para reglas heredadas cuya
+corrección requiere una revisión funcional separada; no debe extenderse para
+cambios nuevos. La fase 10.3 retiró `CA1822` de la baseline global; las
+migraciones inmutables y convenciones de pruebas conservan excepciones acotadas.
 
 En GitHub Actions, el workflow `Quality` usa una instancia PostgreSQL efimera y
 solamente la base `warehouse_epi_test`. Sus artefactos incluyen resultados TRX,
