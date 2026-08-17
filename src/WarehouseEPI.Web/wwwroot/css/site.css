@@ -201,6 +201,17 @@ body {
 }
 
 .lookup-field { position: relative; }
+.camera-preview {
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .65rem;
+  background: #000;
+}
+.camera-preview video {
+  display: block;
+  max-height: 60vh;
+  object-fit: cover;
+}
 .lookup-results {
   position: absolute;
   z-index: 20;

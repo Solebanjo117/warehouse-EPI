@@ -59,6 +59,80 @@ En GitHub Actions, el workflow `Quality` usa una instancia PostgreSQL efimera y
 solamente la base `warehouse_epi_test`. Sus artefactos incluyen resultados TRX,
 cobertura Cobertura y el SQL idempotente de migraciones.
 
+## Seguridad de produccion LAN
+
+La primera publicacion usa HTTPS directo desde Kestrel, sin proxy ni confianza
+en encabezados `X-Forwarded-*`. Antes de iniciar el servicio en produccion:
+
+1. Reserva una IP DHCP para la laptop y registra el nombre LAN `warehouse-epi`.
+2. Desde PowerShell elevado, crea la ruta de claves con ACL restringida:
+
+   ```powershell
+   pwsh ./scripts/security/Initialize-DataProtectionKeys.ps1
+   ```
+
+   Crea también el directorio local de observabilidad con ACL restringida a la
+   cuenta de aplicación y administradores:
+
+   ```powershell
+   pwsh ./scripts/security/Initialize-ObservabilityLogs.ps1
+   ```
+
+3. Emite el certificado de la LAN indicando la IP reservada y un directorio
+   externo y seguro para el PFX de la CA:
+
+   ```powershell
+   pwsh ./scripts/security/New-WarehouseEpiLanCertificate.ps1 `
+     -ServerIpAddress 192.168.1.50 `
+     -OfflineBackupDirectory E:\WarehouseEPI-CA
+   ```
+
+   El script exporta solo el certificado público `.cer` para instalarlo como
+   autoridad confiable en cada tablet. Mueve el PFX cifrado fuera de la laptop
+   y conserva su contraseña por separado. Renueva el certificado del servidor
+   anualmente; la CA dura diez años.
+
+4. Configura mediante User Secrets o variables protegidas:
+   `AllowedHosts=warehouse-epi;192.168.1.50`,
+   `Security:DataProtectionKeysPath=C:\ProgramData\WarehouseEPI\DataProtection-Keys`
+   y el thumbprint informado por el script en
+   `Security:ServerCertificateThumbprint`.
+5. Haz un respaldo `pg_dump -Fc`, provisiona el rol de aplicación y verifica
+   sus permisos sin imprimir contraseñas:
+
+   ```powershell
+   pwsh ./scripts/security/Initialize-WarehouseEpiAppRole.ps1
+   pwsh ./scripts/security/Test-WarehouseEpiAppRole.ps1
+   ```
+
+   Después cambia `ConnectionStrings:Warehouse` al rol `warehouse_epi_app` en
+   User Secrets. `postgres` se reserva para administración y migraciones; el
+   proceso web no debe poseer permisos de esquema.
+
+La aplicación rechaza el arranque en `Production` si faltan la ruta absoluta de
+claves, certificado, hosts explícitos o una ruta de observabilidad existente y
+escribible. Los JSON de observabilidad quedan en
+`C:\ProgramData\WarehouseEPI\Logs`, rotan diariamente y al llegar a 50 MB, y
+se conservan 30 días. Nunca incluyen NIP, cookies, formularios, query strings,
+secretos ni cadenas de conexión. Cada respuesta incluye un `X-Correlation-ID`
+válido, útil para relacionar la solicitud con su evento seguro.
+
+`/health/live` comprueba solo el proceso y responde exclusivamente a loopback;
+desde la LAN devuelve 404. No ejecuta migraciones ni escrituras. Para un
+diagnóstico local, ADMIN consulta `/Admin/System`, que muestra salud y latencia
+de PostgreSQL, uptime, versión, conteos agregados de movimientos de 24 horas y
+fallas sanitizadas sin detalles de usuarios, SKU, NIP o excepciones.
+
+Las cookies de producción
+usan los prefijos `__Host-`, HTTPS obligatorio y `SameSite=Strict`. Los POST se
+limitan por IP: login ADMIN 5 cada 5 minutos, administración 10 por minuto y
+operaciones 30 por minuto; no existe bloqueo por usuario ni NIP.
+
+El escáner por cámara de las operaciones lee únicamente Code 128 mediante una
+copia local de ZXing Browser con licencia MIT. Requiere HTTPS en la tablet; por
+HTTP el botón informa esta condición y se conserva la captura manual y el
+escáner HID. Al leer un código válido usa la misma resolución que la tecla Enter.
+
 ## Migraciones
 
 Antes de crear o aplicar una migracion, confirma que la base operativa sea

@@ -1,0 +1,40 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.System.IndexModel
+@{
+    ViewData["Title"] = "Estado del sistema";
+}
+
+<h1>Estado del sistema</h1>
+<p class="text-muted">Resumen local de salud y actividad. No contiene datos operativos ni credenciales.</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4"><div class="card"><div class="card-body"><h2 class="h6">Aplicación</h2><p class="mb-0">Activa desde @Model.Status.StartedAt.LocalDateTime.ToString("g")</p></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body"><h2 class="h6">Base de datos</h2><p class="mb-0">@(Model.Status.DatabaseHealthy ? "Disponible" : "No disponible")@(Model.Status.DatabaseLatencyMilliseconds is long latency ? $" ({latency} ms)" : string.Empty)</p></div></div></div>
+    <div class="col-md-4"><div class="card"><div class="card-body"><h2 class="h6">Versión</h2><p class="mb-0">@Model.Status.Version</p></div></div></div>
+</div>
+
+<p class="text-muted">Última comprobación: @Model.Status.CheckedAt.LocalDateTime.ToString("g")</p>
+
+<h2 class="h4">Movimientos de las últimas 24 horas</h2>
+@if (Model.Status.Activity.Count == 0)
+{
+    <p>No hay movimientos registrados en este periodo.</p>
+}
+else
+{
+    <table class="table"><thead><tr><th>Tipo</th><th class="text-end">Cantidad</th></tr></thead><tbody>
+    @foreach (var item in Model.Status.Activity) { <tr><td>@item.Type</td><td class="text-end">@item.Count</td></tr> }
+    </tbody></table>
+}
+
+<h2 class="h4">Fallos recientes sanitizados</h2>
+@if (Model.Status.RecentFailures.Count == 0)
+{
+    <p>No hay fallos de servidor recientes.</p>
+}
+else
+{
+    <table class="table"><thead><tr><th>Fecha</th><th>Categoría</th><th>HTTP</th><th>Correlación</th></tr></thead><tbody>
+    @foreach (var failure in Model.Status.RecentFailures) { <tr><td>@failure.OccurredAt.LocalDateTime.ToString("g")</td><td>@failure.Category</td><td>@failure.StatusCode</td><td><code>@failure.CorrelationId</code></td></tr> }
+    </tbody></table>
+}

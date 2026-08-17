@@ -591,15 +591,39 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Se retiró `CA1822` de la baseline global; las demás excepciones heredadas se
   mantienen documentadas hasta que se revisen sus cambios funcionales.
 
-#### Fase 10.4: seguridad de producción
+#### Fase 10.4: seguridad de producción — implementada; activación LAN parcial
 
-- Configurar HTTPS, límites de solicitudes, cookies seguras, encabezados,
-  persistencia protegida de Data Protection y permisos mínimos de PostgreSQL.
+- La aplicación contiene validación fail-fast de producción, Kestrel TLS,
+  Data Protection persistente con DPAPI, cookies `__Host-`, CSP, encabezados
+  defensivos, páginas dinámicas sin caché, límite de cuerpo y rate limiting por
+  IP sin bloqueo de NIP.
+- En la laptop de prueba ya se inicializó el directorio de claves de Data
+  Protection, se emitió e instaló un certificado LAN y se comprobó el acceso
+  HTTPS desde un celular. El respaldo cifrado de la CA permanece fuera del
+  repositorio. No registrar aquí contraseñas, huellas ni rutas privadas.
+- `scripts/security/` también contiene la provisión y verificación del rol
+  mínimo `warehouse_epi_app`. Falta respaldar PostgreSQL, aplicar ese rol en
+  `warehouseEPI` y verificar una operación real sin privilegios de migración.
+- La validación local más reciente obtuvo 120/120 pruebas, 92.8% de líneas y
+  53.5% de ramas; formato, compilación Release, modelo EF y
+  SQL idempotente también pasaron.
+- Antes de cerrar la fase falta fijar la reserva DHCP definitiva e instalar la
+  CA pública en cada tablet, respaldar la base, aplicar el rol restringido y
+  comprobar una operación real bajo dicho rol.
 
-#### Fase 10.5: observabilidad
+#### Fase 10.5: observabilidad local segura — implementada
 
-- Agregar health checks, logs estructurados, correlación de solicitudes y estado
-  administrativo sin exponer secretos ni NIP.
+- Producción escribe únicamente eventos JSON estructurados y permitidos en
+  `C:\ProgramData\WarehouseEPI\Logs`; la ruta se valida al iniciar, rota por
+  día y 50 MB, conserva 30 días y se prepara con ACL restringida mediante
+  `Initialize-ObservabilityLogs.ps1`. Desarrollo conserva consola legible.
+- Cada solicitud recibe o normaliza `X-Correlation-ID`; solo se registran
+  método, ruta sin query string, estado, duración, correlación y categoría
+  segura. Se excluyen NIP, cookies, formularios, secretos y cadenas de conexión.
+- `/health/live` es solo loopback y comprueba proceso sin escribir ni migrar.
+  La salud y latencia PostgreSQL, uptime, versión, actividad agregada de 24
+  horas y fallas sanitizadas se consultan exclusivamente como ADMIN en
+  `/Admin/System`.
 
 #### Fase 10.6: respaldo y recuperación
 
@@ -624,6 +648,11 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Optimizar el flujo de escaneo: foco automático en el siguiente campo,
   confirmación visual y sonora, y errores de producto o ubicación claramente
   accionables.
+- El formulario operativo contiene lectura local de Code 128 por cámara para
+  producto y ubicación, con el mismo resolvedor de Enter/HID, vista previa en
+  vivo y respaldo mediante foto. Requiere HTTPS; la lectura física de un código
+  en dispositivo móvil continúa en validación y no debe considerarse cerrada
+  hasta completar esa prueba.
 - Mostrar sugerencias de ubicaciones previamente asignadas y su saldo al
   registrar entradas, sin convertir todavía la sugerencia en una asignación
   dirigida obligatoria.
@@ -762,7 +791,7 @@ Las fases 1 a 9 están completadas; la fase 8 fue descartada. La base real es
 warehouseEPI, el esquema operativo es public y los secretos están en User
 Secrets. Existe una migración aplicada para lotes internos globales. La última
 auditoría confirmó 1,612 productos, 216 ubicaciones, 5 asignaciones activas, 9
-movimientos, 4 saldos y 3 lotes, sin saldos sin lote. La suite tiene 111 pruebas,
+movimientos, 4 saldos y 3 lotes, sin saldos sin lote. La suite tiene 120 pruebas,
 incluidas pruebas PostgreSQL aisladas en warehouse_epi_test.
 
 El layout físico usa la nomenclatura Fila-Rack-Pallet, por ejemplo A-1-8, y el

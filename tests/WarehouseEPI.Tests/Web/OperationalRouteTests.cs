@@ -41,6 +41,35 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
     }
 
+    [Theory]
+    [InlineData("/Operations/Entry", 2)]
+    [InlineData("/Operations/Exit", 2)]
+    [InlineData("/Operations/Transfer", 3)]
+    [InlineData("/Operations/Adjustment", 2)]
+    public async Task Operational_pages_render_camera_scanners_for_every_product_and_location_lookup(string path, int expectedButtons)
+    {
+        using var client = CreateClient();
+
+        var response = await client.GetAsync(path);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(expectedButtons, Regex.Count(html, "data-camera-scan(?=\\s|>)"));
+        Assert.Equal(1, Regex.Count(html, "data-camera-scanner"));
+        Assert.Contains("zxing-browser.min", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Camera_scanner_library_is_served_locally()
+    {
+        using var client = CreateClient();
+
+        var response = await client.GetAsync("/lib/zxing/zxing-browser.min.js");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/javascript", response.Content.Headers.ContentType?.MediaType);
+    }
+
     [Fact]
     public async Task Entry_requires_valid_pin_is_idempotent_and_receipt_is_reloadable()
     {
