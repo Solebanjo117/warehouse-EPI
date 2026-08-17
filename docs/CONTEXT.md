@@ -1,17 +1,18 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 14 de agosto de 2026.
+Actualizado: 17 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
 repositorio. Las decisiones marcadas como pendientes no deben convertirse en
 requisitos definitivos sin confirmación.
 
-**Estado general:** las fases 1 a 7 están completadas. La fase 8 de paquetes y
-conversiones fue descartada por decisión del negocio; la fase 9 usa lotes
-internos automáticos para todo el catálogo. La validación física completa
-de las ubicaciones cargadas sigue siendo una comprobación operativa pendiente,
-pero no cambia el cierre técnico de la fase 4.
+**Estado general:** las fases 1 a 9 y 10.1 están completadas. La fase 8 de
+paquetes y conversiones fue descartada por decisión del negocio; la fase 9 usa
+lotes internos automáticos para todo el catálogo. La fase 10.2 incorpora una
+puerta reproducible de calidad antes de exigirla en `main`; la validación física
+completa de las ubicaciones cargadas sigue siendo una comprobación operativa
+pendiente, pero no cambia el cierre técnico de la fase 4.
 
 ## 1. Objetivo
 
@@ -245,12 +246,12 @@ recuperación para una base nueva es:
 
 Existen pruebas de entidades, catálogos, criptografía, servicio de NIP y pipeline
 web. La
-última verificación completada el 14 de agosto de 2026 fue:
+última verificación completada el 17 de agosto de 2026 fue:
 
 - .NET SDK `10.0.400` encontrado en
   `C:\Program Files\dotnet\dotnet.exe`;
 - compilación correcta, sin advertencias ni errores;
-- las 105 pruebas finalizaron correctamente, incluida la autenticación NIP,
+- las 107 pruebas finalizaron correctamente, incluida la autenticación NIP,
   normalización y unicidad de catálogos, reglas de productos y códigos de barras,
   usuario inactivo, antiforgery, cookie, autorización de páginas y el importador
   de productos desde Excel, además de las reglas, generación y administración de
@@ -308,10 +309,10 @@ terminal nueva.
 - La migración `20260813185432_AddUnassignedUnit` fue revisada y aplicada. Solo
   agregó la unidad activa `UNASSIGNED`, con nombre `Sin asignar` y cantidades
   decimales habilitadas; no modificó productos ni otras tablas.
-- PostgreSQL contiene 18 unidades con decimales habilitados, los tipos `FG` y
-  `RAW`, 26 clases normalizadas, 1,612 productos importados, 153 ubicaciones y
-  2 asignaciones producto-ubicación activas. Los códigos de barras permanecen
-  vacíos.
+- Al cierre de ese bloque, PostgreSQL contenía 18 unidades con decimales
+  habilitados, los tipos `FG` y `RAW`, 26 clases normalizadas, 1,612 productos
+  importados, 153 ubicaciones y 2 asignaciones producto-ubicación activas. Los
+  códigos de barras permanecían vacíos.
 - La migración `20260814121053_LocationLayoutStructure` fue respaldada, revisada
   y aplicada después de confirmar que `locations` estaba vacía. Sustituyó los
   componentes provisionales por tipo, fila, rack, pallet y motivo de bloqueo,
@@ -345,13 +346,15 @@ terminal nueva.
   `allows_negative_stock` y cero movimientos, líneas, cambios, saldos y lotes.
 
 La base técnica, el esquema inicial, la seguridad por NIP, la administración de
-usuarios, los catálogos, las ubicaciones, el núcleo de inventario y el historial
-auditable están terminados. PostgreSQL contiene un administrador activo creado
-mediante el comando interactivo; no se registraron su nombre, NIP ni campos
-protegidos en este documento. Las fases 1 a 7 están cerradas, la fase 8 fue
-descartada y el siguiente bloque es la fase 9. Las 153
-ubicaciones ya están cargadas; únicamente sigue pendiente comprobar en sitio que
-cubran todas las posiciones y excepciones físicas del almacén.
+usuarios, los catálogos, las ubicaciones, el núcleo de inventario, el historial
+auditable y los lotes internos globales están terminados. PostgreSQL contiene un
+administrador activo creado mediante el comando interactivo; no se registraron
+su nombre, NIP ni campos protegidos en este documento. Las fases 1 a 9 están
+cerradas y el siguiente bloque es la fase 10.1 de estandarización del repositorio
+y documentación. La auditoría final de la fase 9 confirmó 216 ubicaciones, 5
+asignaciones activas, 9 movimientos, 4 saldos y 3 lotes. Sigue pendiente
+comprobar en sitio que las ubicaciones cubran todas las posiciones y excepciones
+físicas del almacén.
 
 Si `dotnet` no está en `PATH`, sustituirlo por:
 
@@ -547,47 +550,111 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   `tracks_lots`. Compilación y 107 pruebas, incluida la fixture PostgreSQL
   aislada `warehouse_epi_test`, aprobadas.
 
-### Fase 10: tablets, escáner y PWA
+### Fase 10: estabilización técnica
 
-- Probar lectores y aplicaciones de escáner reales.
-- Probar cámara del navegador si se requiere.
-- Medir rendimiento en las tablets más lentas.
-- Agregar manifest, Service Worker y caché de la interfaz.
-- Implementar cola IndexedDB con UUID de operación, dispositivo identificado,
-  prevención de duplicados y estados de sincronización.
-- Mostrar que el stock sin conexión corresponde a la última sincronización.
-- Resolver los conflictos de salidas fuera de línea en el servidor.
+#### Fase 10.1: repositorio y documentación — completada
 
-### Fase 11: reportes y croquis
+- Estandarizar SDK, formato y finales de línea sin renormalizar archivos
+  históricos masivamente.
+- Crear documentación de entrada, arquitectura y desarrollo.
+- Consolidar `CONTEXT.md` como estado vivo, sin datos presentes contradictorios.
 
-- Reporte de existencias por producto y ubicación.
-- Reporte de movimientos por fechas, usuario, tipo y producto.
-- Croquis SVG manipulable del almacén.
-- Colores, ocupación y búsqueda visual de productos/ubicaciones.
+#### Fase 10.2: calidad automatizada — implementada localmente; pendiente primera ejecución verde en GitHub
 
-### Fase 12: despliegue y piloto
+- `scripts/quality.ps1` concentra restauración bloqueada, formato, compilación
+  Release, validación de migraciones, SQL idempotente, pruebas y cobertura.
+- La cobertura mínima global es 85% de líneas y 45% de ramas; la primera
+  verificación local obtuvo 107/107 pruebas, 92.0% de líneas y 50.6% de ramas.
+  Los artefactos no se versionan.
+- Las versiones se centralizan en `Directory.Packages.props` y los lockfiles
+  son obligatorios. La auditoría NuGet bloquea vulnerabilidades altas y críticas.
+- Los analizadores bloquean advertencias nuevas; `.editorconfig` conserva una
+  baseline acotada para migraciones inmutables y ajustes de implementación que
+  se abordarán en la fase 10.3.
+- `.github/workflows/quality.yml` usa PostgreSQL 18.4 efímero y exclusivamente
+  `warehouse_epi_test`; publica TRX, Cobertura y SQL de migraciones.
+- Tras la primera ejecución verde, queda pendiente activar la regla de `main`
+  que exija el check `Quality`.
 
-- Configurar la laptop como servidor de red local.
-- Usar HTTPS y una dirección estable en la red.
-- Configurar respaldo automático de PostgreSQL y recuperación probada.
-- Ejecutar piloto controlado con inventario real.
-- Capacitar usuarios y documentar operación.
-- Ajustar rendimiento y reglas detectadas durante el piloto.
+#### Fase 10.3: refactorización controlada
 
-### Fase 13: integraciones finales
+- Dividir responsabilidades del motor de movimientos, retirar flujos obsoletos
+  y mejorar mantenibilidad sin modificar contratos ni comportamiento.
 
-- Integrar QuickBooks Desktop mediante un adaptador desacoplado.
-- Definir qué sistema será dueño de productos y existencias antes de sincronizar.
-- Evitar edición libre del mismo saldo en ambos sistemas.
-- Agregar paneles LED como clientes de solo lectura o suscriptores de eventos.
-- Reflejar en tiempo real los cambios del contenido del pasillo.
+#### Fase 10.4: seguridad de producción
+
+- Configurar HTTPS, límites de solicitudes, cookies seguras, encabezados,
+  persistencia protegida de Data Protection y permisos mínimos de PostgreSQL.
+
+#### Fase 10.5: observabilidad
+
+- Agregar health checks, logs estructurados, correlación de solicitudes y estado
+  administrativo sin exponer secretos ni NIP.
+
+#### Fase 10.6: respaldo y recuperación
+
+- Automatizar respaldo, retención, copia externa, validación y restauración real
+  de PostgreSQL.
+
+#### Fase 10.7: publicación y servicio
+
+- Preparar publicación Release versionada, servicio de Windows, actualización y
+  rollback sin compilar sobre la instancia activa.
+
+#### Fase 10.8: simulacro y cierre
+
+- Comprobar reinicio, recuperación, actualización, rollback y evidencia de
+  cierre antes del rediseño visual.
+
+### Fase 11: diseño visual y UX
+
+- Definir sistema visual, componentes reutilizables y navegación consistente.
+- Rediseñar captura operativa, comprobantes, consulta y administración para
+  tablets lentas, escáner HID, teclado, accesibilidad y estados claros.
+
+### Fase 12: validación física y piloto conectado
+
+- Probar lectores, aplicaciones de escáner, tablets reales y cámara si se
+  requiere.
+- Validar racks, pallets, áreas especiales, rendimiento y operaciones reales en
+  red local.
+- Ejecutar un piloto conectado y conciliar inventario físico contra sistema.
+
+### Fase 13: reportes y croquis
+
+- Reporte de existencias por producto, ubicación y lote interno.
+- Reporte de movimientos por fechas, usuario, tipo y producto; negativos,
+  mínimos, conteos cíclicos y exportaciones.
+- Croquis SVG manipulable con colores, ocupación y búsqueda visual.
+
+### Fase 14: PWA y operación sin conexión
+
+- Agregar manifest, Service Worker y caché de interfaz.
+- Implementar cola IndexedDB con UUID, dispositivo identificado, prevención de
+  duplicados y estados de sincronización.
+- Mostrar que el stock sin conexión corresponde a la última sincronización y
+  resolver conflictos en el servidor según la política confirmada.
+
+### Fase 15: liberación v1.0 y transición operativa
+
+- Configurar laptop servidor, dirección estable, capacitación, manuales y
+  aceptación formal del piloto.
+
+### Fase 16: QuickBooks Desktop
+
+- Integrar mediante adaptador desacoplado después de definir dueño de productos,
+  costos y existencias; evitar edición libre del mismo saldo en ambos sistemas.
+
+### Fase 17: paneles LED y cierre
+
+- Agregar paneles como clientes de solo lectura o suscriptores de eventos y
+  reflejar cambios de contenido del pasillo en tiempo real.
 
 ## 9. Decisiones todavía pendientes
 
 Antes de implementar el área correspondiente, confirmar:
 
 - referencia o documento operativo de entradas y salidas;
-- campos obligatorios del lote y origen de la fecha de caducidad;
 - política de conflictos cuando una salida fuera de línea produce saldo negativo;
 - periodo máximo que deberá funcionar sin conexión;
 - versión/año exactos de QuickBooks Desktop y datos a intercambiar;
@@ -607,6 +674,9 @@ Antes de implementar el área correspondiente, confirmar:
 - Mantener la primera interfaz ligera y probarla en el dispositivo más lento.
 - Preservar cambios existentes del usuario y revisar `git status` antes de editar.
 - Después de cada bloque: compilar, ejecutar pruebas y revisar el diff.
+- `README.md` es la entrada rápida, `ARCHITECTURE.md` conserva el diseño y
+  `DEVELOPMENT.md` contiene el flujo técnico; `CONTEXT.md` solo mantiene estado,
+  decisiones y continuidad.
 
 ## 11. Referencia funcional
 
@@ -638,112 +708,43 @@ además de confirmar el significado de los colores del croquis.
 
 ```text
 Estoy desarrollando Warehouse EPI en
-C:\Users\JUANANTONIOCASTILLAO\Documents\warehouse-EPI. Antes de modificar algo,
-lee docs/CONTEXT.md completo y verifica el estado real con git status, los
-archivos actuales, dotnet build y dotnet test. No sobrescribas cambios existentes
-ni expongas secretos.
+C:\Users\JUANANTONIOCASTILLAO\Documents\warehouse-EPI. Lee README.md,
+docs/ARCHITECTURE.md, docs/DEVELOPMENT.md y docs/CONTEXT.md antes de modificar.
+Verifica git status, los archivos actuales, dotnet build y dotnet test. No
+sobrescribas cambios existentes ni expongas secretos.
 
 Es una aplicación web local para almacén: ASP.NET Core 10 con Razor Pages,
-Entity Framework Core y PostgreSQL. Una laptop será el servidor y tablets
-Android lentas usarán Chrome. Roles: ADMIN y OPERATOR; ambos hacen movimientos y
-ajustes, ADMIN administra usuarios. Cada usuario tiene un NIP único, sin número
-de empleado, solicitado en cada movimiento; nunca se almacena en texto plano.
+Entity Framework Core y PostgreSQL. Una laptop será el servidor y tablets Android
+lentas usarán Chrome. Roles: ADMIN y OPERATOR; ambos hacen movimientos y ajustes,
+ADMIN administra usuarios. Cada usuario tiene un NIP único de 4 a 8 dígitos,
+solicitado en cada movimiento; nunca se almacena en texto plano.
 
 El inventario se controla físicamente por producto + ubicación + lote interno;
-las consultas y capturas operativas usan los saldos agregados por producto y
+las consultas y capturas operativas usan saldos agregados por producto y
 ubicación. Los totales se derivan de esos saldos. Se permiten cantidades
-decimal(18,4), saldo negativo, múltiples ubicaciones y varios códigos por
-producto. Todo producto usa automáticamente un lote diario interno y no existe
-caducidad ni control de lote por operador. Los movimientos serán Entrada,
-Salida, Transferencia y Ajuste. Los confirmados son
-inmutables: las correcciones se hacen mediante reverso y reemplazo auditable.
+numeric(18,4), saldo negativo, múltiples ubicaciones y varios códigos por
+producto. Todo producto usa un lote diario interno `AUTO-YYYYMMDD`; no existe
+caducidad ni captura pública de lotes. Los movimientos son Entrada, Salida,
+Transferencia y Ajuste. Los confirmados son inmutables y se corrigen mediante
+reverso y reemplazo auditables.
 
-Ya existen Role, User, Unit, ProductType, ProductClass, Product, ProductBarcode,
-Location, ProductLot, movimientos, cambios y saldos en WarehouseDbContext. Program.cs registra Npgsql, seguridad por NIP, cookie
-administrativa y autorización ADMIN. El NIP admite 4 a 8 dígitos, se protege con
-HMAC-SHA256 y PBKDF2-SHA256, es único y no tiene bloqueo por intentos. Existen
-páginas para iniciar sesión, administrar usuarios y administrar los catálogos de
-la fase 3. Los productos usan SKU obligatorio y descripción opcional, sin un
-campo separado de nombre. La compilación fue verificada con .NET SDK 10.0.400
-sin errores ni advertencias. Las 89 pruebas pasan, incluidas pruebas reales de
-concurrencia, idempotencia y `xmin` contra `warehouse_epi_test`.
+Las fases 1 a 9 están completadas; la fase 8 fue descartada. La base real es
+warehouseEPI, el esquema operativo es public y los secretos están en User
+Secrets. Existe una migración aplicada para lotes internos globales. La última
+auditoría confirmó 1,612 productos, 216 ubicaciones, 5 asignaciones activas, 9
+movimientos, 4 saldos y 3 lotes, sin saldos sin lote. La suite tiene 107 pruebas,
+incluidas pruebas PostgreSQL aisladas en warehouse_epi_test.
 
-La base real es warehouseEPI y ConnectionStrings:Warehouse fue validada sin
-mostrar la contraseña. InitialSchema está creada, revisada y aplicada en public;
-PostgreSQL contiene las seis tablas de dominio, el historial EF y las semillas
-ADMIN, OPERATOR y EA. El esquema prototipo anterior fue respaldado localmente y
-eliminado después de verificar el esquema nuevo. RemovePinLockout también está
-aplicada y ya no existen failed_pin_attempts ni locked_until.
-CatalogsAndProductReference está aplicada; existen 18 unidades, 2 tipos y 26
-clases. RemoveProductName también está aplicada y `products.name` ya no existe;
-PostgreSQL contiene 1,612 productos importados y cero códigos de barras. Existe un importador ADMIN de
-productos `.xlsx` para la hoja ITEMS, con vista previa en memoria y confirmación
-transaccional; la carga real ya fue confirmada. Las 65 filas con U/M vacío
-usan `UNASSIGNED / Sin asignar` con advertencia, sin inferir `EA`.
-Security:PinLookupKey
-está en User Secrets. PostgreSQL contiene exactamente un ADMIN activo creado de
-forma interactiva; sus credenciales no se leyeron ni documentaron. La fase 3 de
-catálogos está completa.
+El layout físico usa la nomenclatura Fila-Rack-Pallet, por ejemplo A-1-8, y el
+pallet se distribuye como teclado numérico. Las áreas no rack conservan códigos
+propios. Sigue pendiente validar físicamente posiciones, excepciones, sentido de
+numeración y colores del layout.
 
-El layout físico ya fue entregado. Para racks, el código canónico será
-`Fila-Rack-Pallet` —por ejemplo `A-1-8`— y el pallet usa nueve posiciones como
-teclado numérico (`1-3` abajo, `4-6` medio, `7-9` arriba). Áreas no rack usan
-códigos propios. La fase 4 debe validar físicamente los racks, posiciones,
-sentido de numeración y significado de colores. La carga inicial ya fue
-realizada; esta validación en sitio permanece como comprobación operativa.
-
-LocationLayoutStructure está aplicada. Existe el catálogo ADMIN de ubicaciones
-y un generador por bloques con vista previa, exclusiones, hoja de validación y
-confirmación transaccional. Las áreas se capturan individualmente y los bloqueos
-requieren motivo. Las etiquetas no se imprimirán porque la bodega ya está
-etiquetada; el código visible será el valor escaneado. PostgreSQL contiene 153
-ubicaciones. ProductLocationAssignments también está aplicada y permite
-asignaciones fijas muchos-a-muchos sin ubicación principal, conservadas aunque
-el saldo llegue a cero. Ubicaciones y Productos permiten buscar y navegar en
-ambos sentidos; desde Productos también se puede buscar por el código del rack
-o área asignada.
-
-InventoryCore está aplicada. El motor registra Entrada, Salida, Transferencia y
-Ajuste con varias líneas, NIP por operación, transacción atómica, UUID
-idempotente, bloqueo de saldos, ajuste por conteo final, `xmin`, asignación
-automática o confirmación de pallet compartido e inventario negativo permitido
-con advertencia. Los lotes están preparados en esquema, pero permanecen
-bloqueados funcionalmente hasta la fase 9.
-
-La fase 6 está completada. Existen páginas públicas y ligeras para las cuatro
-operaciones y para consultar existencias por producto o ubicación. La captura
-operativa usa una línea por confirmación, búsqueda manual o escáner HID, muestra
-saldos estimados y pide el NIP únicamente en la confirmación final. Los POST usan
-antiforgery y el servicio transaccional; el comprobante se consulta por un UUID
-no predecible y no repite la operación al recargar. La versión cero permite el
-primer ajuste de un saldo inexistente sin perder el control concurrente. El
-escaneo operativo muestra relaciones en ambos sentidos, combinando asignaciones
-activas con saldos distintos de cero; solo autocompleta una contraparte única y
-las parejas nuevas se crean exclusivamente al confirmar con NIP. La fase 7 de
-historial y correcciones fue validada manualmente. La fase 8 fue descartada.
-
-La fase 9 implementa lotes internos automáticos para todo el catálogo: el
-operador no captura, selecciona ni consulta lotes. El sistema crea por producto
-y fecha local (`America/Matamoros`) el lote `AUTO-YYYYMMDD`; Entrada y aumentos
-por ajuste suman en ese lote, mientras Salida,
-Transferencia y disminuciones por ajuste distribuyen automáticamente desde los
-lotes con fecha más antigua. El término FEFO se conserva como nombre operativo,
-pero la política es FIFO por fecha interna. Se eliminó caducidad y
-`TracksExpiration`; `ProductLot.LotDate` conserva la fecha interna. Los cambios
-por lote se registran en `InventoryBalanceChange`, aunque las páginas públicas
-y comprobantes siguen mostrando únicamente cantidades agregadas. La fecha de
-lote puede inspeccionarse y corregirse con auditoría y NIP ADMIN desde
-`/Admin/Inventory/Lots`.
-
-La migración `20260816090000_InternalDailyLots` fue aplicada a `warehouseEPI`
-el 14 de agosto de 2026 después del respaldo validado
-`BackupDatabase/public-before-internal-daily-lots-20260814-133308.dump`.
-La auditoría posterior confirmó 1,612 productos, 216 ubicaciones, 4
-asignaciones, 7 movimientos, 3 saldos, cero lotes y cero cambios de fecha;
-`tracks_expiration` y `expiration_date` ya no existen, y `lot_date` está
-presente. Posteriormente `20260817090000_GlobalInternalLots` eliminó
-`tracks_lots`, creó/reutilizó los lotes iniciales de la fecha local y convirtió
-los cuatro saldos existentes; la auditoría verificó cero saldos sin lote y los
-conteos 1,612 productos, 216 ubicaciones, 5 asignaciones, 9 movimientos y 3
-lotes.
+Las fases 10.1 y 10.2 están implementadas localmente. Antes de marcar 10.2 como
+cerrada, ejecutar `pwsh ./scripts/quality.ps1`, publicar el changeset conjunto,
+confirmar el workflow `Quality` verde y exigir dicho check en `main`. Después
+sigue la fase 10.3 de refactorización controlada.
+Después siguen refactorización, seguridad, observabilidad, respaldo, publicación,
+UX, piloto conectado, reportes, PWA/offline, liberación v1.0, QuickBooks y
+paneles LED. No agregues QuickBooks ni LED antes de esas fases.
 ```

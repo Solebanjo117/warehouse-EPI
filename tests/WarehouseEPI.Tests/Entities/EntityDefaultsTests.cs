@@ -1,5 +1,5 @@
-using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Core;
+using WarehouseEPI.Core.Entities;
 
 namespace WarehouseEPI.Tests.Entities;
 

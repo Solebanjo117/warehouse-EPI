@@ -52,8 +52,11 @@ public sealed class LocationGenerationService(WarehouseDbContext dbContext, Loca
         {
             dbContext.Locations.AddRange(rows.Select(row => new Location
             {
-                Code = row.Code, Kind = LocationKind.Rack, RowCode = row.RowCode,
-                RackNumber = row.RackNumber, PalletNumber = row.PalletNumber
+                Code = row.Code,
+                Kind = LocationKind.Rack,
+                RowCode = row.RowCode,
+                RackNumber = row.RackNumber,
+                PalletNumber = row.PalletNumber
             }));
             await dbContext.SaveChangesAsync(cancellationToken);
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);

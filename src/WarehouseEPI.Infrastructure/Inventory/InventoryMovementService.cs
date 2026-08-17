@@ -276,17 +276,25 @@ public sealed class InventoryMovementService(
             await UpsertAssignmentsAsync(pairs, cancellationToken);
             var movement = new InventoryMovement
             {
-                OperationId = command.OperationId, RequestFingerprint = fingerprint, Type = command.Type,
-                ResponsibleUserId = user.Id, Reference = command.Reference, Notes = command.Notes,
-                OccurredAt = now, RecordedAt = now
+                OperationId = command.OperationId,
+                RequestFingerprint = fingerprint,
+                Type = command.Type,
+                ResponsibleUserId = user.Id,
+                Reference = command.Reference,
+                Notes = command.Notes,
+                OccurredAt = now,
+                RecordedAt = now
             };
             foreach (var (commandLine, index) in command.Lines.Select((item, index) => (item, index)))
             {
                 var product = products[commandLine.ProductId];
                 var line = new InventoryMovementLine
                 {
-                    LineNumber = index + 1, ProductId = product.Id, UnitId = product.BaseUnitId,
-                    Quantity = commandLine.Quantity, SourceLocationId = commandLine.SourceLocationId,
+                    LineNumber = index + 1,
+                    ProductId = product.Id,
+                    UnitId = product.BaseUnitId,
+                    Quantity = commandLine.Quantity,
+                    SourceLocationId = commandLine.SourceLocationId,
                     DestinationLocationId = commandLine.DestinationLocationId,
                     LotAllocationMode = command.Type == InventoryMovementType.Entry
                         ? InventoryLotAllocationMode.DailyLot : InventoryLotAllocationMode.AutomaticFefo

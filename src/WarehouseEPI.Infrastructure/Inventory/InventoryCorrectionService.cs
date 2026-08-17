@@ -120,9 +120,14 @@ public sealed class InventoryCorrectionService(
         }
         var reversal = new InventoryMovement
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = Hash(correctionFingerprint + "|reversal"),
-            Type = ReverseType(original.Type), ResponsibleUserId = authorizedById,
-            Reference = original.Reference, Notes = "Reverso de " + original.Id.ToString("N"), OccurredAt = now, RecordedAt = now
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = Hash(correctionFingerprint + "|reversal"),
+            Type = ReverseType(original.Type),
+            ResponsibleUserId = authorizedById,
+            Reference = original.Reference,
+            Notes = "Reverso de " + original.Id.ToString("N"),
+            OccurredAt = now,
+            RecordedAt = now
         };
         foreach (var source in original.Lines.OrderBy(line => line.LineNumber))
         {

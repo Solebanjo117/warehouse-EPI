@@ -230,8 +230,11 @@ public sealed class LocationCatalogTests
 
     private static Location Rack(string row, short rack, short pallet) => new()
     {
-        Code = $"{row}-{rack}-{pallet}", Kind = LocationKind.Rack,
-        RowCode = row, RackNumber = rack, PalletNumber = pallet
+        Code = $"{row}-{rack}-{pallet}",
+        Kind = LocationKind.Rack,
+        RowCode = row,
+        RackNumber = rack,
+        PalletNumber = pallet
     };
 
     private sealed class Fixture : IAsyncDisposable

@@ -39,14 +39,14 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
         Products = products.Select(product =>
         {
             var locations = byProduct.GetValueOrDefault(product.Id) ?? [];
-            return new ProductRow(product.Id,product.Sku,product.Description,product.ExternalReference,product.Unit,
-                product.Type,product.Class,product.BarcodeCount,product.IsActive,
-                locations.Take(3).Select(location => new LocationLink(location.LocationId, location.Code)).ToArray(),locations.Length);
+            return new ProductRow(product.Id, product.Sku, product.Description, product.ExternalReference, product.Unit,
+                product.Type, product.Class, product.BarcodeCount, product.IsActive,
+                locations.Take(3).Select(location => new LocationLink(location.LocationId, location.Code)).ToArray(), locations.Length);
         }).ToArray();
     }
 
-    public sealed record ProductRow(Guid Id,string Sku,string? Description,string? ExternalReference,string Unit,string? Type,string? Class,int BarcodeCount,bool IsActive,IReadOnlyList<LocationLink> Locations,int LocationCount);
-    public sealed record LocationLink(Guid Id,string Code);
-    private sealed record ProductBaseRow(Guid Id,string Sku,string? Description,string? ExternalReference,string Unit,string? Type,string? Class,int BarcodeCount,bool IsActive);
-    private sealed record LocationAssignmentLink(Guid ProductId,Guid LocationId,string Code);
+    public sealed record ProductRow(Guid Id, string Sku, string? Description, string? ExternalReference, string Unit, string? Type, string? Class, int BarcodeCount, bool IsActive, IReadOnlyList<LocationLink> Locations, int LocationCount);
+    public sealed record LocationLink(Guid Id, string Code);
+    private sealed record ProductBaseRow(Guid Id, string Sku, string? Description, string? ExternalReference, string Unit, string? Type, string? Class, int BarcodeCount, bool IsActive);
+    private sealed record LocationAssignmentLink(Guid ProductId, Guid LocationId, string Code);
 }

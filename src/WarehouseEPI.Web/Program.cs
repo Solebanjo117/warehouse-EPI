@@ -4,14 +4,14 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
-using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Imports;
+using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Locations;
+using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Bootstrap;
 using WarehouseEPI.Web.Imports;
 using WarehouseEPI.Web.Locations;
-using WarehouseEPI.Infrastructure.Locations;
-using WarehouseEPI.Infrastructure.Inventory;
 
 var builder = WebApplication.CreateBuilder(args);
 

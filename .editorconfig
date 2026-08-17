@@ -1,0 +1,63 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{cs,cshtml}]
+indent_style = space
+indent_size = 4
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+[*.{json,xml,csproj,props,targets,yml,yaml}]
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+# Baseline de analizadores de fase 10.2. Las migraciones aplicadas no se editan;
+# las mejoras de implementacion indicadas quedan para la fase 10.3.
+[*.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1512.severity = none
+dotnet_diagnostic.CA1716.severity = none
+dotnet_diagnostic.CA1725.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA1826.severity = none
+dotnet_diagnostic.CA1859.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[src/WarehouseEPI.Infrastructure/Persistence/Migrations/**]
+dotnet_diagnostic.CA1725.severity = none
+dotnet_diagnostic.CA1861.severity = none
+
+[src/WarehouseEPI.Infrastructure/Imports/**.cs]
+dotnet_diagnostic.CA1716.severity = none
+
+[src/WarehouseEPI.Infrastructure/Security/PinProtector.cs]
+dotnet_diagnostic.CA1822.severity = none
+
+[src/WarehouseEPI.Infrastructure/Inventory/OperationalInventoryQueryService.cs]
+dotnet_diagnostic.CA1304.severity = none
+dotnet_diagnostic.CA1311.severity = none
+dotnet_diagnostic.CA1859.severity = none
+dotnet_diagnostic.CA1862.severity = none
+
+[src/WarehouseEPI.Infrastructure/Inventory/InventoryQueryService.cs]
+dotnet_diagnostic.CA1859.severity = none
+
+[src/WarehouseEPI.Infrastructure/Inventory/InventoryMovementService.cs]
+dotnet_diagnostic.CA1512.severity = none
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.CA1859.severity = none
+
+[tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1711.severity = none

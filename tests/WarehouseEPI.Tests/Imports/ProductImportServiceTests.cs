@@ -1,8 +1,8 @@
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Core;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Imports;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Web.Imports;
