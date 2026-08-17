@@ -95,3 +95,6 @@ dotnet run --project src\WarehouseEPI.Web -- --create-admin
 
 El estado operativo, las decisiones confirmadas y el roadmap se mantienen en
 [docs/CONTEXT.md](docs/CONTEXT.md).
+
+## Desarrollador principal
+Castilla Orta Juan Antonio
