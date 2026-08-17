@@ -638,10 +638,19 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   el respaldo actual protege contra errores locales, no contra pérdida total de
   la laptop.
 
-#### Fase 10.7: publicación y servicio
+#### Fase 10.7: publicación y servicio Windows — implementada; activación pendiente
 
-- Preparar publicación Release versionada, servicio de Windows, actualización y
-  rollback sin compilar sobre la instancia activa.
+- La publicación genera un paquete autocontenido `win-x64` con versión SemVer,
+  manifiesto por archivo y SHA-256 externo; exige un worktree limpio y nunca
+  compila sobre la instancia activa.
+- Las Releases inmutables residen en
+  `C:\ProgramData\WarehouseEPI\Releases\<version>`. El servicio usa la cuenta
+  virtual `NT SERVICE\WarehouseEPI`, configuración protegida migrada desde User
+  Secrets y permisos mínimos sobre certificado, claves y logs.
+- Instalación, actualización y rollback ejecutan preflight sin escrituras ni
+  migraciones. Una actualización que no arranca o no responde a `/health/live`
+  reactiva automáticamente la versión anterior. Se conserva la activa y dos
+  versiones previas.
 
 #### Fase 10.8: simulacro y cierre
 

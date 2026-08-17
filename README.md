@@ -8,10 +8,10 @@ Google Chrome para las operaciones diarias.
 
 ## Estado
 
-Las fases 1 a 9 y 10.1 a 10.6 estan terminadas: catalogos, usuarios por NIP,
+Las fases 1 a 9 y 10.1 a 10.7 estan terminadas: catalogos, usuarios por NIP,
 ubicaciones, movimientos, historial, correcciones, lotes internos automaticos,
-calidad reproducible, seguridad de producción, observabilidad y recuperación
-local antes del despliegue LAN.
+calidad reproducible, seguridad, observabilidad, recuperación local y
+publicación como servicio Windows antes del despliegue LAN.
 
 ## Capacidades actuales
 
@@ -124,6 +124,25 @@ El último script registra respaldo diario a las 02:00 y validación de
 restauración los domingos a las 03:00 bajo `SYSTEM`. El usuario PostgreSQL
 configurado debe poder leer `warehouseEPI` y crear/eliminar bases temporales
 locales para la validación. Nunca pases una contraseña en la línea de comandos.
+
+## Release y servicio Windows
+
+Warehouse EPI se publica como aplicación autocontenida `win-x64`. Cada Release
+es inmutable, tiene versión SemVer y manifiesto SHA-256. El servicio se ejecuta
+como `NT SERVICE\WarehouseEPI`; configuración, claves, logs y respaldos quedan
+fuera de la carpeta publicada.
+
+```powershell
+pwsh ./scripts/release/Publish-WarehouseEpiRelease.ps1 -Version 0.10.7
+pwsh ./scripts/release/Install-WarehouseEpiService.ps1 `
+  -PackagePath ./artifacts/releases/WarehouseEPI-0.10.7-win-x64.zip
+```
+
+La publicación exige un worktree limpio. La instalación exige PowerShell
+elevado y un respaldo 10.6 válido. Las actualizaciones usan
+`Update-WarehouseEpiService.ps1`; si el nuevo ejecutable no supera el preflight
+o `/health/live`, se reactiva automáticamente la versión anterior. Se conservan
+la versión activa y dos previas.
 
 ## Primer administrador
 
