@@ -8,10 +8,10 @@ Google Chrome para las operaciones diarias.
 
 ## Estado
 
-Las fases 1 a 9 y 10.1 a 10.5 estan terminadas: catalogos, usuarios por NIP,
+Las fases 1 a 9 y 10.1 a 10.6 estan terminadas: catalogos, usuarios por NIP,
 ubicaciones, movimientos, historial, correcciones, lotes internos automaticos,
-calidad reproducible, seguridad de producción y observabilidad local segura
-antes del despliegue LAN.
+calidad reproducible, seguridad de producción, observabilidad y recuperación
+local antes del despliegue LAN.
 
 ## Capacidades actuales
 
@@ -104,6 +104,26 @@ pwsh ./scripts/security/Initialize-ObservabilityLogs.ps1
 de base de datos. El estado completo y sanitizado está en `/Admin/System` para
 ADMIN. Los registros no incluyen query strings, NIP, cookies, formularios,
 secretos ni cadenas de conexión.
+
+## Respaldo local de PostgreSQL
+
+La fase 10.6 conserva respaldos locales custom de PostgreSQL en
+`C:\ProgramData\WarehouseEPI\Backups`: uno diario y 30 días de retención. La
+restauración se valida semanalmente en una base temporal y nunca reemplaza
+`warehouseEPI`. La copia externa cifrada queda pendiente.
+
+Desde PowerShell elevado, prepara directorio, credenciales privadas y tareas:
+
+```powershell
+pwsh ./scripts/security/Initialize-WarehouseEpiBackupDirectory.ps1
+pwsh ./scripts/security/Initialize-WarehouseEpiBackupCredentials.ps1
+pwsh ./scripts/security/Install-WarehouseEpiBackupTasks.ps1
+```
+
+El último script registra respaldo diario a las 02:00 y validación de
+restauración los domingos a las 03:00 bajo `SYSTEM`. El usuario PostgreSQL
+configurado debe poder leer `warehouseEPI` y crear/eliminar bases temporales
+locales para la validación. Nunca pases una contraseña en la línea de comandos.
 
 ## Primer administrador
 
