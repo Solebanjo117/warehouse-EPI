@@ -14,12 +14,14 @@ using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Bootstrap;
+using WarehouseEPI.Web.Hosting;
 using WarehouseEPI.Web.Imports;
 using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Observability;
 using WarehouseEPI.Web.Security;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddWindowsService(options => options.ServiceName = "WarehouseEPI");
 var isIntegrationTestHost = AppDomain.CurrentDomain.GetAssemblies().Any(assembly =>
     string.Equals(assembly.GetName().Name, "Microsoft.AspNetCore.Mvc.Testing", StringComparison.Ordinal));
 var isProtectedProduction = builder.Environment.IsProduction() && !isIntegrationTestHost;
@@ -28,6 +30,10 @@ if (isProtectedProduction)
     builder.Configuration.AddUserSecrets<Program>(optional: true);
     StaticWebAssetsLoader.UseStaticWebAssets(builder.Environment, builder.Configuration);
 }
+var configuredServicePath = builder.Configuration[ServiceConfigurationLoader.ConfigurationKey];
+if (!string.IsNullOrWhiteSpace(configuredServicePath) && !isProtectedProduction)
+    throw new InvalidOperationException("ServiceConfigPath solo puede utilizarse en Production.");
+var serviceConfigurationPath = ServiceConfigurationLoader.AddIfConfigured(builder.Configuration);
 
 var productionSecurity = isProtectedProduction
     ? ProductionSecuritySettings.Load(builder.Configuration)
@@ -202,6 +208,14 @@ else if (builder.Environment.IsDevelopment() &&
     builder.Services.AddDataProtection().UseEphemeralDataProtectionProvider();
 
 var app = builder.Build();
+
+if (args.Contains("--validate-production", StringComparer.OrdinalIgnoreCase))
+{
+    if (!isProtectedProduction || productionSecurity is null)
+        throw new InvalidOperationException("--validate-production requiere ASPNETCORE_ENVIRONMENT=Production.");
+    await ProductionPreflightValidator.ValidateAsync(app.Services, productionSecurity, observability);
+    return;
+}
 
 if (args.Contains("--create-admin", StringComparer.OrdinalIgnoreCase))
 {

@@ -164,6 +164,52 @@ La copia externa cifrada queda pendiente de una decisión de medio físico o
 recurso de red; mientras tanto, el respaldo local no sustituye un plan de
 recuperación ante pérdida total de la laptop.
 
+## Release versionada y servicio Windows
+
+La publicación de producción es autocontenida para `win-x64`, no single-file.
+Debe ejecutarse desde un commit con worktree limpio; la versión se incorpora al
+ensamblado y aparece en `/Admin/System`:
+
+```powershell
+pwsh ./scripts/release/Publish-WarehouseEpiRelease.ps1 -Version 0.10.7
+```
+
+El resultado queda en `artifacts/releases/` como ZIP, manifiesto interno y
+SHA-256 externo. No edites el contenido publicado. Antes de la primera
+instalación debe existir un respaldo 10.6 validado. Desde PowerShell elevado:
+
+```powershell
+pwsh ./scripts/release/Install-WarehouseEpiService.ps1 `
+  -PackagePath ./artifacts/releases/WarehouseEPI-0.10.7-win-x64.zip
+```
+
+El instalador migra los User Secrets actuales en memoria a
+`C:\ProgramData\WarehouseEPI\Config\service-settings.json` y restringe sus ACL;
+no imprime valores. Después crea el servicio `WarehouseEPI` con inicio
+automático retrasado y cuenta virtual `NT SERVICE\WarehouseEPI`. Esa cuenta solo
+puede leer la Release/configuración/certificado y modificar Data Protection y
+logs. PostgreSQL y los respaldos permanecen separados.
+
+Antes de instalar por primera vez, detén cualquier `dotnet run` de Warehouse
+EPI para liberar los puertos 80 y 443. El servicio fija explícitamente el
+`contentRoot` a su carpeta versionada, por lo que no depende del directorio de
+trabajo de Windows.
+
+Para actualizar o volver a una versión instalada:
+
+```powershell
+pwsh ./scripts/release/Update-WarehouseEpiService.ps1 `
+  -PackagePath ./artifacts/releases/WarehouseEPI-0.10.8-win-x64.zip
+pwsh ./scripts/release/Rollback-WarehouseEpiService.ps1 -Version 0.10.7
+```
+
+Los scripts verifican SHA-256, rutas y reparse points; ejecutan
+`--validate-production` sin escuchar puertos, escribir datos ni aplicar
+migraciones. Tras cambiar el ejecutable esperan el servicio y comprueban
+`https://127.0.0.1/health/live`. Si falla, restauran el ejecutable anterior. Se
+mantienen la versión activa y dos anteriores. El simulacro operativo completo
+de reinicio/rollback pertenece a la fase 10.8.
+
 El escáner por cámara de las operaciones lee únicamente Code 128 mediante una
 copia local de ZXing Browser con licencia MIT. Requiere HTTPS en la tablet; por
 HTTP el botón informa esta condición y se conserva la captura manual y el

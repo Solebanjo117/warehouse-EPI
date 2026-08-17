@@ -57,6 +57,20 @@ de conectividad sin escritura; su resultado y los conteos agregados se muestran
 solo a ADMIN en `/Admin/System`, junto con un buffer acotado de fallas
 sanitizadas.
 
+## Publicación y servicio
+
+La aplicación se publica autocontenida para `win-x64` y cada versión vive en
+`C:\ProgramData\WarehouseEPI\Releases\<version>`. El servicio Windows
+`WarehouseEPI` ejecuta una carpeta concreta con la cuenta virtual
+`NT SERVICE\WarehouseEPI`; no compila ni escribe dentro de la Release.
+
+La configuración protegida reside en
+`C:\ProgramData\WarehouseEPI\Config\service-settings.json`. El servicio recibe
+solo lectura de configuración/certificado y modificación de logs y Data
+Protection. El despliegue verifica hashes, certificado, rutas y conectividad
+PostgreSQL sin migrar. La activación requiere health local; ante fallo se vuelve
+al ejecutable anterior.
+
 La dependencia permitida es `Web -> Infrastructure -> Core`; Web tambien puede
 referenciar Core para contratos compartidos. Core no referencia los demas
 proyectos.
