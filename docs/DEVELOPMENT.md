@@ -128,6 +128,42 @@ usan los prefijos `__Host-`, HTTPS obligatorio y `SameSite=Strict`. Los POST se
 limitan por IP: login ADMIN 5 cada 5 minutos, administración 10 por minuto y
 operaciones 30 por minuto; no existe bloqueo por usuario ni NIP.
 
+## Respaldo y recuperación local
+
+La fase 10.6 usa `pg_dump` en formato custom para `warehouseEPI`, valida cada
+archivo con `pg_restore --list` antes de publicarlo y elimina solo respaldos
+propios con más de 30 días. La ruta es
+`C:\ProgramData\WarehouseEPI\Backups`, fuera del repositorio y con ACL
+restringida. No copies manualmente un archivo de respaldo a Git ni a una carpeta
+compartida sin cifrado.
+
+En PowerShell elevado instala el directorio, archivo `PGPASSFILE` y tareas:
+
+```powershell
+pwsh ./scripts/security/Initialize-WarehouseEpiBackupDirectory.ps1
+pwsh ./scripts/security/Initialize-WarehouseEpiBackupCredentials.ps1
+pwsh ./scripts/security/Install-WarehouseEpiBackupTasks.ps1
+```
+
+`Initialize-WarehouseEpiBackupCredentials.ps1` solicita la contraseña de forma
+interactiva y la guarda con ACL privada; no acepta ni imprime la contraseña. La
+tarea diaria usa `Invoke-WarehouseEpiBackup.ps1` a las 02:00. Los domingos a las
+03:00 se toma el último respaldo y se restaura en una base temporal con prefijo
+`warehouse_epi_restore_validation_`; se valida que tenga tablas `public` y se
+elimina incluso si la restauración falla. Nunca ejecutes restauración sobre
+`warehouseEPI`.
+
+Para comprobar el proceso manualmente, primero ejecuta el respaldo y después:
+
+```powershell
+pwsh ./scripts/security/Invoke-WarehouseEpiBackup.ps1
+pwsh ./scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1
+```
+
+La copia externa cifrada queda pendiente de una decisión de medio físico o
+recurso de red; mientras tanto, el respaldo local no sustituye un plan de
+recuperación ante pérdida total de la laptop.
+
 El escáner por cámara de las operaciones lee únicamente Code 128 mediante una
 copia local de ZXing Browser con licencia MIT. Requiere HTTPS en la tablet; por
 HTTP el botón informa esta condición y se conserva la captura manual y el

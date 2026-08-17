@@ -625,10 +625,18 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   horas y fallas sanitizadas se consultan exclusivamente como ADMIN en
   `/Admin/System`.
 
-#### Fase 10.6: respaldo y recuperación
+#### Fase 10.6: respaldo y recuperación local — implementada
 
-- Automatizar respaldo, retención, copia externa cifrada, validación y
-  restauración real de PostgreSQL.
+- `pg_dump` genera cada día un respaldo custom local que se valida con
+  `pg_restore --list` antes de publicarse; los archivos se retienen 30 días en
+  `C:\ProgramData\WarehouseEPI\Backups` con ACL restringida.
+- Las credenciales se almacenan en un `PGPASSFILE` fuera del repositorio y las
+  tareas de Windows se ejecutan como `SYSTEM`, sin contraseña en comandos ni
+  registros. La restauración semanal crea, verifica y elimina una base temporal;
+  jamás apunta a `warehouseEPI`.
+- La copia externa cifrada se difiere deliberadamente hasta decidir USB o SMB;
+  el respaldo actual protege contra errores locales, no contra pérdida total de
+  la laptop.
 
 #### Fase 10.7: publicación y servicio
 
