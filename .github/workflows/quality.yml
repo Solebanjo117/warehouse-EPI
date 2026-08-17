@@ -38,8 +38,8 @@ jobs:
       DOTNET_CLI_TELEMETRY_OPTOUT: true
       NUGET_XMLDOC_MODE: skip
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
-      WAREHOUSE_EPI_TEST_CONNECTION: Host=localhost;Port=${{ job.services.postgres.ports[5432] }};Database=warehouse_epi_test;Username=postgres;Password=warehouse_epi_ci
-      ConnectionStrings__Warehouse: Host=localhost;Port=${{ job.services.postgres.ports[5432] }};Database=warehouse_epi_test;Username=postgres;Password=warehouse_epi_ci
+      WAREHOUSE_EPI_TEST_CONNECTION: Host=localhost;Port=5432;Database=warehouse_epi_test;Username=postgres;Password=warehouse_epi_ci
+      ConnectionStrings__Warehouse: Host=localhost;Port=5432;Database=warehouse_epi_test;Username=postgres;Password=warehouse_epi_ci
       Security__PinLookupKey: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     steps:
       - name: Obtener código
