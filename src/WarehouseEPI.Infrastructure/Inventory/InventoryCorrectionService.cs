@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
@@ -12,9 +13,10 @@ public sealed class InventoryCorrectionService(
     WarehouseDbContext dbContext,
     UserPinService userPinService,
     InventoryMovementService movementService,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    WarehouseClock? warehouseClock = null)
 {
-    private readonly InventoryReversalService reversalService = new(dbContext, timeProvider);
+    private readonly InventoryReversalService reversalService = new(dbContext, timeProvider, warehouseClock);
 
     public async Task<InventoryCorrectionResult> ConfirmAsync(
         InventoryCorrectionCommand command,

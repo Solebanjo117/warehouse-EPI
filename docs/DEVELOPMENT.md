@@ -92,6 +92,20 @@ en encabezados `X-Forwarded-*`. Antes de iniciar el servicio en produccion:
    y conserva su contraseña por separado. Renueva el certificado del servidor
    anualmente; la CA dura diez años.
 
+   Si cambia la IP reservada o vence únicamente el certificado del servidor,
+   reutiliza el PFX de la CA para conservar la confianza ya instalada en las
+   tablets:
+
+   ```powershell
+   pwsh ./scripts/security/Renew-WarehouseEpiLanCertificate.ps1 `
+     -ServerIpAddress 192.168.1.50 `
+     -CaPfxPath E:\WarehouseEPI-CA\warehouse-epi-local-ca.pfx
+   ```
+
+   El script solicita la contraseña sin mostrarla, actualiza `AllowedHosts` y
+   la huella en User Secrets, y retira la CA privada del almacén temporal al
+   finalizar. Reinicia manualmente la aplicación para activar el certificado.
+
 4. Configura mediante User Secrets o variables protegidas:
    `AllowedHosts=warehouse-epi;192.168.1.50`,
    `Security:DataProtectionKeysPath=C:\ProgramData\WarehouseEPI\DataProtection-Keys`

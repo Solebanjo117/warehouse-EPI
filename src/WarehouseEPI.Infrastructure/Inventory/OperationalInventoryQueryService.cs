@@ -20,6 +20,10 @@ public sealed record OperationalLocationResult(
     bool IsActive,
     bool IsBlocked);
 
+public sealed record OperationalCodeResolution(
+    OperationalProductResult? Product,
+    OperationalLocationResult? Location);
+
 public sealed record OperationalProductLocationResult(
     Guid Id,
     string Code,
@@ -132,6 +136,17 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
         return await LocationQuery(operationalOnly).Where(location => location.Code == normalized)
             .Select(ToLocationResult()).SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<OperationalCodeResolution> ResolveCodeAsync(
+        string? code,
+        CancellationToken cancellationToken = default)
+    {
+        // The same DbContext cannot execute these queries concurrently. Keeping them together
+        // still gives a scanner one HTTP request and preserves each resolver's exact-match rules.
+        var product = await ResolveProductAsync(code, cancellationToken: cancellationToken);
+        var location = await ResolveLocationAsync(code, cancellationToken: cancellationToken);
+        return new(product, location);
     }
 
     public async Task<OperationalLocationResult?> GetLocationAsync(

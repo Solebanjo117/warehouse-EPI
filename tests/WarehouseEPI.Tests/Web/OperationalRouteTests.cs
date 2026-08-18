@@ -57,6 +57,13 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         Assert.Equal(expectedButtons, Regex.Count(html, "data-camera-scan(?=\\s|>)"));
         Assert.Equal(1, Regex.Count(html, "data-camera-scanner"));
         Assert.Contains("zxing-browser.min", html, StringComparison.Ordinal);
+        Assert.Contains("data-guided-workstation", html, StringComparison.Ordinal);
+        Assert.Contains("data-entry-summary", html, StringComparison.Ordinal);
+        Assert.Contains("data-entry-additional", html, StringComparison.Ordinal);
+        if (path == "/Operations/Entry")
+        {
+            Assert.Equal(3, Regex.Count(html, "data-entry-step=\"(?:product|destination|quantity)\""));
+        }
     }
 
     [Fact]
@@ -84,6 +91,7 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         Assert.Equal(HttpStatusCode.OK, invalid.StatusCode);
         Assert.Contains("No fue posible validar el NIP o el usuario", invalidBody);
         Assert.DoesNotContain("value=\"9999\"", invalidBody);
+        Assert.Matches("<details[^>]*open[^>]*data-entry-additional", invalidBody);
 
         values["Input.Pin"] = seed.Pin;
         var success = await client.PostAsync("/Operations/Entry", new FormUrlEncodedContent(values));
@@ -196,6 +204,7 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            db.Locations.Add(new Location { Code = seed.Sku, Kind = LocationKind.Area });
             db.ProductLocationAssignments.Add(new ProductLocationAssignment
             {
                 ProductId = seed.ProductId,
@@ -218,6 +227,11 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         Assert.Single(products);
         Assert.Equal(seed.Sku, products[0].Sku);
         Assert.True(products[0].HasActiveAssignment);
+
+        var resolution = Assert.IsType<CodeResolution>(await client.GetFromJsonAsync<CodeResolution>(
+            $"/Operations/Lookup?handler=ResolveCode&code={seed.Sku}"));
+        Assert.Equal(seed.ProductId, resolution.Product?.Id);
+        Assert.Equal(seed.Sku, resolution.Location?.Code);
 
         await using var verificationScope = factory.Services.CreateAsyncScope();
         var verificationDb = verificationScope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
@@ -374,4 +388,5 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
 
     private sealed record RelationshipLocation(Guid Id, string Code, bool HasActiveAssignment);
     private sealed record RelationshipProduct(Guid Id, string Sku, bool HasActiveAssignment);
+    private sealed record CodeResolution(RelationshipProduct? Product, RelationshipLocation? Location);
 }

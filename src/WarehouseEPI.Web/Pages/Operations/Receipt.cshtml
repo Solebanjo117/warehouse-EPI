@@ -42,7 +42,7 @@
     <section class="operation-card mt-4">
         <div class="receipt-meta">
             <div><span>Responsable</span><strong>@Model.Receipt.ResponsibleName</strong></div>
-            <div><span>Fecha</span><strong>@Model.Receipt.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</strong></div>
+            <div><span>Fecha</span><strong>@Model.OccurredAtWarehouseTime.ToString("dd/MM/yyyy HH:mm")</strong></div>
             <div><span>Folio</span><strong class="receipt-id">@Model.Receipt.MovementId</strong></div>
             @if (Model.Receipt.Reference is not null)
             {
@@ -73,7 +73,11 @@
             {
                 <p class="text-muted">@line.ProductDescription</p>
             }
-            <p><strong>@line.Quantity.ToString("0.####") @line.UnitCode</strong></p>
+            <p class="receipt-quantity"><strong>@line.Quantity.ToString("0.####") @line.UnitCode</strong></p>
+            @if (line.SourceLocationCode is not null || line.DestinationLocationCode is not null)
+            {
+                <p class="receipt-route"><strong>@(line.SourceLocationCode ?? "—")</strong><span aria-hidden="true"> → </span><strong>@(line.DestinationLocationCode ?? "—")</strong></p>
+            }
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
                     <thead><tr><th>Ubicación</th><th>Anterior</th><th>Cambio</th><th>Final</th></tr></thead>

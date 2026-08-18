@@ -27,6 +27,35 @@ public sealed class OperationalInventoryQueryServiceTests
     }
 
     [Fact]
+    public async Task Combined_resolution_preserves_exact_product_location_and_ambiguous_matches()
+    {
+        await using var db = CreateDbContext();
+        var product = new Product { Sku = "CROSS-001", BaseUnitId = 1 };
+        product.Barcodes.Add(new ProductBarcode { Barcode = "CROSS-BAR", IsPrimary = true });
+        var location = new Location { Code = "CROSS-LOC", Kind = LocationKind.Area };
+        var ambiguousLocation = new Location { Code = "CROSS-001", Kind = LocationKind.Area };
+        db.AddRange(product, location, ambiguousLocation);
+        await db.SaveChangesAsync();
+        var service = new OperationalInventoryQueryService(db);
+
+        var barcode = await service.ResolveCodeAsync(" CROSS-BAR ");
+        Assert.Equal(product.Id, barcode.Product?.Id);
+        Assert.Null(barcode.Location);
+
+        var resolvedLocation = await service.ResolveCodeAsync("cross-loc");
+        Assert.Null(resolvedLocation.Product);
+        Assert.Equal(location.Id, resolvedLocation.Location?.Id);
+
+        var ambiguous = await service.ResolveCodeAsync("cross-001");
+        Assert.Equal(product.Id, ambiguous.Product?.Id);
+        Assert.Equal(ambiguousLocation.Id, ambiguous.Location?.Id);
+
+        var missing = await service.ResolveCodeAsync("missing");
+        Assert.Null(missing.Product);
+        Assert.Null(missing.Location);
+    }
+
+    [Fact]
     public async Task Operational_resolution_rejects_inactive_blocked_and_lot_status_is_exposed()
     {
         await using var db = CreateDbContext();

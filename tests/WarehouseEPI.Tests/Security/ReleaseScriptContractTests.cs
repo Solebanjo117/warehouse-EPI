@@ -33,6 +33,8 @@ public sealed class ReleaseScriptContractTests
         Assert.Contains("Invoke-WarehouseEpiPreflight", update, StringComparison.Ordinal);
         Assert.Contains("Set-WarehouseEpiServiceBinary $previousExecutable", update, StringComparison.Ordinal);
         Assert.Contains("health/live", common, StringComparison.Ordinal);
+        Assert.Contains("Host: $healthHost", common, StringComparison.Ordinal);
+        Assert.Contains("configuration.AllowedHosts", common, StringComparison.Ordinal);
         Assert.Contains("--contentRoot", common, StringComparison.Ordinal);
         Assert.Contains("NT SERVICE\\WarehouseEPI", common, StringComparison.Ordinal);
         Assert.DoesNotContain("database update", update, StringComparison.OrdinalIgnoreCase);

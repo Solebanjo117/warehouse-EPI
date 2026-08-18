@@ -35,7 +35,9 @@ publicación como servicio Windows antes del despliegue LAN.
 - `tests/WarehouseEPI.Tests`: pruebas unitarias, web e integracion PostgreSQL.
 
 Consulta [la arquitectura](docs/ARCHITECTURE.md) y la
-[guia de desarrollo](docs/DEVELOPMENT.md) antes de modificar el sistema.
+[guia de desarrollo](docs/DEVELOPMENT.md) antes de modificar el sistema. Para
+la laptop servidor y la operación diaria, consulta el
+[manual operativo](docs/OPERATIONS.md).
 
 ## Requisitos
 

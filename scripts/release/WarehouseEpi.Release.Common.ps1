@@ -182,7 +182,10 @@ function Grant-WarehouseEpiServiceResources([string]$ReleasePath) {
     $configuration = Get-Content -LiteralPath $script:WarehouseEpiConfigPath -Raw | ConvertFrom-Json
     $keysPath = Resolve-WarehouseEpiChildPath $configuration.Security.DataProtectionKeysPath $script:WarehouseEpiRoot
     $logsPath = Resolve-WarehouseEpiChildPath $configuration.Observability.LogDirectory $script:WarehouseEpiRoot
-    foreach ($directory in @($keysPath, $logsPath)) {
+    $brandingDirectory = if ($null -ne $configuration.PSObject.Properties['Branding'] -and -not [string]::IsNullOrWhiteSpace($configuration.Branding.StorageDirectory)) { $configuration.Branding.StorageDirectory } else { 'C:\ProgramData\WarehouseEPI\Branding' }
+    $brandingPath = Resolve-WarehouseEpiChildPath $brandingDirectory $script:WarehouseEpiRoot
+    if (-not (Test-Path -LiteralPath $brandingPath -PathType Container)) { New-Item -ItemType Directory -Force -Path $brandingPath | Out-Null }
+    foreach ($directory in @($keysPath, $logsPath, $brandingPath)) {
         if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Falta un directorio requerido por el servicio.' }
         & icacls $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${script:WarehouseEpiServiceIdentity}:(OI)(CI)M" | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'No fue posible proteger un directorio del servicio.' }
@@ -227,9 +230,16 @@ function Wait-WarehouseEpiServiceState([string]$State, [int]$TimeoutSeconds = 30
 function Start-WarehouseEpiServiceAndVerify {
     Start-Service -Name $script:WarehouseEpiServiceName
     Wait-WarehouseEpiServiceState 'Running'
+    $configuration = Get-Content -LiteralPath $script:WarehouseEpiConfigPath -Raw | ConvertFrom-Json
+    $healthHost = @(([string]$configuration.AllowedHosts).Split(';', [StringSplitOptions]::RemoveEmptyEntries) |
+        ForEach-Object { $_.Trim() })[0]
+    if ([string]::IsNullOrWhiteSpace($healthHost) -or $healthHost -notmatch '^[A-Za-z0-9.-]+$') {
+        throw 'AllowedHosts no contiene un host válido para comprobar el servicio local.'
+    }
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds(45)
     do {
-        & curl.exe --silent --fail --insecure --max-time 5 'https://127.0.0.1/health/live' 2>$null | Out-Null
+        & curl.exe --silent --fail --insecure --max-time 5 --header "Host: $healthHost" `
+            'https://127.0.0.1/health/live' 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { return }
         Start-Sleep -Seconds 1
     } while ([DateTimeOffset]::UtcNow -lt $deadline)

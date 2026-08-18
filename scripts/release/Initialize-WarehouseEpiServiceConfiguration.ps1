@@ -35,6 +35,9 @@ $settings = [ordered]@{
         RetentionDays = 30
         FileSizeLimitMegabytes = 50
     }
+    Branding = [ordered]@{
+        StorageDirectory = 'C:\ProgramData\WarehouseEPI\Branding'
+    }
 }
 
 $directory = Split-Path -Parent $resolvedConfiguration

@@ -11,19 +11,15 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
 {
     internal async Task<Dictionary<Guid, List<ProductLot>>> GetOrCreateDailyLotsAsync(
         IEnumerable<Product> products,
+        DateOnly lotDate,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var lotDate = GetWarehouseDate(now);
         var lots = new Dictionary<Guid, List<ProductLot>>();
         foreach (var product in products)
             lots[product.Id] = await GetOrCreateDailyLotAsync(product.Id, lotDate, now, cancellationToken);
         return lots;
     }
-
-    internal static DateOnly GetWarehouseDate(DateTimeOffset now) =>
-        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now,
-            TimeZoneInfo.FindSystemTimeZoneById("America/Matamoros")).DateTime);
 
     internal static string DailyLotNumber(DateOnly lotDate) => $"AUTO-{lotDate:yyyyMMdd}";
 
