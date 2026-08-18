@@ -3,16 +3,19 @@ using Microsoft.EntityFrameworkCore.Storage;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
 public sealed class InventoryMovementService(
     WarehouseDbContext dbContext,
     UserPinService userPinService,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    WarehouseClock? warehouseClock = null)
 {
     private readonly InventoryLotEngine lotEngine = new(dbContext);
     private readonly InventoryMovementStore movementStore = new(dbContext, timeProvider);
+    private readonly WarehouseClock warehouseClock = warehouseClock ?? new(new WarehouseSettingsService(dbContext));
 
     public async Task<InventoryMovementResult> ConfirmAsync(
         InventoryMovementCommand command,
@@ -50,6 +53,11 @@ public sealed class InventoryMovementService(
         if (existing is not null)
             return existing;
 
+        // Settings can fall back while BusinessSettings is awaiting its reviewed migration.
+        // Resolve the warehouse date before opening PostgreSQL's explicit transaction: a missing
+        // settings table would otherwise abort that transaction even when its exception is handled.
+        var now = timeProvider.GetUtcNow();
+        var lotDate = await warehouseClock.GetDateAsync(now, cancellationToken);
         var ownsTransaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction is null;
         var transaction = ownsTransaction
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
@@ -81,9 +89,7 @@ public sealed class InventoryMovementService(
                     SharingConflicts: conflicts), cancellationToken);
             }
 
-            var now = timeProvider.GetUtcNow();
-            var lotDate = InventoryLotEngine.GetWarehouseDate(now);
-            var lots = await lotEngine.GetOrCreateDailyLotsAsync(products.Values, now, cancellationToken);
+            var lots = await lotEngine.GetOrCreateDailyLotsAsync(products.Values, lotDate, now, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             var balanceKeys = new HashSet<InventoryBalanceKey>();

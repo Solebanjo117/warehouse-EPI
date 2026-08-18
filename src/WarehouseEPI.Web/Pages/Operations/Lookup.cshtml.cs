@@ -26,6 +26,9 @@ public sealed class LookupModel(
         return result is null ? NotFound() : new JsonResult(result);
     }
 
+    public async Task<IActionResult> OnGetResolveCodeAsync(string? code, CancellationToken cancellationToken) =>
+        new JsonResult(await operationalQuery.ResolveCodeAsync(code, cancellationToken));
+
     public async Task<IActionResult> OnGetProductLocationsAsync(Guid productId, CancellationToken cancellationToken)
     {
         if (productId == Guid.Empty)

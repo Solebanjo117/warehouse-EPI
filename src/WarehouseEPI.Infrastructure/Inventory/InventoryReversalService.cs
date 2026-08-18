@@ -1,11 +1,16 @@
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
-internal sealed class InventoryReversalService(WarehouseDbContext dbContext, TimeProvider timeProvider)
+internal sealed class InventoryReversalService(
+    WarehouseDbContext dbContext,
+    TimeProvider timeProvider,
+    WarehouseClock? warehouseClock = null)
 {
+    private readonly WarehouseClock warehouseClock = warehouseClock ?? new(new WarehouseSettingsService(dbContext));
     internal async Task<InventoryMovement> CreateAsync(
         InventoryMovement original,
         Guid authorizedById,
@@ -27,8 +32,7 @@ internal sealed class InventoryReversalService(WarehouseDbContext dbContext, Tim
                 .First());
         foreach (var productId in legacyProducts.Where(id => !legacyLots.ContainsKey(id)))
         {
-            var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(now,
-                TimeZoneInfo.FindSystemTimeZoneById("America/Matamoros")).DateTime);
+            var date = await warehouseClock.GetDateAsync(now, cancellationToken);
             var number = InventoryLotEngine.DailyLotNumber(date);
             var lot = new ProductLot
             {

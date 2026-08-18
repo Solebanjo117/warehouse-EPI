@@ -9,6 +9,9 @@ internal sealed class CorrelationAndRequestLoggingMiddleware(RequestDelegate nex
     private static readonly Action<ILogger, string, string, int, long, string, string, Exception?> RequestCompleted =
         LoggerMessage.Define<string, string, int, long, string, string>(LogLevel.Information, new EventId(10501, "RequestCompleted"),
             "Solicitud completada. {RequestMethod} {RequestPath} {StatusCode} {ElapsedMilliseconds}ms {CorrelationId} {FailureCategory}");
+    private static readonly Action<ILogger, string, string, string, Exception?> UnhandledRequest =
+        LoggerMessage.Define<string, string, string>(LogLevel.Error, new EventId(10502, "UnhandledRequest"),
+            "Error no controlado durante {RequestMethod} {RequestPath} {CorrelationId}");
 
     public async Task InvokeAsync(HttpContext context, ILoggerFactory loggerFactory, RecentFailureStore failures)
     {
@@ -25,11 +28,12 @@ internal sealed class CorrelationAndRequestLoggingMiddleware(RequestDelegate nex
         {
             await next(context);
         }
-        catch (Exception)
+        catch (Exception exception)
         {
-            failures.Record(correlationId, "Unhandled", StatusCodes.Status500InternalServerError);
+            UnhandledRequest(logger, context.Request.Method, context.Request.Path.Value ?? "/", correlationId, exception);
+            failures.Record(correlationId, exception.GetType().Name, StatusCodes.Status500InternalServerError);
             failureRecorded = true;
-            failureCategory = "Unhandled";
+            failureCategory = exception.GetType().Name;
             throw;
         }
         finally

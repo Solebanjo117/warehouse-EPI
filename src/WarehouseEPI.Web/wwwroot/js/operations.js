@@ -39,12 +39,15 @@
     const form = operationShell.querySelector("[data-operation-form]");
     const lookupUrl = operationShell.dataset.lookupUrl;
     const operation = operationShell.dataset.operation;
+    const entryWorkstation = operationShell.hasAttribute("data-entry-workstation")
+      || operationShell.hasAttribute("data-guided-workstation");
     const quantityInput = operationShell.querySelector("[data-quantity]");
     const unitLabel = operationShell.querySelector("[data-unit-label]");
     const balancePreview = operationShell.querySelector("[data-balance-preview]");
     const balanceText = operationShell.querySelector("[data-balance-text]");
     const negativeWarning = operationShell.querySelector("[data-negative-warning]");
     const versionInput = operationShell.querySelector("[data-balance-version]");
+    const operationFeedback = operationShell.querySelector("[data-operation-feedback]");
     const selected = {};
     const lookups = {};
     let productLocations = null;
@@ -59,11 +62,96 @@
         : operation === "transfer" ? ["product", "source", "destination"]
           : ["product", "location"];
 
+    const fieldName = (kind) => ({
+      product: "Producto",
+      source: "Ubicación origen",
+      destination: "Ubicación destino",
+      location: "Ubicación"
+    })[kind];
+
+    const setOperationFeedback = (message) => {
+      if (!operationFeedback) return;
+      operationFeedback.textContent = message;
+      operationFeedback.classList.toggle("d-none", !message);
+    };
+
     const number = (value) => {
       const parsed = Number.parseFloat(String(value || "0").replace(",", "."));
       return Number.isFinite(parsed) ? parsed : 0;
     };
     const format = (value) => new Intl.NumberFormat("es-MX", { maximumFractionDigits: 4 }).format(value);
+    let editingEntryStep;
+    const guidedKinds = Array.from(operationShell.querySelectorAll("[data-entry-step]"))
+      .map(step => step.dataset.entryStep);
+    const notesInput = operationShell.querySelector("[data-operation-notes]");
+
+    const refreshEntryState = () => {
+      if (!entryWorkstation) return;
+
+      const quantityComplete = quantityInput.value.trim() !== "" && quantityInput.checkValidity()
+        && (operation === "adjustment" || number(quantityInput.value) > 0);
+      const completed = Object.fromEntries(guidedKinds.map(kind => [kind,
+        kind === "quantity" ? quantityComplete : kind === "notes" ? Boolean(notesInput?.value.trim()) : Boolean(selected[kind])
+      ]));
+      const kinds = guidedKinds;
+      const completedCount = kinds.filter(kind => completed[kind]).length;
+      const activeKind = editingEntryStep || kinds.find(kind => !completed[kind]);
+
+      for (const kind of kinds) {
+        const step = operationShell.querySelector(`[data-entry-step="${kind}"]`);
+        if (!step) continue;
+        const isActive = kind === activeKind;
+        const isComplete = completed[kind] && !isActive;
+        step.classList.toggle("is-active", isActive);
+        step.classList.toggle("is-complete", isComplete);
+        step.classList.toggle("is-pending", !isActive && !isComplete);
+        if (isActive) step.setAttribute("aria-current", "step");
+        else step.removeAttribute("aria-current");
+        const status = step.querySelector("[data-entry-step-status]");
+        status.textContent = isActive ? "En captura" : isComplete ? "Listo" : "Pendiente";
+        step.querySelector("[data-edit-step]")?.classList.toggle("d-none", !isComplete);
+      }
+
+      const productRecord = lookups.product?.record;
+      const productTitle = productRecord?.querySelector("[data-selected-title]")?.textContent?.trim();
+      const productDetail = productRecord?.querySelector("[data-selected-detail]")?.textContent?.trim();
+      const quantityText = quantityComplete
+        ? `${format(number(quantityInput.value))} ${unitLabel.textContent.trim()}`
+        : "Sin capturar";
+
+      for (const kind of kinds) {
+        const step = operationShell.querySelector(`[data-entry-step="${kind}"]`);
+        const record = lookups[kind]?.record;
+        const title = kind === "quantity" ? quantityText : kind === "notes" ? (notesInput?.value.trim() || "Motivo pendiente")
+          : record?.querySelector("[data-selected-title]")?.textContent?.trim() || `${fieldName(kind)} pendiente`;
+        const detail = kind === "quantity" ? (quantityComplete ? balanceText.textContent : "")
+          : kind === "notes" ? "" : record?.querySelector("[data-selected-detail]")?.textContent?.trim() || "";
+        step?.querySelector("[data-entry-result-title]") && (step.querySelector("[data-entry-result-title]").textContent = title);
+        step?.querySelector("[data-entry-result-detail]") && (step.querySelector("[data-entry-result-detail]").textContent = detail);
+      }
+
+      const progress = operationShell.querySelector("[data-entry-progress]");
+      const progressText = `${completedCount} de ${kinds.length} listos`;
+      if (progress.textContent !== progressText) progress.textContent = progressText;
+      const setSummary = (selector, value) => { const element = operationShell.querySelector(selector); if (element) element.textContent = value; };
+      setSummary("[data-entry-summary-product]", completed.product ? [productTitle, productDetail].filter(Boolean).join(" · ") : "Sin seleccionar");
+      const locationKinds = ["source", "destination", "location"].filter(kind => selected[kind]);
+      setSummary("[data-entry-summary-destination]", completed.destination ? lookups.destination?.input.value || "Sin seleccionar" : "Sin seleccionar");
+      setSummary("[data-entry-summary-location]", locationKinds.map(kind => `${fieldName(kind)}: ${lookups[kind].input.value}`).join(" · ") || "Sin seleccionar");
+      setSummary("[data-entry-summary-quantity]", quantityText);
+      setSummary("[data-entry-summary-balance]", balanceText.textContent);
+
+      const approvalsReady = Array.from(operationShell.querySelectorAll("[data-sharing-approval]"))
+        .every(approval => approval.checked);
+      const ready = completedCount === kinds.length && approvalsReady;
+      const missing = kinds.length - completedCount;
+      const state = operationShell.querySelector("[data-entry-summary-state]");
+      state.textContent = ready ? "Lista para confirmar"
+        : completedCount === kinds.length ? "Confirma el pallet compartido"
+          : `Faltan ${missing} ${missing === 1 ? "paso" : "pasos"}`;
+      operationShell.querySelector(".entry-summary-card")?.classList.toggle("is-ready", ready);
+      operationShell.querySelector("[data-review-button]").disabled = !ready;
+    };
 
     const refreshPreview = () => {
       const quantity = number(quantityInput.value);
@@ -94,6 +182,7 @@
 
       balanceText.textContent = message;
       negativeWarning.classList.toggle("d-none", !isNegative);
+      refreshEntryState();
     };
 
     const refreshBalance = async (kind) => {
@@ -139,9 +228,17 @@
         choice.className = `relationship-choice${item.id === selectedId ? " is-selected" : ""}`;
         const name = document.createElement("strong");
         name.textContent = kind === "product" ? item.sku : item.code;
+        if (entryWorkstation && kind === "location" && item.description) {
+          const description = document.createElement("small");
+          description.className = "relationship-description";
+          description.textContent = item.description;
+          choice.append(name, description);
+        } else {
+          choice.append(name);
+        }
         const detail = document.createElement("small");
         detail.textContent = relationshipMeta(item);
-        choice.append(name, detail);
+        choice.append(detail);
         if (onSelect) choice.addEventListener("click", () => onSelect(item));
         choices.append(choice);
       }
@@ -247,6 +344,7 @@
       }
       lookup.record.classList.remove("d-none");
       lookup.results.replaceChildren();
+      if (entryWorkstation) editingEntryStep = undefined;
 
       if (lookupKind === "product") {
         for (const locationKind of ["source", "destination", "location"])
@@ -266,8 +364,8 @@
       lookup.hidden.value = "";
       lookup.record.classList.add("d-none");
       lookup.input.setCustomValidity("");
-      lookup.panel.classList.add("d-none");
-      lookup.panel.replaceChildren();
+      lookup.panel?.classList.add("d-none");
+      lookup.panel?.replaceChildren();
       if (kind === "product") {
         productLocations = null;
         unitLabel.textContent = "Unidad";
@@ -281,13 +379,30 @@
     };
 
     const focusNextRequired = () => {
+      if (entryWorkstation) {
+        const next = guidedKinds.find(kind => kind === "quantity"
+          ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
+          : kind === "notes" ? !notesInput?.value.trim() : !selected[kind]);
+        if (next === "quantity") { quantityInput.focus(); quantityInput.select(); return; }
+        if (next === "notes") { notesInput?.focus(); return; }
+        if (next) {
+          const relationshipPanel = next === primaryLocationKind && productLocations?.length
+            ? lookups.product?.panel : lookups[next]?.panel;
+          const relationshipButton = relationshipPanel?.querySelector("button.relationship-choice");
+          (relationshipButton || lookups[next]?.input)?.focus();
+          return;
+        }
+      }
       const missing = requiredKinds.find(kind => !selected[kind]);
       if (missing) {
-        const relationshipButton = lookups[missing]?.panel.querySelector("button.relationship-choice");
+        const relationshipPanel = entryWorkstation && missing === "destination"
+          ? lookups.product?.panel : lookups[missing]?.panel;
+        const relationshipButton = relationshipPanel?.querySelector("button.relationship-choice");
         (relationshipButton || lookups[missing]?.input)?.focus();
         return;
       }
       quantityInput.focus();
+      quantityInput.select();
     };
 
     const setupLookup = (field) => {
@@ -297,7 +412,18 @@
       const results = field.querySelector("[data-lookup-results]");
       const record = field.querySelector("[data-selected-record]");
       const hidden = hiddenFor(kind);
-      const panel = field.querySelector("[data-relationship-panel]");
+      let panel = field.querySelector("[data-relationship-panel]")
+        || operationShell.querySelector(`[data-relationship-for="${kind}"]`);
+      if (!panel && kind === "product") {
+        const primaryLocationField = operationShell.querySelector(`[data-lookup-field="${primaryLocationKind}"]`);
+        if (primaryLocationField) {
+          panel = document.createElement("div");
+          panel.className = "relationship-panel d-none entry-location-suggestions";
+          panel.dataset.relationshipFor = "product";
+          panel.setAttribute("aria-live", "polite");
+          primaryLocationField.before(panel);
+        }
+      }
       let searchSequence = 0;
       lookups[kind] = { field, input, results, record, hidden, panel };
 
@@ -342,19 +468,65 @@
     const resolveLookupCode = async (kind, value, reportInvalidity) => {
       const lookup = lookups[kind];
       const code = value.trim();
-      if (!code) return false;
+      if (!code) return { selected: false, message: "" };
       const lookupKind = kind === "product" ? "product" : "location";
-      const handler = lookupKind === "product" ? "ResolveProduct" : "ResolveLocation";
-      const item = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler, code })}`);
-      if (!item) {
-        lookup.input.setCustomValidity("No se encontró un registro operativo con ese código.");
+      const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
+      if (!resolution) {
+        const message = "No fue posible validar el código. Intenta nuevamente.";
+        lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
-        return false;
+        setOperationFeedback(message);
+        return { selected: false, message };
       }
 
-      await applySelection(kind, item, true);
+      const product = resolution.product;
+      const location = resolution.location;
+      if (product && location) {
+        const message = "El código coincide con un producto y una ubicación. Escanéalo en el campo correcto.";
+        lookup.input.setCustomValidity(message);
+        if (reportInvalidity) lookup.input.reportValidity();
+        setOperationFeedback(message);
+        return { selected: false, message };
+      }
+
+      const currentItem = lookupKind === "product" ? product : location;
+      if (currentItem) {
+        await applySelection(kind, currentItem, true);
+        setOperationFeedback("");
+        focusNextRequired();
+        return { selected: true, message: "" };
+      }
+
+      const oppositeItem = lookupKind === "product" ? location : product;
+      if (!oppositeItem) {
+        const message = "No se encontró un registro operativo con ese código.";
+        lookup.input.setCustomValidity(message);
+        if (reportInvalidity) lookup.input.reportValidity();
+        setOperationFeedback(message);
+        return { selected: false, message };
+      }
+
+      const targetKind = lookupKind === "product"
+        ? operation === "transfer"
+          ? ["source", "destination"].find(candidate => !selected[candidate])
+          : primaryLocationKind
+        : "product";
+      if (!targetKind) {
+        const message = "Las ubicaciones de la transferencia ya están seleccionadas. Escanea el código en el campo correcto.";
+        lookup.input.setCustomValidity(message);
+        if (reportInvalidity) lookup.input.reportValidity();
+        setOperationFeedback(message);
+        return { selected: false, message };
+      }
+
+      clearSelection(kind);
+      await applySelection(targetKind, oppositeItem, true);
+      const message = lookupKind === "product"
+        ? `Código de ubicación detectado. Se aplicó en ${fieldName(targetKind)}.`
+        : "Código de producto detectado. Se aplicó en Producto.";
+      setOperationFeedback(message);
       focusNextRequired();
-      return true;
+      return { selected: true, message };
     };
 
     const scannerElement = operationShell.querySelector("[data-camera-scanner]");
@@ -423,15 +595,15 @@
         lookup.input.value = code;
         setScannerStatus("Código detectado. Validando…");
         try {
-          const found = await resolveLookupCode(activeScannerLookup, code, false);
-          if (found) {
+          const resolution = await resolveLookupCode(activeScannerLookup, code, false);
+          if (resolution.selected) {
             focusAfterScannerClose = true;
             stopCamera();
             scannerModal.hide();
             return;
           }
 
-          setScannerStatus("No se encontró un registro operativo con ese código. Intenta nuevamente.");
+          setScannerStatus(resolution.message || "No se encontró un registro operativo con ese código. Intenta nuevamente.");
         } catch {
           setScannerStatus("No fue posible validar el código. Intenta nuevamente.");
         }
@@ -604,8 +776,41 @@
       if (kind === "product") void loadProductLocations();
       else void loadLocationProducts(kind);
     }
+    quantityInput.addEventListener("focus", () => quantityInput.select());
     quantityInput.addEventListener("input", refreshPreview);
+    notesInput?.addEventListener("input", refreshEntryState);
     refreshPreview();
+
+    if (entryWorkstation) {
+      operationShell.querySelectorAll("[data-entry-step]").forEach(step => {
+        const kind = step.dataset.entryStep;
+        step.addEventListener("focusin", event => {
+          if (!event.target.closest("[data-entry-step-body], .entry-step-body")) return;
+          editingEntryStep = kind;
+          refreshEntryState();
+        });
+        step.addEventListener("focusout", () => {
+          window.setTimeout(() => {
+            if (step.contains(document.activeElement)) return;
+            if (editingEntryStep === kind) editingEntryStep = undefined;
+            refreshEntryState();
+          }, 0);
+        });
+      });
+      operationShell.querySelectorAll("[data-edit-step]").forEach(button => {
+        button.addEventListener("click", () => {
+          const kind = button.dataset.editStep;
+          editingEntryStep = kind;
+          refreshEntryState();
+          const target = kind === "quantity" ? quantityInput : kind === "notes" ? notesInput : lookups[kind]?.input;
+          target?.focus();
+          target?.select();
+        });
+      });
+      operationShell.querySelectorAll("[data-sharing-approval]")
+        .forEach(approval => approval.addEventListener("change", refreshEntryState));
+      refreshEntryState();
+    }
 
     const reviewButton = operationShell.querySelector("[data-review-button]");
     const modalElement = document.getElementById("confirm-operation");

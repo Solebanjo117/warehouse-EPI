@@ -13,7 +13,9 @@ using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Bootstrap;
+using WarehouseEPI.Web.Branding;
 using WarehouseEPI.Web.Hosting;
 using WarehouseEPI.Web.Imports;
 using WarehouseEPI.Web.Locations;
@@ -75,6 +77,8 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Admin/Catalogs", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Inventory", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/System", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Admin/Account", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Admin/Settings", "AdminOnly");
 });
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseNpgsql(
@@ -100,6 +104,9 @@ builder.Services.AddScoped<InventoryHistoryService>();
 builder.Services.AddScoped<ProductLotAdministrationService>();
 builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
+builder.Services.AddScoped<WarehouseSettingsService>();
+builder.Services.AddScoped<WarehouseClock>();
+builder.Services.AddSingleton<BrandingStorage>();
 builder.Services.Configure<FormOptions>(options =>
 {
     options.MultipartBodyLengthLimit = ProductImportLimits.MaxRequestBytes;
@@ -271,6 +278,17 @@ app.MapGet("/health/live", async Task<IResult>
 
     var report = await healthChecks.CheckHealthAsync(check => check.Tags.Contains("live"), cancellationToken);
     return report.Status == HealthStatus.Healthy ? TypedResults.Ok() : TypedResults.StatusCode(StatusCodes.Status503ServiceUnavailable);
+}).AllowAnonymous();
+
+app.MapGet("/branding/logo", async Task<IResult> (HttpContext context, WarehouseSettingsService settings, BrandingStorage storage, CancellationToken cancellationToken) =>
+{
+    var business = await settings.GetAsync(cancellationToken);
+    var path = storage.GetPath(business.LogoFileName);
+    if (path is null || business.LogoContentType is null || business.LogoHash is null)
+        return TypedResults.NotFound();
+    context.Response.Headers.ETag = $"\"{business.LogoHash}\"";
+    context.Response.Headers.CacheControl = "public,max-age=604800,immutable";
+    return Results.File(path, business.LogoContentType, enableRangeProcessing: false);
 }).AllowAnonymous();
 
 app.MapStaticAssets();

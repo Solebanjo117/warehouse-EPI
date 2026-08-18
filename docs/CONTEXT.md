@@ -638,7 +638,7 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   el respaldo actual protege contra errores locales, no contra pérdida total de
   la laptop.
 
-#### Fase 10.7: publicación y servicio Windows — implementada; activación pendiente
+#### Fase 10.7: publicación y servicio Windows — activada
 
 - La publicación genera un paquete autocontenido `win-x64` con versión SemVer,
   manifiesto por archivo y SHA-256 externo; exige un worktree limpio y nunca
@@ -651,11 +651,23 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   migraciones. Una actualización que no arranca o no responde a `/health/live`
   reactiva automáticamente la versión anterior. Se conserva la activa y dos
   versiones previas.
+- El 18 de agosto de 2026 quedó activa la Release `0.10.7` con el servicio
+  `WarehouseEPI` bajo `NT SERVICE\WarehouseEPI`; se validaron health local y
+  acceso HTTPS LAN. La IP reservada verificada es `192.168.5.192`. Las tareas
+  de respaldo diario y validación semanal fueron desactivadas deliberadamente;
+  los respaldos y credenciales locales permanecen protegidos. El manual de
+  operación está en `docs/OPERATIONS.md`.
 
 #### Fase 10.8: simulacro y cierre
 
 - Comprobar reinicio, recuperación, actualización, rollback y evidencia de
   cierre antes del rediseño visual.
+- **Pospuesta por decisión operativa.** La Release `0.10.7` y el servicio
+  Windows están activos, pero el simulacro completo se retomará después. No se
+  considera cerrada hasta validar respaldo/restauración aislada, reinicio de la
+  laptop sin sesión, actualización, rollback automático y evidencia
+  sanitizada. Las tareas programadas de respaldo permanecen desactivadas hasta
+  que se programe esa ventana de mantenimiento.
 
 ### Fase 11: diseño visual y UX
 
@@ -673,6 +685,97 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Mostrar sugerencias de ubicaciones previamente asignadas y su saldo al
   registrar entradas, sin convertir todavía la sugerencia en una asignación
   dirigida obligatoria.
+
+#### Fase 11.1: shell de navegación adaptable — implementada; validación física pendiente
+
+- El layout común usa navegación lateral con la misma organización en todos los
+  dispositivos: 250 px expandida y colapsable en laptop, rail de 72 px con
+  expansión superpuesta en tablet horizontal, y barra superior con drawer en
+  tablet vertical o pantallas estrechas.
+- El menú agrupa Operación, Inventario, Catálogos y Administración, marca la
+  página activa y conserva el estado colapsado en laptop. Las rutas protegidas
+  de inventario, catálogos y administración solamente se renderizan para una
+  sesión `ADMIN`.
+- El drawer admite teclado, cierre con Escape y fondo de descarte. Cuando se abre
+  el lector por cámara, la navegación se oculta y el modal ocupa la ventana
+  completa para priorizar la vista previa.
+- El sistema visual inicial usa fondo gris claro, superficies blancas, azul
+  petróleo, iconos con texto y estados activos que combinan color, contraste y
+  peso tipográfico. Falta verificar este shell en laptop y tablets físicas antes
+  de considerar cerrado el comportamiento por dispositivo.
+
+#### Fase 11.2: cuenta, identidad y apariencia — implementada; validación física pendiente
+
+- El ADMIN puede abrir **Mi cuenta** desde el pie del menú y cambiar su nombre.
+  El cambio de NIP exige el NIP actual, conserva las reglas de unicidad y
+  renueva la sesión con el nombre actualizado.
+- **Configuración → Datos del negocio** permite mantener nombre del negocio,
+  almacén, código, zona horaria IANA y logo PNG/JPEG/WebP de hasta 1 MB. El
+  logo se guarda fuera de Releases y se sirve con nombre generado, hash y CSP
+  de mismo origen; nunca se aceptan SVG ni rutas del cliente.
+- La apariencia Claro/Oscuro/Sistema se conserva por dispositivo mediante
+  `localStorage`, se aplica antes del CSS y permanece disponible aunque no haya
+  sesión administrativa. El negocio se muestra en el layout y acceso, mientras
+  Warehouse EPI continúa siendo el nombre del producto.
+- La zona horaria configurada controla la fecha de lotes automáticos futuros y
+  se valida con `TimeZoneInfo`; el historial existente no se recalcula.
+- La migración `20260818124047_AddBusinessSettings` fue revisada y aplicada a
+  `warehouseEPI/public` el 2026-08-18, después de crear y validar el respaldo
+  `warehouseEPI-20260818-135047.dump`. Falta comprobar visualmente los temas,
+  sidebar, logo y cámara en laptop y tablets físicas.
+
+#### Fase 11.3: estación operativa de Entrada — implementada; validación física pendiente
+
+- **Entrada** usa la estación compartida guiada por Producto, Ubicación destino
+  y Cantidad. Los pasos muestran estados textuales Pendiente, En captura y Listo,
+  compactan selecciones terminadas y permiten corregirlas sin descartar los
+  demás valores.
+- La búsqueda, Enter/HID, cámara, sugerencias por asignación y saldo, selección
+  automática cuando existe una sola ubicación relacionada, validaciones, NIP e
+  idempotencia conservan los contratos operativos existentes.
+- El resumen permanece lateral desde 1200 px y se fija al pie del flujo en
+  anchos menores. Solo habilita la revisión cuando producto, destino, cantidad
+  y cualquier aprobación de pallet compartido son válidos.
+- Referencia y observaciones están plegadas como datos opcionales y se abren al
+  conservar contenido o errores después de un POST. El lector sigue ocupando
+  la pantalla completa y el NIP nunca se repuebla.
+- La validación de código obtuvo build sin advertencias, sintaxis JavaScript
+  válida, 29/29 pruebas de inventario y 134/153 en la suite completa. Las 19
+  fallas restantes son los HTTP 400 del host web ya documentados y no
+  aumentaron. El formato del C# modificado pasa de forma dirigida; el chequeo
+  global continúa bloqueado por codificación y finales de línea heredados en
+  migraciones no relacionadas.
+- Falta validar visualmente claro/oscuro, teclado/HID, solapamientos, foco y
+  cámara con Code 128 real en laptop y tablets físicas. Sonido, vibración y el
+  rediseño del recibo permanecen fuera de esta mini fase.
+
+#### Fase 11.3.1: corrección segura de escaneo cruzado — implementada; validación física pendiente
+
+- Producto y ubicación se resuelven juntos por coincidencia exacta para Enter,
+  lector HID, cámara y foto. Si un código solo coincide con el tipo opuesto,
+  se aplica al campo correspondiente y se anuncia la corrección; la búsqueda
+  escrita y las sugerencias manuales mantienen su comportamiento habitual.
+- Un código que coincide a la vez con producto y ubicación no se infiere ni se
+  selecciona. En Transferencia, una ubicación detectada desde Producto llena
+  primero Origen y después Destino si permanece pendiente.
+- No cambia el POST, NIP, idempotencia, saldos ni el esquema. Falta comprobar
+  el comportamiento con lector y cámara reales en laptop y tablets físicas.
+
+#### Fase 11.4: estaciones de Salida, Transferencia, Ajuste y comprobante — implementada; validación física pendiente
+
+- Entrada, Salida, Transferencia y Ajuste usan una sola estación guiada
+  reutilizable con pasos compactables, corrección de escaneo cruzado, cámara,
+  HID, ubicaciones ligadas al producto, selección automática cuando existe una
+  sola relación, saldos proyectados y resumen fijo. La ubicación primaria se
+  aplica como Destino en Entrada, Origen en Salida/Transferencia y Ubicación en
+  Ajuste. Salida permite saldo negativo con advertencia; Transferencia conserva
+  la prohibición de mismo origen/destino; Ajuste exige motivo y conserva la
+  recarga de saldo ante concurrencia.
+- El comprobante muestra trayecto, saldos, responsable, referencia, notas y
+  vínculos de corrección con fecha visible en la zona horaria configurada del
+  almacén. No se agregaron impresión, PDF, migraciones ni cambios al POST.
+- Falta validar en laptop y tablets reales el lector HID, cámara, foco,
+  solapamientos y los temas Claro/Oscuro/Sistema.
 
 ### Fase 12: validación física y piloto conectado
 

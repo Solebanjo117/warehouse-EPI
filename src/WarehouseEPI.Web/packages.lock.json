@@ -245,7 +245,7 @@
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
-          "WarehouseEPI.Core": "[0.10.7, )"
+          "WarehouseEPI.Core": "[1.0.0, )"
         }
       },
       "ClosedXML": {
@@ -290,13 +290,6 @@
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.4, 11.0.0)",
           "Npgsql": "10.0.3"
         }
-      }
-    },
-    "net10.0/win-x64": {
-      "System.ServiceProcess.ServiceController": {
-        "type": "Transitive",
-        "resolved": "10.0.0",
-        "contentHash": "PaFmFQXX/qL1vl0CfdJUMPMYT8TOEHlcdEiOZtd4LV2rcaS/WDQM4bpECcbRM4BrD+DWkWd/jtb6iPOqAX9TWA=="
       }
     }
   }

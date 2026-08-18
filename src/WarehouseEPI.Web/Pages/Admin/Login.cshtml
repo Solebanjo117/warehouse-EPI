@@ -1,13 +1,17 @@
 @page
+@using WarehouseEPI.Infrastructure.Settings
+@inject WarehouseSettingsService WarehouseSettings
 @model WarehouseEPI.Web.Pages.Admin.LoginModel
 @{
     ViewData["Title"] = "Acceso administrativo";
+    var business = await WarehouseSettings.GetAsync();
 }
 
 <div class="row justify-content-center">
     <div class="col-12 col-sm-8 col-md-5 col-lg-4">
         <div class="card shadow-sm">
             <div class="card-body p-4">
+                <p class="eyebrow mb-1">@business.BusinessName · @business.WarehouseName</p>
                 <h1 class="h3 mb-3">Acceso administrativo</h1>
                 <p class="text-muted">Introduce tu NIP para administrar usuarios y catálogos.</p>
 

@@ -9,6 +9,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
 {
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<User> Users => Set<User>();
+    public DbSet<BusinessSettings> BusinessSettings => Set<BusinessSettings>();
     public DbSet<Unit> Units => Set<Unit>();
     public DbSet<ProductType> ProductTypes => Set<ProductType>();
     public DbSet<ProductClass> ProductClasses => Set<ProductClass>();
@@ -30,6 +31,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
 
         ConfigureRole(modelBuilder);
         ConfigureUser(modelBuilder);
+        ConfigureBusinessSettings(modelBuilder);
         ConfigureUnit(modelBuilder);
         ConfigureProductType(modelBuilder);
         ConfigureProductClass(modelBuilder);
@@ -93,6 +95,26 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.HasOne(user => user.Role)
             .WithMany(role => role.Users)
             .HasForeignKey(user => user.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureBusinessSettings(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<BusinessSettings>();
+        entity.ToTable("business_settings", table =>
+            table.HasCheckConstraint("ck_business_settings_singleton", "id = 1"));
+        entity.HasKey(settings => settings.Id);
+        entity.Property(settings => settings.Id).HasColumnName("id").ValueGeneratedNever();
+        entity.Property(settings => settings.BusinessName).HasColumnName("business_name").HasMaxLength(160).IsRequired();
+        entity.Property(settings => settings.WarehouseName).HasColumnName("warehouse_name").HasMaxLength(120).IsRequired();
+        entity.Property(settings => settings.WarehouseCode).HasColumnName("warehouse_code").HasMaxLength(30).IsRequired();
+        entity.Property(settings => settings.TimeZoneId).HasColumnName("time_zone_id").HasMaxLength(100).IsRequired();
+        entity.Property(settings => settings.LogoFileName).HasColumnName("logo_file_name").HasMaxLength(100);
+        entity.Property(settings => settings.LogoContentType).HasColumnName("logo_content_type").HasMaxLength(30);
+        entity.Property(settings => settings.LogoHash).HasColumnName("logo_hash").HasMaxLength(64);
+        entity.Property(settings => settings.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        entity.Property(settings => settings.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        entity.HasOne(settings => settings.UpdatedByUser).WithMany().HasForeignKey(settings => settings.UpdatedByUserId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 
