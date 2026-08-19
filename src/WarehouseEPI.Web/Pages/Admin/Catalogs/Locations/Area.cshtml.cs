@@ -21,7 +21,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext) : PageModel
         var location = await dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(candidate => candidate.Id == locationId, cancellationToken);
         if (location is null) return NotFound();
         if (location.Kind != LocationKind.Area) return BadRequest();
-        Input = new() { Id = location.Id, Code = location.Code, Description = location.Description };
+        Input = new() { Id = location.Id, Code = location.Code, Description = location.Description, OperationalRole = location.OperationalRole };
         return Page();
     }
 
@@ -34,14 +34,28 @@ public sealed class AreaModel(WarehouseDbContext dbContext) : PageModel
         if (!ModelState.IsValid) return Page();
         if (await dbContext.Locations.AnyAsync(location => location.Code == Input.Code && location.Id != Input.Id, cancellationToken))
         { ModelState.AddModelError("Input.Code", "Ya existe una ubicación con ese código."); return Page(); }
+        if (Input.OperationalRole == LocationOperationalRole.Wip && Input.Id != Guid.Empty)
+        {
+            var hasBalances = await dbContext.InventoryBalances.AnyAsync(
+                balance => balance.LocationId == Input.Id && balance.Quantity != 0, cancellationToken);
+            var hasAssignments = await dbContext.ProductLocationAssignments.AnyAsync(
+                assignment => assignment.LocationId == Input.Id && assignment.IsActive, cancellationToken);
+            if (hasBalances || hasAssignments)
+            {
+                ModelState.AddModelError("Input.OperationalRole",
+                    "No se puede convertir a WIP mientras existan saldos o asignaciones activas.");
+                return Page();
+            }
+        }
         if (Input.Id == Guid.Empty)
-            dbContext.Locations.Add(new Location { Code = Input.Code, Kind = LocationKind.Area, Description = Input.Description });
+            dbContext.Locations.Add(new Location { Code = Input.Code, Kind = LocationKind.Area, Description = Input.Description, OperationalRole = Input.OperationalRole });
         else
         {
             var location = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == Input.Id, cancellationToken);
             if (location is null) return NotFound();
             if (location.Kind != LocationKind.Area) return BadRequest();
-            location.Code = Input.Code; location.Description = Input.Description; location.UpdatedAt = DateTimeOffset.UtcNow;
+            location.Code = Input.Code; location.Description = Input.Description;
+            location.OperationalRole = Input.OperationalRole; location.UpdatedAt = DateTimeOffset.UtcNow;
         }
         await dbContext.SaveChangesAsync(cancellationToken);
         return RedirectToPage("Index");
@@ -52,5 +66,6 @@ public sealed class AreaModel(WarehouseDbContext dbContext) : PageModel
         public Guid Id { get; set; }
         [Required, StringLength(40)] public string Code { get; set; } = string.Empty;
         [StringLength(200)] public string? Description { get; set; }
+        public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Other;
     }
 }

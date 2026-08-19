@@ -199,3 +199,27 @@ carpetas dentro de `C:\ProgramData\WarehouseEPI\Releases`.
   reinicio del servicio.
 - El respaldo actual es local; todavía no sustituye una copia externa cifrada
   frente a pérdida total de la laptop.
+
+## Flujo operativo WIP
+
+1. En **Salida**, elige **Surtir WIP**, escanea producto y rack, elige el rack WIP completo `WIP-2`, `WIP-3` o `WIP-4`,
+   captura cantidad y confirma con NIP. El rack disminuye y WIP no recibe saldo.
+2. Consulta `/Reports/Wip`. El periodo inicial es la semana local de lunes a
+   domingo. `Consumo asumido = enviado - devuelto a bodega - devuelto a proveedor`.
+3. En **Devolución desde WIP**, localiza el surtimiento original. Para bodega,
+   escanea el destino y confirma el posible pallet compartido; para proveedor,
+   captura obligatoriamente la referencia documental. Ambos flujos requieren NIP.
+4. Una corrección ADMIN crea una compensación; nunca se edita la devolución. Si
+   fue a bodega, también revierte la entrada relacionada.
+
+Antes del primer despliegue WIP:
+
+1. Confirma base `warehouseEPI`, esquema `public` y revisa
+   `artifacts/wip/WipProductionFlow.sql`.
+2. Ejecuta y valida `pg_dump -Fc`; no apliques la migración sin un respaldo legible.
+3. Verifica que `WIP-2/3/4` sean ubicaciones operativas WIP sin saldo ni asignaciones; se muestran como racks WIP completos, sin posiciones de pallet.
+4. Aplica la migración y audita roles, FKs, checks, índices y movimientos históricos.
+5. Prueba en tablet el surtimiento y las dos devoluciones antes de publicar Release.
+
+Estado de aplicación: completado el 19 de agosto de 2026 con respaldo validado
+`BackupDatabase/public-before-wip-production-flow-20260819-154603.dump`.

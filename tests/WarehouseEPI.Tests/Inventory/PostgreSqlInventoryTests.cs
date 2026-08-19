@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Npgsql;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 
@@ -17,6 +18,29 @@ public sealed class PostgreSqlInventoryCollection : ICollectionFixture<PostgreSq
 [Collection(PostgreSqlInventoryCollection.CollectionName)]
 public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
 {
+    [Fact]
+    public async Task Warehouse_map_saves_on_postgresql_without_an_expected_version()
+    {
+        var admin = await fixture.AddAdminAsync("Administrador del croquis", "3110");
+        await using var db = fixture.CreateDbContext();
+        db.Locations.Add(new Location { Code = "PG-MAP-AREA", Kind = LocationKind.Area });
+        await db.SaveChangesAsync();
+        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+        var maps = new WarehouseMapService(db, pins, TimeProvider.System);
+        var initialized = await maps.InitializeAsync(Guid.NewGuid(), admin.Id, admin.Pin, "Inicial");
+        Assert.Equal(WarehouseMapSaveStatus.Success, initialized.Status);
+        db.ChangeTracker.Clear();
+        var map = await maps.GetAsync(true);
+        var geometry = map.Elements.Concat(map.Unplaced)
+            .Select(item => new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible))
+            .ToArray();
+
+        var result = await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin, "Ajuste", geometry));
+
+        Assert.Equal(WarehouseMapSaveStatus.Success, result.Status);
+        Assert.Equal(initialized.Version + 1, result.Version);
+    }
+
     [Fact]
     public async Task Queries_derive_zero_total_and_minimum_alert_without_a_balance_row()
     {

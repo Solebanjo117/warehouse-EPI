@@ -63,6 +63,16 @@ public sealed class InventoryCorrectionService(
                 return await AbortAsync(transaction, new(InventoryCorrectionStatus.AlreadyCorrected), cancellationToken);
             if (await dbContext.InventoryMovementCorrections.AnyAsync(item => item.ReversalMovementId == original.Id, cancellationToken))
                 return await AbortAsync(transaction, new(InventoryCorrectionStatus.CannotCorrectReversal), cancellationToken);
+            var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
+            if (await dbContext.WipDispositions.AnyAsync(disposition =>
+                    originalLineIds.Contains(disposition.OriginalMovementLineId) &&
+                    disposition.ReversesDispositionId == null &&
+                    !dbContext.WipDispositions.Any(reversal => reversal.ReversesDispositionId == disposition.Id),
+                    cancellationToken))
+            {
+                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                    Errors: ["Corrige primero las devoluciones WIP relacionadas con este movimiento."]), cancellationToken);
+            }
 
             await LockOriginalAsync(original.Id, transaction, cancellationToken);
             var reversal = await reversalService.CreateAsync(original, authorizedBy.Id, fingerprint, cancellationToken);
@@ -78,7 +88,9 @@ public sealed class InventoryCorrectionService(
                     normalized.Replacement.Lines,
                     normalized.Replacement.Reference,
                     normalized.Replacement.Notes,
-                    normalized.Replacement.ApprovedSharedAssignments), cancellationToken);
+                    normalized.Replacement.ApprovedSharedAssignments,
+                    normalized.Replacement.Purpose,
+                    normalized.Replacement.OperationalAreaId), cancellationToken);
                 if (replacementResult.Status != InventoryMovementStatus.Success)
                     return await AbortAsync(transaction, Map(replacementResult), cancellationToken);
             }
@@ -177,7 +189,8 @@ public sealed class InventoryCorrectionService(
         if (command.Replacement is { } replacement)
         {
             builder.Append('|').Append(replacement.Type).Append('|').Append(replacement.Reference)
-                .Append('|').Append(replacement.Notes);
+                .Append('|').Append(replacement.Notes).Append('|').Append(replacement.Purpose)
+                .Append('|').Append(replacement.OperationalAreaId);
             foreach (var line in replacement.Lines)
             {
                 builder.Append('|').Append(line.ProductId.ToString("N"))

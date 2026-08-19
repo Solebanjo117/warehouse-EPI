@@ -100,6 +100,7 @@ public sealed class EditModel(
         {
             var term = LocationSearch.ToUpperInvariant();
             LocationResults = await dbContext.Locations.AsNoTracking().Where(x => x.IsActive && !x.IsBlocked &&
+                    x.OperationalRole != LocationOperationalRole.Wip &&
                     (x.Code.Contains(term) || (x.Description != null && x.Description.ToUpper().Contains(term))))
                 .OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber).ThenBy(x => x.PalletNumber).ThenBy(x => x.Code).Take(20)
                 .Select(x => new LocationSearchRow(x.Id, x.Code, x.Description,
@@ -112,6 +113,7 @@ public sealed class EditModel(
         ProductLocationAssignmentResult.ProductInactive => "No se puede asignar un producto inactivo.",
         ProductLocationAssignmentResult.LocationInactive => "No se puede asignar a una ubicación inactiva.",
         ProductLocationAssignmentResult.LocationBlocked => "No se puede asignar a una ubicación bloqueada.",
+        ProductLocationAssignmentResult.LocationDoesNotTrackInventory => "Los racks WIP no admiten asignaciones de inventario.",
         _ => "El producto o la ubicación ya no existe."
     };
     public sealed class BarcodeInputModel { [Required, StringLength(100)] public string Barcode { get; set; } = string.Empty; [Required] public string Format { get; set; } = "CODE_128"; public bool IsPrimary { get; set; } }

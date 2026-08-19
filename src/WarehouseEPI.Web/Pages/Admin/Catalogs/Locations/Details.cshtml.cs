@@ -51,7 +51,7 @@ public sealed class DetailsModel(
         var location = await dbContext.Locations.AsNoTracking()
             .Where(candidate => candidate.Id == id)
             .Select(candidate => new LocationDetails(candidate.Id, candidate.Code, candidate.Kind,
-                candidate.RowCode, candidate.RackNumber, candidate.PalletNumber, candidate.Description,
+                candidate.RowCode, candidate.RackNumber, candidate.PalletNumber, candidate.Description, candidate.OperationalRole,
                 candidate.IsActive, candidate.IsBlocked, candidate.BlockReason))
             .SingleOrDefaultAsync(cancellationToken);
         if (location is null) return false;
@@ -116,6 +116,7 @@ public sealed class DetailsModel(
             ProductLocationAssignmentResult.ProductInactive => (Success: (string?)null, Error: "No se puede asignar un producto inactivo."),
             ProductLocationAssignmentResult.LocationInactive => (Success: (string?)null, Error: "No se puede asignar a una ubicación inactiva."),
             ProductLocationAssignmentResult.LocationBlocked => (Success: (string?)null, Error: "No se puede asignar a una ubicación bloqueada."),
+            ProductLocationAssignmentResult.LocationDoesNotTrackInventory => (Success: (string?)null, Error: "Los racks WIP no admiten asignaciones ni saldo."),
             _ => (Success: (string?)null, Error: "El producto o la ubicación ya no existe.")
         };
         Message = messages.Success;
@@ -123,7 +124,7 @@ public sealed class DetailsModel(
     }
 
     public sealed record LocationDetails(Guid Id, string Code, LocationKind Kind, string? RowCode,
-        short? RackNumber, short? PalletNumber, string? Description, bool IsActive,
+        short? RackNumber, short? PalletNumber, string? Description, LocationOperationalRole OperationalRole, bool IsActive,
         bool IsBlocked, string? BlockReason);
     public sealed record AssignmentRow(Guid ProductId, string Sku, string? Description,
         bool ProductIsActive, bool IsActive);

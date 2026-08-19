@@ -20,6 +20,9 @@ public sealed class LookupModel(
     public async Task<IActionResult> OnGetLocationsAsync(string? q, CancellationToken cancellationToken) =>
         new JsonResult(await operationalQuery.SearchLocationsAsync(q, cancellationToken));
 
+    public async Task<IActionResult> OnGetWipLocationsAsync(string? q, CancellationToken cancellationToken) =>
+        new JsonResult(await operationalQuery.SearchWipLocationsAsync(q, cancellationToken));
+
     public async Task<IActionResult> OnGetResolveLocationAsync(string? code, CancellationToken cancellationToken)
     {
         var result = await operationalQuery.ResolveLocationAsync(code, cancellationToken: cancellationToken);

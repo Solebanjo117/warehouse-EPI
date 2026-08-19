@@ -844,9 +844,16 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   saldos por producto, y enlaza ficha, Existencias y Movimientos. La ficha de
   ubicación incorpora saldos, asignaciones históricas, vecinos y movimientos
   recientes; la tabla usa 25 registros y tarjetas en tablet vertical.
-- `/Admin/Catalogs/Locations/Map/Edit` permite mover, dimensionar, girar,
-  ocultar y recuperar racks/áreas con teclado o tacto. El fondo físico es fijo;
-  el editor no modifica ubicaciones, códigos, saldos ni asignaciones.
+- `/Admin/Catalogs/Locations/Map/Edit` permite seleccionar varios elementos por
+  recuadro, Ctrl/Cmd o modo táctil, moverlos, dimensionarlos como grupo,
+  girarlos, ocultarlos e invertirlos horizontalmente. Incluye alinear a bordes
+  o centros, distribuir por centros e igualar ancho/alto usando el elemento de
+  referencia. También ordena racks seleccionados de una sola fila de izquierda
+  a derecha por su número, sin crear racks faltantes; cada acción se puede
+  deshacer o rehacer. El fondo físico es fijo;
+  el editor no modifica ubicaciones, códigos, saldos ni asignaciones. Los racks
+  y áreas creados después aparecen en **Sin colocar** y solo se incorporan al
+  guardar una revisión autorizada.
 - La inicialización genera una vista previa de 30 minutos ligada al ADMIN y
   ubica A-M, N-S, T y áreas conocidas; elementos no reconocidos permanecen en
   **Sin colocar**. Inicialización y revisiones exigen NIP ADMIN, son
@@ -968,7 +975,32 @@ Ya se realizó una carga inicial de 153 ubicaciones. Sigue pendiente validar en
 sitio que cubra las posiciones existentes, excepciones y sentido de numeración,
 además de confirmar el significado de los colores del croquis.
 
-## 12. Contexto breve para pegar en otro chat
+## 12. Surtimiento WIP (implementado en código, pendiente de despliegue)
+
+- `WIP-2`, `WIP-3` y `WIP-4` son ubicaciones operativas sin saldo. Se presentan como racks WIP completos, sin posiciones de pallet; internamente conservan `LocationKind.Area` porque el tipo Rack representa posiciones individuales. La migración
+  `WipProductionFlow` valida que no sean racks y que no tengan saldo ni
+  asignaciones activas antes de clasificarlas; si encuentra datos incompatibles,
+  se detiene sin borrarlos.
+- Rack → WIP es una salida `ProductionIssue`: consume inventario y lotes del rack,
+  guarda el área WIP informativa y no crea saldo ni asignación en WIP.
+- WIP → bodega es una disposición ligada a la línea original, restaura sus lotes
+  en orden inverso al consumo y crea una entrada `WipWarehouseReturn`.
+- WIP → proveedor es una disposición con referencia documental y no toca saldos.
+- Las devoluciones son parciales, múltiples, idempotentes y no pueden exceder lo
+  surtido. Sus correcciones son compensaciones inmutables; una salida WIP no se
+  corrige mientras conserve devoluciones vigentes.
+- `/Reports/Wip` es una consulta LAN pública con semana lunes-domingo, detalle y
+  consumo asumido. CSV/XLSX y correcciones requieren sesión ADMIN.
+- El código compila y la prueba focal del ciclo 20/5/3 pasa. La migración
+  `20260819150547_WipProductionFlow` se aplicó a `warehouseEPI/public` el 19 de
+  agosto de 2026 después del respaldo validado
+  `BackupDatabase/public-before-wip-production-flow-20260819-154603.dump`.
+  La auditoría posterior confirmó WIP-2/3/4, cero saldos/asignaciones WIP, los
+  constraints/FKs/índices requeridos y 25 movimientos históricos `STANDARD`.
+  No se publicó una Release y falta la prueba física en tablet/cámara. El SQL
+  revisable está en `artifacts/wip/WipProductionFlow.sql`.
+
+## 13. Contexto breve para pegar en otro chat
 
 ```text
 Estoy desarrollando Warehouse EPI en

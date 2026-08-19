@@ -5,6 +5,7 @@ public sealed class Location
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string Code { get; set; }
     public LocationKind Kind { get; set; }
+    public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Storage;
     public string? RowCode { get; set; }
     public short? RackNumber { get; set; }
     public short? PalletNumber { get; set; }
@@ -18,6 +19,7 @@ public sealed class Location
     public ICollection<ProductLocationAssignment> ProductAssignments { get; set; } = [];
 
     public bool IsOperational => IsActive && !IsBlocked;
+    public bool TracksInventory => OperationalRole != LocationOperationalRole.Wip;
     public short? LevelNumber => PalletNumber is null ? null : (short)((PalletNumber.Value - 1) / 3 + 1);
     public short? HorizontalPosition => PalletNumber is null ? null : (short)((PalletNumber.Value - 1) % 3 + 1);
 }

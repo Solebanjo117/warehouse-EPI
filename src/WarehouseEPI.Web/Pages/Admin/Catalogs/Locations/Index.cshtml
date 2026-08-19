@@ -22,14 +22,14 @@
 <form method="get" class="card card-body mb-3"><input type="hidden" name="viewMode" value="@Model.ViewMode"/><div class="row g-2">
     <div class="col-12 col-lg-4"><label for="search" class="form-label">Buscar ubicación o producto</label><input id="search" name="search" value="@Model.Search" class="form-control form-control-lg" placeholder="Código, SKU, descripción, referencia o barras" /></div>
     <div class="col-6 col-md-4 col-lg-2"><label for="status" class="form-label">Estado</label><select id="status" name="status" class="form-select form-select-lg"><option value="active" selected="@(Model.Status=="active")">Disponibles</option><option value="blocked" selected="@(Model.Status=="blocked")">Bloqueadas</option><option value="inactive" selected="@(Model.Status=="inactive")">Inactivas</option><option value="all" selected="@(Model.Status=="all")">Todas</option></select></div>
-    <div class="col-6 col-md-4 col-lg-2"><label for="kind" class="form-label">Tipo</label><select id="kind" name="kind" class="form-select form-select-lg"><option value="all">Todos</option><option value="rack" selected="@(Model.Kind=="rack")">Rack</option><option value="area" selected="@(Model.Kind=="area")">Área</option></select></div>
+    @if(Model.ViewMode == "racks"){<input type="hidden" name="kind" value="rack"/>}else{<div class="col-6 col-md-4 col-lg-2"><label for="kind" class="form-label">Tipo</label><select id="kind" name="kind" class="form-select form-select-lg"><option value="all">Todos</option><option value="rack" selected="@(Model.Kind=="rack")">Rack</option><option value="area" selected="@(Model.Kind=="area")">Área</option></select></div>}
     <div class="col-6 col-md-4 col-lg-2"><label for="rowCode" class="form-label">Fila</label><select id="rowCode" name="rowCode" class="form-select form-select-lg"><option value="">Todas</option>@foreach(var row in Model.Rows){<option value="@row" selected="@(Model.RowCode==row)">@row</option>}</select></div>
     <div class="col-6 col-lg-2 d-flex align-items-end gap-1"><button class="btn btn-outline-primary btn-lg flex-grow-1">Buscar</button><a asp-page="Index" asp-route-viewMode="@Model.ViewMode" class="btn btn-outline-secondary btn-lg" title="Limpiar filtros">×</a></div>
 </div></form>
 
 <div class="nav nav-pills mb-3" aria-label="Vista de ubicaciones">
     <a class="nav-link @(Model.ViewMode=="map"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="map">Croquis</a>
-    <a class="nav-link @(Model.ViewMode=="racks"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks">Racks</a>
+    <a class="nav-link @(Model.ViewMode=="racks"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="rack" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks">Racks</a>
     <a class="nav-link @(Model.ViewMode=="table"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="table">Tabla administrativa</a>
 </div>
 
@@ -46,7 +46,7 @@
                 @foreach(var element in Model.Map.Elements.OrderBy(item=>item.ZIndex))
                 {
                     var state = MapState(element); var match = element.Positions.Any(position=>Model.MapMatches.Contains(position.LocationId));
-                    <g class="map-element @state @(match?"is-match":"")" transform="translate(@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)) rotate(@element.Rotation)" tabindex="0" role="button" aria-label="Abrir @element.Label, @StateLabel(state)" data-map-open="@element.Id" data-map-target="@match.ToString().ToLowerInvariant()">
+                    <g class="map-element @state @(element.IsWip?"wip":"") @(match?"is-match":"")" transform="translate(@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)) rotate(@element.Rotation)" tabindex="0" role="button" aria-label="Abrir @element.Label, @StateLabel(state)" data-map-open="@element.Id" data-map-target="@match.ToString().ToLowerInvariant()">
                         <rect width="@element.Width.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" height="@element.Height.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" rx="4"/><text x="6" y="18">@element.Label</text>@if(element.Positions.Any(position=>position.HasNegative)){<circle class="map-alert-dot" cx="@(element.Width-8)" cy="8" r="6"/>}
                     </g>
                 }
@@ -56,9 +56,9 @@
         <aside class="warehouse-map-detail" aria-live="polite"><div class="map-detail-placeholder"><h2 class="h5">Selecciona un rack o área</h2><p>Consulta sus posiciones, saldos y asignaciones sin salir del croquis.</p></div>
         @foreach(var element in Model.Map.Elements)
         {
-            <section class="map-element-detail" data-map-detail="@element.Id" hidden><div class="d-flex justify-content-between"><div><span class="text-body-secondary">@(element.Kind=="Rack"?"Rack":"Área")</span><h2 class="h4">@element.Label</h2></div><button type="button" class="btn-close" data-map-close aria-label="Cerrar detalle"></button></div>
+            <section class="map-element-detail" data-map-detail="@element.Id" hidden><div class="d-flex justify-content-between"><div><span class="text-body-secondary">@(element.IsWip?"Rack WIP — no controla saldo":element.Kind=="Rack"?"Rack":"Área")</span><h2 class="h4">@element.Label</h2></div><button type="button" class="btn-close" data-map-close aria-label="Cerrar detalle"></button></div>
             @if(element.Kind=="Rack") { <div class="map-keypad">@foreach(var pallet in new short[]{7,8,9,4,5,6,1,2,3}) { var position=element.Positions.FirstOrDefault(item=>item.PalletNumber==pallet); if(position is null){<span class="map-position missing"><strong>@pallet</strong><small>No disponible</small></span>}else{<button type="button" class="map-position @PositionState(position)" data-map-position="@position.LocationId"><strong>@pallet</strong><small>@position.Code</small><span>@position.ProductCount producto(s)</span></button>} }</div> }
-            @foreach(var position in element.Positions){<div class="map-position-detail" data-position-detail="@position.LocationId" hidden><h3 class="h5">@position.Code</h3><p>@(position.Description??"Sin descripción")</p><div class="d-flex gap-2 flex-wrap mb-2"><span class="badge text-bg-light border">@position.AssignmentCount asignación(es)</span>@if(position.HasNegative){<span class="badge text-bg-danger">Saldo negativo</span>}else if(position.HasInventory){<span class="badge text-bg-primary">Con saldo</span>}else{<span class="badge text-bg-secondary">Sin saldo</span>}</div>@foreach(var product in position.Products){<div class="map-product-row"><a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@product.ProductId">@(string.IsNullOrEmpty(product.Sku)?"Producto":product.Sku)</a><span class="@(product.Quantity<0?"text-danger":"")">@product.Quantity.ToString("0.####") @product.Unit</span><small>@(product.IsAssigned?"Asignado":"Sin asignación activa")</small></div>}<div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="Details" asp-route-id="@position.LocationId" class="btn btn-primary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></div>}
+            @foreach(var position in element.Positions){<div class="map-position-detail" data-position-detail="@position.LocationId" hidden><h3 class="h5">@position.Code</h3><p>@(position.Description??"Sin descripción")</p><div class="d-flex gap-2 flex-wrap mb-2"><span class="badge text-bg-light border">@position.AssignmentCount asignación(es)</span>@if(position.HasNegative){<span class="badge text-bg-danger">Saldo negativo</span>}else if(position.HasInventory){<span class="badge text-bg-primary">Con saldo</span>}else{<span class="badge text-bg-secondary">Sin saldo</span>}</div>@foreach(var product in position.Products){<div class="map-product-row"><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@product.ProductId">@(string.IsNullOrEmpty(product.Sku)?"Producto":product.Sku)</a><span class="@(product.Quantity<0?"text-danger":"")">@product.Quantity.ToString("0.####") @product.Unit</span><small>@(product.IsAssigned?"Asignado":"Sin asignación activa")</small></div>}<div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="Details" asp-route-id="@position.LocationId" class="btn btn-primary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></div>}
             </section>
         }
         </aside>
@@ -67,31 +67,51 @@
 }
 else if(Model.ViewMode=="racks")
 {
-    @if(Model.LayoutRacks.Count==0 && Model.LayoutAreas.Count==0){<div class="card card-body text-center text-muted py-5">No hay ubicaciones que coincidan.</div>}
-    @foreach(var rowGroup in Model.LayoutRacks.GroupBy(rack => rack.RowCode))
+    <div class="rack-filter-bar mb-3" aria-label="Filtro operativo de racks">
+        @foreach(var filter in new[]{("all","Todos"),("occupied","Con saldo"),("empty","Sin saldo"),("issues","Con incidencias")}){<a class="btn @(Model.RackFilter==filter.Item1?"btn-primary":"btn-outline-secondary")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="rack" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks" asp-route-rackFilter="@filter.Item1">@filter.Item2</a>}
+    </div>
+    <div class="rack-legend mb-3" aria-label="Leyenda de estados"><span class="rack-legend-item occupied">Con saldo</span><span class="rack-legend-item empty">Sin saldo</span><span class="rack-legend-item negative">Saldo negativo</span><span class="rack-legend-item blocked">Bloqueada</span><span class="rack-legend-item inactive">Inactiva</span></div>
+    @if(Model.LayoutRacks.Count==0){<div class="card card-body text-center text-muted py-5">No hay racks que coincidan.</div>}
+    else
     {
-        <section class="mb-4"><h2 class="h4 border-bottom pb-2">Fila @rowGroup.Key</h2><div class="rack-layout-list">
-        @foreach(var rack in rowGroup)
-        {
-            <article class="rack-card"><h3 class="h6">Rack @rack.RackNumber</h3><div class="rack-keypad">
-            @foreach(var position in rack.Positions)
+        <div class="rack-view-shell" data-rack-view>
+            <div class="rack-view-grid">
+            @foreach(var rowGroup in Model.LayoutRacks.GroupBy(rack => rack.RowCode))
             {
-                @if(position is null){<div class="location-slot missing" aria-label="Posición inexistente"></div>}
-                else
+                var racks = rowGroup.ToArray(); var positions = racks.SelectMany(rack => rack.Positions).OfType<IndexModel.LocationRow>().ToArray();
+                <section class="rack-row-section mb-4"><header class="rack-row-header"><div><h2 class="h4 mb-1">Fila @rowGroup.Key</h2><span>@racks.Length rack(s) · @positions.Length posiciones</span></div><div class="rack-row-metrics"><span><strong>@positions.Count(position=>position.HasInventory)</strong> con saldo</span><span><strong>@positions.Count(position=>!position.HasInventory)</strong> sin saldo</span><span><strong>@positions.Count(position=>position.HasIssue)</strong> incidencias</span></div></header><div class="rack-layout-list">
+                @foreach(var rack in racks)
                 {
-                    var stateClass = !position.IsActive ? "inactive" : position.IsBlocked ? "blocked" : "available";
-                    <a asp-page="Details" asp-route-id="@position.Id" class="location-slot @stateClass" title="Abrir @position.Code">
-                        <strong>@position.PalletNumber</strong><small>@position.Code</small>
-                        @foreach(var sku in position.Skus){<span class="sku-chip">@sku</span>}
-                        @if(position.ProductCount>position.Skus.Count){<span class="sku-more">+@(position.ProductCount-position.Skus.Count)</span>}
-                    </a>
+                    <article class="rack-card rack-@rack.RackState"><header><div><span>Rack</span><h3 class="h5 mb-0">@rack.RowCode-@rack.RackNumber</h3></div><span class="rack-count">@rack.OccupiedCount/@rack.PositionCount con saldo</span></header><div class="rack-keypad">
+                    @foreach(var position in rack.Positions)
+                    {
+                        @if(position is null){<div class="location-slot missing" aria-label="Posición inexistente"><span>No existe</span></div>}
+                        else
+                        {
+                            var primaryBalance = position.Balances.FirstOrDefault();
+                            <a asp-page="Details" asp-route-id="@position.Id" class="location-slot @position.RackState" title="Abrir @position.Code" data-rack-open="@position.Id" aria-controls="rack-detail-@position.Id">
+                                <strong>@position.PalletNumber</strong><small>@position.Code</small><span class="rack-slot-state">@RackStateLabel(position.RackState)</span>
+                                @if(primaryBalance is not null){<span class="sku-chip">@primaryBalance.Sku</span>@if(position.Balances.Count>1){<span class="sku-more">+@(position.Balances.Count-1) producto(s)</span>}}
+                                else if(position.ProductCount>0){<span class="sku-chip">@position.Skus.FirstOrDefault()</span><span class="sku-more">Asignado sin saldo</span>}
+                            </a>
+                        }
+                    }
+                    </div></article>
                 }
+                </div></section>
             }
-            </div></article>
-        }
-        </div></section>
+            </div>
+            <aside class="rack-detail-panel" aria-live="polite"><div class="rack-detail-placeholder"><h2 class="h5">Selecciona una posición</h2><p>Consulta saldos, asignaciones y movimientos sin salir de la fila.</p></div>
+            @foreach(var position in Model.Locations.Where(location=>location.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack))
+            {
+                <section id="rack-detail-@position.Id" class="rack-position-detail" data-rack-detail="@position.Id" hidden><div class="d-flex justify-content-between gap-2"><div><span class="text-body-secondary">Ubicación</span><h2 class="h4 mb-1">@position.Code</h2><span class="badge text-bg-light border">@RackStateLabel(position.RackState)</span></div><button type="button" class="btn-close" data-rack-close aria-label="Cerrar detalle"></button></div>
+                @if(position.IsBlocked){<p class="alert alert-warning py-2 mt-3 mb-2"><strong>Bloqueada.</strong> @position.BlockReason</p>}else if(!position.IsActive){<p class="alert alert-secondary py-2 mt-3 mb-2"><strong>Inactiva.</strong></p>}
+                <h3 class="h6 mt-3">Saldos actuales</h3>@if(position.Balances.Count==0){<p class="text-body-secondary">Sin saldo registrado.</p>}else{<div class="rack-balance-list">@foreach(var balance in position.Balances){<div><div><strong>@balance.Sku</strong><small>@(balance.Description??"Sin descripción") · @(balance.IsAssigned?"Asignado":"Sin asignación activa")</small></div><span class="@(balance.Quantity<0?"text-danger":"")">@balance.Quantity.ToString("0.####") @balance.Unit</span></div>}</div>}
+                <div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="Details" asp-route-id="@position.Id" class="btn btn-primary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.Id" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></section>
+            }
+            </aside>
+        </div>
     }
-    @if(Model.LayoutAreas.Count>0){<section><h2 class="h4 border-bottom pb-2">Áreas especiales</h2><div class="area-layout-list">@foreach(var area in Model.LayoutAreas){<a asp-page="Details" asp-route-id="@area.Id" class="location-area-card"><strong>@area.Code</strong><span>@(area.Description??"Área especial")</span><small>@area.ProductCount producto(s) asignado(s)</small></a>}</div></section>}
 }
 else
 {
@@ -113,5 +133,6 @@ else
     private static string MapState(WarehouseMapElementView element) => element.Positions.Any(item=>item.HasNegative)?"negative":element.Positions.All(item=>!item.IsActive)?"inactive":element.Positions.Any(item=>item.IsBlocked)?"blocked":element.Positions.Any(item=>item.HasInventory)?"occupied":"available";
     private static string PositionState(WarehouseMapPosition item) => item.HasNegative?"negative":!item.IsActive?"inactive":item.IsBlocked?"blocked":item.HasInventory?"occupied":"available";
     private static string StateLabel(string state) => state switch{"negative"=>"saldo negativo","inactive"=>"inactivo","blocked"=>"bloqueado","occupied"=>"con inventario",_=>"disponible"};
+    private static string RackStateLabel(string state) => state switch{"negative"=>"Saldo negativo","inactive"=>"Inactiva","blocked"=>"Bloqueada","occupied"=>"Con saldo",_=>"Sin saldo"};
 }
-@section Scripts { <script src="~/js/warehouse-map.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/warehouse-map.js" asp-append-version="true"></script><script src="~/js/rack-view.js" asp-append-version="true"></script> }

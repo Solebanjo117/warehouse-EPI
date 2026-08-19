@@ -104,6 +104,10 @@
     const form = operationShell.querySelector("[data-operation-form]");
     const lookupUrl = operationShell.dataset.lookupUrl;
     const operation = operationShell.dataset.operation;
+    const exitModePicker = operationShell.querySelector("[data-exit-mode-picker]");
+    const isWipExit = () => operation === "exit"
+      && exitModePicker?.querySelector('input:checked')?.value === "Wip";
+    const selectedExitMode = () => exitModePicker?.querySelector('input:checked')?.value || "";
     const entryWorkstation = operationShell.hasAttribute("data-entry-workstation")
       || operationShell.hasAttribute("data-guided-workstation");
     const quantityInput = operationShell.querySelector("[data-quantity]");
@@ -120,10 +124,11 @@
 
     const hiddenFor = (kind) => operationShell.querySelector(`[data-selected-id="${kind}"]`);
     const primaryLocationKind = operation === "entry" ? "destination"
-      : operation === "exit" || operation === "transfer" ? "source"
+      : operation === "exit" || operation === "transfer" || operation === "wipissue" ? "source"
         : "location";
-    const requiredKinds = operation === "entry" ? ["product", "destination"]
-      : operation === "exit" ? ["product", "source"]
+    const requiredKinds = () => operation === "entry" ? ["product", "destination"]
+      : operation === "exit" ? ["product", "source", ...(isWipExit() ? ["destination"] : [])]
+        : operation === "wipissue" ? ["product", "source", "destination"]
         : operation === "transfer" ? ["product", "source", "destination"]
           : ["product", "location"];
 
@@ -131,6 +136,7 @@
       product: "Producto",
       source: "Ubicación origen",
       destination: "Ubicación destino",
+      "exit-mode": "Tipo de salida",
       location: "Ubicación"
     })[kind];
 
@@ -148,6 +154,7 @@
     let editingEntryStep;
     const guidedKinds = Array.from(operationShell.querySelectorAll("[data-entry-step]"))
       .map(step => step.dataset.entryStep);
+    const visibleGuidedKinds = () => guidedKinds.filter(kind => kind !== "destination" || operation !== "exit" || isWipExit());
     const notesInput = operationShell.querySelector("[data-operation-notes]");
 
     const refreshEntryState = () => {
@@ -156,9 +163,10 @@
       const quantityComplete = quantityInput.value.trim() !== "" && quantityInput.checkValidity()
         && (operation === "adjustment" || number(quantityInput.value) > 0);
       const completed = Object.fromEntries(guidedKinds.map(kind => [kind,
-        kind === "quantity" ? quantityComplete : kind === "notes" ? Boolean(notesInput?.value.trim()) : Boolean(selected[kind])
+        kind === "exit-mode" ? Boolean(selectedExitMode())
+          : kind === "quantity" ? quantityComplete : kind === "notes" ? Boolean(notesInput?.value.trim()) : Boolean(selected[kind])
       ]));
-      const kinds = guidedKinds;
+      const kinds = visibleGuidedKinds();
       const completedCount = kinds.filter(kind => completed[kind]).length;
       const activeKind = editingEntryStep || kinds.find(kind => !completed[kind]);
 
@@ -187,7 +195,8 @@
       for (const kind of kinds) {
         const step = operationShell.querySelector(`[data-entry-step="${kind}"]`);
         const record = lookups[kind]?.record;
-        const title = kind === "quantity" ? quantityText : kind === "notes" ? (notesInput?.value.trim() || "Motivo pendiente")
+        const title = kind === "exit-mode" ? (selectedExitMode() === "Wip" ? "Surtir WIP" : selectedExitMode() === "General" ? "Salida general" : "Tipo pendiente")
+          : kind === "quantity" ? quantityText : kind === "notes" ? (notesInput?.value.trim() || "Motivo pendiente")
           : record?.querySelector("[data-selected-title]")?.textContent?.trim() || `${fieldName(kind)} pendiente`;
         const detail = kind === "quantity" ? (quantityComplete ? balanceText.textContent : "")
           : kind === "notes" ? "" : record?.querySelector("[data-selected-detail]")?.textContent?.trim() || "";
@@ -230,7 +239,7 @@
         const result = destination + quantity;
         message = `Destino: ${format(destination)} → ${format(result)}`;
         isNegative = result < 0;
-      } else if (operation === "exit" && selected.product && selected.source) {
+      } else if ((operation === "exit" || operation === "wipissue") && selected.product && selected.source) {
         const result = source - quantity;
         message = `Origen: ${format(source)} → ${format(result)}`;
         isNegative = result < 0;
@@ -333,7 +342,7 @@
         addRelationshipMessage(panel, "Esta pareja se asociará al confirmar con NIP.", "text-primary");
     };
 
-    const canSelectProductFrom = (kind) => !(operation === "transfer" && kind === "destination");
+    const canSelectProductFrom = (kind) => !((operation === "transfer" || operation === "wipissue" || isWipExit()) && kind === "destination");
 
     const renderLocationRelationships = (kind) => {
       const panel = lookups[kind]?.panel;
@@ -394,6 +403,19 @@
     const applySelection = async (kind, item, loadRelationships) => {
       const lookup = lookups[kind];
       const lookupKind = kind === "product" ? "product" : "location";
+      if (lookupKind === "location") {
+        const expectsWip = (operation === "wipissue" || isWipExit()) && kind === "destination";
+        const isWipLocation = item.tracksInventory === false;
+        if ((expectsWip && !isWipLocation) || (!expectsWip && isWipLocation)) {
+          const message = expectsWip
+            ? "Selecciona un rack WIP."
+            : "Este rack WIP no controla saldo y no es válido para este campo.";
+          lookup.input.setCustomValidity(message);
+          lookup.input.reportValidity();
+          setOperationFeedback(message);
+          return;
+        }
+      }
       selected[kind] = item;
       lookup.hidden.value = item.id;
       lookup.input.value = lookupKind === "product" ? item.sku : item.code;
@@ -458,7 +480,7 @@
           return;
         }
       }
-      const missing = requiredKinds.find(kind => !selected[kind]);
+      const missing = requiredKinds().find(kind => !selected[kind]);
       if (missing) {
         const relationshipPanel = entryWorkstation && missing === "destination"
           ? lookups.product?.panel : lookups[missing]?.panel;
@@ -507,7 +529,8 @@
         if (sequence !== searchSequence) return;
         const query = input.value.trim();
         if (!query) return results.replaceChildren();
-        const handler = lookupKind === "product" ? "Products" : "Locations";
+        const handler = lookupKind === "product" ? "Products"
+          : (operation === "wipissue" || isWipExit()) && kind === "destination" ? "WipLocations" : "Locations";
         const items = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler, q: query })}`);
         if (sequence !== searchSequence) return;
         renderSuggestions(results, items, lookupKind, (item) => {
@@ -845,6 +868,16 @@
     }
 
     operationShell.querySelectorAll("[data-lookup-field]").forEach(setupLookup);
+    exitModePicker?.querySelectorAll("input").forEach(control => {
+      control.addEventListener("change", () => {
+        const destinationStep = operationShell.querySelector("[data-wip-destination-step]");
+        const isWip = isWipExit();
+        destinationStep?.classList.toggle("d-none", !isWip);
+        if (!isWip && lookups.destination) clearSelection("destination");
+        refreshEntryState();
+        focusNextRequired();
+      });
+    });
     for (const kind of Object.keys(lookups)) {
       if (!selected[kind]) continue;
       if (kind === "product") void loadProductLocations();
@@ -892,7 +925,12 @@
     reviewButton.addEventListener("click", () => {
       const pinInput = operationShell.querySelector("[data-pin-input]");
       pinInput.required = false;
-      for (const kind of requiredKinds) {
+      if (operation === "exit" && !selectedExitMode()) {
+        exitModePicker?.querySelector("input")?.setCustomValidity("Selecciona el tipo de salida.");
+        exitModePicker?.querySelector("input")?.reportValidity();
+        return;
+      }
+      for (const kind of requiredKinds()) {
         if (!hiddenFor(kind).value) {
           const input = operationShell.querySelector(`[data-lookup-field="${kind}"] [data-lookup-input]`);
           input.setCustomValidity("Selecciona un registro de la lista o escanea un código válido.");
@@ -902,7 +940,7 @@
       }
       if (!form.reportValidity()) return;
       const productCode = operationShell.querySelector('[data-lookup-field="product"] [data-lookup-input]').value;
-      const locations = requiredKinds.filter(kind => kind !== "product")
+      const locations = requiredKinds().filter(kind => kind !== "product")
         .map(kind => operationShell.querySelector(`[data-lookup-field="${kind}"] [data-lookup-input]`).value)
         .join(" → ");
       const summary = operationShell.querySelector("[data-confirmation-summary]");

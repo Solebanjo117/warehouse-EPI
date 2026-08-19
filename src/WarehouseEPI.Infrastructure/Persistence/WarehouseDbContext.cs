@@ -23,6 +23,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<InventoryBalanceChange> InventoryBalanceChanges => Set<InventoryBalanceChange>();
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
     public DbSet<InventoryMovementCorrection> InventoryMovementCorrections => Set<InventoryMovementCorrection>();
+    public DbSet<WipDisposition> WipDispositions => Set<WipDisposition>();
     public DbSet<ProductLotDateChange> ProductLotDateChanges => Set<ProductLotDateChange>();
     public DbSet<WarehouseMapLayout> WarehouseMapLayouts => Set<WarehouseMapLayout>();
     public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
@@ -48,6 +49,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureInventoryBalanceChange(modelBuilder);
         ConfigureInventoryBalance(modelBuilder);
         ConfigureInventoryMovementCorrection(modelBuilder);
+        ConfigureWipDisposition(modelBuilder);
         ConfigureProductLotDateChange(modelBuilder);
         ConfigureWarehouseMap(modelBuilder);
     }
@@ -273,6 +275,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.ToTable("locations", table =>
         {
             table.HasCheckConstraint("ck_locations_kind", "kind IN ('RACK', 'AREA')");
+            table.HasCheckConstraint("ck_locations_operational_role", "operational_role IN ('STORAGE', 'WIP', 'OTHER')");
+            table.HasCheckConstraint("ck_locations_wip_area", "operational_role <> 'WIP' OR kind = 'AREA'");
             table.HasCheckConstraint("ck_locations_code_normalized", "code = upper(btrim(code)) AND code <> ''");
             table.HasCheckConstraint("ck_locations_structure", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND pallet_number BETWEEN 1 AND 9 AND code = row_code || '-' || rack_number::text || '-' || pallet_number::text) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND pallet_number IS NULL AND code ~ '^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$')");
             table.HasCheckConstraint("ck_locations_block", "(is_blocked = FALSE AND block_reason IS NULL) OR (is_active = TRUE AND is_blocked = TRUE AND block_reason IS NOT NULL AND btrim(block_reason) <> '')");
@@ -283,6 +287,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(location => location.Kind).HasColumnName("kind").HasMaxLength(10)
             .HasConversion(value => value == LocationKind.Rack ? "RACK" : "AREA",
                 value => value == "RACK" ? LocationKind.Rack : LocationKind.Area);
+        entity.Property(location => location.OperationalRole).HasColumnName("operational_role").HasMaxLength(10)
+            .HasDefaultValue(LocationOperationalRole.Storage)
+            .HasConversion(value => LocationRoleToDatabase(value), value => LocationRoleFromDatabase(value));
         entity.Property(location => location.RowCode).HasColumnName("row_code").HasMaxLength(1);
         entity.Property(location => location.RackNumber).HasColumnName("rack_number");
         entity.Property(location => location.PalletNumber).HasColumnName("pallet_number");
@@ -293,6 +300,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(location => location.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(location => location.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         entity.Ignore(location => location.IsOperational);
+        entity.Ignore(location => location.TracksInventory);
         entity.Ignore(location => location.LevelNumber);
         entity.Ignore(location => location.HorizontalPosition);
         entity.HasIndex(location => location.Code).IsUnique();
@@ -350,9 +358,18 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         var entity = modelBuilder.Entity<InventoryMovement>();
 
         entity.ToTable("inventory_movements", table =>
+        {
             table.HasCheckConstraint(
                 "ck_inventory_movements_type",
-                "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')"));
+                "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
+            table.HasCheckConstraint("ck_inventory_movements_purpose",
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN')");
+            table.HasCheckConstraint("ck_inventory_movements_operational_shape",
+                "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR " +
+                "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
+                "(purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
+                "(purpose = 'STANDARD' AND operational_area_id IS NULL)");
+        });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
         entity.Property(movement => movement.OperationId).HasColumnName("operation_id");
@@ -361,6 +378,10 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
             .HasConversion(
                 value => MovementTypeToDatabase(value),
                 value => MovementTypeFromDatabase(value));
+        entity.Property(movement => movement.Purpose).HasColumnName("purpose").HasMaxLength(30)
+            .HasDefaultValue(InventoryMovementPurpose.Standard)
+            .HasConversion(value => MovementPurposeToDatabase(value), value => MovementPurposeFromDatabase(value));
+        entity.Property(movement => movement.OperationalAreaId).HasColumnName("operational_area_id");
         entity.Property(movement => movement.ResponsibleUserId).HasColumnName("responsible_user_id");
         entity.Property(movement => movement.Reference).HasColumnName("reference").HasMaxLength(120);
         entity.Property(movement => movement.Notes).HasColumnName("notes").HasMaxLength(500);
@@ -369,9 +390,15 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.HasIndex(movement => movement.OperationId).IsUnique();
         entity.HasIndex(movement => movement.OccurredAt);
         entity.HasIndex(movement => new { movement.ResponsibleUserId, movement.OccurredAt });
+        entity.HasIndex(movement => new { movement.Purpose, movement.OccurredAt });
+        entity.HasIndex(movement => movement.OperationalAreaId);
         entity.HasOne(movement => movement.ResponsibleUser)
             .WithMany()
             .HasForeignKey(movement => movement.ResponsibleUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(movement => movement.OperationalArea)
+            .WithMany()
+            .HasForeignKey(movement => movement.OperationalAreaId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 
@@ -499,7 +526,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         layout.Property(item => item.Version).HasColumnName("version");
         layout.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         layout.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
-        layout.Property(item => item.RowVersion).IsRowVersion().HasColumnName("xmin");
+        layout.Ignore(item => item.RowVersion);
         layout.HasOne(item => item.UpdatedByUser).WithMany().HasForeignKey(item => item.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
 
         var element = modelBuilder.Entity<WarehouseMapElement>();
@@ -576,6 +603,44 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
+    private static void ConfigureWipDisposition(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<WipDisposition>();
+        entity.ToTable("wip_dispositions", table =>
+        {
+            table.HasCheckConstraint("ck_wip_dispositions_type", "type IN ('WAREHOUSE_RETURN', 'SUPPLIER_RETURN')");
+            table.HasCheckConstraint("ck_wip_dispositions_quantity", "quantity > 0");
+            table.HasCheckConstraint("ck_wip_dispositions_shape", "(type = 'WAREHOUSE_RETURN' AND destination_location_id IS NOT NULL AND inventory_movement_id IS NOT NULL) OR (type = 'SUPPLIER_RETURN' AND destination_location_id IS NULL AND inventory_movement_id IS NULL)");
+        });
+        entity.HasKey(item => item.Id);
+        entity.Property(item => item.Id).HasColumnName("id");
+        entity.Property(item => item.OperationId).HasColumnName("operation_id");
+        entity.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        entity.Property(item => item.OriginalMovementLineId).HasColumnName("original_movement_line_id");
+        entity.Property(item => item.Type).HasColumnName("type").HasMaxLength(30).HasConversion(
+            value => value == WipDispositionType.WarehouseReturn ? "WAREHOUSE_RETURN" : "SUPPLIER_RETURN",
+            value => value == "WAREHOUSE_RETURN" ? WipDispositionType.WarehouseReturn : WipDispositionType.SupplierReturn);
+        entity.Property(item => item.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        entity.Property(item => item.ResponsibleUserId).HasColumnName("responsible_user_id");
+        entity.Property(item => item.DestinationLocationId).HasColumnName("destination_location_id");
+        entity.Property(item => item.InventoryMovementId).HasColumnName("inventory_movement_id");
+        entity.Property(item => item.ReversesDispositionId).HasColumnName("reverses_disposition_id");
+        entity.Property(item => item.Reference).HasColumnName("reference").HasMaxLength(120);
+        entity.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        entity.Property(item => item.OccurredAt).HasColumnName("occurred_at").HasDefaultValueSql("now()");
+        entity.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        entity.HasIndex(item => item.OperationId).IsUnique();
+        entity.HasIndex(item => item.OriginalMovementLineId);
+        entity.HasIndex(item => item.InventoryMovementId).IsUnique().HasFilter("inventory_movement_id IS NOT NULL");
+        entity.HasIndex(item => item.ReversesDispositionId).IsUnique().HasFilter("reverses_disposition_id IS NOT NULL");
+        entity.HasIndex(item => item.OccurredAt);
+        entity.HasOne(item => item.OriginalMovementLine).WithMany().HasForeignKey(item => item.OriginalMovementLineId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.DestinationLocation).WithMany().HasForeignKey(item => item.DestinationLocationId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.InventoryMovement).WithMany().HasForeignKey(item => item.InventoryMovementId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.ReversesDisposition).WithMany().HasForeignKey(item => item.ReversesDispositionId).OnDelete(DeleteBehavior.Restrict);
+    }
+
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         EnsureMovementHistoryIsImmutable();
@@ -593,7 +658,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or ProductLotDateChange or WarehouseMapRevision &&
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision &&
                 entry.State is EntityState.Modified or EntityState.Deleted);
 
         if (changedHistory)
@@ -616,6 +681,36 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "TRANSFER" => InventoryMovementType.Transfer,
         "ADJUSTMENT" => InventoryMovementType.Adjustment,
         _ => throw new InvalidOperationException("Tipo de movimiento almacenado no soportado.")
+    };
+
+    private static string MovementPurposeToDatabase(InventoryMovementPurpose value) => value switch
+    {
+        InventoryMovementPurpose.GeneralExit => "GENERAL_EXIT",
+        InventoryMovementPurpose.ProductionIssue => "PRODUCTION_ISSUE",
+        InventoryMovementPurpose.WipWarehouseReturn => "WIP_WAREHOUSE_RETURN",
+        _ => "STANDARD"
+    };
+
+    private static InventoryMovementPurpose MovementPurposeFromDatabase(string value) => value switch
+    {
+        "GENERAL_EXIT" => InventoryMovementPurpose.GeneralExit,
+        "PRODUCTION_ISSUE" => InventoryMovementPurpose.ProductionIssue,
+        "WIP_WAREHOUSE_RETURN" => InventoryMovementPurpose.WipWarehouseReturn,
+        _ => InventoryMovementPurpose.Standard
+    };
+
+    private static string LocationRoleToDatabase(LocationOperationalRole value) => value switch
+    {
+        LocationOperationalRole.Wip => "WIP",
+        LocationOperationalRole.Other => "OTHER",
+        _ => "STORAGE"
+    };
+
+    private static LocationOperationalRole LocationRoleFromDatabase(string value) => value switch
+    {
+        "WIP" => LocationOperationalRole.Wip,
+        "OTHER" => LocationOperationalRole.Other,
+        _ => LocationOperationalRole.Storage
     };
 
     private static string LotAllocationModeToDatabase(InventoryLotAllocationMode value) => value switch

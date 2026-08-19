@@ -13,6 +13,7 @@ public enum ProductLocationAssignmentResult
     LocationNotFound,
     LocationInactive,
     LocationBlocked,
+    LocationDoesNotTrackInventory,
     AssignmentNotFound
 }
 
@@ -33,6 +34,7 @@ public sealed class ProductLocationAssignmentService(WarehouseDbContext dbContex
         if (location is null) return ProductLocationAssignmentResult.LocationNotFound;
         if (!location.IsActive) return ProductLocationAssignmentResult.LocationInactive;
         if (location.IsBlocked) return ProductLocationAssignmentResult.LocationBlocked;
+        if (!location.TracksInventory) return ProductLocationAssignmentResult.LocationDoesNotTrackInventory;
 
         var assignment = await dbContext.ProductLocationAssignments.SingleOrDefaultAsync(
             candidate => candidate.ProductId == productId && candidate.LocationId == locationId,

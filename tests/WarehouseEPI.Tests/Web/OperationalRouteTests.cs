@@ -43,7 +43,7 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
 
     [Theory]
     [InlineData("/Operations/Entry", 2)]
-    [InlineData("/Operations/Exit", 2)]
+    [InlineData("/Operations/Exit", 3)]
     [InlineData("/Operations/Transfer", 3)]
     [InlineData("/Operations/Adjustment", 2)]
     public async Task Operational_pages_render_camera_scanners_for_every_product_and_location_lookup(string path, int expectedButtons)
@@ -124,6 +124,7 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
             seed, Guid.NewGuid(), seed.Pin, await GetTokenAsync(client, "/Operations/Entry"), 10m));
 
         var exitValues = CommonValues(seed, Guid.NewGuid(), seed.Pin, await GetTokenAsync(client, "/Operations/Exit"), 12m);
+        exitValues["Input.ExitMode"] = "General";
         exitValues["Input.SourceLocationId"] = seed.LocationId.ToString();
         var exit = await PostSuccessAsync(client, "/Operations/Exit", exitValues);
         Assert.Contains("saldo negativo", await (await client.GetAsync(exit)).Content.ReadAsStringAsync());

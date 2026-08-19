@@ -80,6 +80,9 @@
                 <a class="app-nav-link @(IsCurrent("/Operations/Transfer") ? "active" : null)" asp-page="/Operations/Transfer" aria-current="@(IsCurrent("/Operations/Transfer") ? "page" : null)" title="Transferencia">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Transferencia</span>
                 </a>
+                <a class="app-nav-link @(IsCurrent("/Operations/WipReturn") ? "active" : null)" asp-page="/Operations/WipReturn" title="Devolución desde WIP">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Devolución WIP</span>
+                </a>
                 <a class="app-nav-link @(IsCurrent("/Operations/Adjustment") ? "active" : null)" asp-page="/Operations/Adjustment" aria-current="@(IsCurrent("/Operations/Adjustment") ? "page" : null)" title="Ajuste">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Ajuste</span>
                 </a>
@@ -89,6 +92,9 @@
                 <div class="app-nav-heading">Inventario</div>
                 <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
+                </a>
+                <a class="app-nav-link @(IsSection("/Reports/Wip") ? "active" : null)" asp-page="/Reports/Wip/Index" title="Reporte WIP">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte WIP</span>
                 </a>
                 @if (isAdmin)
                 {

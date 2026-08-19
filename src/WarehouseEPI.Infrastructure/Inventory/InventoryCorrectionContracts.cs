@@ -7,7 +7,9 @@ public sealed record InventoryReplacementCommand(
     IReadOnlyList<InventoryMovementLineCommand> Lines,
     string? Reference = null,
     string? Notes = null,
-    IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null);
+    IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null,
+    InventoryMovementPurpose Purpose = InventoryMovementPurpose.Standard,
+    Guid? OperationalAreaId = null);
 
 public sealed record InventoryCorrectionCommand(
     Guid OperationId,

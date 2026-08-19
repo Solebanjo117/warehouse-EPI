@@ -75,6 +75,8 @@ internal sealed class InventoryReversalService(
             OperationId = Guid.NewGuid(),
             RequestFingerprint = InventoryFingerprint.Hash(correctionFingerprint + "|reversal"),
             Type = ReverseType(original.Type),
+            Purpose = original.Purpose,
+            OperationalAreaId = original.OperationalAreaId,
             ResponsibleUserId = authorizedById,
             Reference = original.Reference,
             Notes = "Reverso de " + original.Id.ToString("N"),
