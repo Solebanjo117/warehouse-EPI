@@ -9,11 +9,14 @@ using WarehouseEPI.Infrastructure.Security;
 namespace WarehouseEPI.Infrastructure.Locations;
 
 public sealed record WarehouseMapProduct(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, bool IsAssigned);
-public sealed record WarehouseMapPosition(Guid LocationId, string Code, short? PalletNumber, string? Description, bool IsActive, bool IsBlocked, string? BlockReason, int AssignmentCount, int ProductCount, bool HasInventory, bool HasNegative, IReadOnlyList<WarehouseMapProduct> Products);
-public sealed record WarehouseMapElementView(Guid Id, string Kind, string Label, string? RowCode, short? RackNumber, Guid? LocationId, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible, IReadOnlyList<WarehouseMapPosition> Positions);
+public sealed record WarehouseMapPosition(Guid LocationId, string Code, short? PalletNumber, string? Description, LocationOperationalRole OperationalRole, bool IsActive, bool IsBlocked, string? BlockReason, int AssignmentCount, int ProductCount, bool HasInventory, bool HasNegative, IReadOnlyList<WarehouseMapProduct> Products);
+public sealed record WarehouseMapElementView(Guid Id, string Kind, string Label, string? RowCode, short? RackNumber, Guid? LocationId, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible, IReadOnlyList<WarehouseMapPosition> Positions)
+{
+    public bool IsWip => Positions.Any(position => position.OperationalRole == LocationOperationalRole.Wip);
+}
 public sealed record WarehouseMapView(int Version, uint RowVersion, bool IsInitialized, IReadOnlyList<WarehouseMapElementView> Elements, IReadOnlyList<WarehouseMapElementView> Unplaced, int Available, int Blocked, int Inactive, int WithInventory, int Negative);
 public sealed record WarehouseMapGeometry(Guid Id, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible);
-public sealed record WarehouseMapSaveCommand(Guid OperationId, Guid RequestedByUserId, string Pin, int ExpectedVersion, string? Reason, IReadOnlyList<WarehouseMapGeometry> Elements);
+public sealed record WarehouseMapSaveCommand(Guid OperationId, Guid RequestedByUserId, string Pin, string? Reason, IReadOnlyList<WarehouseMapGeometry> Elements);
 public enum WarehouseMapSaveStatus { Success, InvalidPin, Unauthorized, ValidationFailed, Conflict, IdempotencyConflict, NotInitialized }
 public sealed record WarehouseMapSaveResult(WarehouseMapSaveStatus Status, int Version = 0, IReadOnlyList<string>? Errors = null) { public IReadOnlyList<string> ValidationErrors => Errors ?? []; }
 public sealed record WarehouseMapRevisionView(Guid Id, int PreviousVersion, int NewVersion, string? Reason, string RequestedBy, string AuthorizedBy, DateTimeOffset RecordedAt);
@@ -27,7 +30,17 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
     {
         var layout = await dbContext.WarehouseMapLayouts.AsNoTracking().SingleOrDefaultAsync(item => item.Id == 1, token);
         var stored = layout is null ? [] : await dbContext.WarehouseMapElements.AsNoTracking().Where(item => item.LayoutId == 1).OrderBy(item => item.ZIndex).ToListAsync(token);
-        var elements = stored.Count == 0 && includeProposal ? await BuildProposalAsync(token) : stored;
+        var proposal = includeProposal ? await BuildProposalAsync(token) : [];
+        var elements = stored.Count == 0
+            ? proposal
+            : includeProposal
+                ? stored.Concat(proposal.Where(item => stored.All(saved => saved.Id != item.Id)).Select(item =>
+                    {
+                        item.IsVisible = false;
+                        return item;
+                    }))
+                    .OrderBy(item => item.ZIndex).ToList()
+                : stored;
         var locations = await LoadPositionsAsync(token);
         var views = elements.Select(item => ToView(item, locations)).ToArray();
         return new(layout?.Version ?? 0, layout?.RowVersion ?? 0, layout is not null && stored.Count != 0, views.Where(item => item.IsVisible).ToArray(), views.Where(item => !item.IsVisible).ToArray(), locations.Values.Count(item => item.IsActive && !item.IsBlocked), locations.Values.Count(item => item.IsActive && item.IsBlocked), locations.Values.Count(item => !item.IsActive), locations.Values.Count(item => item.HasInventory), locations.Values.Count(item => item.HasNegative));
@@ -43,16 +56,16 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var geometries = geometry?.ToArray() ?? proposal.Select(ToGeometry).ToArray();
         var byId = proposal.ToDictionary(item => item.Id);
         if (geometries.Length == byId.Count && geometries.All(item => byId.ContainsKey(item.Id))) foreach (var item in geometries) { var target = byId[item.Id]; target.X = item.X; target.Y = item.Y; target.Width = item.Width; target.Height = item.Height; target.Rotation = item.Rotation; target.ZIndex = item.ZIndex; target.IsVisible = item.IsVisible; }
-        return await SaveCoreAsync(operationId, requestedByUserId, pin, 0, reason, geometries, true, token, proposal);
+        return await SaveCoreAsync(operationId, requestedByUserId, pin, reason, geometries, true, token, proposal);
     }
 
     public Task<WarehouseMapSaveResult> SaveAsync(WarehouseMapSaveCommand command, CancellationToken token = default) =>
-        SaveCoreAsync(command.OperationId, command.RequestedByUserId, command.Pin, command.ExpectedVersion, command.Reason, command.Elements, false, token);
+        SaveCoreAsync(command.OperationId, command.RequestedByUserId, command.Pin, command.Reason, command.Elements, false, token);
 
-    private async Task<WarehouseMapSaveResult> SaveCoreAsync(Guid operationId, Guid requestedByUserId, string pin, int expectedVersion, string? reason, IReadOnlyList<WarehouseMapGeometry> geometries, bool initialize, CancellationToken token, List<WarehouseMapElement>? initialElements = null)
+    private async Task<WarehouseMapSaveResult> SaveCoreAsync(Guid operationId, Guid requestedByUserId, string pin, string? reason, IReadOnlyList<WarehouseMapGeometry> geometries, bool initialize, CancellationToken token, List<WarehouseMapElement>? initialElements = null)
     {
         var errors = Validate(operationId, requestedByUserId, reason, geometries);
-        if (errors.Count != 0) return new(WarehouseMapSaveStatus.ValidationFailed, expectedVersion, errors);
+        if (errors.Count != 0) return new(WarehouseMapSaveStatus.ValidationFailed, Errors: errors);
         var requester = await dbContext.Users.AsNoTracking().Include(item => item.Role).SingleOrDefaultAsync(item => item.Id == requestedByUserId, token);
         if (requester is null || !requester.IsActive || requester.Role.Code != "ADMIN") return new(WarehouseMapSaveStatus.Unauthorized);
         if (pins is null) return new(WarehouseMapSaveStatus.Unauthorized);
@@ -60,11 +73,16 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         if (authorized is null || authorized.Role.Code != "ADMIN") return new(WarehouseMapSaveStatus.InvalidPin);
         var normalizedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         var payload = JsonSerializer.Serialize(geometries.OrderBy(item => item.Id));
-        var fingerprint = Hash($"{requestedByUserId:N}|{authorized.Id:N}|{expectedVersion}|{normalizedReason}|{payload}");
+        var fingerprint = Hash($"{requestedByUserId:N}|{authorized.Id:N}|{normalizedReason}|{payload}");
         var existingRevision = await dbContext.WarehouseMapRevisions.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == operationId, token);
         if (existingRevision is not null) return new(existingRevision.RequestFingerprint == fingerprint ? WarehouseMapSaveStatus.Success : WarehouseMapSaveStatus.IdempotencyConflict, existingRevision.NewVersion);
         await using var transaction = dbContext.Database.IsRelational() ? await dbContext.Database.BeginTransactionAsync(token) : null;
-        var layout = await dbContext.WarehouseMapLayouts.Include(item => item.Elements).SingleOrDefaultAsync(item => item.Id == 1, token);
+        var useDirectUpdates = !initialize && dbContext.Database.IsRelational();
+        if (useDirectUpdates && dbContext.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+            await dbContext.Database.ExecuteSqlRawAsync("SELECT id FROM warehouse_map_layouts WHERE id = 1 FOR UPDATE", token);
+        var layout = !useDirectUpdates
+            ? await dbContext.WarehouseMapLayouts.Include(item => item.Elements).SingleOrDefaultAsync(item => item.Id == 1, token)
+            : await dbContext.WarehouseMapLayouts.AsNoTracking().SingleOrDefaultAsync(item => item.Id == 1, token);
         if (initialize)
         {
             if (layout is not null) return new(WarehouseMapSaveStatus.Conflict, layout.Version);
@@ -74,26 +92,71 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             foreach (var item in proposal) layout.Elements.Add(item);
         }
         else if (layout is null) return new(WarehouseMapSaveStatus.NotInitialized);
-        if (layout.Version != expectedVersion) return new(WarehouseMapSaveStatus.Conflict, layout.Version);
+        else if (useDirectUpdates) layout.Elements = await dbContext.WarehouseMapElements.AsNoTracking().Where(item => item.LayoutId == 1).ToListAsync(token);
         var byId = layout.Elements.ToDictionary(item => item.Id);
-        if (byId.Count != geometries.Count || geometries.Any(item => !byId.ContainsKey(item.Id))) return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version, ["La lista de elementos ya no coincide con el croquis actual."]);
+        if (byId.Keys.Except(geometries.Select(item => item.Id)).Any())
+            return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version, ["La lista de elementos ya no coincide con el croquis actual."]);
+
+        var catalog = await BuildProposalAsync(token);
+        var catalogById = catalog.ToDictionary(item => item.Id);
+        var additions = geometries.Where(item => !byId.ContainsKey(item.Id)).ToArray();
+        var additionIds = additions.Select(item => item.Id).ToHashSet();
+        if (additions.Any(item => !catalogById.ContainsKey(item.Id)))
+            return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version, ["El croquis contiene elementos que no existen en el catálogo actual."]);
+        foreach (var addition in additions)
+        {
+            var element = catalogById[addition.Id];
+            layout.Elements.Add(element);
+            byId.Add(element.Id, element);
+        }
         var before = layout.Elements.OrderBy(item => item.Id).Select(ToGeometry).ToArray();
         foreach (var geometry in geometries)
         {
             var item = byId[geometry.Id]; item.X = geometry.X; item.Y = geometry.Y; item.Width = geometry.Width; item.Height = geometry.Height; item.Rotation = geometry.Rotation; item.ZIndex = geometry.ZIndex; item.IsVisible = geometry.IsVisible;
         }
-        var previousVersion = layout.Version; layout.Version++; layout.UpdatedAt = (timeProvider ?? TimeProvider.System).GetUtcNow(); layout.UpdatedByUserId = authorized.Id;
+        var previousVersion = layout.Version;
+        var newVersion = previousVersion + 1;
+        var recordedAt = (timeProvider ?? TimeProvider.System).GetUtcNow();
         var changes = JsonSerializer.Serialize(new { Before = before, After = geometries.OrderBy(item => item.Id) });
-        dbContext.WarehouseMapRevisions.Add(new WarehouseMapRevision { OperationId = operationId, RequestFingerprint = fingerprint, PreviousVersion = previousVersion, NewVersion = layout.Version, Reason = normalizedReason, ChangesJson = changes, RequestedByUserId = requester.Id, AuthorizedByUserId = authorized.Id, RecordedAt = (timeProvider ?? TimeProvider.System).GetUtcNow() });
+        if (!useDirectUpdates)
+        {
+            layout.Version = newVersion;
+            layout.UpdatedAt = recordedAt;
+            layout.UpdatedByUserId = authorized.Id;
+        }
+        else
+        {
+            foreach (var geometry in geometries.Where(item => !additionIds.Contains(item.Id)))
+            {
+                var affected = await dbContext.WarehouseMapElements.Where(item => item.Id == geometry.Id).ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.X, geometry.X)
+                    .SetProperty(item => item.Y, geometry.Y)
+                    .SetProperty(item => item.Width, geometry.Width)
+                    .SetProperty(item => item.Height, geometry.Height)
+                    .SetProperty(item => item.Rotation, geometry.Rotation)
+                    .SetProperty(item => item.ZIndex, geometry.ZIndex)
+                    .SetProperty(item => item.IsVisible, geometry.IsVisible), token);
+                if (affected != 1) return new(WarehouseMapSaveStatus.ValidationFailed, previousVersion,
+                    ["Uno de los elementos del croquis ya no existe."]);
+            }
+            if (additionIds.Count != 0) dbContext.WarehouseMapElements.AddRange(additionIds.Select(id => byId[id]));
+            var layoutAffected = await dbContext.WarehouseMapLayouts.Where(item => item.Id == 1).ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Version, newVersion)
+                .SetProperty(item => item.UpdatedAt, recordedAt)
+                .SetProperty(item => item.UpdatedByUserId, authorized.Id), token);
+            if (layoutAffected != 1) return new(WarehouseMapSaveStatus.NotInitialized);
+        }
+        dbContext.WarehouseMapRevisions.Add(new WarehouseMapRevision { OperationId = operationId, RequestFingerprint = fingerprint, PreviousVersion = previousVersion, NewVersion = newVersion, Reason = normalizedReason, ChangesJson = changes, RequestedByUserId = requester.Id, AuthorizedByUserId = authorized.Id, RecordedAt = recordedAt });
         try { await dbContext.SaveChangesAsync(token); }
         catch (DbUpdateConcurrencyException)
         {
             if (transaction is not null) await transaction.RollbackAsync(token);
             var currentVersion = await dbContext.WarehouseMapLayouts.AsNoTracking().Where(item => item.Id == 1).Select(item => item.Version).SingleOrDefaultAsync(token);
-            return new(WarehouseMapSaveStatus.Conflict, currentVersion);
+            return new(WarehouseMapSaveStatus.ValidationFailed, currentVersion,
+                ["No fue posible guardar el croquis. Vuelve a intentarlo."]);
         }
         if (transaction is not null) await transaction.CommitAsync(token);
-        return new(WarehouseMapSaveStatus.Success, layout.Version);
+        return new(WarehouseMapSaveStatus.Success, newVersion);
     }
 
     private async Task<List<WarehouseMapElement>> BuildProposalAsync(CancellationToken token)
@@ -126,7 +189,7 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
 
     private async Task<Dictionary<Guid, WarehouseMapPosition>> LoadPositionsAsync(CancellationToken token)
     {
-        var baseRows = await dbContext.Locations.AsNoTracking().Select(item => new { item.Id, item.Code, item.PalletNumber, item.Description, item.IsActive, item.IsBlocked, item.BlockReason }).ToListAsync(token);
+        var baseRows = await dbContext.Locations.AsNoTracking().Select(item => new { item.Id, item.Code, item.PalletNumber, item.Description, item.OperationalRole, item.IsActive, item.IsBlocked, item.BlockReason }).ToListAsync(token);
         // Keep the database queries simple here. PostgreSQL cannot translate the previous
         // aggregate projection reliably once Product.BaseUnit is joined inside GroupBy.
         // A warehouse map is an administrative view, so aggregate the already materialized
@@ -159,7 +222,7 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             });
         var products = balanceProducts.Concat(assignedProducts).GroupBy(item => item.LocationId)
             .ToDictionary(group => group.Key, group => (IReadOnlyList<WarehouseMapProduct>)group.Select(item => item.Product).ToArray());
-        return baseRows.ToDictionary(item => item.Id, item => { var list = products.GetValueOrDefault(item.Id) ?? []; return new WarehouseMapPosition(item.Id, item.Code, item.PalletNumber, item.Description, item.IsActive, item.IsBlocked, item.BlockReason, assignments.Count(value => value.LocationId == item.Id), list.Count(value => value.Quantity != 0), list.Any(value => value.Quantity != 0), list.Any(value => value.Quantity < 0), list); });
+        return baseRows.ToDictionary(item => item.Id, item => { var list = products.GetValueOrDefault(item.Id) ?? []; return new WarehouseMapPosition(item.Id, item.Code, item.PalletNumber, item.Description, item.OperationalRole, item.IsActive, item.IsBlocked, item.BlockReason, assignments.Count(value => value.LocationId == item.Id), list.Count(value => value.Quantity != 0), list.Any(value => value.Quantity != 0), list.Any(value => value.Quantity < 0), list); });
     }
 
     private static WarehouseMapElementView ToView(WarehouseMapElement item, IReadOnlyDictionary<Guid, WarehouseMapPosition> locations)

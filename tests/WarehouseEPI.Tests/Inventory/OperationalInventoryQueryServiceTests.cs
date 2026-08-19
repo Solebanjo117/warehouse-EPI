@@ -132,6 +132,7 @@ public sealed class OperationalInventoryQueryServiceTests
         Assert.Equal(4.5m, locations.Single(item => item.Code == "REL-B").Quantity);
         Assert.True(locations.Single(item => item.Code == "REL-C").HasActiveAssignment);
         Assert.True(locations.Single(item => item.Code == "REL-C").HasNonZeroBalance);
+        Assert.All(locations, item => Assert.True(item.TracksInventory));
 
         var products = await service.GetLocationProductsAsync(both.Id);
         Assert.Equal(["REL-BALANCE", "REL-MAIN"], products.Select(item => item.Sku));

@@ -28,6 +28,17 @@ internal static class InventoryMovementRules
             errors.Add("La referencia no puede superar 120 caracteres.");
         if (command.Notes?.Length > 500)
             errors.Add("Las observaciones no pueden superar 500 caracteres.");
+        if (command.Purpose == InventoryMovementPurpose.GeneralExit &&
+            (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is not null))
+            errors.Add("Una salida general no admite un área operativa destino.");
+        if (command.Purpose == InventoryMovementPurpose.ProductionIssue &&
+            (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is null))
+            errors.Add("El surtimiento a producción requiere una salida y una zona WIP.");
+        if (command.Purpose == InventoryMovementPurpose.WipWarehouseReturn &&
+            (command.Type != InventoryMovementType.Entry || command.OperationalAreaId is not null))
+            errors.Add("Una devolución WIP a bodega requiere una entrada sin área operativa destino.");
+        if (command.Purpose == InventoryMovementPurpose.Standard && command.OperationalAreaId is not null)
+            errors.Add("Un movimiento estándar no admite un área operativa destino.");
 
         foreach (var (line, index) in command.Lines.Select((line, index) => (line, index)))
         {
@@ -105,6 +116,8 @@ internal static class InventoryMovementRules
                 errors.Add($"La ubicación {location.Code} está inactiva.");
             else if (location.IsBlocked)
                 errors.Add($"La ubicación {location.Code} está bloqueada.");
+            else if (!location.TracksInventory)
+                errors.Add($"La ubicación {location.Code} es WIP y no controla saldo.");
         }
 
         return errors;
@@ -128,7 +141,9 @@ internal static class InventoryMovementRules
         builder.Append(userId.ToString("N")).Append('|')
             .Append(command.Type).Append('|')
             .Append(command.Reference ?? string.Empty).Append('|')
-            .Append(command.Notes ?? string.Empty);
+            .Append(command.Notes ?? string.Empty).Append('|')
+            .Append(command.Purpose).Append('|')
+            .Append(command.OperationalAreaId?.ToString("N") ?? string.Empty);
         foreach (var line in command.Lines)
         {
             builder.Append("|L:").Append(line.ProductId.ToString("N"))

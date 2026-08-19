@@ -25,10 +25,12 @@ public abstract class OperationPageModel(
     public bool NeedsSharingApproval => SharingConflicts.Count > 0;
 
     public abstract InventoryMovementType MovementType { get; }
+    public virtual InventoryMovementPurpose MovementPurpose => InventoryMovementPurpose.Standard;
+    public virtual string OperationKey => MovementType.ToString().ToLowerInvariant();
     public abstract string PageTitle { get; }
     public abstract string PageHelp { get; }
 
-    public void OnGet()
+    public virtual void OnGet()
     {
         Input.OperationId = Guid.NewGuid();
     }
@@ -53,7 +55,9 @@ public abstract class OperationPageModel(
             Input.ApprovedSharedLocationIds
                 .Distinct()
                 .Select(locationId => new SharedAssignmentApproval(Input.ProductId!.Value, locationId))
-                .ToArray());
+                .ToArray(),
+            MovementPurpose,
+            MovementPurpose == InventoryMovementPurpose.ProductionIssue ? Input.DestinationLocationId : null);
 
         var result = await movementService.ConfirmAsync(command, cancellationToken);
         ClearPin();
@@ -106,6 +110,14 @@ public abstract class OperationPageModel(
         if (decimal.Round(Input.Quantity, 4) != Input.Quantity)
             ModelState.AddModelError("Input.Quantity", "La cantidad admite como máximo cuatro decimales.");
 
+        if (MovementType == InventoryMovementType.Exit && this is ExitModel)
+        {
+            if (Input.ExitMode is null)
+                ModelState.AddModelError("Input.ExitMode", "Selecciona el tipo de salida.");
+            else if (Input.ExitMode == ExitMode.General && Input.DestinationLocationId is not null)
+                ModelState.AddModelError("Input.DestinationLocationId", "La salida general no utiliza un rack WIP destino.");
+        }
+
         switch (MovementType)
         {
             case InventoryMovementType.Entry when Input.DestinationLocationId is null:
@@ -131,6 +143,8 @@ public abstract class OperationPageModel(
                     ModelState.AddModelError("Input.Notes", "El motivo del ajuste es obligatorio.");
                 break;
         }
+        if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.DestinationLocationId is null)
+            ModelState.AddModelError("Input.DestinationLocationId", "Selecciona el rack WIP destino.");
     }
 
     private async Task LoadSelectionAsync(CancellationToken cancellationToken)
@@ -147,25 +161,36 @@ public abstract class OperationPageModel(
             SelectedSource = await operationalQuery.GetLocationAsync(sourceId, cancellationToken: cancellationToken);
             if (SelectedSource is null)
                 ModelState.AddModelError("Input.SourceLocationId", "La ubicación origen no está disponible.");
+            else if (SelectedSource.OperationalRole == LocationOperationalRole.Wip)
+                ModelState.AddModelError("Input.SourceLocationId", "WIP no mantiene saldo y no puede ser ubicación origen.");
         }
         if (Input.DestinationLocationId is Guid destinationId)
         {
             SelectedDestination = await operationalQuery.GetLocationAsync(destinationId, cancellationToken: cancellationToken);
             if (SelectedDestination is null)
                 ModelState.AddModelError("Input.DestinationLocationId", "La ubicación destino no está disponible.");
+            else if (MovementPurpose == InventoryMovementPurpose.ProductionIssue &&
+                SelectedDestination.OperationalRole != LocationOperationalRole.Wip)
+                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona un rack WIP.");
+            else if (MovementPurpose != InventoryMovementPurpose.ProductionIssue &&
+                SelectedDestination.OperationalRole == LocationOperationalRole.Wip)
+                ModelState.AddModelError("Input.DestinationLocationId", "WIP no controla saldo y no puede recibir este movimiento.");
         }
         if (Input.LocationId is Guid locationId)
         {
             SelectedLocation = await operationalQuery.GetLocationAsync(locationId, cancellationToken: cancellationToken);
             if (SelectedLocation is null)
                 ModelState.AddModelError("Input.LocationId", "La ubicación no está disponible.");
+            else if (SelectedLocation.OperationalRole == LocationOperationalRole.Wip)
+                ModelState.AddModelError("Input.LocationId", "WIP no mantiene saldo y no admite ajustes.");
         }
 
         if (Input.ProductId is not Guid selectedProductId)
             return;
         if (Input.SourceLocationId is Guid selectedSourceId)
             SourceBalance = await inventoryQuery.GetBalanceAsync(selectedProductId, selectedSourceId, cancellationToken);
-        if (Input.DestinationLocationId is Guid selectedDestinationId)
+        if (Input.DestinationLocationId is Guid selectedDestinationId &&
+            MovementPurpose != InventoryMovementPurpose.ProductionIssue)
             DestinationBalance = await inventoryQuery.GetBalanceAsync(selectedProductId, selectedDestinationId, cancellationToken);
         if (Input.LocationId is Guid selectedLocationId)
             LocationBalance = await inventoryQuery.GetBalanceAsync(selectedProductId, selectedLocationId, cancellationToken);
@@ -212,6 +237,7 @@ public abstract class OperationPageModel(
         public Guid? SourceLocationId { get; set; }
         public Guid? DestinationLocationId { get; set; }
         public Guid? LocationId { get; set; }
+        public ExitMode? ExitMode { get; set; }
         public uint? ExpectedBalanceVersion { get; set; }
         public decimal Quantity { get; set; }
         [StringLength(120)] public string? Reference { get; set; }
@@ -219,4 +245,10 @@ public abstract class OperationPageModel(
         public string Pin { get; set; } = string.Empty;
         public List<Guid> ApprovedSharedLocationIds { get; set; } = [];
     }
+}
+
+public enum ExitMode
+{
+    General,
+    Wip
 }

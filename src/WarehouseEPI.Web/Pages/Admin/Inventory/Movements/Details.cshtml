@@ -4,14 +4,19 @@
 @{
     ViewData["Title"] = "Detalle de movimiento";
     var correction = Model.Movement.OriginalCorrection ?? Model.Movement.ReversalCorrection ?? Model.Movement.ReplacementCorrection;
-    var typeName = Model.Movement.Type switch
+    var typeName = Model.Movement.Purpose switch
+    {
+        InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
+        InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP a bodega",
+        InventoryMovementPurpose.GeneralExit => "Salida general",
+        _ => Model.Movement.Type switch
     {
         InventoryMovementType.Entry => "Entrada",
         InventoryMovementType.Exit => "Salida",
         InventoryMovementType.Transfer => "Transferencia",
         InventoryMovementType.Adjustment => "Ajuste",
         _ => "Movimiento"
-    };
+    }};
 }
 
 <main class="movement-detail-workspace">
@@ -27,6 +32,7 @@
     <section class="movement-detail-meta" aria-label="Datos de auditoría">
         <article><span>Folio</span><strong class="movement-detail-id">@Model.Movement.Id</strong></article>
         <article><span>Operación</span><strong class="movement-detail-id">@Model.Movement.OperationId</strong></article>
+        <article><span>Propósito / área</span><strong>@typeName @(Model.Movement.OperationalArea is null ? null : "· " + Model.Movement.OperationalArea)</strong></article>
         <article><span>Referencia</span><strong>@(Model.Movement.Reference ?? "Sin referencia")</strong></article>
         <article><span>Registrado</span><strong>@Model.RecordedAt.ToString("dd/MM/yyyy HH:mm")</strong></article>
     </section>

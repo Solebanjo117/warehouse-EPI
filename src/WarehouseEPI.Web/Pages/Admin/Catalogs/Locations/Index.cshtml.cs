@@ -23,6 +23,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
     public string? Search { get; private set; }
     public string Status { get; private set; } = "active";
     public string Kind { get; private set; } = "all";
+    public string RackFilter { get; private set; } = "all";
     public string ViewMode { get; private set; } = "map";
     public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0);
     public IReadOnlySet<Guid> MapMatches { get; private set; } = new HashSet<Guid>();
@@ -36,12 +37,13 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
 
     public async Task OnGetAsync(string? search, string status = "active", string kind = "all",
         string viewMode = "map", string? rowCode = null, int pageNumber = 1, Guid? highlightLocationId = null,
-        CancellationToken cancellationToken = default)
+        string rackFilter = "all", CancellationToken cancellationToken = default)
     {
         Search = search?.Trim();
         Status = status is "all" or "inactive" or "blocked" ? status : "active";
         Kind = kind is "rack" or "area" ? kind : "all";
         ViewMode = viewMode == "layout" ? "racks" : viewMode is "table" or "racks" ? viewMode : "map";
+        RackFilter = rackFilter is "occupied" or "empty" or "issues" ? rackFilter : "all";
         HighlightLocationId = highlightLocationId;
         RowCode = rowCode?.Trim().ToUpperInvariant();
         CurrentPage = Math.Max(1, pageNumber);
@@ -56,12 +58,21 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
             await dbContext.Locations.CountAsync(location => location.Kind == LocationKind.Rack, cancellationToken),
             await dbContext.Locations.CountAsync(location => location.Kind == LocationKind.Area, cancellationToken));
 
-        var query = ApplyFilters(dbContext.Locations.AsNoTracking());
+        var query = ApplyFilters(dbContext.Locations.AsNoTracking(), ViewMode == "racks");
         if (ViewMode == "map")
         {
             Map = await mapService.GetAsync(true, cancellationToken);
             MapMatches = (string.IsNullOrWhiteSpace(Search) ? [] : await query.Select(location => location.Id).ToListAsync(cancellationToken)).Append(HighlightLocationId ?? Guid.Empty).Where(id => id != Guid.Empty).ToHashSet();
         }
+        if (ViewMode == "racks")
+        {
+            Locations = ApplyRackFilter(await LoadRowsAsync(query.OrderBy(location => location.RowCode)
+                .ThenBy(location => location.RackNumber).ThenBy(location => location.PalletNumber), cancellationToken));
+            LayoutAreas = [];
+            LayoutRacks = CreateRackLayouts(Locations);
+            return;
+        }
+
         var count = await query.CountAsync(cancellationToken);
         TotalPages = Math.Max(1, (int)Math.Ceiling(count / (double)PageSize));
         CurrentPage = Math.Min(CurrentPage, TotalPages);
@@ -80,7 +91,11 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
 
         Locations = await LoadRowsAsync(ordered, cancellationToken);
         LayoutAreas = Locations.Where(location => location.Kind == LocationKind.Area).ToArray();
-        LayoutRacks = Locations.Where(location => location.Kind == LocationKind.Rack)
+        LayoutRacks = CreateRackLayouts(Locations);
+    }
+
+    private static IReadOnlyList<RackLayout> CreateRackLayouts(IReadOnlyList<LocationRow> locations)
+        => locations.Where(location => location.Kind == LocationKind.Rack)
             .GroupBy(location => (location.RowCode!, location.RackNumber!.Value))
             .OrderBy(group => group.Key.Item1).ThenBy(group => group.Key.Item2)
             .Select(group =>
@@ -89,6 +104,18 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
                 return new RackLayout(group.Key.Item1, group.Key.Item2,
                     KeypadOrder.Select(number => positions.GetValueOrDefault(number)).ToArray());
             }).ToArray();
+
+    private IReadOnlyList<LocationRow> ApplyRackFilter(IReadOnlyList<LocationRow> locations)
+    {
+        if (RackFilter == "all") return locations;
+        return locations.GroupBy(location => (location.RowCode, location.RackNumber))
+            .Where(group => RackFilter switch
+            {
+                "occupied" => group.Any(location => location.HasInventory),
+                "empty" => group.Any(location => !location.HasInventory),
+                "issues" => group.Any(location => location.HasIssue),
+                _ => true
+            }).SelectMany(group => group).ToArray();
     }
 
     public async Task<IActionResult> OnPostToggleAsync(Guid id, CancellationToken cancellationToken)
@@ -135,7 +162,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
         return RedirectToPage();
     }
 
-    private IQueryable<Location> ApplyFilters(IQueryable<Location> query)
+    private IQueryable<Location> ApplyFilters(IQueryable<Location> query, bool forceRack = false)
     {
         query = Status switch
         {
@@ -144,7 +171,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
             "all" => query,
             _ => query.Where(location => location.IsActive && !location.IsBlocked)
         };
-        if (Kind == "rack") query = query.Where(location => location.Kind == LocationKind.Rack);
+        if (forceRack || Kind == "rack") query = query.Where(location => location.Kind == LocationKind.Rack);
         else if (Kind == "area") query = query.Where(location => location.Kind == LocationKind.Area);
         if (!string.IsNullOrWhiteSpace(RowCode)) query = query.Where(location => location.RowCode == RowCode);
         if (!string.IsNullOrWhiteSpace(Search))
@@ -179,26 +206,56 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
             : await dbContext.ProductLocationAssignments.AsNoTracking()
                 .Where(assignment => assignment.IsActive && ids.Contains(assignment.LocationId))
                 .OrderBy(assignment => assignment.Product.Sku)
-                .Select(assignment => new AssignmentRow(assignment.LocationId, assignment.Product.Sku))
+                .Select(assignment => new AssignmentRow(assignment.LocationId, assignment.ProductId, assignment.Product.Sku))
                 .ToListAsync(cancellationToken);
         var byLocation = assignments.GroupBy(assignment => assignment.LocationId)
             .ToDictionary(group => group.Key, group => group.Select(assignment => assignment.Sku).ToArray());
+        var balanceSources = ids.Length == 0
+            ? []
+            : await dbContext.InventoryBalances.AsNoTracking().Where(balance => ids.Contains(balance.LocationId))
+                .Select(balance => new BalanceSource(balance.LocationId, balance.ProductId, balance.Product.Sku,
+                    balance.Product.Description, balance.Product.BaseUnit.Code, balance.Quantity))
+                .ToListAsync(cancellationToken);
+        var assignedKeys = assignments.Select(assignment => (assignment.LocationId, assignment.ProductId)).ToHashSet();
+        var balanceLookup = balanceSources
+            .GroupBy(balance => balance.LocationId)
+            .ToDictionary(group => group.Key, group => group.GroupBy(balance => new { balance.ProductId, balance.Sku, balance.Description, balance.Unit })
+                .Select(item => new LocationBalance(item.Key.ProductId, item.Key.Sku, item.Key.Description, item.Key.Unit,
+                    item.Sum(balance => balance.Quantity), assignedKeys.Contains((group.Key, item.Key.ProductId))))
+                .Where(item => item.Quantity != 0).OrderBy(item => item.Sku, StringComparer.Ordinal).ToArray() as IReadOnlyList<LocationBalance>);
         return locations.Select(location =>
         {
             var skus = byLocation.GetValueOrDefault(location.Id) ?? [];
             return new LocationRow(location.Id, location.Code, location.Kind, location.RowCode,
                 location.RackNumber, location.PalletNumber, location.Description, location.IsBlocked,
-                location.BlockReason, location.IsActive, skus.Take(3).ToArray(), skus.Length);
+                location.BlockReason, location.IsActive, skus.Take(3).ToArray(), skus.Length,
+                balanceLookup.GetValueOrDefault(location.Id) ?? []);
         }).ToArray();
     }
 
     private sealed record LocationBaseRow(Guid Id, string Code, LocationKind Kind, string? RowCode,
         short? RackNumber, short? PalletNumber, string? Description, bool IsBlocked,
         string? BlockReason, bool IsActive);
-    private sealed record AssignmentRow(Guid LocationId, string Sku);
+    private sealed record AssignmentRow(Guid LocationId, Guid ProductId, string Sku);
+    private sealed record BalanceSource(Guid LocationId, Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity);
+    public sealed record LocationBalance(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, bool IsAssigned);
     public sealed record LocationRow(Guid Id, string Code, LocationKind Kind, string? RowCode,
         short? RackNumber, short? PalletNumber, string? Description, bool IsBlocked,
-        string? BlockReason, bool IsActive, IReadOnlyList<string> Skus, int ProductCount);
-    public sealed record RackLayout(string RowCode, short RackNumber, IReadOnlyList<LocationRow?> Positions);
+        string? BlockReason, bool IsActive, IReadOnlyList<string> Skus, int ProductCount, IReadOnlyList<LocationBalance> Balances)
+    {
+        public bool HasInventory => Balances.Count > 0;
+        public bool HasNegative => Balances.Any(balance => balance.Quantity < 0);
+        public bool HasIssue => !IsActive || IsBlocked || HasNegative;
+        public string RackState => HasNegative ? "negative" : !IsActive ? "inactive" : IsBlocked ? "blocked" : HasInventory ? "occupied" : "empty";
+    }
+    public sealed record RackLayout(string RowCode, short RackNumber, IReadOnlyList<LocationRow?> Positions)
+    {
+        private IEnumerable<LocationRow> Existing => Positions.OfType<LocationRow>();
+        public int PositionCount => Existing.Count();
+        public int OccupiedCount => Existing.Count(position => position.HasInventory);
+        public int EmptyCount => Existing.Count(position => !position.HasInventory);
+        public int IssueCount => Existing.Count(position => position.HasIssue);
+        public string RackState => Existing.Any(position => position.HasNegative) ? "negative" : Existing.Any(position => !position.IsActive) ? "inactive" : Existing.Any(position => position.IsBlocked) ? "blocked" : Existing.Any(position => position.HasInventory) ? "occupied" : "empty";
+    }
     public sealed record LocationSummary(int Available, int Blocked, int Inactive, int Racks, int Areas);
 }

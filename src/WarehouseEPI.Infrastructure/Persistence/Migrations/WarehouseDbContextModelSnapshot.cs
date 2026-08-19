@@ -222,6 +222,18 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("operation_id");
 
+                    b.Property<Guid?>("OperationalAreaId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operational_area_id");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasDefaultValue("STANDARD")
+                        .HasColumnName("purpose");
+
                     b.Property<DateTimeOffset>("RecordedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -257,11 +269,19 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.HasIndex("OperationId")
                         .IsUnique();
 
+                    b.HasIndex("OperationalAreaId");
+
+                    b.HasIndex("Purpose", "OccurredAt");
+
                     b.HasIndex("ResponsibleUserId", "OccurredAt");
 
                     b.ToTable("inventory_movements", null, t =>
                         {
                             t.HasCheckConstraint("ck_inventory_movements_type", "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
+
+                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN')");
+
+                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL)");
                         });
                 });
 
@@ -471,6 +491,14 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(10)")
                         .HasColumnName("kind");
 
+                    b.Property<string>("OperationalRole")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("STORAGE")
+                        .HasColumnName("operational_role");
+
                     b.Property<short?>("PalletNumber")
                         .HasColumnType("smallint")
                         .HasColumnName("pallet_number");
@@ -507,7 +535,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_locations_kind", "kind IN ('RACK', 'AREA')");
 
+                            t.HasCheckConstraint("ck_locations_operational_role", "operational_role IN ('STORAGE', 'WIP', 'OTHER')");
+
                             t.HasCheckConstraint("ck_locations_structure", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND pallet_number BETWEEN 1 AND 9 AND code = row_code || '-' || rack_number::text || '-' || pallet_number::text) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND pallet_number IS NULL AND code ~ '^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$')");
+
+                            t.HasCheckConstraint("ck_locations_wip_area", "operational_role <> 'WIP' OR kind = 'AREA'");
                         });
                 });
 
@@ -1454,12 +1486,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("id");
 
-                    b.Property<uint>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
-
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1548,6 +1574,108 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("warehouse_map_revisions", (string)null);
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDisposition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("DestinationLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_location_id");
+
+                    b.Property<Guid?>("InventoryMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("OriginalMovementLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("original_movement_line_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("reference");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<Guid?>("ReversesDispositionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reverses_disposition_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationLocationId");
+
+                    b.HasIndex("InventoryMovementId")
+                        .IsUnique()
+                        .HasFilter("inventory_movement_id IS NOT NULL");
+
+                    b.HasIndex("OccurredAt");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("OriginalMovementLineId");
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ReversesDispositionId")
+                        .IsUnique()
+                        .HasFilter("reverses_disposition_id IS NOT NULL");
+
+                    b.ToTable("wip_dispositions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_wip_dispositions_quantity", "quantity > 0");
+
+                            t.HasCheckConstraint("ck_wip_dispositions_shape", "(type = 'WAREHOUSE_RETURN' AND destination_location_id IS NOT NULL AND inventory_movement_id IS NOT NULL) OR (type = 'SUPPLIER_RETURN' AND destination_location_id IS NULL AND inventory_movement_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_wip_dispositions_type", "type IN ('WAREHOUSE_RETURN', 'SUPPLIER_RETURN')");
+                        });
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.BusinessSettings", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.User", "UpdatedByUser")
@@ -1613,11 +1741,18 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryMovement", b =>
                 {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "OperationalArea")
+                        .WithMany()
+                        .HasForeignKey("OperationalAreaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
                         .WithMany()
                         .HasForeignKey("ResponsibleUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("OperationalArea");
 
                     b.Navigation("ResponsibleUser");
                 });
@@ -1861,6 +1996,46 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("AuthorizedByUser");
 
                     b.Navigation("RequestedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDisposition", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DestinationLocation")
+                        .WithMany()
+                        .HasForeignKey("DestinationLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "InventoryMovement")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "OriginalMovementLine")
+                        .WithMany()
+                        .HasForeignKey("OriginalMovementLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.WipDisposition", "ReversesDisposition")
+                        .WithMany()
+                        .HasForeignKey("ReversesDispositionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DestinationLocation");
+
+                    b.Navigation("InventoryMovement");
+
+                    b.Navigation("OriginalMovementLine");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("ReversesDisposition");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryMovement", b =>

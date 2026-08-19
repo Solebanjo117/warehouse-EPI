@@ -76,6 +76,18 @@ public sealed class InventoryMovementService(
             if (locationErrors.Count != 0)
                 return await AbortAsync(transaction, new(InventoryMovementStatus.ValidationFailed, Errors: locationErrors), cancellationToken);
 
+            if (command.OperationalAreaId is Guid operationalAreaId)
+            {
+                var operationalArea = await dbContext.Locations.AsNoTracking()
+                    .SingleOrDefaultAsync(item => item.Id == operationalAreaId, cancellationToken);
+                if (operationalArea is null || !operationalArea.IsOperational ||
+                    operationalArea.OperationalRole != LocationOperationalRole.Wip)
+                {
+                    return await AbortAsync(transaction, new(InventoryMovementStatus.ValidationFailed,
+                        Errors: ["La zona WIP indicada no existe o no está disponible."]), cancellationToken);
+                }
+            }
+
             var conflicts = await movementStore.FindSharingConflictsAsync(
                 pairs,
                 products,
@@ -128,6 +140,8 @@ public sealed class InventoryMovementService(
                 OperationId = command.OperationId,
                 RequestFingerprint = fingerprint,
                 Type = command.Type,
+                Purpose = command.Purpose,
+                OperationalAreaId = command.OperationalAreaId,
                 ResponsibleUserId = user.Id,
                 Reference = command.Reference,
                 Notes = command.Notes,

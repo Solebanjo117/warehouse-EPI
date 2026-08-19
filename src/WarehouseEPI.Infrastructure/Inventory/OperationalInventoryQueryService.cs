@@ -19,7 +19,9 @@ public sealed record OperationalLocationResult(
     string Code,
     string? Description,
     bool IsActive,
-    bool IsBlocked);
+    bool IsBlocked,
+    LocationOperationalRole OperationalRole = LocationOperationalRole.Storage,
+    bool TracksInventory = true);
 
 public sealed record OperationalCodeResolution(
     OperationalProductResult? Product,
@@ -35,7 +37,8 @@ public sealed record OperationalProductLocationResult(
     string? Description,
     decimal Quantity,
     bool HasActiveAssignment,
-    bool HasNonZeroBalance);
+    bool HasNonZeroBalance,
+    bool TracksInventory = true);
 
 public sealed record OperationalLocationProductResult(
     Guid Id,
@@ -69,6 +72,8 @@ public sealed record InventoryReceipt(
     Guid MovementId,
     Guid OperationId,
     InventoryMovementType Type,
+    InventoryMovementPurpose Purpose,
+    string? OperationalAreaCode,
     string ResponsibleName,
     string? Reference,
     string? Notes,
@@ -216,6 +221,21 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<OperationalLocationResult>> SearchWipLocationsAsync(
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = LocationNormalization.NormalizeForLookup(search);
+        return await LocationQuery(true)
+            .Where(location => location.OperationalRole == LocationOperationalRole.Wip &&
+                (normalized == string.Empty || location.Code.Contains(normalized) ||
+                    (location.Description != null && location.Description.ToUpper().Contains(normalized))))
+            .OrderBy(location => location.Code)
+            .Take(ResultLimit)
+            .Select(ToLocationResult())
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<OperationalProductLocationResult>> GetProductLocationsAsync(
         Guid productId,
         CancellationToken cancellationToken = default)
@@ -230,7 +250,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 assignment.Location.Description,
                 0m,
                 true,
-                false))
+                false,
+                assignment.Location.OperationalRole != LocationOperationalRole.Wip))
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
@@ -242,7 +263,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 balance.Location.Description,
                 balance.Quantity,
                 false,
-                true))
+                true,
+                balance.Location.OperationalRole != LocationOperationalRole.Wip))
             .ToListAsync(cancellationToken);
 
         return MergeProductLocations(assignments, balances);
@@ -292,6 +314,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
     {
         var movement = await dbContext.InventoryMovements.AsNoTracking()
             .Include(item => item.ResponsibleUser)
+            .Include(item => item.OperationalArea)
             .Include(item => item.Lines).ThenInclude(line => line.Product)
             .Include(item => item.Lines).ThenInclude(line => line.Unit)
             .Include(item => item.Lines).ThenInclude(line => line.SourceLocation)
@@ -310,6 +333,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             movement.Id,
             movement.OperationId,
             movement.Type,
+            movement.Purpose,
+            movement.OperationalArea?.Code,
             movement.ResponsibleUser.FullName,
             movement.Reference,
             movement.Notes,
@@ -354,7 +379,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             product.IsActive);
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
-        location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked);
+        location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked,
+            location.OperationalRole, location.OperationalRole != LocationOperationalRole.Wip);
 
     private static IReadOnlyList<OperationalProductLocationResult> MergeProductLocations(
         IEnumerable<OperationalProductLocationResult> assignments,

@@ -19,7 +19,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
 
     public async Task OnGetAsync(CancellationToken token)
     {
-        Map = await maps.GetAsync(true, token); Input = new() { OperationId = Guid.NewGuid(), ExpectedVersion = Map.Version, GeometryJson = JsonSerializer.Serialize(Map.Elements.Concat(Map.Unplaced).Select(ToGeometry)) };
+        Map = await maps.GetAsync(true, token); Input = new() { OperationId = Guid.NewGuid(), GeometryJson = JsonSerializer.Serialize(Map.Elements.Concat(Map.Unplaced).Select(ToGeometry)) };
         if (!Map.IsInitialized) PreviewToken = previews.Save(CurrentUserId()).Token; else Revisions = await maps.GetRevisionsAsync(token: token);
     }
 
@@ -38,14 +38,14 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         try { geometry = JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []; }
         catch (JsonException) { geometry = []; ModelState.AddModelError(string.Empty, "La geometría recibida no es válida."); }
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
-        var result = await maps.SaveAsync(new(Input.OperationId, CurrentUserId(), Input.Pin, Input.ExpectedVersion, Input.Reason, geometry), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
+        var result = await maps.SaveAsync(new(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         return await CompleteAsync(result, "Cambios del croquis guardados.", token);
     }
 
     private async Task<IActionResult> CompleteAsync(WarehouseMapSaveResult result, string message, CancellationToken token)
     {
         if (result.Status == WarehouseMapSaveStatus.Success) { Message = message; return RedirectToPage("/Admin/Catalogs/Locations/Index", new { viewMode = "map" }); }
-        var error = result.Status switch { WarehouseMapSaveStatus.InvalidPin => "NIP inválido o sin permiso ADMIN.", WarehouseMapSaveStatus.Conflict => "El croquis cambió mientras estaba abierto. Recarga la versión actual y vuelve a confirmar con NIP.", WarehouseMapSaveStatus.IdempotencyConflict => "El UUID ya fue usado con datos diferentes.", WarehouseMapSaveStatus.NotInitialized => "Primero confirma la distribución inicial.", WarehouseMapSaveStatus.Unauthorized => "La sesión ADMIN ya no es válida.", _ => "No fue posible guardar el croquis." };
+        var error = result.Status switch { WarehouseMapSaveStatus.InvalidPin => "NIP inválido o sin permiso ADMIN.", WarehouseMapSaveStatus.Conflict => "El croquis ya fue inicializado. Vuelve a abrir el editor.", WarehouseMapSaveStatus.IdempotencyConflict => "El UUID ya fue usado con datos diferentes.", WarehouseMapSaveStatus.NotInitialized => "Primero confirma la distribución inicial.", WarehouseMapSaveStatus.Unauthorized => "La sesión ADMIN ya no es válida.", _ => "No fue posible guardar el croquis." };
         foreach (var item in result.ValidationErrors.DefaultIfEmpty(error)) ModelState.AddModelError(string.Empty, item); await ReloadAsync(token); return Page();
     }
 
@@ -56,10 +56,12 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         {
             try { var draft = (JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []).ToDictionary(item => item.Id); Map = Map with { Elements = Map.Elements.Select(item => ApplyGeometry(item, draft)).ToArray(), Unplaced = Map.Unplaced.Select(item => ApplyGeometry(item, draft)).ToArray() }; } catch (JsonException) { Input.GeometryJson = string.Empty; }
         }
-        Input.OperationId = Guid.NewGuid(); Input.ExpectedVersion = Map.Version; if (string.IsNullOrWhiteSpace(Input.GeometryJson)) Input.GeometryJson = JsonSerializer.Serialize(Map.Elements.Concat(Map.Unplaced).Select(ToGeometry));
+        Input.OperationId = Guid.NewGuid();
+        ModelState.Remove($"{nameof(Input)}.{nameof(InputModel.OperationId)}");
+        if (string.IsNullOrWhiteSpace(Input.GeometryJson)) Input.GeometryJson = JsonSerializer.Serialize(Map.Elements.Concat(Map.Unplaced).Select(ToGeometry));
     }
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
     private static WarehouseMapGeometry ToGeometry(WarehouseMapElementView item) => new(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible);
     private static WarehouseMapElementView ApplyGeometry(WarehouseMapElementView item, IReadOnlyDictionary<Guid, WarehouseMapGeometry> draft) => draft.TryGetValue(item.Id, out var geometry) ? item with { X = geometry.X, Y = geometry.Y, Width = geometry.Width, Height = geometry.Height, Rotation = geometry.Rotation, ZIndex = geometry.ZIndex, IsVisible = geometry.IsVisible } : item;
-    public sealed class InputModel { public Guid OperationId { get; set; } public int ExpectedVersion { get; set; } public string GeometryJson { get; set; } = "[]"; public string? Reason { get; set; } public string Pin { get; set; } = string.Empty; }
+    public sealed class InputModel { public Guid OperationId { get; set; } public string GeometryJson { get; set; } = "[]"; public string? Reason { get; set; } public string Pin { get; set; } = string.Empty; }
 }

@@ -3,22 +3,31 @@
 @model WarehouseEPI.Web.Pages.Operations.ReceiptModel
 @{
     ViewData["Title"] = "Operación confirmada";
-    var typeName = Model.Receipt.Type switch
+    var typeName = Model.Receipt.Purpose switch
+    {
+        InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
+        InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP a bodega",
+        _ => Model.Receipt.Type switch
     {
         InventoryMovementType.Entry => "Entrada",
         InventoryMovementType.Exit => "Salida",
         InventoryMovementType.Transfer => "Transferencia",
         InventoryMovementType.Adjustment => "Ajuste",
         _ => "Movimiento"
-    };
-    var newPage = Model.Receipt.Type switch
+    }};
+    var newPage = Model.Receipt.Purpose switch
+    {
+        InventoryMovementPurpose.ProductionIssue => "/Operations/Exit",
+        InventoryMovementPurpose.WipWarehouseReturn => "/Operations/WipReturn",
+        _ => Model.Receipt.Type switch
     {
         InventoryMovementType.Entry => "/Operations/Entry",
         InventoryMovementType.Exit => "/Operations/Exit",
         InventoryMovementType.Transfer => "/Operations/Transfer",
         InventoryMovementType.Adjustment => "/Operations/Adjustment",
         _ => "/Index"
-    };
+    }};
+    var newMode = Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue ? "wip" : null;
 }
 
 <div class="receipt-shell">
@@ -50,6 +59,10 @@
             }
         </div>
     </section>
+    @if (Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue)
+    {
+        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">Rack WIP — no controla saldo. El material se considera consumido al confirmar este surtimiento.</p></section>
+    }
 
     @if (Model.Receipt.Correction is not null)
     {
@@ -76,7 +89,7 @@
             <p class="receipt-quantity"><strong>@line.Quantity.ToString("0.####") @line.UnitCode</strong></p>
             @if (line.SourceLocationCode is not null || line.DestinationLocationCode is not null)
             {
-                <p class="receipt-route"><strong>@(line.SourceLocationCode ?? "—")</strong><span aria-hidden="true"> → </span><strong>@(line.DestinationLocationCode ?? "—")</strong></p>
+                <p class="receipt-route"><strong>@(line.SourceLocationCode ?? "—")</strong><span aria-hidden="true"> → </span><strong>@(line.DestinationLocationCode ?? Model.Receipt.OperationalAreaCode ?? "—")</strong></p>
             }
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
@@ -104,6 +117,6 @@
 
     <div class="operation-actions">
         <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">Menú</a>
-        <a asp-page="@newPage" class="btn btn-primary btn-lg flex-grow-1">Nueva operación</a>
+        <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">Nueva operación</a>
     </div>
 </div>
