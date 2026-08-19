@@ -16,6 +16,10 @@ public sealed class DetailsModel(
     public LocationDetails Location { get; private set; } = null!;
     public IReadOnlyList<AssignmentRow> Assignments { get; private set; } = [];
     public IReadOnlyList<ProductResult> ProductResults { get; private set; } = [];
+    public IReadOnlyList<BalanceRow> Balances { get; private set; } = [];
+    public IReadOnlyList<MovementRow> RecentMovements { get; private set; } = [];
+    public IReadOnlyList<NeighborRow> Neighbors { get; private set; } = [];
+    public bool IsMapped { get; private set; }
     public string? ProductSearch { get; private set; }
     [TempData] public string? Message { get; set; }
     [TempData] public string? Error { get; set; }
@@ -60,6 +64,32 @@ public sealed class DetailsModel(
                 assignment.Product.Description, assignment.Product.IsActive, assignment.IsActive))
             .ToListAsync(cancellationToken);
 
+        var locationBalances = await dbContext.InventoryBalances.AsNoTracking().Where(balance => balance.LocationId == id)
+            .Select(balance => new BalanceSource(balance.ProductId, balance.Product.Sku, balance.Product.Description,
+                balance.Product.BaseUnit.Code, balance.Quantity)).ToListAsync(cancellationToken);
+        var balanceRows = locationBalances.GroupBy(balance => new { balance.ProductId, balance.Sku, balance.Description, balance.Unit })
+            .Select(group => new BalanceRow(group.Key.ProductId, group.Key.Sku, group.Key.Description, group.Key.Unit,
+                group.Sum(balance => balance.Quantity), false))
+            .Where(item => item.Quantity != 0).OrderBy(item => item.Sku, StringComparer.Ordinal).ToArray();
+        var balanceProductIds = balanceRows.Select(item => item.ProductId).ToArray();
+        var assignedProductIds = balanceProductIds.Length == 0 ? [] : await dbContext.ProductLocationAssignments.AsNoTracking()
+            .Where(assignment => assignment.LocationId == id && assignment.IsActive && balanceProductIds.Contains(assignment.ProductId))
+            .Select(assignment => assignment.ProductId).ToListAsync(cancellationToken);
+        var assignedProducts = assignedProductIds.ToHashSet();
+        Balances = balanceRows.Select(item => item with { IsAssigned = assignedProducts.Contains(item.ProductId) }).ToArray();
+        var locationChanges = await dbContext.InventoryBalanceChanges.AsNoTracking().Where(change => change.LocationId == id)
+            .Select(change => new MovementSource(change.MovementLine.MovementId, change.MovementLine.Movement.OccurredAt,
+                change.MovementLine.Movement.Type, change.MovementLine.Product.Sku, change.DeltaQuantity))
+            .ToListAsync(cancellationToken);
+        RecentMovements = locationChanges.GroupBy(change => new { change.MovementId, change.OccurredAt, change.Type, change.Sku })
+            .Select(group => new MovementRow(group.Key.MovementId, group.Key.OccurredAt, group.Key.Type, group.Key.Sku,
+                group.Sum(change => change.Delta)))
+            .OrderByDescending(item => item.OccurredAt).Take(10).ToArray();
+        if (location.Kind == LocationKind.Rack)
+            Neighbors = await dbContext.Locations.AsNoTracking().Where(candidate => candidate.RowCode == location.RowCode && candidate.RackNumber == location.RackNumber && candidate.Id != id)
+                .OrderBy(candidate => candidate.PalletNumber).Select(candidate => new NeighborRow(candidate.Id, candidate.Code, candidate.PalletNumber, candidate.IsActive, candidate.IsBlocked)).ToListAsync(cancellationToken);
+        IsMapped = await dbContext.WarehouseMapElements.AsNoTracking().AnyAsync(item => item.IsVisible && (item.LocationId == id || (item.RowCode == location.RowCode && item.RackNumber == location.RackNumber)), cancellationToken);
+
         if (!string.IsNullOrWhiteSpace(ProductSearch))
         {
             var term = ProductSearch.ToUpperInvariant();
@@ -98,4 +128,9 @@ public sealed class DetailsModel(
     public sealed record AssignmentRow(Guid ProductId, string Sku, string? Description,
         bool ProductIsActive, bool IsActive);
     public sealed record ProductResult(Guid Id, string Sku, string? Description, bool IsAssigned);
+    private sealed record BalanceSource(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity);
+    private sealed record MovementSource(Guid MovementId, DateTimeOffset OccurredAt, InventoryMovementType Type, string Sku, decimal Delta);
+    public sealed record BalanceRow(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, bool IsAssigned);
+    public sealed record MovementRow(Guid MovementId, DateTimeOffset OccurredAt, InventoryMovementType Type, string Sku, decimal Delta);
+    public sealed record NeighborRow(Guid Id, string Code, short? PalletNumber, bool IsActive, bool IsBlocked);
 }

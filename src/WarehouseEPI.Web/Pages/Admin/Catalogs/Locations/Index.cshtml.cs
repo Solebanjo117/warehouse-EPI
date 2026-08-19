@@ -3,14 +3,16 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
+public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService mapService) : PageModel
 {
-    private const int PageSize = 50;
+    internal IndexModel(WarehouseDbContext dbContext) : this(dbContext, new WarehouseMapService(dbContext)) { }
+    private const int PageSize = 25;
     private static readonly short[] KeypadOrder = [7, 8, 9, 4, 5, 6, 1, 2, 3];
 
     public IReadOnlyList<LocationRow> Locations { get; private set; } = [];
@@ -21,7 +23,10 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
     public string? Search { get; private set; }
     public string Status { get; private set; } = "active";
     public string Kind { get; private set; } = "all";
-    public string ViewMode { get; private set; } = "layout";
+    public string ViewMode { get; private set; } = "map";
+    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0);
+    public IReadOnlySet<Guid> MapMatches { get; private set; } = new HashSet<Guid>();
+    public Guid? HighlightLocationId { get; private set; }
     public string? RowCode { get; private set; }
     public int CurrentPage { get; private set; } = 1;
     public int TotalPages { get; private set; } = 1;
@@ -30,13 +35,14 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
     [TempData] public string? Error { get; set; }
 
     public async Task OnGetAsync(string? search, string status = "active", string kind = "all",
-        string viewMode = "layout", string? rowCode = null, int pageNumber = 1,
+        string viewMode = "map", string? rowCode = null, int pageNumber = 1, Guid? highlightLocationId = null,
         CancellationToken cancellationToken = default)
     {
         Search = search?.Trim();
         Status = status is "all" or "inactive" or "blocked" ? status : "active";
         Kind = kind is "rack" or "area" ? kind : "all";
-        ViewMode = viewMode == "table" ? "table" : "layout";
+        ViewMode = viewMode == "layout" ? "racks" : viewMode is "table" or "racks" ? viewMode : "map";
+        HighlightLocationId = highlightLocationId;
         RowCode = rowCode?.Trim().ToUpperInvariant();
         CurrentPage = Math.Max(1, pageNumber);
 
@@ -51,6 +57,11 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
             await dbContext.Locations.CountAsync(location => location.Kind == LocationKind.Area, cancellationToken));
 
         var query = ApplyFilters(dbContext.Locations.AsNoTracking());
+        if (ViewMode == "map")
+        {
+            Map = await mapService.GetAsync(true, cancellationToken);
+            MapMatches = (string.IsNullOrWhiteSpace(Search) ? [] : await query.Select(location => location.Id).ToListAsync(cancellationToken)).Append(HighlightLocationId ?? Guid.Empty).Where(id => id != Guid.Empty).ToHashSet();
+        }
         var count = await query.CountAsync(cancellationToken);
         TotalPages = Math.Max(1, (int)Math.Ceiling(count / (double)PageSize));
         CurrentPage = Math.Min(CurrentPage, TotalPages);
@@ -145,7 +156,11 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
                     (assignment.Product.Sku.Contains(term) ||
                      (assignment.Product.Description != null && assignment.Product.Description.ToUpper().Contains(term)) ||
                      (assignment.Product.ExternalReference != null && assignment.Product.ExternalReference.ToUpper().Contains(term)) ||
-                     assignment.Product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(term)))));
+                     assignment.Product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(term)))) ||
+                dbContext.InventoryBalances.Any(balance => balance.LocationId == location.Id && (balance.Product.Sku.Contains(term) ||
+                    (balance.Product.Description != null && balance.Product.Description.ToUpper().Contains(term)) ||
+                    (balance.Product.ExternalReference != null && balance.Product.ExternalReference.ToUpper().Contains(term)) ||
+                    balance.Product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(term)))));
         }
         return query;
     }

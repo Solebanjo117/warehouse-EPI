@@ -4,12 +4,15 @@ using WarehouseEPI.Infrastructure.Persistence;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
-public sealed record InventoryHistoryFilter(DateTimeOffset? From, DateTimeOffset? To, InventoryMovementType? Type, string? Search, Guid? ProductId, Guid? LocationId, Guid? ResponsibleUserId);
-public sealed record InventoryMovementHistoryRow(Guid Id, Guid OperationId, InventoryMovementType Type, DateTimeOffset OccurredAt, string ResponsibleName, string? Reference, string ProductSummary, bool IsCorrected, Guid? CorrectionId);
+public enum InventoryHistoryCorrectionState { All, Current, CorrectedOriginal, Reversal, Replacement }
+public sealed record InventoryHistoryFilter(DateTimeOffset? From, DateTimeOffset? To, InventoryMovementType? Type, string? Search, Guid? ProductId, Guid? LocationId, Guid? ResponsibleUserId, InventoryHistoryCorrectionState State = InventoryHistoryCorrectionState.All);
+public sealed record InventoryMovementHistoryRow(Guid Id, Guid OperationId, InventoryMovementType Type, DateTimeOffset OccurredAt, string ResponsibleName, string? Reference, string ProductSummary, bool IsCorrected, Guid? CorrectionId, string Status, string Route, string Quantity, bool HasNegativeBalance, string? LotSummary);
 public sealed record InventoryMovementHistoryPage(IReadOnlyList<InventoryMovementHistoryRow> Items, int TotalCount);
-public sealed record InventoryMovementDetailLine(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, string? Source, string? Destination, decimal? Previous, decimal? AdjustmentDelta, IReadOnlyList<InventoryReceiptChange> Changes);
+public sealed record InventoryMovementBalanceChange(Guid LocationId, string Location, Guid? LotId, string? LotNumber, DateOnly? LotDate, decimal Previous, decimal Delta, decimal Resulting);
+public sealed record InventoryMovementDetailLine(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, Guid? SourceLocationId, string? Source, Guid? DestinationLocationId, string? Destination, Guid? LotId, string? LotNumber, DateOnly? LotDate, decimal? Previous, decimal? AdjustmentDelta, IReadOnlyList<InventoryMovementBalanceChange> Changes);
 public sealed record InventoryMovementDetail(Guid Id, Guid OperationId, InventoryMovementType Type, DateTimeOffset OccurredAt, DateTimeOffset RecordedAt, string ResponsibleName, string? Reference, string? Notes, IReadOnlyList<InventoryMovementDetailLine> Lines, InventoryCorrectionLink? OriginalCorrection, InventoryCorrectionLink? ReversalCorrection, InventoryCorrectionLink? ReplacementCorrection);
 public sealed record InventoryCorrectionLink(Guid CorrectionId, InventoryMovementCorrectionType Type, Guid OriginalMovementId, Guid ReversalMovementId, Guid? ReplacementMovementId, string Reason, string RequestedBy, string AuthorizedBy);
+public sealed record InventoryMovementTraceRow(Guid MovementId, Guid OperationId, string Status, DateTimeOffset OccurredAt, string TimeZoneId, string Responsible, string? Reference, string? Notes, string ProductSku, string? ProductDescription, string Unit, decimal CapturedQuantity, string? Source, string? Destination, string? Location, string? LotNumber, DateOnly? LotDate, string AllocationMode, decimal? Previous, decimal? Delta, decimal? Resulting);
 
 public sealed class InventoryHistoryService(WarehouseDbContext dbContext)
 {
@@ -17,51 +20,65 @@ public sealed class InventoryHistoryService(WarehouseDbContext dbContext)
     {
         var query = Apply(dbContext.InventoryMovements.AsNoTracking(), filter);
         var total = await query.CountAsync(token);
-        var rows = await query.OrderByDescending(item => item.OccurredAt).ThenByDescending(item => item.Id)
-            .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize)
-            .Select(item => new InventoryMovementHistoryRow(item.Id, item.OperationId, item.Type, item.OccurredAt, item.ResponsibleUser.FullName, item.Reference,
-                item.Lines.OrderBy(line => line.LineNumber).Select(line => line.Product.Sku).FirstOrDefault() ?? "—",
-                dbContext.InventoryMovementCorrections.Any(c => c.OriginalMovementId == item.Id || c.ReversalMovementId == item.Id || c.ReplacementMovementId == item.Id),
-                dbContext.InventoryMovementCorrections.Where(c => c.OriginalMovementId == item.Id || c.ReversalMovementId == item.Id || c.ReplacementMovementId == item.Id).Select(c => (Guid?)c.Id).FirstOrDefault()))
-            .ToListAsync(token);
-        return new(rows, total);
+        var items = await query.Include(m => m.ResponsibleUser).Include(m => m.Lines).ThenInclude(l => l.Product).ThenInclude(p => p.BaseUnit)
+            .Include(m => m.Lines).ThenInclude(l => l.SourceLocation).Include(m => m.Lines).ThenInclude(l => l.DestinationLocation).Include(m => m.Lines).ThenInclude(l => l.Lot)
+            .Include(m => m.Lines).ThenInclude(l => l.BalanceChanges).OrderByDescending(m => m.OccurredAt).ThenByDescending(m => m.Id)
+            .Skip((Math.Max(1, page) - 1) * pageSize).Take(pageSize).ToListAsync(token);
+        var links = await GetCorrectionStatesAsync(items.Select(m => m.Id), token);
+        return new(items.Select(m => ToRow(m, links.GetValueOrDefault(m.Id))).ToArray(), total);
     }
 
-    public async Task<IReadOnlyList<InventoryMovementHistoryRow>> ExportAsync(InventoryHistoryFilter filter, CancellationToken token = default)
+    public async Task<IReadOnlyList<InventoryMovementTraceRow>> ExportTraceAsync(InventoryHistoryFilter filter, string timeZoneId, CancellationToken token = default)
     {
-        var query = Apply(dbContext.InventoryMovements.AsNoTracking(), filter);
-        return await query.OrderByDescending(item => item.OccurredAt).ThenByDescending(item => item.Id)
-            .Select(item => new InventoryMovementHistoryRow(item.Id, item.OperationId, item.Type, item.OccurredAt, item.ResponsibleUser.FullName, item.Reference,
-                item.Lines.OrderBy(line => line.LineNumber).Select(line => line.Product.Sku).FirstOrDefault() ?? "—", false, null)).ToListAsync(token);
+        var movements = await Apply(dbContext.InventoryMovements.AsNoTracking(), filter).Include(m => m.ResponsibleUser).Include(m => m.Lines).ThenInclude(l => l.Product).ThenInclude(p => p.BaseUnit)
+            .Include(m => m.Lines).ThenInclude(l => l.SourceLocation).Include(m => m.Lines).ThenInclude(l => l.DestinationLocation).Include(m => m.Lines).ThenInclude(l => l.Lot)
+            .Include(m => m.Lines).ThenInclude(l => l.BalanceChanges).ThenInclude(c => c.Location).OrderByDescending(m => m.OccurredAt).ThenByDescending(m => m.Id).ToListAsync(token);
+        var states = await GetCorrectionStatesAsync(movements.Select(m => m.Id), token);
+        var rows = new List<InventoryMovementTraceRow>();
+        foreach (var movement in movements) foreach (var line in movement.Lines.OrderBy(l => l.LineNumber))
+        {
+            var changes = line.BalanceChanges.Count != 0 ? line.BalanceChanges.Select(c => (InventoryBalanceChange?)c) : [null];
+            foreach (var change in changes) rows.Add(new(movement.Id, movement.OperationId, states.GetValueOrDefault(movement.Id, "Vigente"), movement.OccurredAt, timeZoneId, movement.ResponsibleUser.FullName, movement.Reference, movement.Notes, line.Product.Sku, line.Product.Description, line.Product.BaseUnit.Code, line.Quantity, line.SourceLocation?.Code, line.DestinationLocation?.Code, change?.Location.Code, change?.LotNumberSnapshot ?? line.Lot?.Number, change?.LotDateSnapshot ?? line.Lot?.LotDate, line.LotAllocationMode.ToString(), change?.PreviousQuantity, change?.DeltaQuantity, change?.ResultingQuantity));
+        }
+        return rows;
     }
 
     public async Task<InventoryMovementDetail?> GetAsync(Guid id, CancellationToken token = default)
     {
-        var item = await dbContext.InventoryMovements.AsNoTracking().Include(m => m.ResponsibleUser)
-            .Include(m => m.Lines).ThenInclude(l => l.Product).ThenInclude(p => p.BaseUnit)
-            .Include(m => m.Lines).ThenInclude(l => l.SourceLocation)
-            .Include(m => m.Lines).ThenInclude(l => l.DestinationLocation)
-            .Include(m => m.Lines).ThenInclude(l => l.BalanceChanges).ThenInclude(c => c.Location)
-            .SingleOrDefaultAsync(m => m.Id == id, token);
+        var item = await dbContext.InventoryMovements.AsNoTracking().Include(m => m.ResponsibleUser).Include(m => m.Lines).ThenInclude(l => l.Product).ThenInclude(p => p.BaseUnit)
+            .Include(m => m.Lines).ThenInclude(l => l.SourceLocation).Include(m => m.Lines).ThenInclude(l => l.DestinationLocation).Include(m => m.Lines).ThenInclude(l => l.Lot)
+            .Include(m => m.Lines).ThenInclude(l => l.BalanceChanges).ThenInclude(c => c.Location).SingleOrDefaultAsync(m => m.Id == id, token);
         if (item is null) return null;
-        var correction = await dbContext.InventoryMovementCorrections.AsNoTracking().Include(c => c.RequestedByUser).Include(c => c.AuthorizedByUser)
-            .SingleOrDefaultAsync(c => c.OriginalMovementId == id || c.ReversalMovementId == id || c.ReplacementMovementId == id, token);
+        var correction = await dbContext.InventoryMovementCorrections.AsNoTracking().Include(c => c.RequestedByUser).Include(c => c.AuthorizedByUser).SingleOrDefaultAsync(c => c.OriginalMovementId == id || c.ReversalMovementId == id || c.ReplacementMovementId == id, token);
         InventoryCorrectionLink? link = correction is null ? null : new(correction.Id, correction.Type, correction.OriginalMovementId, correction.ReversalMovementId, correction.ReplacementMovementId, correction.Reason, correction.RequestedByUser.FullName, correction.AuthorizedByUser.FullName);
-        return new(item.Id, item.OperationId, item.Type, item.OccurredAt, item.RecordedAt, item.ResponsibleUser.FullName, item.Reference, item.Notes,
-            item.Lines.OrderBy(l => l.LineNumber).Select(l => new InventoryMovementDetailLine(l.ProductId, l.Product.Sku, l.Product.Description, l.Product.BaseUnit.Code, l.Quantity, l.SourceLocation?.Code, l.DestinationLocation?.Code, l.PreviousQuantity, l.AdjustmentDelta,
-                l.BalanceChanges.OrderBy(c => c.Location.Code).Select(c => new InventoryReceiptChange(c.Location.Code, c.PreviousQuantity, c.DeltaQuantity, c.ResultingQuantity)).ToArray())).ToArray(),
-            correction?.OriginalMovementId == id ? link : null, correction?.ReversalMovementId == id ? link : null, correction?.ReplacementMovementId == id ? link : null);
+        return new(item.Id, item.OperationId, item.Type, item.OccurredAt, item.RecordedAt, item.ResponsibleUser.FullName, item.Reference, item.Notes, item.Lines.OrderBy(l => l.LineNumber).Select(l => new InventoryMovementDetailLine(l.ProductId, l.Product.Sku, l.Product.Description, l.Product.BaseUnit.Code, l.Quantity, l.SourceLocationId, l.SourceLocation?.Code, l.DestinationLocationId, l.DestinationLocation?.Code, l.LotId, l.Lot?.Number, l.Lot?.LotDate, l.PreviousQuantity, l.AdjustmentDelta, l.BalanceChanges.OrderBy(c => c.Location.Code).Select(c => new InventoryMovementBalanceChange(c.LocationId, c.Location.Code, c.LotId, c.LotNumberSnapshot, c.LotDateSnapshot, c.PreviousQuantity, c.DeltaQuantity, c.ResultingQuantity)).ToArray())).ToArray(), correction?.OriginalMovementId == id ? link : null, correction?.ReversalMovementId == id ? link : null, correction?.ReplacementMovementId == id ? link : null);
     }
 
-    private static IQueryable<InventoryMovement> Apply(IQueryable<InventoryMovement> query, InventoryHistoryFilter f)
+    private InventoryMovementHistoryRow ToRow(InventoryMovement movement, string? state)
+    {
+        var line = movement.Lines.OrderBy(l => l.LineNumber).FirstOrDefault();
+        var route = line is null ? "—" : string.Join(" → ", new[] { line.SourceLocation?.Code, line.DestinationLocation?.Code }.Where(x => !string.IsNullOrWhiteSpace(x)).DefaultIfEmpty("Ubicación"));
+        return new(movement.Id, movement.OperationId, movement.Type, movement.OccurredAt, movement.ResponsibleUser.FullName, movement.Reference, line?.Product.Sku ?? "—", state is not null, state is null ? null : dbContext.InventoryMovementCorrections.Where(c => c.OriginalMovementId == movement.Id || c.ReversalMovementId == movement.Id || c.ReplacementMovementId == movement.Id).Select(c => (Guid?)c.Id).FirstOrDefault(), state ?? "Vigente", route, line is null ? "—" : $"{line.Quantity} {line.Product.BaseUnit.Code}", movement.Lines.SelectMany(l => l.BalanceChanges).Any(c => c.ResultingQuantity < 0), line?.Lot?.Number);
+    }
+
+    private async Task<Dictionary<Guid, string>> GetCorrectionStatesAsync(IEnumerable<Guid> ids, CancellationToken token)
+    {
+        var values = ids.ToArray(); var result = new Dictionary<Guid, string>();
+        var corrections = await dbContext.InventoryMovementCorrections.AsNoTracking().Where(c => values.Contains(c.OriginalMovementId) || values.Contains(c.ReversalMovementId) || (c.ReplacementMovementId != null && values.Contains(c.ReplacementMovementId.Value))).ToListAsync(token);
+        foreach (var c in corrections) { result[c.OriginalMovementId] = "Original corregido"; result[c.ReversalMovementId] = "Reverso"; if (c.ReplacementMovementId is not null) result[c.ReplacementMovementId.Value] = "Reemplazo"; }
+        return result;
+    }
+
+    private IQueryable<InventoryMovement> Apply(IQueryable<InventoryMovement> query, InventoryHistoryFilter f)
     {
         if (f.From is not null) query = query.Where(m => m.OccurredAt >= f.From);
-        if (f.To is not null) query = query.Where(m => m.OccurredAt < f.To.Value.AddDays(1));
+        if (f.To is not null) query = query.Where(m => m.OccurredAt < f.To);
         if (f.Type is not null) query = query.Where(m => m.Type == f.Type);
         if (f.ResponsibleUserId is not null) query = query.Where(m => m.ResponsibleUserId == f.ResponsibleUserId);
         if (f.ProductId is not null) query = query.Where(m => m.Lines.Any(l => l.ProductId == f.ProductId));
         if (f.LocationId is not null) query = query.Where(m => m.Lines.Any(l => l.SourceLocationId == f.LocationId || l.DestinationLocationId == f.LocationId || l.BalanceChanges.Any(c => c.LocationId == f.LocationId)));
-        if (!string.IsNullOrWhiteSpace(f.Search)) { var term = f.Search.Trim(); query = query.Where(m => m.Id.ToString().Contains(term) || m.OperationId.ToString().Contains(term) || (m.Reference != null && m.Reference.Contains(term)) || m.Lines.Any(l => l.Product.Sku.Contains(term))); }
+        query = f.State switch { InventoryHistoryCorrectionState.Current => query.Where(m => !dbContext.InventoryMovementCorrections.Any(c => c.OriginalMovementId == m.Id || c.ReversalMovementId == m.Id || c.ReplacementMovementId == m.Id)), InventoryHistoryCorrectionState.CorrectedOriginal => query.Where(m => dbContext.InventoryMovementCorrections.Any(c => c.OriginalMovementId == m.Id)), InventoryHistoryCorrectionState.Reversal => query.Where(m => dbContext.InventoryMovementCorrections.Any(c => c.ReversalMovementId == m.Id)), InventoryHistoryCorrectionState.Replacement => query.Where(m => dbContext.InventoryMovementCorrections.Any(c => c.ReplacementMovementId == m.Id)), _ => query };
+        if (!string.IsNullOrWhiteSpace(f.Search)) { var term = f.Search.Trim().ToUpperInvariant(); query = query.Where(m => m.Id.ToString().Contains(term) || m.OperationId.ToString().Contains(term) || (m.Reference != null && m.Reference.ToUpper().Contains(term)) || (m.Notes != null && m.Notes.ToUpper().Contains(term)) || m.ResponsibleUser.FullName.ToUpper().Contains(term) || m.Lines.Any(l => l.Product.Sku.ToUpper().Contains(term) || (l.Product.Description != null && l.Product.Description.ToUpper().Contains(term)) || l.Product.Barcodes.Any(b => b.Barcode.ToUpper().Contains(term)) || (l.SourceLocation != null && l.SourceLocation.Code.ToUpper().Contains(term)) || (l.DestinationLocation != null && l.DestinationLocation.Code.ToUpper().Contains(term)) || (l.Lot != null && l.Lot.NormalizedNumber.Contains(term)) || l.BalanceChanges.Any(c => (c.LotNumberSnapshot != null && c.LotNumberSnapshot.ToUpper().Contains(term)) || c.Location.Code.ToUpper().Contains(term)))); }
         return query;
     }
 }

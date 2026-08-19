@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-labelledby="title description">
+  <title id="title">Base física del almacén EPI</title>
+  <desc id="description">Referencia vectorial aproximada basada en el plano físico proporcionado; no representa medidas arquitectónicas certificadas.</desc>
+  <g fill="none" stroke="#6c757d" stroke-width="2">
+    <rect x="35" y="35" width="1530" height="820" rx="12"/>
+    <path d="M55 740H1545M260 35V155M55 250H260M1250 35V150M1495 150V315M1260 805H1545" stroke-dasharray="7 5"/>
+    <rect x="55" y="55" width="205" height="95"/><rect x="55" y="250" width="205" height="480"/>
+    <rect x="1260" y="805" width="285" height="50"/><rect x="1370" y="320" width="125" height="100"/>
+  </g>
+  <g fill="#6c757d" font-family="system-ui, sans-serif" font-size="18">
+    <text x="85" y="85">KPA / Breakroom</text><text x="90" y="450">Sewing</text>
+    <text x="1275" y="838">Packing / Producción</text><text x="1390" y="375">Shipping</text>
+    <text x="1370" y="790">Carton</text><text x="760" y="48">FC Rolls</text>
+  </g>
+</svg>

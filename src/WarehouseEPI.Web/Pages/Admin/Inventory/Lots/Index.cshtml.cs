@@ -1,22 +1,24 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
-using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Inventory;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.Lots;
 
-public sealed class IndexModel(WarehouseDbContext db) : PageModel
+public sealed class IndexModel(ProductLotQueryService lots) : PageModel
 {
-    public IReadOnlyList<Row> Lots { get; private set; } = [];
-    public async Task OnGetAsync(string? search, CancellationToken cancellationToken)
+    private const int PageSize = 25;
+    public ProductLotPage Results { get; private set; } = new([], 0);
+    public int PageNumber { get; private set; }
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(Results.TotalCount / (double)PageSize));
+    public string? Search { get; private set; }
+    public LotBalanceFilter Balance { get; private set; }
+    public LotDateFilter Date { get; private set; }
+    public DateOnly? From { get; private set; }
+    public DateOnly? To { get; private set; }
+
+    public async Task OnGetAsync(string? search, LotBalanceFilter balance = LotBalanceFilter.All, LotDateFilter date = LotDateFilter.All, DateOnly? from = null, DateOnly? to = null, int pageNumber = 1, CancellationToken cancellationToken = default)
     {
-        var term = search?.Trim().ToUpperInvariant();
-        Lots = await (from item in db.ProductLots.AsNoTracking()
-                      join balance in db.InventoryBalances.AsNoTracking() on item.Id equals balance.LotId into balances
-                      where string.IsNullOrEmpty(term) || item.Product.Sku.Contains(term) || item.NormalizedNumber.Contains(term)
-                      orderby item.Product.Sku, item.LotDate, item.Number
-                      select new Row(item.Id, item.Product.Sku, item.Number, item.LotDate,
-                          item.Product.BaseUnit.Code, balances.Sum(balance => (decimal?)balance.Quantity) ?? 0m))
-            .Take(200).ToListAsync(cancellationToken);
+        Search = search?.Trim(); Balance = balance; Date = date; From = from; To = to; PageNumber = Math.Max(1, pageNumber);
+        Results = await lots.SearchAsync(new(Search, Balance, Date, From, To), PageNumber, PageSize, cancellationToken);
+        PageNumber = Math.Min(PageNumber, TotalPages);
     }
-    public sealed record Row(Guid Id, string Sku, string Number, DateOnly? LotDate, string Unit, decimal Quantity);
 }

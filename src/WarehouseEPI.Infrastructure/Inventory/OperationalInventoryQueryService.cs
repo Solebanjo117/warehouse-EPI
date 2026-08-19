@@ -11,7 +11,8 @@ public sealed record OperationalProductResult(
     string? Description,
     string? ExternalReference,
     string UnitCode,
-    bool AllowsDecimals);
+    bool AllowsDecimals,
+    bool IsActive = true);
 
 public sealed record OperationalLocationResult(
     Guid Id,
@@ -23,6 +24,10 @@ public sealed record OperationalLocationResult(
 public sealed record OperationalCodeResolution(
     OperationalProductResult? Product,
     OperationalLocationResult? Location);
+
+public sealed record InventorySearchResults(
+    IReadOnlyList<OperationalProductResult> Products,
+    IReadOnlyList<OperationalLocationResult> Locations);
 
 public sealed record OperationalProductLocationResult(
     Guid Id,
@@ -147,6 +152,43 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         var product = await ResolveProductAsync(code, cancellationToken: cancellationToken);
         var location = await ResolveLocationAsync(code, cancellationToken: cancellationToken);
         return new(product, location);
+    }
+
+    public async Task<OperationalCodeResolution> ResolveInventoryCodeAsync(
+        string? code,
+        CancellationToken cancellationToken = default)
+    {
+        var product = await ResolveProductAsync(code, false, cancellationToken);
+        var location = await ResolveLocationAsync(code, false, cancellationToken);
+        return new(product, location);
+    }
+
+    public async Task<InventorySearchResults> SearchInventoryAsync(
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var term = search?.Trim();
+        if (string.IsNullOrWhiteSpace(term))
+            return new([], []);
+
+        var normalized = CatalogNormalization.NormalizeCode(term);
+        var products = await ProductQuery(false)
+            .Where(product => product.Sku.Contains(normalized) ||
+                (product.Description != null && product.Description.ToUpper().Contains(normalized)) ||
+                (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(normalized)) ||
+                product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(normalized)))
+            .OrderBy(product => product.Sku)
+            .Take(5)
+            .Select(ToProductResult())
+            .ToListAsync(cancellationToken);
+        var locations = await LocationQuery(false)
+            .Where(location => location.Code.Contains(normalized) ||
+                (location.Description != null && location.Description.ToUpper().Contains(normalized)))
+            .OrderBy(location => location.Code)
+            .Take(5)
+            .Select(ToLocationResult())
+            .ToListAsync(cancellationToken);
+        return new(products, locations);
     }
 
     public async Task<OperationalLocationResult?> GetLocationAsync(
@@ -308,7 +350,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             product.Description,
             product.ExternalReference,
             product.BaseUnit.Code,
-            product.BaseUnit.AllowsDecimals);
+            product.BaseUnit.AllowsDecimals,
+            product.IsActive);
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
         location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked);

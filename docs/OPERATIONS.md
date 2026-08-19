@@ -13,9 +13,9 @@ Al 18 de agosto de 2026 la instancia fue activada con estos elementos:
   `NT SERVICE\WarehouseEPI`.
 - Release activa: `0.10.7`, instalada en
   `C:\ProgramData\WarehouseEPI\Releases\0.10.7`.
-- Acceso LAN validado en `https://192.168.5.192/`. Esta IP debe permanecer
-  reservada en DHCP; si cambia, renueva el certificado y la configuración de
-  hosts antes de continuar.
+- La IP LAN reservada actual es `192.168.6.68`. Al 18 de agosto de 2026 se
+  validó la instalación en la IP anterior `192.168.5.192`; la nueva IP debe
+  validarse después de renovar el certificado y reiniciar el servicio.
 - Configuración protegida:
   `C:\ProgramData\WarehouseEPI\Config\service-settings.json`.
 - Registros locales: `C:\ProgramData\WarehouseEPI\Logs`.
@@ -28,7 +28,7 @@ protegidas no se borraron.
 
 ## Uso diario
 
-1. En la tablet abre `https://192.168.5.192/`.
+1. En la tablet abre `https://192.168.6.68/`.
 2. Si el navegador advierte sobre el certificado, instala primero el
    certificado público de la CA local; no omitas permanentemente la advertencia.
 3. Para salud, versión, actividad agregada y fallas sanitizadas entra como ADMIN
@@ -60,6 +60,30 @@ curl.exe --silent --fail --insecure --header 'Host: warehouse-epi' `
 
 El resultado correcto es HTTP 200. Después confirma desde una tablet que la
 página raíz carga por HTTPS.
+
+## Cambio de IP LAN a `192.168.6.68`
+
+La IP está incluida en el certificado HTTPS y en `AllowedHosts`; por eso no
+basta con cambiar la reserva DHCP. Una vez que `192.168.6.68` esté reservada
+para la laptop, abre PowerShell **como administrador** en el repositorio y
+renueva el certificado usando el respaldo PFX privado de la CA:
+
+```powershell
+pwsh ./scripts/security/Renew-WarehouseEpiLanCertificate.ps1 `
+  -ServerIpAddress 192.168.6.68 `
+  -CaPfxPath C:\WarehouseEPI-CA\warehouse-epi-local-ca.pfx
+Restart-Service WarehouseEPI
+```
+
+El script solicita la contraseña de la CA sin mostrarla, genera e instala el
+certificado para `warehouse-epi` y `192.168.6.68`, y actualiza de forma
+protegida `AllowedHosts` y la huella del certificado. No edites
+`service-settings.json` ni User Secrets manualmente. Si el respaldo PFX está
+en otra ubicación, sustituye únicamente el valor de `-CaPfxPath`.
+
+Después, confirma `Get-Service WarehouseEPI`, el health local de la sección
+anterior y que una tablet abre `https://192.168.6.68/` sin error de nombre o
+dirección del certificado.
 
 ### Si el servicio no inicia
 

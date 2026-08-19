@@ -1,9 +1,11 @@
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 
@@ -11,6 +13,10 @@ namespace WarehouseEPI.Tests.Locations;
 
 public sealed class LocationCatalogTests
 {
+    [Fact]
+    public void Locations_page_has_a_single_public_constructor_for_razor_activation() =>
+        Assert.Single(typeof(IndexModel).GetConstructors());
+
     [Theory]
     [InlineData(1, 1, "Inferior")]
     [InlineData(3, 1, "Inferior")]
@@ -99,6 +105,41 @@ public sealed class LocationCatalogTests
         Assert.True(store.TryGet(preview.Token, owner, out _));
         clock.Advance(TimeSpan.FromMinutes(31));
         Assert.False(store.TryGet(preview.Token, owner, out _));
+    }
+
+    [Fact]
+    public async Task Warehouse_map_proposal_uses_physical_rows_and_keeps_unknown_rows_unplaced()
+    {
+        await using var fixture = new Fixture();
+        fixture.Db.Locations.AddRange(Rack("A", 1, 1), Rack("A", 2, 1), Rack("Z", 1, 1), new Location { Code = "SHIPPING", Kind = LocationKind.Area });
+        await fixture.Db.SaveChangesAsync();
+        var map = await new WarehouseMapService(fixture.Db).GetAsync(true);
+        Assert.False(map.IsInitialized);
+        Assert.Empty(fixture.Db.WarehouseMapElements);
+        var first = map.Elements.Single(item => item.Label == "A-1");
+        var second = map.Elements.Single(item => item.Label == "A-2");
+        Assert.True(second.X < first.X);
+        Assert.Contains(map.Elements, item => item.Label == "SHIPPING");
+        Assert.Contains(map.Unplaced, item => item.Label == "Z-1");
+    }
+
+    [Fact]
+    public async Task Warehouse_map_initialization_requires_admin_pin_and_is_audited()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234"); fixture.Db.AddRange(role, user, Rack("A", 1, 1)); await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System); var operation = Guid.NewGuid();
+        Assert.Equal(WarehouseMapSaveStatus.InvalidPin, (await service.InitializeAsync(operation, user.Id, "9999", null)).Status);
+        var result = await service.InitializeAsync(operation, user.Id, "1234", "Plano inicial");
+        Assert.Equal(WarehouseMapSaveStatus.Success, result.Status);
+        Assert.Equal(1, result.Version);
+        Assert.Single(fixture.Db.WarehouseMapRevisions);
+        Assert.NotEmpty(fixture.Db.WarehouseMapElements);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.InitializeAsync(operation, user.Id, "1234", "Plano inicial")).Status);
     }
 
     [Fact]
@@ -204,6 +245,7 @@ public sealed class LocationCatalogTests
         await page.OnGetAsync("find-me", "all", "all", "layout", null, 1);
 
         var rack = Assert.Single(page.LayoutRacks);
+        Assert.Equal("racks", page.ViewMode);
         Assert.Equal("C", rack.RowCode);
         Assert.Equal((short)9, Assert.IsType<IndexModel.LocationRow>(rack.Positions[2]).PalletNumber);
         Assert.Contains("FIND-ME", rack.Positions[2]!.Skus);
@@ -211,7 +253,7 @@ public sealed class LocationCatalogTests
     }
 
     [Fact]
-    public async Task Table_pagination_keeps_the_selected_view_and_uses_fifty_rows()
+    public async Task Table_pagination_keeps_the_selected_view_and_uses_twenty_five_rows()
     {
         await using var fixture = new Fixture();
         fixture.Db.Locations.AddRange(Enumerable.Range(1, 55)
@@ -223,9 +265,30 @@ public sealed class LocationCatalogTests
 
         Assert.Equal("table", page.ViewMode);
         Assert.Equal(2, page.CurrentPage);
-        Assert.Equal(2, page.TotalPages);
-        Assert.Equal(5, page.Locations.Count);
-        Assert.Equal([1, 2], page.VisiblePages);
+        Assert.Equal(3, page.TotalPages);
+        Assert.Equal(25, page.Locations.Count);
+        Assert.Equal([1, 2, 3], page.VisiblePages);
+    }
+
+    [Fact]
+    public async Task Location_detail_loads_grouped_balances_and_assignment_state_separately()
+    {
+        await using var fixture = new Fixture();
+        var unit = new Unit { Code = "EA", Name = "Each" };
+        var product = new Product { Sku = "DETAIL-BALANCE", BaseUnit = unit };
+        var location = Rack("E", 1, 1);
+        fixture.Db.AddRange(unit, product, location);
+        fixture.Db.InventoryBalances.Add(new InventoryBalance { Product = product, Location = location, Quantity = 12m });
+        await fixture.Db.SaveChangesAsync();
+        await new ProductLocationAssignmentService(fixture.Db).AssignAsync(product.Id, location.Id);
+
+        var page = new DetailsModel(fixture.Db, new ProductLocationAssignmentService(fixture.Db));
+        var result = await page.OnGetAsync(location.Id, null, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        var balance = Assert.Single(page.Balances);
+        Assert.Equal(12m, balance.Quantity);
+        Assert.True(balance.IsAssigned);
     }
 
     private static Location Rack(string row, short rack, short pallet) => new()
