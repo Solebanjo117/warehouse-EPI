@@ -1,9 +1,56 @@
 @page "{id:guid}"
+@using WarehouseEPI.Core.Entities
 @model WarehouseEPI.Web.Pages.Admin.Inventory.Movements.DetailsModel
-@{ ViewData["Title"]="Detalle de movimiento"; var correction = Model.Movement.OriginalCorrection ?? Model.Movement.ReversalCorrection ?? Model.Movement.ReplacementCorrection; }
-<div class="d-flex justify-content-between align-items-center mb-3"><div><h1 class="h2 mb-1">@Model.Movement.Type</h1><p class="text-muted mb-0">@Model.Movement.OccurredAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm") · @Model.Movement.ResponsibleName</p></div><a asp-page="Index" class="btn btn-outline-secondary">Historial</a></div>
-<section class="card card-body mb-3"><div class="row g-3"><div class="col-md-6"><strong>Folio</strong><div class="text-break">@Model.Movement.Id</div></div><div class="col-md-6"><strong>Operación</strong><div class="text-break">@Model.Movement.OperationId</div></div><div class="col-md-6"><strong>Referencia</strong><div>@(Model.Movement.Reference??"—")</div></div><div class="col-md-6"><strong>Registrado</strong><div>@Model.Movement.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</div></div></div></section>
-@if(correction is not null){<div class="alert alert-warning"><strong>Movimiento relacionado con una corrección.</strong><div>Motivo: @correction.Reason</div><div>Solicitó: @correction.RequestedBy · Autorizó: @correction.AuthorizedBy</div><div class="mt-2"><a asp-page="Details" asp-route-id="@correction.OriginalMovementId">Original</a> · <a asp-page="Details" asp-route-id="@correction.ReversalMovementId">Reverso</a>@if(correction.ReplacementMovementId is Guid replacement){<text> · <a asp-page="Details" asp-route-id="@replacement">Reemplazo</a></text>}</div></div>}
-<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Producto</th><th>Cantidad</th><th>Origen / destino</th><th>Cambios de saldo</th></tr></thead><tbody>@foreach(var line in Model.Movement.Lines){<tr><td><strong>@line.Sku</strong><div class="text-muted">@line.Description</div></td><td>@line.Quantity.ToString("0.####") @line.Unit</td><td>@(line.Source??"—") → @(line.Destination??"—")</td><td>@foreach(var change in line.Changes){<div class="@(change.ResultingQuantity<0?"text-danger":"")">@change.LocationCode: @change.PreviousQuantity.ToString("0.####") → @change.ResultingQuantity.ToString("0.####") (@(change.DeltaQuantity>0?"+":"")@change.DeltaQuantity.ToString("0.####"))</div>}</td></tr>}</tbody></table></div>
-@if(Model.Movement.Notes is not null){<section class="card card-body mb-3"><strong>Observaciones / motivo</strong><div>@Model.Movement.Notes</div></section>}
-@if(Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null){<a class="btn btn-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id">Corregir movimiento</a>}
+@{
+    ViewData["Title"] = "Detalle de movimiento";
+    var correction = Model.Movement.OriginalCorrection ?? Model.Movement.ReversalCorrection ?? Model.Movement.ReplacementCorrection;
+    var typeName = Model.Movement.Type switch
+    {
+        InventoryMovementType.Entry => "Entrada",
+        InventoryMovementType.Exit => "Salida",
+        InventoryMovementType.Transfer => "Transferencia",
+        InventoryMovementType.Adjustment => "Ajuste",
+        _ => "Movimiento"
+    };
+}
+
+<main class="movement-detail-workspace">
+    <header class="movement-detail-header">
+        <div class="movement-detail-title">
+            <span class="inventory-eyebrow">Trazabilidad de inventario</span>
+            <div class="d-flex flex-wrap align-items-center gap-2"><h1 class="h2 mb-0">@typeName</h1><span class="badge text-bg-primary">Confirmado</span>@if (correction is not null) { <span class="badge text-bg-warning">Relacionado con corrección</span> }</div>
+            <p class="text-body-secondary mb-0">@Model.OccurredAt.ToString("dd/MM/yyyy HH:mm") · @Model.Movement.ResponsibleName</p>
+        </div>
+        <a asp-page="Index" class="btn btn-outline-secondary">Volver al historial</a>
+    </header>
+
+    <section class="movement-detail-meta" aria-label="Datos de auditoría">
+        <article><span>Folio</span><strong class="movement-detail-id">@Model.Movement.Id</strong></article>
+        <article><span>Operación</span><strong class="movement-detail-id">@Model.Movement.OperationId</strong></article>
+        <article><span>Referencia</span><strong>@(Model.Movement.Reference ?? "Sin referencia")</strong></article>
+        <article><span>Registrado</span><strong>@Model.RecordedAt.ToString("dd/MM/yyyy HH:mm")</strong></article>
+    </section>
+
+    @if (correction is not null)
+    {
+        <section class="movement-correction-panel" aria-labelledby="correction-title">
+            <div><span class="inventory-eyebrow">Auditoría</span><h2 id="correction-title" class="h5 mb-1">Cadena de corrección</h2><p class="mb-0">@correction.Reason</p></div>
+            <div class="movement-correction-people"><span>Solicitó<strong>@correction.RequestedBy</strong></span><span>Autorizó<strong>@correction.AuthorizedBy</strong></span></div>
+            <nav class="d-flex flex-wrap gap-2" aria-label="Movimientos relacionados"><a asp-page="Details" asp-route-id="@correction.OriginalMovementId" class="btn btn-sm btn-outline-secondary">Original</a><a asp-page="Details" asp-route-id="@correction.ReversalMovementId" class="btn btn-sm btn-outline-secondary">Reverso</a>@if (correction.ReplacementMovementId is Guid replacement) { <a asp-page="Details" asp-route-id="@replacement" class="btn btn-sm btn-outline-secondary">Reemplazo</a> }</nav>
+        </section>
+    }
+
+    <section aria-labelledby="lines-title"><div class="d-flex justify-content-between align-items-baseline mb-2"><div><span class="inventory-eyebrow">Impacto confirmado</span><h2 id="lines-title" class="h4 mb-0">Productos y cambios de saldo</h2></div><span class="text-body-secondary small">@Model.Movement.Lines.Count línea(s)</span></div>
+    @foreach (var line in Model.Movement.Lines)
+    {
+        <article class="movement-line-card">
+            <header class="movement-line-header"><div><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@line.ProductId" class="h5 mb-1 d-inline-block">@line.Sku</a><p class="text-body-secondary mb-0">@(line.Description ?? "Sin descripción")</p></div><strong class="movement-line-quantity">@line.Quantity.ToString("0.####") <small>@line.Unit</small></strong></header>
+            <div class="movement-line-context"><div><span>Trayecto</span><strong>@(line.Source ?? "—") <span aria-hidden="true">→</span> @(line.Destination ?? "—")</strong></div><div><span>Lote interno</span>@if (line.LotId is Guid lot) { <a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@lot">@line.LotNumber</a> } else { <strong>—</strong> }</div></div>
+            <div class="table-responsive"><table class="table table-sm align-middle movement-change-table mb-0"><thead><tr><th>Ubicación</th><th class="text-end">Anterior</th><th class="text-end">Cambio</th><th class="text-end">Final</th></tr></thead><tbody>@foreach (var change in line.Changes) { <tr class="@(change.Resulting < 0 ? "movement-negative" : null)"><td><a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@change.LocationId" class="fw-semibold">@change.Location</a></td><td class="text-end">@change.Previous.ToString("0.####")</td><td class="text-end @(change.Delta < 0 ? "text-danger" : "text-success")">@(change.Delta > 0 ? "+" : "")@change.Delta.ToString("0.####")</td><td class="text-end fw-bold">@change.Resulting.ToString("0.####")</td></tr> }</tbody></table></div>
+        </article>
+    }
+    </section>
+
+    @if (Model.Movement.Notes is not null) { <section class="movement-notes"><span class="inventory-eyebrow">Observaciones / motivo</span><p class="mb-0">@Model.Movement.Notes</p></section> }
+    @if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null) { <footer class="movement-detail-actions"><a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id">Corregir movimiento</a></footer> }
+</main>

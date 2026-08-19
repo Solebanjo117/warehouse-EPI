@@ -183,6 +183,62 @@ public sealed class OperationalInventoryQueryServiceTests
         Assert.Equal(balancesBefore, await db.InventoryBalances.CountAsync());
     }
 
+    [Fact]
+    public async Task Inventory_search_and_resolution_include_inactive_products_and_blocked_locations()
+    {
+        await using var db = CreateDbContext();
+        var inactiveProduct = new Product { Sku = "INVENTORY-INACTIVE", BaseUnitId = 1, IsActive = false };
+        var blockedLocation = new Location { Code = "INVENTORY-BLOCKED", Kind = LocationKind.Area, IsBlocked = true };
+        db.AddRange(inactiveProduct, blockedLocation);
+        await db.SaveChangesAsync();
+        var service = new OperationalInventoryQueryService(db);
+
+        var results = await service.SearchInventoryAsync("inventory");
+        Assert.Contains(results.Products, item => item.Id == inactiveProduct.Id && !item.IsActive);
+        Assert.Contains(results.Locations, item => item.Id == blockedLocation.Id && item.IsBlocked);
+
+        Assert.Equal(inactiveProduct.Id, (await service.ResolveInventoryCodeAsync(" inventory-inactive ")).Product?.Id);
+        Assert.Equal(blockedLocation.Id, (await service.ResolveInventoryCodeAsync("inventory-blocked")).Location?.Id);
+    }
+
+    [Fact]
+    public async Task Inventory_pages_and_alerts_filter_and_summarize_current_balances()
+    {
+        await using var db = CreateDbContext();
+        var product = new Product { Sku = "ALERT-MAIN", BaseUnitId = 1, MinimumStock = 10m };
+        var negativeProduct = new Product { Sku = "ALERT-NEGATIVE", BaseUnitId = 1 };
+        var assigned = new Location { Code = "ALERT-A", Kind = LocationKind.Area };
+        var unassigned = new Location { Code = "ALERT-B", Kind = LocationKind.Area };
+        db.AddRange(product, negativeProduct, assigned, unassigned);
+        db.ProductLocationAssignments.Add(new ProductLocationAssignment { Product = product, Location = assigned });
+        db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = product, Location = assigned, Quantity = 2m },
+            new InventoryBalance { Product = product, Location = unassigned, Quantity = -1m },
+            new InventoryBalance { Product = negativeProduct, Location = unassigned, Quantity = -3m });
+        await db.SaveChangesAsync();
+        var service = new InventoryQueryService(db);
+
+        var positions = await service.GetProductInventoryPageAsync(product.Id, InventoryPositionFilter.UnassignedBalance, 1, 25);
+        Assert.Single(positions.Items);
+        Assert.Equal(unassigned.Id, positions.Items[0].LocationId);
+        Assert.Equal(2, positions.Summary.Positions);
+        Assert.Equal(1, positions.Summary.Negative);
+        Assert.Equal(1, positions.Summary.UnassignedBalances);
+
+        var summary = await service.GetAlertSummaryAsync();
+        Assert.Equal(2, summary.NegativePositions);
+        Assert.Equal(2, summary.NegativeProducts);
+        Assert.Equal(2, summary.BelowMinimumProducts);
+
+        var negativeAlerts = await service.GetNegativeAlertPageAsync("alert-b", 1, 25);
+        Assert.Equal(2, negativeAlerts.TotalCount);
+        Assert.All(negativeAlerts.Items, item => Assert.Equal("ALERT-B", item.LocationCode));
+        var minimumAlerts = await service.GetBelowMinimumAlertPageAsync("alert-main", 1, 25);
+        var minimum = Assert.Single(minimumAlerts.Items);
+        Assert.Equal(9m, minimum.Deficit);
+        Assert.Equal(10m, minimum.CoveragePercent);
+    }
+
     private static WarehouseDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<WarehouseDbContext>()

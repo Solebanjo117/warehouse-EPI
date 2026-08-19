@@ -29,6 +29,12 @@ public sealed class LookupModel(
     public async Task<IActionResult> OnGetResolveCodeAsync(string? code, CancellationToken cancellationToken) =>
         new JsonResult(await operationalQuery.ResolveCodeAsync(code, cancellationToken));
 
+    public async Task<IActionResult> OnGetInventorySearchAsync(string? q, CancellationToken cancellationToken) =>
+        new JsonResult(await operationalQuery.SearchInventoryAsync(q, cancellationToken));
+
+    public async Task<IActionResult> OnGetResolveInventoryCodeAsync(string? code, CancellationToken cancellationToken) =>
+        new JsonResult(await operationalQuery.ResolveInventoryCodeAsync(code, cancellationToken));
+
     public async Task<IActionResult> OnGetProductLocationsAsync(Guid productId, CancellationToken cancellationToken)
     {
         if (productId == Guid.Empty)

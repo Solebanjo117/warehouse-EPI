@@ -24,6 +24,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
     public DbSet<InventoryMovementCorrection> InventoryMovementCorrections => Set<InventoryMovementCorrection>();
     public DbSet<ProductLotDateChange> ProductLotDateChanges => Set<ProductLotDateChange>();
+    public DbSet<WarehouseMapLayout> WarehouseMapLayouts => Set<WarehouseMapLayout>();
+    public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
+    public DbSet<WarehouseMapRevision> WarehouseMapRevisions => Set<WarehouseMapRevision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +49,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureInventoryBalance(modelBuilder);
         ConfigureInventoryMovementCorrection(modelBuilder);
         ConfigureProductLotDateChange(modelBuilder);
+        ConfigureWarehouseMap(modelBuilder);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -486,6 +490,62 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
             .HasForeignKey(balance => balance.LotId).OnDelete(DeleteBehavior.Restrict);
     }
 
+    private static void ConfigureWarehouseMap(ModelBuilder modelBuilder)
+    {
+        var layout = modelBuilder.Entity<WarehouseMapLayout>();
+        layout.ToTable("warehouse_map_layouts", table => table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1"));
+        layout.HasKey(item => item.Id);
+        layout.Property(item => item.Id).HasColumnName("id").ValueGeneratedNever();
+        layout.Property(item => item.Version).HasColumnName("version");
+        layout.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        layout.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        layout.Property(item => item.RowVersion).IsRowVersion().HasColumnName("xmin");
+        layout.HasOne(item => item.UpdatedByUser).WithMany().HasForeignKey(item => item.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var element = modelBuilder.Entity<WarehouseMapElement>();
+        element.ToTable("warehouse_map_elements", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_element_identity", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND location_id IS NULL) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND location_id IS NOT NULL)");
+            table.HasCheckConstraint("ck_warehouse_map_element_geometry", "x >= 0 AND y >= 0 AND width > 0 AND height > 0 AND rotation IN (0, 90, 180, 270)");
+        });
+        element.HasKey(item => item.Id);
+        element.Property(item => item.Id).HasColumnName("id");
+        element.Property(item => item.LayoutId).HasColumnName("layout_id");
+        element.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(10).HasConversion(value => value == WarehouseMapElementKind.Rack ? "RACK" : "AREA", value => value == "RACK" ? WarehouseMapElementKind.Rack : WarehouseMapElementKind.Area);
+        element.Property(item => item.RowCode).HasColumnName("row_code").HasMaxLength(1);
+        element.Property(item => item.RackNumber).HasColumnName("rack_number");
+        element.Property(item => item.LocationId).HasColumnName("location_id");
+        element.Property(item => item.X).HasColumnName("x").HasPrecision(8, 2);
+        element.Property(item => item.Y).HasColumnName("y").HasPrecision(8, 2);
+        element.Property(item => item.Width).HasColumnName("width").HasPrecision(8, 2);
+        element.Property(item => item.Height).HasColumnName("height").HasPrecision(8, 2);
+        element.Property(item => item.Rotation).HasColumnName("rotation");
+        element.Property(item => item.ZIndex).HasColumnName("z_index");
+        element.Property(item => item.IsVisible).HasColumnName("is_visible").HasDefaultValue(true);
+        element.HasIndex(item => new { item.LayoutId, item.RowCode, item.RackNumber }).IsUnique().HasFilter("kind = 'RACK'");
+        element.HasIndex(item => item.LocationId).IsUnique().HasFilter("kind = 'AREA'");
+        element.HasOne(item => item.Layout).WithMany(item => item.Elements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
+        element.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
+
+        var revision = modelBuilder.Entity<WarehouseMapRevision>();
+        revision.ToTable("warehouse_map_revisions");
+        revision.HasKey(item => item.Id);
+        revision.Property(item => item.Id).HasColumnName("id");
+        revision.Property(item => item.OperationId).HasColumnName("operation_id");
+        revision.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        revision.Property(item => item.PreviousVersion).HasColumnName("previous_version");
+        revision.Property(item => item.NewVersion).HasColumnName("new_version");
+        revision.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500);
+        revision.Property(item => item.ChangesJson).HasColumnName("changes_json").HasColumnType("jsonb").IsRequired();
+        revision.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        revision.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        revision.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        revision.HasIndex(item => item.OperationId).IsUnique();
+        revision.HasIndex(item => item.RecordedAt);
+        revision.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        revision.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
     private static void ConfigureInventoryMovementCorrection(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<InventoryMovementCorrection>();
@@ -533,7 +593,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or ProductLotDateChange &&
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or ProductLotDateChange or WarehouseMapRevision &&
                 entry.State is EntityState.Modified or EntityState.Deleted);
 
         if (changedHistory)

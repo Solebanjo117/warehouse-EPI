@@ -42,7 +42,14 @@ internal sealed class JsonRollingFileLoggerProvider(ObservabilitySettings settin
                 ["eventName"] = eventId.Name,
                 ["properties"] = values
             };
-            if (exception is not null) entry["exceptionType"] = exception.GetType().Name;
+            if (exception is not null)
+            {
+                entry["exceptionType"] = exception.GetType().Name;
+                // Production writes to an ACL-protected local directory. Preserve a bounded
+                // diagnostic trace there so operational 500s can be diagnosed without
+                // enabling detailed browser errors on the warehouse network.
+                entry["exceptionDetail"] = Limit(exception.ToString(), 16_384);
+            }
             var line = JsonSerializer.Serialize(entry) + Environment.NewLine;
             var lineLength = System.Text.Encoding.UTF8.GetByteCount(line);
 
@@ -71,5 +78,8 @@ internal sealed class JsonRollingFileLoggerProvider(ObservabilitySettings settin
             foreach (var file in Directory.EnumerateFiles(settings.LogDirectory, "warehouse-*.jsonl"))
                 if (File.GetLastWriteTimeUtc(file) < cutoff) File.Delete(file);
         }
+
+        private static string Limit(string value, int maximumLength) =>
+            value.Length <= maximumLength ? value : value[..maximumLength];
     }
 }

@@ -40,7 +40,7 @@ public sealed class EditModel(
         if (!ModelState.IsValid) { await LoadAsync(token); return Page(); }
         ProductPageSupport.Apply(product, Input);
         try { await dbContext.SaveChangesAsync(token); } catch (DbUpdateException) { ModelState.AddModelError("Input.Sku", "No fue posible guardar; verifique que el SKU no esté repetido."); await LoadAsync(token); return Page(); }
-        TempData["Success"] = "Producto actualizado."; return RedirectToPage(new { id = Input.Id });
+        TempData["Success"] = "Producto actualizado."; return RedirectToPage("Details", new { id = Input.Id });
     }
 
     public async Task<IActionResult> OnPostAddBarcodeAsync(Guid id, [Bind(Prefix = "BarcodeInput")] BarcodeInputModel barcodeInput, CancellationToken token)

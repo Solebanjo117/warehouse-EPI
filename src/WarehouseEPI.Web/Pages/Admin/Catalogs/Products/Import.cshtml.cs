@@ -10,7 +10,7 @@ namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 [RequestSizeLimit(ProductImportLimits.MaxRequestBytes)]
 public sealed class ImportModel(ProductImportService importService) : PageModel
 {
-    private const int PageSize = 50;
+    private const int PageSize = 25;
 
     [BindProperty]
     public IFormFile? Upload { get; set; }

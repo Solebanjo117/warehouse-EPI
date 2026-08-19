@@ -20,7 +20,8 @@ public sealed class CreateModel(WarehouseDbContext dbContext) : PageModel, IProd
         if (!ModelState.IsValid) { await LoadAsync(token); return Page(); }
         var product = new Product { Sku = Input.Sku }; ProductPageSupport.Apply(product, Input); dbContext.Products.Add(product);
         try { await dbContext.SaveChangesAsync(token); } catch (DbUpdateException) { ModelState.AddModelError("Input.Sku", "No fue posible guardar; verifique que el SKU no esté repetido."); await LoadAsync(token); return Page(); }
-        return RedirectToPage("Edit", new { id = product.Id });
+        TempData["Success"] = "Producto creado.";
+        return RedirectToPage("Details", new { id = product.Id });
     }
     private async Task LoadAsync(CancellationToken token) { (Units, Types, Classes) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token); }
 }

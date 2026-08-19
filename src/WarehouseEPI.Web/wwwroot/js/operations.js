@@ -17,6 +17,71 @@
     .filter(Boolean).join(" · ");
   const describeLocation = (item) => item.description || "Ubicación operativa";
 
+  const preferredCameraStorageKey = "warehouseEpi.preferredCameraDeviceId";
+  const cameraVideoConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 }
+  };
+
+  const readPreferredCameraDeviceId = () => {
+    try { return window.localStorage.getItem(preferredCameraStorageKey); }
+    catch { return null; }
+  };
+
+  const savePreferredCameraDeviceId = (deviceId) => {
+    if (!deviceId) return;
+    try { window.localStorage.setItem(preferredCameraStorageKey, deviceId); }
+    catch { /* Storage can be unavailable in private or restricted browser modes. */ }
+  };
+
+  const openCameraStream = async (requestedDeviceId) => {
+    const preferredDeviceId = requestedDeviceId || readPreferredCameraDeviceId();
+    const candidates = [];
+    if (preferredDeviceId) candidates.push({ ...cameraVideoConstraints, deviceId: { exact: preferredDeviceId } });
+    candidates.push({ ...cameraVideoConstraints, facingMode: { exact: "environment" } });
+    candidates.push({ ...cameraVideoConstraints, facingMode: { ideal: "environment" } });
+
+    let lastError;
+    for (const video of candidates) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+        savePreferredCameraDeviceId(stream.getVideoTracks?.()[0]?.getSettings?.().deviceId);
+        return stream;
+      } catch (error) {
+        lastError = error;
+        if (["NotAllowedError", "SecurityError", "NotReadableError"].includes(error?.name)) throw error;
+      }
+    }
+    throw lastError;
+  };
+
+  const availableVideoDevices = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(device => device.kind === "videoinput" && device.deviceId);
+  };
+
+  const updateCameraSwitchButton = async (button, stream) => {
+    if (!button || !navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await availableVideoDevices();
+      button.classList.toggle("d-none", devices.length < 2);
+      const currentDeviceId = stream.getVideoTracks?.()[0]?.getSettings?.().deviceId;
+      const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
+      button.title = `Cambiar cámara (${(currentIndex >= 0 ? currentIndex : 0) + 1} de ${devices.length})`;
+    } catch {
+      button.classList.add("d-none");
+    }
+  };
+
+  const nextCameraDeviceId = async (stream) => {
+    const devices = await availableVideoDevices();
+    if (devices.length < 2) return null;
+    const currentDeviceId = stream?.getVideoTracks?.()[0]?.getSettings?.().deviceId;
+    const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
+    return devices[(currentIndex + 1 + devices.length) % devices.length].deviceId;
+  };
+
   const renderSuggestions = (container, items, kind, select) => {
     container.replaceChildren();
     for (const item of items || []) {
@@ -536,6 +601,7 @@
       const scannerPreview = scannerElement.querySelector("[data-camera-preview]");
       const scannerStatus = scannerElement.querySelector("[data-camera-status]");
       const scannerPhoto = scannerElement.querySelector("[data-camera-photo]");
+      const scannerSwitch = scannerElement.querySelector("[data-camera-switch]");
       let activeScannerLookup;
       let scannerControls;
       let resolvingCameraCode = false;
@@ -659,7 +725,7 @@
         }
       };
 
-      const startCameraScanner = async () => {
+      const startCameraScanner = async (requestedDeviceId) => {
         if (!window.isSecureContext) {
           scannerPreview.classList.add("d-none");
           setScannerStatus("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico.");
@@ -677,18 +743,11 @@
         try {
           // Open the device first. This keeps the permission request tied to the user's button tap
           // and avoids relying on the decoder to create a second, hidden camera request on Android.
-          const stream = await navigator.mediaDevices.getUserMedia({
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1920 },
-              height: { ideal: 1080 },
-              frameRate: { ideal: 30 }
-            }
-          });
+          const stream = await openCameraStream(requestedDeviceId);
           await optimizeCameraForBarcodes(stream);
           scannerVideo.srcObject = stream;
           await scannerVideo.play();
+          await updateCameraSwitchButton(scannerSwitch, stream);
           setScannerStatus("Centra el código; para etiquetas largas, acércalo y espera a que enfoque.");
 
           if (await startNativeBarcodeScanner()) return;
@@ -743,6 +802,21 @@
         } finally {
           URL.revokeObjectURL(imageUrl);
           scannerPhoto.value = "";
+        }
+      });
+
+      scannerSwitch?.addEventListener("click", async () => {
+        scannerSwitch.disabled = true;
+        setScannerStatus("Cambiando cámara…");
+        try {
+          const deviceId = await nextCameraDeviceId(scannerVideo.srcObject);
+          if (!deviceId) return;
+          stopCamera();
+          await startCameraScanner(deviceId);
+        } catch (error) {
+          setScannerStatus(describeCameraError(error));
+        } finally {
+          scannerSwitch.disabled = false;
         }
       });
 
@@ -876,5 +950,187 @@
         search();
       });
     });
+  }
+
+  const inventoryWorkspace = document.querySelector("[data-inventory-workspace]");
+  if (inventoryWorkspace) {
+    const lookupUrl = inventoryWorkspace.dataset.lookupUrl;
+    const form = inventoryWorkspace.querySelector("[data-inventory-search-form]");
+    const input = inventoryWorkspace.querySelector("[data-inventory-search-input]");
+    const results = inventoryWorkspace.querySelector("[data-inventory-search-results]");
+    const feedback = inventoryWorkspace.querySelector("[data-inventory-feedback]");
+    let searchSequence = 0;
+
+    const setFeedback = (message) => {
+      feedback.textContent = message;
+      feedback.classList.toggle("d-none", !message);
+    };
+    const navigate = (kind, id) => {
+      const params = new URLSearchParams({ [kind === "product" ? "productId" : "locationId"]: id });
+      window.location.assign(`${window.location.pathname}?${params}`);
+    };
+    const addGroup = (titleText, items, kind) => {
+      if (!items?.length) return;
+      const group = document.createElement("section");
+      group.className = "inventory-suggestion-group";
+      const title = document.createElement("strong");
+      title.textContent = titleText;
+      group.append(title);
+      const list = document.createElement("div");
+      list.className = "list-group";
+      for (const item of items) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "list-group-item list-group-item-action";
+        const name = document.createElement("strong");
+        name.textContent = kind === "product" ? item.sku : item.code;
+        const detail = document.createElement("small");
+        detail.className = "d-block text-muted";
+        const status = kind === "product" ? (!item.isActive ? " · Inactivo" : "")
+          : (!item.isActive ? " · Inactiva" : item.isBlocked ? " · Bloqueada" : "");
+        detail.textContent = `${kind === "product" ? describeProduct(item) : describeLocation(item)}${status}`;
+        button.append(name, detail);
+        button.addEventListener("click", () => navigate(kind, item.id));
+        list.append(button);
+      }
+      group.append(list);
+      results.append(group);
+    };
+    const renderSearchResults = (data) => {
+      results.replaceChildren();
+      addGroup("Productos", data?.products, "product");
+      addGroup("Ubicaciones", data?.locations, "location");
+    };
+    const showAmbiguousChoices = (resolution) => {
+      results.replaceChildren();
+      const message = "El código coincide con un producto y una ubicación. Elige qué deseas consultar.";
+      setFeedback(message);
+      addGroup("Producto", [resolution.product], "product");
+      addGroup("Ubicación", [resolution.location], "location");
+      results.querySelector("button")?.focus();
+    };
+    const resolve = async (code) => {
+      const value = code.trim();
+      if (!value) return false;
+      const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveInventoryCode", code: value })}`);
+      if (!resolution) {
+        const message = "No fue posible validar el código. Intenta nuevamente.";
+        input.setCustomValidity(message);
+        setFeedback(message);
+        return false;
+      }
+      input.setCustomValidity("");
+      if (resolution.product && resolution.location) {
+        showAmbiguousChoices(resolution);
+        return false;
+      }
+      if (resolution.product) { navigate("product", resolution.product.id); return true; }
+      if (resolution.location) { navigate("location", resolution.location.id); return true; }
+      const message = "No se encontró un producto ni una ubicación con ese código.";
+      input.setCustomValidity(message);
+      setFeedback(message);
+      return false;
+    };
+    const search = debounce(async (sequence) => {
+      const query = input.value.trim();
+      if (!query) { results.replaceChildren(); return; }
+      const data = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "InventorySearch", q: query })}`);
+      if (sequence !== searchSequence) return;
+      renderSearchResults(data);
+    });
+    input.addEventListener("input", () => {
+      input.setCustomValidity("");
+      setFeedback("");
+      searchSequence++;
+      search(searchSequence);
+    });
+    input.addEventListener("keydown", async (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      searchSequence++;
+      results.replaceChildren();
+      await resolve(input.value);
+    });
+    form.addEventListener("submit", () => results.replaceChildren());
+
+    const modalElement = inventoryWorkspace.querySelector("[data-inventory-camera-modal]");
+    const cameraButton = inventoryWorkspace.querySelector("[data-inventory-camera]");
+    if (modalElement && cameraButton) {
+      const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+      const video = modalElement.querySelector("[data-inventory-camera-video]");
+      const preview = modalElement.querySelector("[data-inventory-camera-preview]");
+      const status = modalElement.querySelector("[data-inventory-camera-status]");
+      const photo = modalElement.querySelector("[data-inventory-camera-photo]");
+      const cameraSwitch = modalElement.querySelector("[data-camera-switch]");
+      let controls;
+      let resolving = false;
+      const stopCamera = () => {
+        controls?.stop(); controls = undefined;
+        const stream = video.srcObject;
+        if (stream?.getTracks) stream.getTracks().forEach(track => track.stop());
+        video.srcObject = null;
+      };
+      const scanCode = async (code) => {
+        if (resolving) return;
+        resolving = true;
+        stopCamera();
+        modal.hide();
+        input.value = code;
+        await resolve(code);
+        resolving = false;
+      };
+      const startCamera = async (requestedDeviceId) => {
+        if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.ZXingBrowser) {
+          preview.classList.add("d-none");
+          status.textContent = "La cámara requiere HTTPS y un navegador compatible. Puedes escribir o usar el lector físico.";
+          return;
+        }
+        preview.classList.remove("d-none");
+        status.textContent = "Solicitando cámara trasera…";
+        try {
+          const stream = await openCameraStream(requestedDeviceId);
+          video.srcObject = stream;
+          await video.play();
+          await updateCameraSwitchButton(cameraSwitch, stream);
+          status.textContent = "Centra el código y espera a que enfoque.";
+          const reader = new ZXingBrowser.BrowserMultiFormatReader();
+          controls = await reader.decodeFromStream(stream, video, async (result) => {
+            if (result) await scanCode(result.getText());
+          });
+        } catch {
+          stopCamera(); preview.classList.add("d-none");
+          status.textContent = "No fue posible iniciar la cámara. Puedes tomar una foto, escribir o usar el lector físico.";
+        }
+      };
+      cameraButton.addEventListener("click", () => {
+        resolving = false; status.textContent = "Preparando cámara…"; modal.show(); void startCamera();
+      });
+      photo.addEventListener("change", async () => {
+        const [file] = photo.files;
+        if (!file || !window.ZXingBrowser || resolving) return;
+        stopCamera(); status.textContent = "Leyendo la foto…";
+        const url = URL.createObjectURL(file);
+        try { const result = await new ZXingBrowser.BrowserMultiFormatReader().decodeFromImageUrl(url); await scanCode(result.getText()); }
+        catch { status.textContent = "No se detectó un código en la foto. Intenta nuevamente."; }
+        finally { URL.revokeObjectURL(url); photo.value = ""; }
+      });
+      cameraSwitch?.addEventListener("click", async () => {
+        cameraSwitch.disabled = true;
+        status.textContent = "Cambiando cámara…";
+        try {
+          const deviceId = await nextCameraDeviceId(video.srcObject);
+          if (!deviceId) return;
+          stopCamera();
+          await startCamera(deviceId);
+        } catch {
+          status.textContent = "No fue posible cambiar de cámara. Intenta nuevamente.";
+        } finally {
+          cameraSwitch.disabled = false;
+        }
+      });
+      modalElement.addEventListener("shown.bs.modal", () => document.body.classList.add("camera-active"));
+      modalElement.addEventListener("hidden.bs.modal", () => { stopCamera(); photo.value = ""; document.body.classList.remove("camera-active"); if (!resolving) input.focus(); });
+      window.addEventListener("pagehide", stopCamera, { once: true });
+    }
   }
 })();

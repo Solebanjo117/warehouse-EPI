@@ -653,7 +653,10 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   versiones previas.
 - El 18 de agosto de 2026 quedó activa la Release `0.10.7` con el servicio
   `WarehouseEPI` bajo `NT SERVICE\WarehouseEPI`; se validaron health local y
-  acceso HTTPS LAN. La IP reservada verificada es `192.168.5.192`. Las tareas
+  acceso HTTPS LAN en la IP entonces reservada `192.168.5.192`. La reserva LAN
+  actual cambió a `192.168.6.68` y requiere renovar certificado, `AllowedHosts`
+  y su huella con `Renew-WarehouseEpiLanCertificate.ps1`, reiniciar el servicio
+  y comprobar HTTPS desde una tablet; esa validación queda pendiente. Las tareas
   de respaldo diario y validación semanal fueron desactivadas deliberadamente;
   los respaldos y credenciales locales permanecen protegidos. El manual de
   operación está en `docs/OPERATIONS.md`.
@@ -679,9 +682,12 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   accionables.
 - El formulario operativo contiene lectura local de Code 128 por cámara para
   producto y ubicación, con el mismo resolvedor de Enter/HID, vista previa en
-  vivo y respaldo mediante foto. Requiere HTTPS; la lectura física de un código
-  en dispositivo móvil continúa en validación y no debe considerarse cerrada
-  hasta completar esa prueba.
+  vivo y respaldo mediante foto. El lector intenta primero la cámara trasera,
+  permite recorrer las cámaras disponibles y recuerda la elección en cada
+  dispositivo; el mismo control está disponible en Existencias. Requiere HTTPS;
+  la lectura física de un código y el cambio de cámara en dispositivo móvil
+  continúan en validación y no deben considerarse cerrados hasta completar esa
+  prueba.
 - Mostrar sugerencias de ubicaciones previamente asignadas y su saldo al
   registrar entradas, sin convertir todavía la sugerencia en una asignación
   dirigida obligatoria.
@@ -777,6 +783,84 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Falta validar en laptop y tablets reales el lector HID, cámara, foco,
   solapamientos y los temas Claro/Oscuro/Sistema.
 
+#### Fase 11.5: Existencias y Alertas de inventario — implementada; validación física pendiente
+
+- **Existencias** mantiene acceso público y ahora usa una consulta única para
+  producto o ubicación, con sugerencias agrupadas, Enter/HID, cámara y foto.
+  La resolución exacta conserva la seguridad ante un código ambiguo y permite
+  revisar productos inactivos o ubicaciones bloqueadas.
+- Los resultados consolidan asignaciones y saldos, incluyen resumen, filtros,
+  paginación de 25 posiciones y resaltado contextual desde Alertas. En laptop
+  se presentan como filas y en tablet vertical como tarjetas compactas.
+- **Alertas** continúa protegida por `AdminOnly`; muestra indicadores de
+  negativos y mínimos, hora en la zona del almacén, actualización manual,
+  pestañas GET, búsqueda y paginación. Las alertas son derivadas y no se
+  reconocen ni se persisten.
+- No cambian saldos, mínimos, movimientos, lotes ni el esquema. Falta validar
+  físicamente lector HID, cámara, foco, tablet horizontal/vertical y temas
+  Claro/Oscuro/Sistema.
+
+#### Fase 11.6: trazabilidad de movimientos y lotes — en implementación; validación física pendiente
+
+- El historial ADMIN usa periodos locales del almacén (por defecto los últimos
+  30 días), consultas UTC de intervalo semiabierto, paginación de 25 y
+  exportación trazable por cambio de saldo.
+- El detalle de movimiento expone snapshots históricos de lote, enlaces
+  administrativos y la cadena de corrección sin alterar movimientos confirmados.
+- La ficha ADMIN prioriza trazabilidad rápida: cabecera local, metadatos de
+  auditoría, tarjetas por producto y cambios de saldo legibles en laptop y
+  tablet. No añade impresión, PDF, operaciones prellenadas ni cambios al POST.
+- Lotes internos cuenta con filtros, saldo agregado, ficha de distribución,
+  movimientos relacionados y auditoría de cambios de fecha. La fecha sigue
+  afectando únicamente FEFO futuro y exige motivo/NIP ADMIN.
+- Sigue pendiente la validación física en laptop, tablet horizontal/vertical,
+  lector HID y cámara; no se aplicó migración ni se modificó el esquema.
+
+#### Fase 11.7: Catálogo y ficha integral de Productos — implementación inicial; validación física pendiente
+
+- Productos sigue protegido por `AdminOnly`, pagina de 25 en 25 y separa la
+  consulta de la edición. El listado incorpora indicadores de estado y saldo,
+  búsqueda por SKU, descripción, referencia, código o ubicación, y filtros de
+  estado, existencia y asignación.
+- La ficha `/Admin/Catalogs/Products/Details/{id}` concentra saldo total,
+  mínimo, cobertura, distribución por ubicación, códigos, lotes internos y
+  movimientos recientes, con enlaces administrativos de consulta. Crear y
+  guardar redirigen a la ficha con confirmación; Edit permanece compatible.
+- No se modificaron entidades, saldos, movimientos, lotes ni PostgreSQL. La
+  importación conserva su contrato y ahora pagina 25 filas por vista. Quedan
+  por integrar en esta fase el lector/cámara del listado, filtros visuales de
+  unidad/tipo/clase y la modernización visual completa de edición/importación.
+- Build Release sin advertencias y las pruebas de catálogo pasaron. Falta
+  validar físicamente filtros, tablet, temas, HID y cámara; las pruebas web
+  siguen afectadas por los HTTP 400/antiforgery preexistentes.
+
+#### Fase 11.8: Ubicaciones y croquis interactivo — implementada; validación física pendiente
+
+- Ubicaciones abre por defecto un croquis SVG limpio basado en las fotografías
+  físicas del 14 de agosto. Mantiene vistas alternativas de racks y tabla,
+  búsqueda por ubicación o producto, estados de inventario, negativos,
+  bloqueo/inactividad y panel 3x3 con la distribución de teclado numérico.
+- El panel del croquis conserva unidades separadas, muestra asignaciones y
+  saldos por producto, y enlaza ficha, Existencias y Movimientos. La ficha de
+  ubicación incorpora saldos, asignaciones históricas, vecinos y movimientos
+  recientes; la tabla usa 25 registros y tarjetas en tablet vertical.
+- `/Admin/Catalogs/Locations/Map/Edit` permite mover, dimensionar, girar,
+  ocultar y recuperar racks/áreas con teclado o tacto. El fondo físico es fijo;
+  el editor no modifica ubicaciones, códigos, saldos ni asignaciones.
+- La inicialización genera una vista previa de 30 minutos ligada al ADMIN y
+  ubica A-M, N-S, T y áreas conocidas; elementos no reconocidos permanecen en
+  **Sin colocar**. Inicialización y revisiones exigen NIP ADMIN, son
+  transaccionales, idempotentes, versionadas y conservan auditoría JSONB.
+- Se generó y revisó la migración
+  `20260818154704_AddWarehouseInteractiveMap`; crea únicamente configuración,
+  elementos y revisiones del croquis. **No está aplicada** y requiere confirmar
+  base destino y respaldo antes de `database update`.
+- Build Release, formato dirigido y 29 pruebas dirigidas de
+  ubicaciones/inventario pasan. La suite completa queda en 139/158: las 19
+  fallas restantes son los HTTP 400/antiforgery preexistentes y no aumentaron.
+  Falta validar físicamente geometría, orientación, zoom, interacción táctil y
+  temas Claro/Oscuro en laptop y tablets reales.
+
 ### Fase 12: validación física y piloto conectado
 
 - Probar lectores, aplicaciones de escáner, tablets reales y cámara si se
@@ -788,7 +872,7 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   núcleo de inventario.
 - Ejecutar un piloto conectado y conciliar inventario físico contra sistema.
 
-### Fase 13: reportes y croquis
+### Fase 13: reportes y operación avanzada
 
 - Reporte de existencias por producto, ubicación y lote interno.
 - Reporte de movimientos por fechas, usuario, tipo y producto; negativos,
@@ -799,7 +883,8 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   recuento y ajuste autorizado, conservando trazabilidad completa.
 - Agregar alertas para discrepancias, ubicaciones bloqueadas y saldo en una
   ubicación sin asignación activa.
-- Croquis SVG manipulable con colores, ocupación y búsqueda visual.
+- El croquis base ya pertenece a 11.8; esta fase podrá reutilizarlo para conteos
+  cíclicos y alertas operativas sin rediseñar su geometría.
 
 ### Fase 14: PWA y operación sin conexión
 
