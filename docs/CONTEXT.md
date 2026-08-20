@@ -1,19 +1,22 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 17 de agosto de 2026.
+Actualizado: 20 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
 repositorio. Las decisiones marcadas como pendientes no deben convertirse en
 requisitos definitivos sin confirmación.
 
-**Estado general:** las fases 1 a 9 y 10.1 están completadas. La fase 8 de
-paquetes y conversiones fue descartada por decisión del negocio; la fase 9 usa
-lotes internos automáticos para todo el catálogo. Las fases 10.2 y 10.3 ya
-validaron la puerta reproducible de calidad y la protección de `main` exige el
-check `Quality`. La validación física
-completa de las ubicaciones cargadas sigue siendo una comprobación operativa
-pendiente, pero no cambia el cierre técnico de la fase 4.
+**Estado general:** las fases 1 a 9 están cerradas, salvo la fase 8 de paquetes
+y conversiones, descartada por decisión del negocio. Las fases 10.1 a 10.3
+están completadas; 10.4 a 10.6 están implementadas; la Release `0.10.7` está
+activa como servicio Windows y 10.8 continúa pospuesta. La fase 11 tiene sus
+principales pantallas implementadas, pero todavía requiere validación física y
+mantiene trabajo parcial en 11.6 y 11.7. WIP está implementado y su migración
+está aplicada, aunque aún no forma parte de una Release publicada ni se ha
+validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están completadas;
+el siguiente bloque planificado es 13.3. La protección de `main` exige el check
+`Quality`.
 
 ## 1. Objetivo
 
@@ -27,8 +30,9 @@ El sistema debe priorizar:
 - inventario por producto y ubicación;
 - trazabilidad completa de los movimientos;
 - interfaz ligera para tablets lentas;
-- posibilidad de crecer a lotes internos, operación sin conexión,
-  QuickBooks Desktop, croquis del almacén y paneles LED.
+- posibilidad de crecer a lotes internos, etiquetas y placas de pallet,
+  trazabilidad de producción, operación sin conexión, QuickBooks Desktop,
+  croquis del almacén y paneles LED.
 
 ## 2. Operación confirmada
 
@@ -351,11 +355,13 @@ usuarios, los catálogos, las ubicaciones, el núcleo de inventario, el historia
 auditable y los lotes internos globales están terminados. PostgreSQL contiene un
 administrador activo creado mediante el comando interactivo; no se registraron
 su nombre, NIP ni campos protegidos en este documento. Las fases 1 a 9 están
-cerradas y el siguiente bloque es la fase 10.1 de estandarización del repositorio
-y documentación. La auditoría final de la fase 9 confirmó 216 ubicaciones, 5
-asignaciones activas, 9 movimientos, 4 saldos y 3 lotes. Sigue pendiente
-comprobar en sitio que las ubicaciones cubran todas las posiciones y excepciones
-físicas del almacén.
+cerradas y la estabilización, UX, WIP y reportes posteriores se detallan en las
+secciones siguientes. Como referencia histórica, la auditoría final de la fase
+9 confirmó 216 ubicaciones, 5 asignaciones activas, 9 movimientos, 4 saldos y 3
+lotes; la auditoría posterior a WIP confirmó 25 movimientos históricos
+`STANDARD` y WIP-2/3/4 sin saldos ni asignaciones. Sigue pendiente comprobar en
+sitio que las ubicaciones cubran todas las posiciones y excepciones físicas del
+almacén.
 
 Si `dotnet` no está en `PATH`, sustituirlo por:
 
@@ -868,12 +874,74 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   Falta validar físicamente geometría, orientación, zoom, interacción táctil y
   temas Claro/Oscuro en laptop y tablets reales.
 
-### Fase 12: validación física y piloto conectado
+### Fase 12: etiquetas, trazabilidad de proceso y piloto conectado
+
+La incorporación de 12.1 a 12.3 documenta una necesidad nueva y no cambia por
+sí sola la prioridad vigente de 13.3; antes de implementarla se debe confirmar
+su orden respecto al tablero y cerrar las decisiones operativas pendientes.
+
+#### Fase 12.1: catálogo único y generación centralizada de documentos — propuesta
+
+- Warehouse EPI será la fuente de verdad del SKU, descripción, unidad y códigos
+  de barras. Los futuros documentos no mantendrán copias independientes de una
+  hoja `MASTER LIST`; cualquier importación inicial deberá mostrar diferencias
+  y exigir conciliación administrativa antes de sobrescribir datos.
+- Sustituir gradualmente los Excel de referencia por tres salidas controladas:
+  **Pallet License Plate**, etiqueta de caja **4x6** y **General Process Routing
+  Sheet**. Conservar vista previa, impresión manual de respaldo y plantillas
+  versionadas; registrar tipo, producto, responsable, fecha, número de copias y
+  reimpresiones.
+- Preseleccionar `ZXing.Net` `0.16.11` para generar Code 128 en el servidor. Es
+  gratuito, usa licencia Apache 2.0, soporta codificación Code 128 y es
+  compatible con .NET 5 o superior. Generar una salida local —preferentemente
+  SVG a partir de la matriz— sin depender de fuentes instaladas, Excel ni
+  Internet. Antes de agregar el paquete, revisar licencia, lockfile, auditoría
+  NuGet y compatibilidad con .NET 10. Referencias:
+  `https://github.com/micjahn/ZXing.Net` y
+  `https://www.nuget.org/packages/ZXing.Net/`.
+- La etiqueta debe mostrar también el valor legible, respetar zona silenciosa,
+  tamaño mínimo y densidad adecuada para la impresora, y validarse leyendo una
+  muestra real. Los Excel actuales mezclan `Libre Barcode 128` y
+  `Libre Barcode 39`; la simbología final de cada campo debe quedar explícita.
+
+#### Fase 12.2: placa de pallet al recibir — propuesta; contrato pendiente
+
+- Permitir preparar o generar una placa al recibir desde Empaque o desde un
+  proveedor, tomando el producto del catálogo y la cantidad/unidad de la
+  recepción confirmada. La placa debe incluir un identificador único legible y
+  escaneable, producto, descripción, cantidad, unidad, fecha, origen y
+  responsable.
+- Generar o reimprimir una placa no modifica inventario por sí mismo ni debe
+  duplicar una Entrada. La relación con el movimiento confirmado debe ser
+  auditable e idempotente.
+- Antes de implementar, decidir si el identificador representa una entidad
+  pallet rastreable —con contenido, división, combinación y ubicación— o solo
+  una etiqueta documental ligada a una recepción. No introducir inventario por
+  pallet hasta confirmar esa decisión.
+
+#### Fase 12.3: ruta de producción de Corte a Bodega — propuesta; alcance pendiente
+
+- Reemplazar la hoja estática por una instancia de ruta asociada a producto y
+  orden de trabajo. La referencia actual registra cantidad procesada, fecha,
+  turno e iniciales en Corte, Costura, Sellado y Martillado, además de entrega a
+  Empaque y recepción en Bodega de Producto Terminado.
+- Conservar eventos inmutables por etapa, NIP del responsable, fecha/hora del
+  almacén, cantidad recibida/procesada, faltante, observaciones y traspasos. La
+  ruta no debe crear movimientos de inventario implícitos; la recepción final
+  se vinculará explícitamente con una Entrada o con el contrato de producción
+  que se apruebe.
+- Definir rutas configurables por producto, porque no se debe asumir que todos
+  pasan por las mismas etapas. Quedan por diseñar trabajo parcial, rechazo,
+  merma, retrabajo, pausas, cancelación y correcciones auditables.
+
+#### Fase 12.4: validación física y piloto conectado
 
 - Probar lectores, aplicaciones de escáner, tablets reales y cámara si se
   requiere.
 - Validar racks, pallets, áreas especiales, rendimiento y operaciones reales en
   red local.
+- Confirmar dimensiones, orientación, DPI, márgenes, impresora y número de
+  copias de cada plantilla; imprimir y leer Code 128 reales en caja y pallet.
 - Validar etiquetas de producto y ubicación con lecturas reales; los lectores
   Bluetooth o USB en modo HID deben funcionar como teclado sin modificar el
   núcleo de inventario.
@@ -881,7 +949,11 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 ### Fase 13: reportes y operación avanzada
 
-- Dividida en 6 subfases incrementales: 13.1 (Contrato analítico y movimientos efectivos), 13.2 (Reportes tabulares y exportación segura), 13.3 (Tablero diario LAN y gráficos reactivos), 13.4 (Existencias, ocupación y rotación), 13.5 (Conteos cíclicos persistentes y ajustes autorizados) y 13.6 (Alertas operativas y croquis interactivo).
+- Dividida en 6 subfases incrementales: 13.1 (contrato analítico y movimientos
+  efectivos), 13.2 (reportes tabulares y exportación segura), 13.3 (tablero
+  diario LAN y gráficos reactivos), 13.4 (existencias, ocupación y rotación),
+  13.5 (conteos cíclicos persistentes y ajustes autorizados) y 13.6 (alertas
+  operativas y croquis interactivo).
 
 #### Fase 13.1: contrato analítico y movimientos efectivos — completada
 
@@ -898,6 +970,15 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - `ReportExportService.cs`: Exportación a Excel `.xlsx` con ClosedXML (celdas de fecha nativas, cantidades numéricas reales `#,##0.0000`, filtros aplicados y textos forzados a string sin fórmula) y exportación a CSV RFC 4180 con UTF-8 BOM (`0xEF, 0xBB, 0xBF`), metadatos de zona horaria/filtros y defensa contra formula injection (`'`, `=`/`+`/`-`/`@`) aplicada estrictamente a campos de texto sin alterar números negativos. El límite de 10,000 se calcula sobre líneas de detalle y rechaza explícitamente la exportación completa en vez de truncarla silenciosamente.
 - Interfaz Razor `/Admin/Reports/Movements/Index.cshtml` con filtros de período rápido, tabla responsiva con badges de tipo/propósito y desglose de líneas. Enlace integrado en la navegación de `_Layout.cshtml` bajo la política `AdminOnly`.
 - Suite dirigida ampliada a 26 pruebas unitarias y de integración xUnit aprobadas al 100%, con compilación en Release sin advertencias ni errores.
+
+#### Fase 13.3: tablero diario LAN y gráficos reactivos — siguiente bloque planificado
+
+- Reutilizar el contrato analítico efectivo de 13.1 sin sumar cantidades de
+  unidades heterogéneas.
+- Mostrar actividad diaria, movimientos efectivos, negativos, mínimos y ajustes
+  recientes con consultas ligeras para la operación LAN.
+- Mantener cualquier decisión visual o funcional nueva sujeta a revisión antes
+  de implementarla.
 
 ### Fase 14: PWA y operación sin conexión
 
@@ -938,7 +1019,15 @@ Antes de implementar el área correspondiente, confirmar:
 - protocolo, controlador y formato de los paneles LED;
 - listado físico definitivo de racks y pallets disponibles, sentido de
   numeración por fila y semántica de las áreas y colores del layout;
-- formato físico final de las etiquetas de ubicación.
+- formato físico final de las etiquetas de ubicación;
+- impresoras de etiquetas disponibles, lenguaje admitido —impresión del
+  navegador, ZPL u otro—, DPI, orientación, márgenes y cantidad de copias;
+- campos y simbología definitivos de la etiqueta 4x6 y la placa de pallet,
+  incluida la necesidad de codificar cantidad, lote, fecha u otros datos;
+- si la placa identifica un pallet rastreable o solamente documenta una
+  recepción, y cuándo se asigna al recibir de Empaque o de proveedor;
+- número/formato de orden de trabajo, rutas por producto, etapas obligatorias y
+  tratamiento de parciales, rechazo, merma y retrabajo en producción.
 
 ## 10. Reglas para continuar el desarrollo
 
@@ -973,6 +1062,30 @@ La hoja `ITEMS` es la única fuente admitida por el importador de productos. Las
 una advertencia visible. Esto permite confirmar el archivo sin asumir que esas
 filas corresponden a `EA`; posteriormente pueden filtrarse y reasignarse.
 
+El 20 de agosto de 2026 se revisaron como referencias funcionales, sin
+modificarlos ni copiarlos al repositorio:
+
+- `C:\Users\JUANANTONIOCASTILLAO\Documents\PALLET LICENSE PLATE.xlsx`;
+- `C:\Users\JUANANTONIOCASTILLAO\Documents\4X6 LABELS 2026.xlsx`;
+- `C:\Users\JUANANTONIOCASTILLAO\Documents\General Process Routing Sheet.xlsx`.
+
+Los tres contienen su propia hoja `MASTER LIST`, pero no representan una misma
+copia confiable: Pallet contiene 1,527 filas con ITEM, 4x6 contiene 1,646 y
+Routing contiene 1,638. Después de normalizar espacios y mayúsculas, 1,506 ITEMS
+aparecen en los tres; existen elementos exclusivos, duplicados y al menos seis
+SKU compartidos con diferencias de descripción o unidad, incluido un `#REF!`.
+No se debe importar ninguna de estas listas como autoridad ni sincronizarlas
+entre sí; deben conciliarse contra el catálogo vigente de Warehouse EPI.
+
+`4X6 LABELS 2026.xlsx` usa plantillas 4x6/6x4, búsqueda mediante `XLOOKUP` y
+fuentes `Libre Barcode 128` y `Libre Barcode 39`; además contiene una prueba QR
+que depende de un servicio web externo. `PALLET LICENSE PLATE.xlsx` captura
+producto, descripción, peso, fecha, cantidad, responsable y marcas
+Received/Counted/Removed. `General Process Routing Sheet.xlsx` registra una
+orden y el paso por Corte, Costura, Sellado, Martillado, Empaque y Bodega. Estos
+campos son evidencia del proceso actual, no contratos definitivos; deben
+confirmarse con los responsables antes de modelarlos.
+
 El layout recibido el 14 de agosto de 2026 fija la nomenclatura de rack como
 `Fila-Rack-Pallet`, por ejemplo `A-1-8`. Cada rack tiene normalmente nueve
 posiciones distribuidas como un teclado numérico: `1,2,3` abajo; `4,5,6` en
@@ -981,7 +1094,7 @@ Ya se realizó una carga inicial de 153 ubicaciones. Sigue pendiente validar en
 sitio que cubra las posiciones existentes, excepciones y sentido de numeración,
 además de confirmar el significado de los colores del croquis.
 
-## 12. Surtimiento WIP (implementado en código, pendiente de despliegue)
+## 12. Surtimiento WIP (implementado y migrado; pendiente de Release y validación física)
 
 - `WIP-2`, `WIP-3` y `WIP-4` son ubicaciones operativas sin saldo. Se presentan como racks WIP completos, sin posiciones de pallet; internamente conservan `LocationKind.Area` porque el tipo Rack representa posiciones individuales. La migración
   `WipProductionFlow` valida que no sean racks y que no tengan saldo ni
@@ -1032,20 +1145,27 @@ reverso y reemplazo auditables.
 
 Las fases 1 a 9 están completadas; la fase 8 fue descartada. La base real es
 warehouseEPI, el esquema operativo es public y los secretos están en User
-Secrets. Existe una migración aplicada para lotes internos globales. La última
-auditoría confirmó 1,612 productos, 216 ubicaciones, 5 asignaciones activas, 9
-movimientos, 4 saldos y 3 lotes, sin saldos sin lote. La suite tiene 120 pruebas,
-incluidas pruebas PostgreSQL aisladas en warehouse_epi_test.
+Secrets. Los lotes internos globales y WIP tienen migraciones aplicadas. WIP-2,
+WIP-3 y WIP-4 no controlan saldo; Rack -> WIP consume inventario y las
+disposiciones posteriores conservan trazabilidad. WIP todavía no forma parte de
+una Release publicada ni se ha validado físicamente en tablet/cámara. Existen
+pruebas PostgreSQL aisladas en warehouse_epi_test; no reutilices conteos
+históricos de pruebas sin ejecutar una validación actual.
 
 El layout físico usa la nomenclatura Fila-Rack-Pallet, por ejemplo A-1-8, y el
 pallet se distribuye como teclado numérico. Las áreas no rack conservan códigos
 propios. Sigue pendiente validar físicamente posiciones, excepciones, sentido de
 numeración y colores del layout.
 
-Las fases 10.1, 10.2 y 10.3 están completadas. `Quality` está verde y es
-obligatorio en `main`; el motor de inventario usa exclusivamente lotes internos
-automáticos en movimientos nuevos y conserva el reverso de historial antiguo.
-Después siguen seguridad, observabilidad, respaldo, publicación,
-UX, piloto conectado, reportes, PWA/offline, liberación v1.0, QuickBooks y
-paneles LED. No agregues QuickBooks ni LED antes de esas fases.
+Las fases 10.1 a 10.3 están completadas; 10.4 a 10.6 están implementadas; la
+Release 0.10.7 está activa como servicio Windows y 10.8 continúa pospuesta.
+`Quality` es obligatorio en `main`. La fase 11 tiene sus principales pantallas
+implementadas, con trabajo parcial en 11.6 y 11.7 y validación física pendiente.
+La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
+la base antes de cambiar ese estado. Las fases 13.1 y 13.2 están completadas; el
+siguiente bloque planificado es 13.3. La fase 12 ahora contempla centralizar
+etiquetas 4x6, placas de pallet y rutas de producción usando el catálogo del
+sistema, pero su contrato e implementación siguen pendientes. Después quedan el
+piloto físico, conteos/alertas avanzados, PWA/offline, liberación v1.0,
+QuickBooks y paneles LED. No agregues QuickBooks ni LED antes de sus fases.
 ```
