@@ -235,9 +235,17 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
 
     public async Task<InventoryAlertSummary> GetAlertSummaryAsync(CancellationToken cancellationToken = default)
     {
-        var negatives = dbContext.InventoryBalances.AsNoTracking().Where(balance => balance.Quantity < 0);
+        var negatives = dbContext.InventoryBalances.AsNoTracking()
+            .GroupBy(balance => new { balance.ProductId, balance.LocationId })
+            .Select(balances => new
+            {
+                balances.Key.ProductId,
+                balances.Key.LocationId,
+                Quantity = balances.Sum(balance => balance.Quantity)
+            })
+            .Where(position => position.Quantity < 0);
         var negativePositions = await negatives.CountAsync(cancellationToken);
-        var negativeProducts = await negatives.Select(balance => balance.ProductId).Distinct().CountAsync(cancellationToken);
+        var negativeProducts = await negatives.Select(position => position.ProductId).Distinct().CountAsync(cancellationToken);
         var belowMinimum = await (
             from product in dbContext.Products.AsNoTracking()
             where product.IsActive
@@ -256,25 +264,48 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         CancellationToken cancellationToken = default)
     {
         var normalized = CatalogNormalization.NormalizeCode(search ?? string.Empty);
-        var query = dbContext.InventoryBalances.AsNoTracking().Where(balance => balance.Quantity < 0);
+        var positionTotals = dbContext.InventoryBalances.AsNoTracking()
+            .GroupBy(balance => new { balance.ProductId, balance.LocationId })
+            .Select(balances => new
+            {
+                balances.Key.ProductId,
+                balances.Key.LocationId,
+                Quantity = balances.Sum(balance => balance.Quantity)
+            })
+            .Where(position => position.Quantity < 0);
+        var query =
+            from position in positionTotals
+            join product in dbContext.Products.AsNoTracking() on position.ProductId equals product.Id
+            join location in dbContext.Locations.AsNoTracking() on position.LocationId equals location.Id
+            select new
+            {
+                ProductId = product.Id,
+                ProductSku = product.Sku,
+                ProductDescription = product.Description,
+                UnitCode = product.BaseUnit.Code,
+                LocationId = location.Id,
+                LocationCode = location.Code,
+                LocationDescription = location.Description,
+                position.Quantity
+            };
         if (normalized.Length > 0)
-            query = query.Where(balance => balance.Product.Sku.Contains(normalized) ||
-                (balance.Product.Description != null && balance.Product.Description.ToUpper().Contains(normalized)) ||
-                balance.Location.Code.Contains(normalized) ||
-                (balance.Location.Description != null && balance.Location.Description.ToUpper().Contains(normalized)));
+            query = query.Where(position => position.ProductSku.Contains(normalized) ||
+                (position.ProductDescription != null && position.ProductDescription.ToUpper().Contains(normalized)) ||
+                position.LocationCode.Contains(normalized) ||
+                (position.LocationDescription != null && position.LocationDescription.ToUpper().Contains(normalized)));
         var totalCount = await query.CountAsync(cancellationToken);
         var page = Math.Min(NormalizePage(pageNumber), Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize)));
-        var items = await query.OrderBy(balance => balance.Product.Sku).ThenBy(balance => balance.Location.Code)
+        var items = await query.OrderBy(position => position.ProductSku).ThenBy(position => position.LocationCode)
             .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(balance => new NegativeInventoryAlert(
-                balance.ProductId,
-                balance.Product.Sku,
-                balance.Product.Description,
-                balance.Product.BaseUnit.Code,
-                balance.LocationId,
-                balance.Location.Code,
-                balance.Location.Description,
-                balance.Quantity))
+            .Select(position => new NegativeInventoryAlert(
+                position.ProductId,
+                position.ProductSku,
+                position.ProductDescription,
+                position.UnitCode,
+                position.LocationId,
+                position.LocationCode,
+                position.LocationDescription,
+                position.Quantity))
             .ToListAsync(cancellationToken);
         return new(items, totalCount);
     }

@@ -56,24 +56,48 @@ public sealed record WipReportPage(
 
 public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseClock warehouseClock)
 {
+    public async Task<IReadOnlyList<WipIssueRow>> GetRecentIssuesAsync(
+        Guid wipAreaId,
+        int take = 10,
+        CancellationToken cancellationToken = default)
+    {
+        if (wipAreaId == Guid.Empty)
+            return [];
+
+        var rows = (await LoadRowsAsync(
+                new(null, null, WipAreaId: wipAreaId),
+                cancellationToken: cancellationToken))
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenByDescending(item => item.MovementId)
+            .Take(Math.Clamp(take, 1, 100));
+        var localized = new List<WipIssueRow>();
+        foreach (var row in rows)
+            localized.Add(row with
+            {
+                OccurredAt = await warehouseClock.ConvertAsync(row.OccurredAt, cancellationToken)
+            });
+        return localized;
+    }
+
     public async Task<IReadOnlyList<WipIssueRow>> SearchIssuesAsync(
         string? search,
         int take = 20,
         CancellationToken cancellationToken = default)
     {
-        var rows = await Query(new(null, null, search)).OrderByDescending(item => item.OccurredAt)
-            .ThenByDescending(item => item.MovementId).Take(Math.Clamp(take, 1, 100))
-            .ToListAsync(cancellationToken);
+        var rows = (await LoadRowsAsync(new(null, null, search), cancellationToken: cancellationToken))
+            .Where(item => item.Returnable > 0)
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenByDescending(item => item.MovementId)
+            .Take(Math.Clamp(take, 1, 100));
         var localized = new List<WipIssueRow>();
-        foreach (var row in rows.Where(item => item.Returnable > 0))
+        foreach (var row in rows)
             localized.Add(row with { OccurredAt = await warehouseClock.ConvertAsync(row.OccurredAt, cancellationToken) });
         return localized;
     }
 
     public async Task<WipIssueRow?> GetIssueAsync(Guid movementLineId, CancellationToken cancellationToken = default)
     {
-        var row = await Query(new(null, null)).SingleOrDefaultAsync(
-            item => item.MovementLineId == movementLineId, cancellationToken);
+        var row = (await LoadRowsAsync(new(null, null), movementLineId, cancellationToken)).SingleOrDefault();
         return row is null ? null : row with
         {
             OccurredAt = await warehouseClock.ConvertAsync(row.OccurredAt, cancellationToken)
@@ -86,8 +110,9 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
         int pageSize,
         CancellationToken cancellationToken = default)
     {
-        var all = await Query(filter).OrderByDescending(item => item.OccurredAt)
-            .ThenByDescending(item => item.MovementId).ToListAsync(cancellationToken);
+        var all = (await LoadRowsAsync(filter, cancellationToken: cancellationToken))
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenByDescending(item => item.MovementId);
         var localRows = new List<(WipIssueRow Row, DateOnly WeekStart)>();
         foreach (var row in all)
         {
@@ -97,12 +122,12 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
             localRows.Add((row with { OccurredAt = local }, date.AddDays(-daysFromMonday)));
         }
         var summary = localRows.GroupBy(item => new
-            {
-                item.WeekStart,
-                item.Row.ProductSku,
-                item.Row.Unit,
-                item.Row.WipArea
-            })
+        {
+            item.WeekStart,
+            item.Row.ProductSku,
+            item.Row.Unit,
+            item.Row.WipArea
+        })
             .OrderByDescending(group => group.Key.WeekStart)
             .ThenBy(group => group.Key.ProductSku, StringComparer.Ordinal)
             .ThenBy(group => group.Key.WipArea, StringComparer.Ordinal)
@@ -120,21 +145,77 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
         WipReportFilter filter,
         CancellationToken cancellationToken = default)
     {
-        var rows = await Query(filter).OrderByDescending(item => item.OccurredAt).ThenBy(item => item.ProductSku)
-            .ToListAsync(cancellationToken);
+        var rows = (await LoadRowsAsync(filter, cancellationToken: cancellationToken))
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenBy(item => item.ProductSku, StringComparer.Ordinal);
         var localized = new List<WipIssueRow>();
         foreach (var row in rows)
             localized.Add(row with { OccurredAt = await warehouseClock.ConvertAsync(row.OccurredAt, cancellationToken) });
         return localized;
     }
 
-    private IQueryable<WipIssueRow> Query(WipReportFilter filter)
+    private async Task<IReadOnlyList<WipIssueRow>> LoadRowsAsync(
+        WipReportFilter filter,
+        Guid? movementLineId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var issueRows = await Query(filter, movementLineId).ToListAsync(cancellationToken);
+        if (issueRows.Count == 0)
+            return [];
+
+        var lineIds = issueRows.Select(item => item.MovementLineId).ToArray();
+        var dispositions = await dbContext.WipDispositions.AsNoTracking()
+            .Where(disposition => lineIds.Contains(disposition.OriginalMovementLineId))
+            .Select(disposition => new WipDispositionAmount(
+                disposition.Id,
+                disposition.OriginalMovementLineId,
+                disposition.Type,
+                disposition.Quantity,
+                disposition.ReversesDispositionId))
+            .ToListAsync(cancellationToken);
+        var reversedDispositionIds = dispositions
+            .Where(disposition => disposition.ReversesDispositionId is not null)
+            .Select(disposition => disposition.ReversesDispositionId!.Value)
+            .ToHashSet();
+        var totalsByLine = dispositions
+            .Where(disposition => disposition.ReversesDispositionId is null &&
+                !reversedDispositionIds.Contains(disposition.Id))
+            .GroupBy(disposition => disposition.OriginalMovementLineId)
+            .ToDictionary(group => group.Key, group => new WipDispositionTotals(
+                group.Where(item => item.Type == WipDispositionType.WarehouseReturn).Sum(item => item.Quantity),
+                group.Where(item => item.Type == WipDispositionType.SupplierReturn).Sum(item => item.Quantity)));
+
+        return issueRows.Select(row =>
+        {
+            totalsByLine.TryGetValue(row.MovementLineId, out var totals);
+            return new WipIssueRow(
+                row.MovementId,
+                row.MovementLineId,
+                row.ProductId,
+                row.OccurredAt,
+                row.ProductSku,
+                row.ProductDescription,
+                row.Unit,
+                row.SourceLocation,
+                row.WipAreaId,
+                row.WipArea,
+                row.Issued,
+                totals?.WarehouseReturned ?? 0m,
+                totals?.SupplierReturned ?? 0m,
+                row.Responsible,
+                row.Reference,
+                row.Notes);
+        }).ToArray();
+    }
+
+    private IQueryable<WipIssueBaseRow> Query(WipReportFilter filter, Guid? movementLineId)
     {
         var query = dbContext.InventoryMovementLines.AsNoTracking()
             .Where(line => line.Movement.Type == InventoryMovementType.Exit &&
                 line.Movement.Purpose == InventoryMovementPurpose.ProductionIssue &&
                 line.Movement.OperationalAreaId != null &&
                 !dbContext.InventoryMovementCorrections.Any(correction => correction.OriginalMovementId == line.MovementId));
+        if (movementLineId is not null) query = query.Where(line => line.Id == movementLineId);
         if (filter.From is not null) query = query.Where(line => line.Movement.OccurredAt >= filter.From);
         if (filter.To is not null) query = query.Where(line => line.Movement.OccurredAt < filter.To);
         if (filter.WipAreaId is not null) query = query.Where(line => line.Movement.OperationalAreaId == filter.WipAreaId);
@@ -151,7 +232,7 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
                 line.MovementId.ToString().Contains(term));
         }
 
-        return query.Select(line => new WipIssueRow(
+        return query.Select(line => new WipIssueBaseRow(
             line.MovementId,
             line.Id,
             line.ProductId,
@@ -163,20 +244,33 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
             line.Movement.OperationalAreaId!.Value,
             line.Movement.OperationalArea!.Code,
             line.Quantity,
-            dbContext.WipDispositions.Where(disposition =>
-                    disposition.OriginalMovementLineId == line.Id &&
-                    disposition.Type == WipDispositionType.WarehouseReturn &&
-                    disposition.ReversesDispositionId == null &&
-                    !dbContext.WipDispositions.Any(reversal => reversal.ReversesDispositionId == disposition.Id))
-                .Sum(disposition => (decimal?)disposition.Quantity) ?? 0m,
-            dbContext.WipDispositions.Where(disposition =>
-                    disposition.OriginalMovementLineId == line.Id &&
-                    disposition.Type == WipDispositionType.SupplierReturn &&
-                    disposition.ReversesDispositionId == null &&
-                    !dbContext.WipDispositions.Any(reversal => reversal.ReversesDispositionId == disposition.Id))
-                .Sum(disposition => (decimal?)disposition.Quantity) ?? 0m,
             line.Movement.ResponsibleUser.FullName,
             line.Movement.Reference,
             line.Movement.Notes));
     }
+
+    private sealed record WipIssueBaseRow(
+        Guid MovementId,
+        Guid MovementLineId,
+        Guid ProductId,
+        DateTimeOffset OccurredAt,
+        string ProductSku,
+        string? ProductDescription,
+        string Unit,
+        string SourceLocation,
+        Guid WipAreaId,
+        string WipArea,
+        decimal Issued,
+        string Responsible,
+        string? Reference,
+        string? Notes);
+
+    private sealed record WipDispositionAmount(
+        Guid Id,
+        Guid OriginalMovementLineId,
+        WipDispositionType Type,
+        decimal Quantity,
+        Guid? ReversesDispositionId);
+
+    private sealed record WipDispositionTotals(decimal WarehouseReturned, decimal SupplierReturned);
 }

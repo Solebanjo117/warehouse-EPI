@@ -881,17 +881,23 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 ### Fase 13: reportes y operación avanzada
 
-- Reporte de existencias por producto, ubicación y lote interno.
-- Reporte de movimientos por fechas, usuario, tipo y producto; negativos,
-  mínimos, conteos cíclicos y exportaciones.
-- Incorporar un tablero diario con movimientos, saldos negativos, mínimos,
-  ajustes recientes y conteos pendientes.
-- Implementar conteos cíclicos por ubicación: captura ciega, discrepancia,
-  recuento y ajuste autorizado, conservando trazabilidad completa.
-- Agregar alertas para discrepancias, ubicaciones bloqueadas y saldo en una
-  ubicación sin asignación activa.
-- El croquis base ya pertenece a 11.8; esta fase podrá reutilizarlo para conteos
-  cíclicos y alertas operativas sin rediseñar su geometría.
+- Dividida en 6 subfases incrementales: 13.1 (Contrato analítico y movimientos efectivos), 13.2 (Reportes tabulares y exportación segura), 13.3 (Tablero diario LAN y gráficos reactivos), 13.4 (Existencias, ocupación y rotación), 13.5 (Conteos cíclicos persistentes y ajustes autorizados) y 13.6 (Alertas operativas y croquis interactivo).
+
+#### Fase 13.1: contrato analítico y movimientos efectivos — completada
+
+- DTOs y modelos inmutables de consulta en `src/WarehouseEPI.Infrastructure/Reporting/ReportingContracts.cs`.
+- Helper LINQ centralizado `EffectiveMovementQuery.cs` que excluye automáticamente movimientos originales corregidos (`OriginalMovementId`) y reversos (`ReversalMovementId`), conservando movimientos estándar y reemplazos vigentes (incluyendo cadenas de corrección múltiple).
+- Prohibición estricta de suma de unidades heterogéneas: totales globales y gráficos generales se expresan en número de operaciones efectivas, líneas o SKUs distintos. Las cantidades físicas solo se totalizan por SKU, por unidad base homogénea o con desglose tabular por unidad.
+- Ocupación física de racks clasificada en 5 estados mutuamente excluyentes (Inactiva, Bloqueada, Negativa, Ocupada > 0, Vacía = 0) con fórmula protegida contra división por cero.
+- Rotación determinista (`EffectiveExitMovementCount DESC, QuantityInBaseUnit DESC, Sku ASC`) y estancamiento en 4 rangos de antigüedad (30-59 días, 60-89 días, 90+ días y sin salida histórica) calculados con `WarehouseClock`.
+- Pruebas xUnit de filtros, correcciones encadenadas, anulaciones, ajustes y salvaguardas, más prueba de integración en PostgreSQL real `warehouse_epi_test` para validar la traducción nativa de la consulta —incluida la búsqueda por folio— sin evaluación en memoria.
+
+#### Fase 13.2: reportes tabulares y exportación segura — completada
+
+- `MovementReportService.cs`: Consultas paginadas, ordenadas y filtradas por fecha local/UTC, propósito, tipo, producto, ubicación, responsable, folio y búsqueda. Producto y ubicación aceptan fragmentos sin distinguir mayúsculas; producto cubre SKU, descripción, referencia y códigos de barras, mientras ubicación cubre área, origen, destino y cambios históricos de saldo. Los lotes y sus ubicaciones se reconstruyen desde las instantáneas históricas de `InventoryBalanceChange`, y los ajustes distinguen saldo anterior, diferencia y saldo resultante.
+- `ReportExportService.cs`: Exportación a Excel `.xlsx` con ClosedXML (celdas de fecha nativas, cantidades numéricas reales `#,##0.0000`, filtros aplicados y textos forzados a string sin fórmula) y exportación a CSV RFC 4180 con UTF-8 BOM (`0xEF, 0xBB, 0xBF`), metadatos de zona horaria/filtros y defensa contra formula injection (`'`, `=`/`+`/`-`/`@`) aplicada estrictamente a campos de texto sin alterar números negativos. El límite de 10,000 se calcula sobre líneas de detalle y rechaza explícitamente la exportación completa en vez de truncarla silenciosamente.
+- Interfaz Razor `/Admin/Reports/Movements/Index.cshtml` con filtros de período rápido, tabla responsiva con badges de tipo/propósito y desglose de líneas. Enlace integrado en la navegación de `_Layout.cshtml` bajo la política `AdminOnly`.
+- Suite dirigida ampliada a 26 pruebas unitarias y de integración xUnit aprobadas al 100%, con compilación en Release sin advertencias ni errores.
 
 ### Fase 14: PWA y operación sin conexión
 

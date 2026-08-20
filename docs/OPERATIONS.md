@@ -70,7 +70,7 @@ renueva el certificado usando el respaldo PFX privado de la CA:
 
 ```powershell
 pwsh ./scripts/security/Renew-WarehouseEpiLanCertificate.ps1 `
-  -ServerIpAddress 192.168.6.68 `
+  -ServerIpAddress 192.168.6.154 `
   -CaPfxPath C:\WarehouseEPI-CA\warehouse-epi-local-ca.pfx
 Restart-Service WarehouseEPI
 ```

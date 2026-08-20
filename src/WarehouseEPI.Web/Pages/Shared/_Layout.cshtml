@@ -104,6 +104,9 @@
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Movements") ? "active" : null)" asp-page="/Admin/Inventory/Movements/Index" aria-current="@(IsSection("/Admin/Inventory/Movements") ? "page" : null)" title="Movimientos">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Movimientos</span>
                     </a>
+                    <a class="app-nav-link @(IsSection("/Admin/Reports/Movements") ? "active" : null)" asp-page="/Admin/Reports/Movements/Index" aria-current="@(IsSection("/Admin/Reports/Movements") ? "page" : null)" title="Reporte analítico">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte analítico</span>
+                    </a>
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Lots") ? "active" : null)" asp-page="/Admin/Inventory/Lots/Index" aria-current="@(IsSection("/Admin/Inventory/Lots") ? "page" : null)" title="Lotes">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-lots" /></svg><span>Lotes</span>
                     </a>
