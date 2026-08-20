@@ -15,8 +15,9 @@ principales pantallas implementadas, pero todavía requiere validación física 
 mantiene trabajo parcial en 11.6 y 11.7. WIP está implementado y su migración
 está aplicada, aunque aún no forma parte de una Release publicada ni se ha
 validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están completadas;
-el siguiente bloque planificado es 13.3. La protección de `main` exige el check
-`Quality`.
+13.3 y 13.4 están implementadas y automatizadas, con validación física
+LAN/tablet pendiente. El siguiente bloque planificado es 13.5. La protección
+de `main` exige el check `Quality`.
 
 ## 1. Objetivo
 
@@ -876,9 +877,10 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 
 ### Fase 12: etiquetas, trazabilidad de proceso y piloto conectado
 
-La incorporación de 12.1 a 12.3 documenta una necesidad nueva y no cambia por
-sí sola la prioridad vigente de 13.3; antes de implementarla se debe confirmar
-su orden respecto al tablero y cerrar las decisiones operativas pendientes.
+La incorporación de 12.1 a 12.3 documenta una necesidad nueva. Los bloques de
+reporting 13.3 y 13.4 ya fueron implementados; antes de iniciar la fase 12 se
+debe confirmar su prioridad frente a 13.5 y cerrar las decisiones operativas
+pendientes.
 
 #### Fase 12.1: catálogo único y generación centralizada de documentos — propuesta
 
@@ -951,7 +953,8 @@ su orden respecto al tablero y cerrar las decisiones operativas pendientes.
 
 - Dividida en 6 subfases incrementales: 13.1 (contrato analítico y movimientos
   efectivos), 13.2 (reportes tabulares y exportación segura), 13.3 (tablero
-  diario LAN y gráficos reactivos), 13.4 (existencias, ocupación y rotación),
+  diario LAN y gráficos reactivos), 13.4 (analítica de ocupación, rotación y
+  estancamiento),
   13.5 (conteos cíclicos persistentes y ajustes autorizados) y 13.6 (alertas
   operativas y croquis interactivo).
 
@@ -971,14 +974,85 @@ su orden respecto al tablero y cerrar las decisiones operativas pendientes.
 - Interfaz Razor `/Admin/Reports/Movements/Index.cshtml` con filtros de período rápido, tabla responsiva con badges de tipo/propósito y desglose de líneas. Enlace integrado en la navegación de `_Layout.cshtml` bajo la política `AdminOnly`.
 - Suite dirigida ampliada a 26 pruebas unitarias y de integración xUnit aprobadas al 100%, con compilación en Release sin advertencias ni errores.
 
-#### Fase 13.3: tablero diario LAN y gráficos reactivos — siguiente bloque planificado
+#### Fase 13.3: tablero diario LAN y gráficos reactivos — implementada; validación física pendiente
 
-- Reutilizar el contrato analítico efectivo de 13.1 sin sumar cantidades de
-  unidades heterogéneas.
-- Mostrar actividad diaria, movimientos efectivos, negativos, mínimos y ajustes
-  recientes con consultas ligeras para la operación LAN.
-- Mantener cualquier decisión visual o funcional nueva sujeta a revisión antes
-  de implementarla.
+- `DailyDashboardService.cs` calcula por fecha local movimientos efectivos y
+  ajustes del día, posiciones negativas agrupadas por producto + ubicación y
+  productos activos bajo mínimo. La tendencia conserva 14 días calendario,
+  incluidos días sin actividad, y expresa entradas, salidas, transferencias,
+  ajustes y SKUs distintos sin sumar cantidades de unidades heterogéneas.
+- `/Reports/Dashboard` es una página pública de solo lectura para la LAN, con
+  carga inicial renderizada en servidor, cuatro tarjetas y barras apiladas
+  nativas que no incorporan dependencias gráficas externas. Los enlaces hacia
+  reportes y alertas administrativas aparecen únicamente con sesión ADMIN.
+- El handler JSON `Metrics` usa `Cache-Control: no-store`; los snapshots
+  inmutables se comparten durante 30 segundos en memoria. El cliente consulta
+  cada 60 segundos, evita solicitudes superpuestas, pausa cuando la pestaña está
+  oculta y conserva el último dato con advertencia explícita si falla una
+  actualización.
+- La mejora visual 13.3.1 conserva exactamente el mismo snapshot y añade eje
+  con escala, líneas guía, barras con mayor contraste, selección accesible de
+  día, detalle táctil/teclado y vistas locales de 7 o 14 días. También muestra
+  operaciones y día de mayor actividad del período visible, sin sumar unidades
+  ni agregar dependencias, migraciones o consultas. Sus contratos de página y
+  script pasan 3/3; sigue pendiente comprobar la interfaz en laptop LAN y
+  tablets reales.
+- La gráfica se migró después a Chart.js `4.5.1`, distribuido localmente bajo
+  `wwwroot/lib/chart.js` con su licencia MIT. Conserva el canvas interactivo,
+  el selector 7/14 y detalle accesible, mientras una tabla renderizada en
+  servidor queda disponible si JavaScript o la librería no cargan. No hay CDN,
+  nuevas consultas, métricas, migraciones ni paquetes NuGet.
+- El acabado operativo de la gráfica incorpora barras con gradiente, mayor
+  separación, totales por pila, énfasis visual para hoy/selección y un tooltip
+  compacto de alto contraste. Son mejoras de presentación sobre los mismos 14
+  puntos y mantienen las actualizaciones posteriores sin animación.
+- No se agregaron migraciones ni paquetes. Las 32 pruebas dirigidas de
+  Reporting/tablero pasan, incluida la traducción de consultas en PostgreSQL
+  real `warehouse_epi_test`; la compilación Release queda sin advertencias ni
+  errores. La suite completa queda en 198/217: las 19 fallas siguen siendo los
+  HTTP 400/host/antiforgery preexistentes de `WebApplicationFactory`. Falta
+  validar visualmente actualización, temas y legibilidad en la laptop LAN y
+  tablets reales.
+- El alcance propio de 13.3 no mezcla ocupación, rotación, conteos cíclicos ni
+  alertas avanzadas; ocupación y rotación se implementaron después como 13.4.
+
+#### Fase 13.4: analítica de ocupación, rotación y estancamiento — implementada; validación física pendiente
+
+- `InventoryAnalyticsService.cs` consume saldos existentes y movimientos
+  efectivos, sin crear nuevas tablas ni saldos. La ocupación considera
+  únicamente posiciones `Rack + Storage`, agrupa lotes por producto + ubicación
+  y aplica la precedencia inactiva, bloqueada, negativa, ocupada y vacía. Publica
+  métricas globales y por fila; la utilización excluye bloqueadas e inactivas y
+  protege la división entre cero.
+- La rotación incluye todos los productos filtrados, aun con cero salidas, y
+  admite 30, 90, 180 días o todo el historial. Cuenta salidas efectivas distintas,
+  suma cantidades solo dentro del SKU y su unidad base, conserva existencia
+  actual y última salida histórica y usa orden determinista. El estancamiento
+  exige existencia positiva y clasifica 30–59, 60–89, 90+ y nunca salió con
+  fechas locales del almacén.
+- `/Reports/Inventory` es pública dentro de la LAN, de solo lectura y separada
+  de `/Inventory`, Alertas, Ubicaciones y el croquis. Ofrece pestañas GET,
+  búsqueda por SKU/descripción/referencia, estado activo/inactivo/todos, unidad,
+  período y páginas de 25 productos. Las lecturas se comparten en memoria por
+  60 segundos y la clave conserva los filtros. Los productos enlazan a la
+  consulta pública; ficha, alertas y ubicaciones solo aparecen para ADMIN.
+- Rotación y estancamiento se exportan públicamente a CSV RFC 4180 con UTF-8 BOM
+  y a XLSX con números y fechas nativos. Ambas exportaciones conservan filtros,
+  neutralizan fórmulas y rechazan el archivo completo si supera 10,000 productos;
+  ocupación no se exporta en 13.4.
+- Las pruebas dirigidas cubren estados y precedencia de ocupación, agrupación de
+  lotes, filtros, paginación, ventanas, cero salidas, correcciones encadenadas,
+  límites de estancamiento, límite de exportación, CSV/XLSX, contratos públicos
+  y enlaces ADMIN. La consulta se valida además contra PostgreSQL real
+  `warehouse_epi_test`: Reporting y los contratos web dirigidos pasan 41/41.
+  La compilación Release queda sin advertencias ni errores y la suite completa
+  queda en 207/226; sus 19 fallas continúan siendo los HTTP 400/host/antiforgery
+  preexistentes de `WebApplicationFactory`. Falta comprobar visualmente la
+  interfaz, los filtros y las descargas en la laptop LAN y tablets reales; la
+  aplicación no se inició durante esta implementación.
+- La consulta pública de Existencias ya existente no se reimplementó y no se
+  añadieron migraciones ni paquetes. El siguiente bloque planificado es 13.5,
+  conteos cíclicos persistentes y ajustes autorizados.
 
 ### Fase 14: PWA y operación sin conexión
 
@@ -1094,7 +1168,112 @@ Ya se realizó una carga inicial de 153 ubicaciones. Sigue pendiente validar en
 sitio que cubra las posiciones existentes, excepciones y sentido de numeración,
 además de confirmar el significado de los colores del croquis.
 
-## 12. Surtimiento WIP (implementado y migrado; pendiente de Release y validación física)
+## 12. Catálogo de Labels / Etiquetas y estrategia de implementación
+
+Esta sección convierte las hojas revisadas en un inventario funcional. La
+lectura estructural cubrió las 30 hojas, incluidas las ocultas, sus fórmulas,
+fuentes, rangos de impresión e imágenes. **Todavía falta comparar visualmente en
+Excel y mediante muestras impresas cada variante antes de declarar idéntico su
+diseño**; por eso las equivalencias siguientes son propuestas y no contratos
+finales de presentación.
+
+### 12.1 Clasificación de todas las hojas actuales
+
+| Libro y hojas | Clasificación | Destino propuesto en Warehouse EPI |
+| --- | --- | --- |
+| Pallet: `MANUAL INPUT` | Formato manual de placa | Conservar como respaldo dentro de `PLT-LICENSE-PLATE`, sin lista maestra propia. |
+| Pallet: `SEARCH BY DESCRIPTION (2)` y `SEARCH BY DESCRIPTION` | Selector por descripción y variantes de impresión | Sustituir por un solo buscador del catálogo; la hoja oculta/multipágina no será otra plantilla hasta confirmar diferencias visuales. |
+| Pallet: `SEARCH BY ITEM PART # ROLLS (2)` y `SEARCH BY ITEM PART # ROLLS` | Placa para producto medido en rollos | Usar `PLT-LICENSE-PLATE` con unidad y campos de rollo derivados del producto/recepción. |
+| Pallet: `SEARCH BY ITEM PART # (2)` y `SEARCH BY ITEM PART #` | Selector por ITEM y variantes de impresión | Sustituir por el mismo buscador; consolidar las copias visibles/ocultas después de la revisión visual. |
+| Pallet: `Inventory Count Sheet` | Tarjetas repetidas de Received/Counted/Removed | No es una etiqueta de producto. Mover su necesidad a conteos cíclicos de 13.5 y conservar impresión solo si el piloto la requiere. |
+| Pallet: `MASTER LIST` | Catálogo duplicado | Eliminar como fuente; leer productos, unidades y códigos desde Warehouse EPI. |
+| 4x6: `MASTER LIST` | Catálogo duplicado | Eliminar como fuente; no sincronizar otra copia. |
+| 4x6: `4X6 SEARCH BY DESCRIPTION` y `4X6 SEARCH BY ITEM ` | Etiqueta estándar buscada por descripción o ITEM | Unificar como `LBL-4X6-STANDARD`; la forma de buscar no crea formatos distintos. |
+| 4x6: `6X4 ZEBRA` | Etiqueta principal para impresora Zebra | `LBL-6X4-ZEBRA`: ITEM/Code 128, descripción, cantidad/unidad, fecha de fabricación y marca Repack. |
+| 4x6: `3X1 SEARCH BY ITEM` | Etiqueta compacta | `LBL-3X1-COMPACT`; confirmar impresora, DPI y si realmente necesita descripción. |
+| 4x6: `6X4 PARTIAL (2)` y `6X4 PARTIAL` | Producto o cantidad parcial | Unificar como `LBL-6X4-PARTIAL`; registrar que es parcial como dato, no como texto libre en una copia distinta. |
+| 4x6: `SPOUTED BAGS 6X4` | Etiqueta especial de bolsas con boquilla | `LBL-6X4-SPOUTED`: Corte, Costura, Inspector, Empaque, largo, alto, ancho, boquillas y MFD. |
+| 4x6: `BERMS 6X4` | Etiqueta especial de bermas | `LBL-6X4-BERM`: Corte, Soldadura, Inspector, Empaque, largo, ancho, alto, ranuras de soporte y MFD. |
+| 4x6: `RAINCAPS 6X4` | Etiqueta especial de raincaps | `LBL-6X4-RAINCAP`: Corte, Costura, Inspector, Empaque, largo, ancho y MFD. |
+| 4x6: `CUSTOM 24DIA SPOUTED BAG` | Variante especial con dos boquillas de 24 pulgadas | `LBL-6X4-CUSTOM-SPOUT`; modelar diámetro/cantidad como datos configurables, no fijarlos en la plantilla general. |
+| 4x6: `6X4 FOR MOBILE PRINTER` | Variante compacta para impresora móvil | `LBL-6X4-MOBILE`; mantenerla separada solo si la impresora física exige otro lenguaje, DPI o área imprimible. |
+| 4x6: `6X4 FOR MOBILE PRINTER BRENDA` | Copia personal/experimental | No migrar como formato definitivo hasta comparar visualmente y confirmar una diferencia operativa real. |
+| 4x6: `4x4.5 FOR RECEIVING` | Etiqueta de recepción de rollos | `LBL-4X45-RECEIVING`: ITEM/Code 128, fecha recibida, número de rollo, yardas y orden de compra. |
+| 4x6: `TEST` | Prueba | Excluir de producción. |
+| 4x6: `QR` | Experimento QR que consulta un servicio web externo | Excluir del primer alcance. Si se aprueba QR, generarlo localmente con un contrato explícito y sin dependencia de Internet. |
+| Routing: `Template` | Documento de ruta de proceso | `DOC-PROCESS-ROUTING`: orden, producto, cantidad, etapas, turno, responsable, fechas, observaciones y entregas a Empaque/Bodega. Contiene bloques adicionales fuera del área de impresión declarada que requieren revisión visual. |
+| Routing: `SEARCH BY DESCRIPTION`, `SEARCH BY ITEM PART # ROLLS` y `SEARCH BY ITEM PART #` | Hojas auxiliares heredadas de búsqueda/placa | No son formatos de routing; sustituir por el buscador común del catálogo. |
+| Routing: `MASTER LIST` | Catálogo duplicado | Eliminar como fuente. |
+
+### 12.2 Campos comunes y contratos por familia
+
+- **Comunes a toda etiqueta:** código estable de plantilla, versión, producto,
+  SKU/ITEM, descripción tomada como snapshot, código de barras y valor legible,
+  tamaño, orientación, fecha/hora local, responsable y número de copias.
+- **Caja estándar:** cantidad, unidad, fecha de fabricación y condición Repack.
+- **Placa de pallet:** identificador único de placa, origen Empaque/Proveedor,
+  movimiento de Entrada relacionado, cantidad, unidad, peso cuando aplique y
+  estado documental. Received/Counted/Removed no deben sustituir los eventos
+  reales del sistema.
+- **Recepción de rollos:** número de rollo, yardas, orden de compra y fecha de
+  recepción. Definir si número de rollo es dato del proveedor, identificador
+  interno o ambos.
+- **Producción especial:** dimensiones y campos de Corte, Costura, Soldadura,
+  Inspector y Empaque. Estos valores deben venir de una ruta/orden o captura
+  validada, no quedar embebidos en el diseño.
+- **Routing:** orden de trabajo y eventos de proceso; su impresión es una salida
+  secundaria. La trazabilidad vive en PostgreSQL, no únicamente en el papel.
+
+### 12.3 Arquitectura propuesta
+
+1. **Catálogo único.** La selección consulta los productos y códigos existentes
+   mediante el servicio de catálogo; se retiran `XLOOKUP` y las tres copias de
+   `MASTER LIST`.
+2. **Registro de formatos.** Definir códigos estables de plantilla y conservar
+   inicialmente sus diseños como Razor/HTML/CSS versionados en Git. ADMIN puede
+   activar una versión y consultar su historial, pero no se permitirá HTML libre
+   editable desde la interfaz en el primer alcance.
+3. **Código de barras local.** Un `BarcodeRenderingService` encapsula
+   `ZXing.Net`, valida el contenido y genera Code 128 como SVG con zona
+   silenciosa y texto legible. No depender de `Libre Barcode 128/39`, Excel o
+   servicios externos.
+4. **Documento imprimible.** Un `LabelDocumentService` recibe una solicitud
+   tipada y crea una vista previa exacta. El primer adaptador será HTML/SVG con
+   CSS de impresión; un adaptador ZPL se agregará solamente si las impresoras
+   confirmadas lo requieren.
+5. **Auditoría.** Persistir un evento por generación/reimpresión con plantilla y
+   versión, snapshot de datos, producto, movimiento/orden relacionado, usuario,
+   fecha, copias y motivo de reimpresión. No es necesario almacenar el SVG si
+   puede reproducirse exactamente desde la versión y el snapshot.
+6. **Seguridad.** ADMIN administra formatos. ADMIN y OPERATOR pueden generar
+   durante una operación permitida, confirmando NIP cuando la impresión queda
+   ligada a una recepción o evento de proceso. Una reimpresión nunca vuelve a
+   aplicar inventario.
+7. **Integraciones.** Entrada desde Empaque/Proveedor puede ofrecer la placa
+   después de confirmar el movimiento. Routing genera eventos propios y solo
+   crea/vincula una Entrada final mediante un contrato explícito e idempotente.
+
+### 12.4 Entregas incrementales y validación
+
+1. Prototipo `LBL-6X4-ZEBRA` con un SKU corto y uno largo; generar Code 128,
+   imprimir y volver a decodificar el valor.
+2. Implementar `PLT-LICENSE-PLATE` en modo **label-only**, ligado a una Entrada,
+   mientras no se apruebe inventario por pallet.
+3. Incorporar `LBL-4X45-RECEIVING` y después las variantes parcial/móvil.
+4. Modelar datos de producción antes de migrar Spouted Bags, Berms, Raincaps y
+   Custom Spout; evitar formularios aislados que vuelvan a duplicar información.
+5. Implementar `DOC-PROCESS-ROUTING` como flujo trazable y luego su versión
+   imprimible.
+6. Validar cada formato en la impresora y lector reales: dimensiones, DPI,
+   márgenes, orientación, contraste, zona silenciosa, SKU largo, cantidad de
+   copias, reimpresión y lectura desde tablet/HID.
+
+Pruebas mínimas: generación determinista; decodificación de ida y vuelta del
+Code 128; contenido y tamaño de cada plantilla; protección contra texto/HTML
+malicioso; permisos y NIP; auditoría de reimpresión; idempotencia de placa ligada
+a Entrada; y confirmación de que imprimir no cambia saldos ni movimientos.
+
+## 13. Surtimiento WIP (implementado y migrado; pendiente de Release y validación física)
 
 - `WIP-2`, `WIP-3` y `WIP-4` son ubicaciones operativas sin saldo. Se presentan como racks WIP completos, sin posiciones de pallet; internamente conservan `LocationKind.Area` porque el tipo Rack representa posiciones individuales. La migración
   `WipProductionFlow` valida que no sean racks y que no tengan saldo ni
@@ -1119,7 +1298,7 @@ además de confirmar el significado de los colores del croquis.
   No se publicó una Release y falta la prueba física en tablet/cámara. El SQL
   revisable está en `artifacts/wip/WipProductionFlow.sql`.
 
-## 13. Contexto breve para pegar en otro chat
+## 14. Contexto breve para pegar en otro chat
 
 ```text
 Estoy desarrollando Warehouse EPI en
@@ -1162,8 +1341,9 @@ Release 0.10.7 está activa como servicio Windows y 10.8 continúa pospuesta.
 `Quality` es obligatorio en `main`. La fase 11 tiene sus principales pantallas
 implementadas, con trabajo parcial en 11.6 y 11.7 y validación física pendiente.
 La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
-la base antes de cambiar ese estado. Las fases 13.1 y 13.2 están completadas; el
-siguiente bloque planificado es 13.3. La fase 12 ahora contempla centralizar
+la base antes de cambiar ese estado. Las fases 13.1 y 13.2 están completadas y
+13.3 y 13.4 están implementadas, con validación física LAN/tablet pendiente; el
+siguiente bloque planificado es 13.5. La fase 12 ahora contempla centralizar
 etiquetas 4x6, placas de pallet y rutas de producción usando el catálogo del
 sistema, pero su contrato e implementación siguen pendientes. Después quedan el
 piloto físico, conteos/alertas avanzados, PWA/offline, liberación v1.0,

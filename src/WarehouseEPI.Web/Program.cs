@@ -116,6 +116,8 @@ builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
 builder.Services.AddScoped<MovementReportService>();
 builder.Services.AddScoped<ReportExportService>();
+builder.Services.AddScoped<DailyDashboardService>();
+builder.Services.AddScoped<InventoryAnalyticsService>();
 builder.Services.AddScoped<WarehouseSettingsService>();
 builder.Services.AddScoped<WarehouseClock>();
 builder.Services.AddSingleton<BrandingStorage>();

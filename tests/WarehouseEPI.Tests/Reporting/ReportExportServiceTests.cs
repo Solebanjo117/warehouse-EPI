@@ -191,6 +191,57 @@ public sealed class ReportExportServiceTests
     }
 
     [Fact]
+    public async Task Inventory_analytics_exports_preserve_types_dates_metadata_and_formula_defense()
+    {
+        await using var db = CreateDbContext();
+        var exportService = new ReportExportService(new WarehouseSettingsService(db));
+        var lastExit = new DateTimeOffset(2026, 8, 15, 14, 30, 0, TimeSpan.Zero);
+        var filter = new InventoryAnalyticsFilter(
+            new DateTimeOffset(2026, 5, 23, 5, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 8, 21, 5, 0, 0, TimeSpan.Zero),
+            ProductStatus: "all",
+            Search: "=peligroso",
+            UnitId: 1);
+        var rotation = new SkuRotationMetricDto(
+            Guid.NewGuid(), "=ROT-1", "+Descripción", 1, "EA", 3, 12.5m, 7m, lastExit, false);
+        var stagnant = new StagnantProductDto(
+            Guid.NewGuid(), "@STG-1", "-Descripción", 1, "EA", 9.25m, lastExit, 95,
+            StagnantCategory.Days90Plus, true);
+
+        var rotationXlsx = await exportService.ExportRotationToExcelAsync([rotation], filter);
+        using (var workbook = new XLWorkbook(new MemoryStream(rotationXlsx)))
+        {
+            var row = workbook.Worksheet("Rotación").Row(6);
+            Assert.False(row.Cell(1).HasFormula);
+            Assert.Equal(XLDataType.Text, row.Cell(1).DataType);
+            Assert.Equal(XLDataType.Number, row.Cell(5).DataType);
+            Assert.Equal(XLDataType.Number, row.Cell(6).DataType);
+            Assert.Equal(XLDataType.Number, row.Cell(7).DataType);
+            Assert.Equal(XLDataType.DateTime, row.Cell(8).DataType);
+            Assert.Contains("estado=all", workbook.Worksheet("Rotación").Cell(3, 1).GetString());
+        }
+
+        var stagnantXlsx = await exportService.ExportStagnantToExcelAsync([stagnant], filter);
+        using (var workbook = new XLWorkbook(new MemoryStream(stagnantXlsx)))
+        {
+            var row = workbook.Worksheet("Estancamiento").Row(6);
+            Assert.False(row.Cell(1).HasFormula);
+            Assert.Equal(XLDataType.Number, row.Cell(5).DataType);
+            Assert.Equal(XLDataType.DateTime, row.Cell(6).DataType);
+            Assert.Equal(XLDataType.Number, row.Cell(7).DataType);
+            Assert.Equal("90+ días", row.Cell(8).GetString());
+        }
+
+        var csv = await exportService.ExportRotationToCsvAsync([rotation], filter);
+        Assert.Equal([0xEF, 0xBB, 0xBF], csv[..3]);
+        var content = Encoding.UTF8.GetString(csv[3..]);
+        Assert.Contains("\"'=ROT-1\"", content);
+        Assert.Contains(",3,12.5000,7.0000,", content);
+        Assert.Contains("estado=all", content);
+        Assert.Contains("America/Matamoros", content);
+    }
+
+    [Fact]
     public void SanitizeText_neutralizes_formula_prefixes_on_strings()
     {
         Assert.Equal(string.Empty, ReportExportService.SanitizeText(null));

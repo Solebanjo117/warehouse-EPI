@@ -1,0 +1,80 @@
+@page "/Reports/Inventory"
+@model WarehouseEPI.Web.Pages.Reports.Inventory.IndexModel
+@{
+    ViewData["Title"] = "Analítica de inventario";
+    var isAdmin = User.IsInRole("ADMIN");
+    var page = Model.View == "rotation" ? Model.Rotation.PageNumber : Model.Stagnant.PageNumber;
+    var totalPages = Model.View == "rotation" ? Model.Rotation.TotalPages : Model.Stagnant.TotalPages;
+}
+
+<div class="inventory-analytics">
+    <header class="inventory-page-header analytics-header">
+        <div><span class="eyebrow">Reportes LAN</span><h1 class="h2 mb-1">Analítica de inventario</h1><p class="text-muted mb-0">Ocupación física, rotación por SKU y productos sin salida reciente.</p></div>
+        <a class="btn btn-outline-primary" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">Actualizar</a>
+    </header>
+    <p class="analytics-updated">Actualizado: <time datetime="@Model.UpdatedAt.ToString("O")">@Model.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</time></p>
+    @if (isAdmin)
+    {
+        <aside class="analytics-product-actions" aria-label="Accesos administrativos">
+            <a asp-page="/Admin/Inventory/Alerts">Alertas</a>
+            <a asp-page="/Admin/Catalogs/Locations/Index">Ubicaciones</a>
+            <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
+        </aside>
+    }
+
+    <nav class="inventory-filter-tabs analytics-tabs" aria-label="Vista analítica">
+        <a class="@(Model.View == "occupancy" ? "active" : null)" aria-current="@(Model.View == "occupancy" ? "page" : null)" asp-route-view="occupancy">Ocupación</a>
+        <a class="@(Model.View == "rotation" ? "active" : null)" aria-current="@(Model.View == "rotation" ? "page" : null)" asp-route-view="rotation" asp-route-period="@Model.Period" asp-route-status="@Model.Status">Rotación</a>
+        <a class="@(Model.View == "stagnant" ? "active" : null)" aria-current="@(Model.View == "stagnant" ? "page" : null)" asp-route-view="stagnant" asp-route-status="@Model.Status">Estancamiento</a>
+    </nav>
+
+    @if (Model.View == "occupancy")
+    {
+        var summary = Model.Occupancy.Summary;
+        <section class="analytics-metrics" aria-label="Resumen de ocupación">
+            <article><strong>@summary.OccupiedCount</strong><span>Ocupadas</span></article>
+            <article><strong>@summary.EmptyCount</strong><span>Vacías</span></article>
+            <article class="is-danger"><strong>@summary.NegativeCount</strong><span>Negativas</span></article>
+            <article class="is-warning"><strong>@summary.BlockedCount</strong><span>Bloqueadas</span></article>
+            <article><strong>@summary.InactiveCount</strong><span>Inactivas</span></article>
+            <article class="is-primary"><strong>@summary.UtilizationPercentage.ToString("0.##")%</strong><span>Utilización</span></article>
+        </section>
+        <p class="text-muted small">@summary.TotalStoragePositions posiciones físicas de rack. La utilización excluye bloqueadas e inactivas del denominador.</p>
+        <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Fila</th><th>Posiciones</th><th>Ocupadas</th><th>Vacías</th><th>Negativas</th><th>Bloqueadas</th><th>Inactivas</th><th>Utilización</th><th></th></tr></thead><tbody>
+        @if (Model.Occupancy.Rows.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">No hay posiciones físicas de rack.</td></tr> }
+        @foreach (var row in Model.Occupancy.Rows)
+        {
+            <tr><th scope="row">@row.RowCode</th><td>@row.Summary.TotalStoragePositions</td><td>@row.Summary.OccupiedCount</td><td>@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)">@row.Summary.NegativeCount</td><td>@row.Summary.BlockedCount</td><td>@row.Summary.InactiveCount</td><td>@row.Summary.UtilizationPercentage.ToString("0.##")%</td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" class="btn btn-outline-primary btn-sm">Ver racks</a> }</td></tr>
+        }
+        </tbody></table></div>
+    }
+    else
+    {
+        <form method="get" class="analytics-filter-card analytics-filter-form">
+            <input type="hidden" name="view" value="@Model.View" />
+            <div><label for="analytics-search" class="form-label">Producto</label><input id="analytics-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción o referencia" /></div>
+            <div><label for="analytics-status" class="form-label">Estado</label><select id="analytics-status" name="status" class="form-select"><option value="active">Activos</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option><option value="all" selected="@(Model.Status == "all")">Todos</option></select></div>
+            <div><label for="analytics-unit" class="form-label">Unidad</label><select id="analytics-unit" name="unitId" class="form-select"><option value="">Todas</option>@foreach (var unit in Model.UnitOptions) { <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option> }</select></div>
+            @if (Model.View == "rotation") { <div><label for="analytics-period" class="form-label">Período</label><select id="analytics-period" name="period" class="form-select"><option value="30" selected="@(Model.Period == "30")">30 días</option><option value="90" selected="@(Model.Period == "90")">90 días</option><option value="180" selected="@(Model.Period == "180")">180 días</option><option value="all" selected="@(Model.Period == "all")">Todo el historial</option></select></div> }
+            <div class="analytics-filter-actions"><button class="btn btn-primary">Aplicar</button><a asp-route-view="@Model.View" class="btn btn-outline-secondary">Limpiar</a></div>
+        </form>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3"><p class="mb-0 text-muted">@((Model.View == "rotation" ? Model.Rotation.TotalCount : Model.Stagnant.TotalCount).ToString("N0")) producto(s)</p><div class="d-flex gap-2"><a class="btn btn-outline-success btn-sm" asp-page-handler="Export" asp-route-view="@Model.View" asp-route-format="xlsx" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">Excel</a><a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="@Model.View" asp-route-format="csv" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">CSV</a></div></div>
+
+        @if (Model.View == "rotation")
+        {
+            <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Producto</th><th>Estado</th><th>Salidas efectivas</th><th>Cantidad movilizada</th><th>Existencia actual</th><th>Última salida</th><th></th></tr></thead><tbody>
+            @if (Model.Rotation.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay productos que coincidan.</td></tr> }
+            @foreach (var item in Model.Rotation.Items) { <tr><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="fw-semibold">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td><span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td>@item.EffectiveExitMovementCount</td><td>@item.QuantityInBaseUnit.ToString("0.####") @item.UnitCode</td><td>@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td>@Model.FormatLocalDate(item.LastExitDateUtc)</td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
+            </tbody></table></div>
+        }
+        else
+        {
+            <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Producto</th><th>Categoría</th><th>Existencia actual</th><th>Última salida</th><th>Días</th><th>Estado</th><th></th></tr></thead><tbody>
+            @if (Model.Stagnant.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay productos estancados con los filtros seleccionados.</td></tr> }
+            @foreach (var item in Model.Stagnant.Items) { <tr><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="fw-semibold">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td><span class="badge text-bg-warning">@IndexModel.FormatCategory(item.Category)</span></td><td>@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td>@Model.FormatLocalDate(item.LastExitDateUtc)</td><td>@(item.DaysWithoutExit?.ToString() ?? "—")</td><td><span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
+            </tbody></table></div>
+        }
+
+        @if (totalPages > 1) { <nav aria-label="Paginación analítica"><ul class="pagination justify-content-center"><li class="page-item @(page <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-pageNumber="@(page - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@(page) de @totalPages</span></li><li class="page-item @(page >= totalPages ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-pageNumber="@(page + 1)">Siguiente</a></li></ul></nav> }
+    }
+</div>
