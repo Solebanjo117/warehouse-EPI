@@ -1,0 +1,44 @@
+@page "/Reports/Dashboard"
+@using System.Text.Json
+@model WarehouseEPI.Web.Pages.Reports.Dashboard.IndexModel
+@{
+    ViewData["Title"] = "Tablero diario";
+    var metrics = Model.Snapshot.Metrics;
+    var points = metrics.RecentActivityTrend;
+    var totalOperations = points.Sum(point => point.TotalEffectiveOperations);
+    var busiest = points.OrderByDescending(point => point.TotalEffectiveOperations).ThenByDescending(point => point.Date).First();
+    var selected = points.SingleOrDefault(point => point.Date == Model.Snapshot.WarehouseDate) ?? points[^1];
+    var chartPoints = JsonSerializer.Serialize(points.Select(point => new
+    {
+        date = point.Date.ToString("yyyy-MM-dd"), point.DayLabel, point.EntryCount, point.ExitCount,
+        point.TransferCount, point.AdjustmentCount, point.TotalEffectiveOperations, point.DistinctSkusCount
+    }));
+    var isAdmin = User.IsInRole("ADMIN");
+}
+
+<div class="daily-dashboard" data-dashboard data-metrics-url="@Url.Page("/Reports/Dashboard/Index", "Metrics")" data-warehouse-date="@Model.Snapshot.WarehouseDate.ToString("yyyy-MM-dd")">
+    <header class="dashboard-header"><div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Tablero diario</h1><p class="text-muted mb-0">Actividad efectiva del almacén, sin sumar unidades diferentes.</p></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-secondary" asp-page="/Reports/Inventory/Index">Analítica de inventario</a><button class="btn btn-outline-primary" type="button" data-dashboard-refresh>Actualizar ahora</button></div></header>
+    <p class="dashboard-update-state" role="status" aria-live="polite" data-dashboard-status>Actualizado: <time data-dashboard-updated datetime="@Model.Snapshot.GeneratedAtLocal.ToString("O")">@Model.Snapshot.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</time></p>
+
+    <section class="dashboard-metrics" aria-label="Resumen del día">
+        <article class="is-primary"><span class="dashboard-metric-icon is-primary" aria-hidden="true">↕</span><strong data-dashboard-metric="effectiveMovementsToday">@metrics.EffectiveMovementsToday</strong><small>Movimientos efectivos hoy</small>@if (isAdmin) { <a asp-page="/Admin/Reports/Movements/Index" asp-route-period="today">Ver reporte</a> }</article>
+        <article class="is-danger"><span class="dashboard-metric-icon" aria-hidden="true">!</span><strong data-dashboard-metric="negativePositionsCount">@metrics.NegativePositionsCount</strong><small>Posiciones negativas</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Alerts" asp-route-view="negative">Revisar alertas</a> }</article>
+        <article class="is-warning"><span class="dashboard-metric-icon" aria-hidden="true">↓</span><strong data-dashboard-metric="lowStockProductsCount">@metrics.LowStockProductsCount</strong><small>Productos bajo mínimo</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Alerts" asp-route-view="minimum">Revisar mínimos</a> }</article>
+        <article class="is-adjustment"><span class="dashboard-metric-icon" aria-hidden="true">✓</span><strong data-dashboard-metric="effectiveAdjustmentsToday">@metrics.EffectiveAdjustmentsToday</strong><small>Ajustes efectivos hoy</small>@if (isAdmin) { <a asp-page="/Admin/Reports/Movements/Index" asp-route-period="today" asp-route-movementType="Adjustment">Ver ajustes</a> }</article>
+    </section>
+
+    <section class="dashboard-activity" aria-labelledby="dashboard-activity-title">
+        <div class="dashboard-section-heading"><div><h2 id="dashboard-activity-title" class="h4 mb-1">Actividad de los últimos 14 días</h2><p class="text-muted mb-0">Cada segmento representa operaciones, no cantidades físicas.</p></div><div class="dashboard-legend" aria-label="Tipos de movimiento"><span><i class="is-entry"></i>Entradas</span><span><i class="is-exit"></i>Salidas</span><span><i class="is-transfer"></i>Transferencias</span><span><i class="is-adjustment"></i>Ajustes</span></div></div>
+        <div class="dashboard-period-summary" aria-live="polite" data-dashboard-summary><div><span>Operaciones del período</span><strong data-dashboard-total>@totalOperations.ToString("N0")</strong></div><div><span>Día de mayor actividad</span><strong data-dashboard-busiest>@busiest.DayLabel · @busiest.TotalEffectiveOperations.ToString("N0")</strong></div><div class="dashboard-range-control" role="group" aria-label="Días visibles"><button type="button" class="active" data-dashboard-range="14" aria-pressed="true">14 días</button><button type="button" data-dashboard-range="7" aria-pressed="false">7 días</button></div></div>
+        <div class="dashboard-chartjs-shell" data-dashboard-chart-shell>
+            <canvas data-dashboard-chart data-points="@chartPoints" tabindex="0" aria-label="Gráfica apilada de operaciones efectivas por día" aria-describedby="dashboard-chart-detail"></canvas>
+            <div class="dashboard-chart-fallback" data-dashboard-fallback>
+                <p class="mb-2 text-body-secondary">Resumen de 14 días disponible sin JavaScript.</p>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Fecha</th><th>Operaciones</th><th>Entradas</th><th>Salidas</th><th>Transferencias</th><th>Ajustes</th><th>SKUs</th></tr></thead><tbody>@foreach (var point in points) { <tr><th scope="row">@point.DayLabel</th><td>@point.TotalEffectiveOperations</td><td>@point.EntryCount</td><td>@point.ExitCount</td><td>@point.TransferCount</td><td>@point.AdjustmentCount</td><td>@point.DistinctSkusCount</td></tr> }</tbody></table></div>
+            </div>
+        </div>
+        <article id="dashboard-chart-detail" class="dashboard-chart-detail" aria-live="polite" data-dashboard-detail><header><span>Detalle del día</span><strong data-dashboard-detail-day>@selected.DayLabel</strong></header><dl><div><dt>Operaciones</dt><dd data-dashboard-detail-total>@selected.TotalEffectiveOperations</dd></div><div><dt>Entradas</dt><dd data-dashboard-detail-entry>@selected.EntryCount</dd></div><div><dt>Salidas</dt><dd data-dashboard-detail-exit>@selected.ExitCount</dd></div><div><dt>Transferencias</dt><dd data-dashboard-detail-transfer>@selected.TransferCount</dd></div><div><dt>Ajustes</dt><dd data-dashboard-detail-adjustment>@selected.AdjustmentCount</dd></div><div><dt>SKUs distintos</dt><dd data-dashboard-detail-skus>@selected.DistinctSkusCount</dd></div></dl></article>
+    </section>
+</div>
+
+@section Scripts { <script src="~/lib/chart.js/chart.umd.min.js" asp-append-version="true"></script><script src="~/js/daily-dashboard.js" asp-append-version="true"></script> }

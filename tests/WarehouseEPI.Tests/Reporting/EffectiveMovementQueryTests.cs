@@ -457,7 +457,7 @@ public sealed class EffectiveMovementQueryTests
     {
         // 1. Caso normal: 10 ocupadas, 10 vacías, 0 negativas -> Utilización = 10 / 20 * 100 = 50%
         var normal = new LocationOccupancySummaryDto(
-            TotalStorageRacks: 25,
+            TotalStoragePositions: 25,
             OccupiedCount: 10,
             EmptyCount: 10,
             NegativeCount: 0,
@@ -469,7 +469,7 @@ public sealed class EffectiveMovementQueryTests
 
         // 2. Con negativos en el denominador: 10 ocupadas, 5 vacías, 5 negativas -> 10 / 20 * 100 = 50%
         var withNegatives = new LocationOccupancySummaryDto(
-            TotalStorageRacks: 20,
+            TotalStoragePositions: 20,
             OccupiedCount: 10,
             EmptyCount: 5,
             NegativeCount: 5,
@@ -481,7 +481,7 @@ public sealed class EffectiveMovementQueryTests
 
         // 3. Caso salvaguarda: 100% de racks bloqueados o inactivos (ActiveAvailable = 0) -> Utilización = 0%
         var allBlocked = new LocationOccupancySummaryDto(
-            TotalStorageRacks: 10,
+            TotalStoragePositions: 10,
             OccupiedCount: 0,
             EmptyCount: 0,
             NegativeCount: 0,

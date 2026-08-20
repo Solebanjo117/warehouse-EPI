@@ -93,7 +93,7 @@ public sealed record MovementActivityPointDto(
 
 /// <summary>Métricas de utilización y ocupación física de posiciones de rack en 5 estados.</summary>
 public sealed record LocationOccupancySummaryDto(
-    int TotalStorageRacks,
+    int TotalStoragePositions,
     int OccupiedCount,
     int EmptyCount,
     int NegativeCount,
@@ -108,6 +108,16 @@ public sealed record LocationOccupancySummaryDto(
             : Math.Round((decimal)OccupiedCount / ActiveAvailableCount * 100m, 2);
 }
 
+/// <summary>Ocupación consolidada de posiciones físicas para una fila del almacén.</summary>
+public sealed record LocationOccupancyRowDto(
+    string RowCode,
+    LocationOccupancySummaryDto Summary);
+
+/// <summary>Resumen global y por fila de la ocupación física del almacén.</summary>
+public sealed record LocationOccupancyReportDto(
+    LocationOccupancySummaryDto Summary,
+    IReadOnlyList<LocationOccupancyRowDto> Rows);
+
 /// <summary>Métrica determinista de rotación por SKU (número de salidas, cantidad en su unidad y SKU).</summary>
 public sealed record SkuRotationMetricDto(
     Guid ProductId,
@@ -118,7 +128,8 @@ public sealed record SkuRotationMetricDto(
     int EffectiveExitMovementCount,
     decimal QuantityInBaseUnit,
     decimal CurrentStock,
-    DateTimeOffset? LastExitDateUtc);
+    DateTimeOffset? LastExitDateUtc,
+    bool IsActive);
 
 /// <summary>Categorías de antigüedad para productos sin movimiento reciente con saldo positivo.</summary>
 public enum StagnantCategory
@@ -139,16 +150,50 @@ public sealed record StagnantProductDto(
     decimal CurrentStock,
     DateTimeOffset? LastExitDateUtc,
     int? DaysWithoutExit,
-    StagnantCategory Category);
+    StagnantCategory Category,
+    bool IsActive);
+
+/// <summary>Filtros normalizados para rotación y estancamiento de productos.</summary>
+public sealed record InventoryAnalyticsFilter(
+    DateTimeOffset? FromUtc = null,
+    DateTimeOffset? ToUtc = null,
+    string ProductStatus = "active",
+    string? Search = null,
+    short? UnitId = null,
+    int PageNumber = 1,
+    int PageSize = 25);
+
+/// <summary>Página genérica de resultados analíticos de inventario.</summary>
+public sealed record InventoryAnalyticsPage<T>(
+    IReadOnlyList<T> Items,
+    int TotalCount,
+    int PageNumber,
+    int PageSize)
+{
+    public int TotalPages => PageSize <= 0
+        ? 1
+        : Math.Max(1, (int)Math.Ceiling((double)TotalCount / PageSize));
+}
+
+/// <summary>Lote completo para exportar sin truncamiento silencioso.</summary>
+public sealed record InventoryAnalyticsExportBatch<T>(
+    IReadOnlyList<T> Items,
+    int TotalRows,
+    int MaximumRows)
+{
+    public bool ExceedsLimit => TotalRows > MaximumRows;
+}
 
 /// <summary>Métricas consolidadas del tablero diario.</summary>
 public sealed record DailyDashboardMetricsDto(
     int EffectiveMovementsToday,
-    int NegativeBalancesCount,
+    int NegativePositionsCount,
     int LowStockProductsCount,
-    int RecentAdjustmentsCount,
-    int ActiveCycleCountsCount,
-    int BlockedRacksCount,
-    int StockWithoutAssignmentCount,
-    LocationOccupancySummaryDto Occupancy,
+    int EffectiveAdjustmentsToday,
     IReadOnlyList<MovementActivityPointDto> RecentActivityTrend);
+
+/// <summary>Snapshot inmutable del tablero generado en la zona horaria del almacén.</summary>
+public sealed record DailyDashboardSnapshotDto(
+    DateOnly WarehouseDate,
+    DateTimeOffset GeneratedAtLocal,
+    DailyDashboardMetricsDto Metrics);

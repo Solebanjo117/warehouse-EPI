@@ -187,6 +187,202 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         return result;
     }
 
+    public async Task<byte[]> ExportRotationToExcelAsync(
+        IReadOnlyList<SkuRotationMetricDto> rows,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Rotación");
+        WriteInventoryHeader(
+            worksheet,
+            $"{settings.WarehouseName} - Rotación de inventario",
+            rows.Count,
+            settings.TimeZoneId,
+            FormatAnalyticsFilter(filter),
+            timeZone);
+
+        string[] headers =
+        [
+            "SKU", "Descripción", "Estado", "Unidad", "Salidas efectivas",
+            "Cantidad movilizada", "Existencia actual", "Última salida"
+        ];
+        WriteTableHeaders(worksheet, headers);
+        var currentRow = 6;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.Sku));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.Description ?? string.Empty));
+            worksheet.Cell(currentRow, 3).SetValue(FormatProductState(row.IsActive));
+            worksheet.Cell(currentRow, 4).SetValue(SanitizeText(row.UnitCode));
+            worksheet.Cell(currentRow, 5).SetValue(row.EffectiveExitMovementCount);
+            SetNumber(worksheet.Cell(currentRow, 6), row.QuantityInBaseUnit);
+            SetNumber(worksheet.Cell(currentRow, 7), row.CurrentStock);
+            SetLocalDate(worksheet.Cell(currentRow, 8), row.LastExitDateUtc, timeZone);
+            currentRow++;
+        }
+        worksheet.Columns().AdjustToContents(4, Math.Max(5, currentRow - 1));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportRotationToCsvAsync(
+        IReadOnlyList<SkuRotationMetricDto> rows,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var metadata = FormatAnalyticsFilter(filter);
+        var sb = new StringBuilder();
+        sb.AppendLine("SKU,Descripción,Estado,Unidad,Salidas efectivas,Cantidad movilizada,Existencia actual,Última salida,Zona horaria,Filtros aplicados");
+        foreach (var row in rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.Sku))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.Description ?? string.Empty))).Append(',');
+            sb.Append(EscapeCsv(FormatProductState(row.IsActive))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',');
+            sb.Append(row.EffectiveExitMovementCount.ToString(CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(row.QuantityInBaseUnit.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(row.CurrentStock.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(EscapeCsv(FormatLocalDate(row.LastExitDateUtc, timeZone))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(metadata))).AppendLine();
+        }
+        return CsvBytes(sb);
+    }
+
+    public async Task<byte[]> ExportStagnantToExcelAsync(
+        IReadOnlyList<StagnantProductDto> rows,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Estancamiento");
+        WriteInventoryHeader(
+            worksheet,
+            $"{settings.WarehouseName} - Productos estancados",
+            rows.Count,
+            settings.TimeZoneId,
+            FormatAnalyticsFilter(filter),
+            timeZone);
+
+        string[] headers =
+        [
+            "SKU", "Descripción", "Estado", "Unidad", "Existencia actual",
+            "Última salida", "Días sin salida", "Categoría"
+        ];
+        WriteTableHeaders(worksheet, headers);
+        var currentRow = 6;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.Sku));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.Description ?? string.Empty));
+            worksheet.Cell(currentRow, 3).SetValue(FormatProductState(row.IsActive));
+            worksheet.Cell(currentRow, 4).SetValue(SanitizeText(row.UnitCode));
+            SetNumber(worksheet.Cell(currentRow, 5), row.CurrentStock);
+            SetLocalDate(worksheet.Cell(currentRow, 6), row.LastExitDateUtc, timeZone);
+            if (row.DaysWithoutExit is not null)
+                worksheet.Cell(currentRow, 7).SetValue(row.DaysWithoutExit.Value);
+            worksheet.Cell(currentRow, 8).SetValue(FormatStagnantCategory(row.Category));
+            currentRow++;
+        }
+        worksheet.Columns().AdjustToContents(4, Math.Max(5, currentRow - 1));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportStagnantToCsvAsync(
+        IReadOnlyList<StagnantProductDto> rows,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var metadata = FormatAnalyticsFilter(filter);
+        var sb = new StringBuilder();
+        sb.AppendLine("SKU,Descripción,Estado,Unidad,Existencia actual,Última salida,Días sin salida,Categoría,Zona horaria,Filtros aplicados");
+        foreach (var row in rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.Sku))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.Description ?? string.Empty))).Append(',');
+            sb.Append(EscapeCsv(FormatProductState(row.IsActive))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',');
+            sb.Append(row.CurrentStock.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(EscapeCsv(FormatLocalDate(row.LastExitDateUtc, timeZone))).Append(',');
+            sb.Append(row.DaysWithoutExit?.ToString(CultureInfo.InvariantCulture) ?? string.Empty).Append(',');
+            sb.Append(EscapeCsv(FormatStagnantCategory(row.Category))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(metadata))).AppendLine();
+        }
+        return CsvBytes(sb);
+    }
+
+    private static void WriteInventoryHeader(
+        IXLWorksheet worksheet,
+        string title,
+        int totalRows,
+        string timeZoneId,
+        string filterDescription,
+        TimeZoneInfo timeZone)
+    {
+        worksheet.Cell(1, 1).SetValue(SanitizeText(title));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+        var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        worksheet.Cell(2, 1).SetValue(SanitizeText(
+            $"Generado el: {localNow:yyyy-MM-dd HH:mm:ss} ({timeZoneId}) | Total: {totalRows} productos"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+        worksheet.Cell(3, 1).SetValue(SanitizeText($"Filtros: {filterDescription}"));
+        worksheet.Cell(3, 1).Style.Font.Italic = true;
+    }
+
+    private static void WriteTableHeaders(IXLWorksheet worksheet, IReadOnlyList<string> headers)
+    {
+        for (var column = 0; column < headers.Count; column++)
+        {
+            var cell = worksheet.Cell(5, column + 1);
+            cell.SetValue(headers[column]);
+            cell.Style.Font.Bold = true;
+            cell.Style.Font.FontColor = XLColor.White;
+            cell.Style.Fill.BackgroundColor = XLColor.FromArgb(15, 23, 42);
+        }
+    }
+
+    private static void SetNumber(IXLCell cell, decimal value)
+    {
+        cell.SetValue(value);
+        cell.Style.NumberFormat.Format = "#,##0.0000";
+    }
+
+    private static void SetLocalDate(IXLCell cell, DateTimeOffset? value, TimeZoneInfo timeZone)
+    {
+        if (value is null)
+            return;
+        cell.SetValue(TimeZoneInfo.ConvertTime(value.Value, timeZone).DateTime);
+        cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm:ss";
+    }
+
+    private static string FormatLocalDate(DateTimeOffset? value, TimeZoneInfo timeZone) =>
+        value is null ? string.Empty : TimeZoneInfo.ConvertTime(value.Value, timeZone).ToString("yyyy-MM-dd HH:mm:ss");
+
+    private static byte[] CsvBytes(StringBuilder value)
+    {
+        var encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+        var preamble = encoding.GetPreamble();
+        var body = encoding.GetBytes(value.ToString());
+        var result = new byte[preamble.Length + body.Length];
+        Buffer.BlockCopy(preamble, 0, result, 0, preamble.Length);
+        Buffer.BlockCopy(body, 0, result, preamble.Length, body.Length);
+        return result;
+    }
+
     private static void SetNullableNumber(IXLCell cell, decimal? value)
     {
         if (value is null)
@@ -221,6 +417,27 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         if (filter.ResponsibleUserId is not null) values.Add($"responsable={filter.ResponsibleUserId}");
         return values.Count == 0 ? "Sin filtros" : string.Join(" | ", values);
     }
+
+    private static string FormatAnalyticsFilter(InventoryAnalyticsFilter filter)
+    {
+        var values = new List<string> { $"estado={filter.ProductStatus}" };
+        if (filter.FromUtc is not null) values.Add($"desde UTC {filter.FromUtc:yyyy-MM-dd HH:mm:ss}");
+        if (filter.ToUtc is not null) values.Add($"hasta UTC exclusivo {filter.ToUtc:yyyy-MM-dd HH:mm:ss}");
+        if (!string.IsNullOrWhiteSpace(filter.Search)) values.Add($"búsqueda={filter.Search}");
+        if (filter.UnitId is not null) values.Add($"unidad={filter.UnitId}");
+        return string.Join(" | ", values);
+    }
+
+    private static string FormatProductState(bool isActive) => isActive ? "Activo" : "Inactivo";
+
+    private static string FormatStagnantCategory(StagnantCategory category) => category switch
+    {
+        StagnantCategory.Days30To59 => "30-59 días",
+        StagnantCategory.Days60To89 => "60-89 días",
+        StagnantCategory.Days90Plus => "90+ días",
+        StagnantCategory.NeverExited => "Nunca salió",
+        _ => category.ToString()
+    };
 
     /// <summary>
     /// Sanitiza un valor textual contra inyección de fórmulas en hojas de cálculo.
