@@ -86,8 +86,34 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("layout.Elements.Add(element)", service, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Map_wip_panel_loads_and_renders_recent_issues_without_inventory_controls()
+    {
+        var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+
+        Assert.Contains("element.IsWip", pageModel, StringComparison.Ordinal);
+        Assert.Contains("GetRecentIssuesAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("RecentWipIssues", pageModel, StringComparison.Ordinal);
+        Assert.Contains("Últimos surtimientos", page, StringComparison.Ordinal);
+        Assert.Contains("Aún no hay surtimientos registrados en este WIP.", page, StringComparison.Ordinal);
+        Assert.Contains("/Reports/Wip/Details", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-wipAreaId", page, StringComparison.Ordinal);
+        Assert.Contains("else\n            {\n                @if(element.Kind==\"Rack\")", page, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
+        var configuredRoot = Environment.GetEnvironmentVariable("WAREHOUSE_EPI_REPOSITORY_ROOT");
+        if (!string.IsNullOrWhiteSpace(configuredRoot))
+        {
+            var configuredCandidate = Path.Combine([configuredRoot, .. parts]);
+            if (File.Exists(configuredCandidate)) return configuredCandidate;
+        }
+
+        var workingDirectoryCandidate = Path.Combine([Directory.GetCurrentDirectory(), .. parts]);
+        if (File.Exists(workingDirectoryCandidate)) return workingDirectoryCandidate;
+
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {

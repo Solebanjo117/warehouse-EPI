@@ -5,7 +5,9 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Tests.Inventory;
 
@@ -103,6 +105,46 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(0m, byProduct[0].Quantity);
         Assert.Single(byLocation);
         Assert.Equal(seed.ProductId, byLocation[0].ProductId);
+    }
+
+    [Fact]
+    public async Task Negative_alerts_use_the_net_position_across_lots_on_postgresql()
+    {
+        var seed = await fixture.SeedAsync("PG-ALERT-NET", "PG-ALERT-AREA", "3117");
+        await using var db = fixture.CreateDbContext();
+        var oldLot = new ProductLot
+        {
+            ProductId = seed.ProductId,
+            Number = "AUTO-20260819",
+            NormalizedNumber = "AUTO-20260819"
+        };
+        var currentLot = new ProductLot
+        {
+            ProductId = seed.ProductId,
+            Number = "AUTO-20260820",
+            NormalizedNumber = "AUTO-20260820"
+        };
+        db.AddRange(oldLot, currentLot);
+        db.InventoryBalances.AddRange(
+            new InventoryBalance
+            {
+                ProductId = seed.ProductId,
+                LocationId = seed.LocationId,
+                LotId = oldLot.Id,
+                Quantity = -2m
+            },
+            new InventoryBalance
+            {
+                ProductId = seed.ProductId,
+                LocationId = seed.LocationId,
+                LotId = currentLot.Id,
+                Quantity = 2m
+            });
+        await db.SaveChangesAsync();
+        var queries = new InventoryQueryService(db);
+
+        Assert.Equal(0m, await queries.GetProductTotalAsync(seed.ProductId));
+        Assert.Empty((await queries.GetNegativeAlertPageAsync("PG-ALERT-NET", 1, 25)).Items);
     }
 
     [Fact]
@@ -233,6 +275,137 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.False(await db.InventoryMovementCorrections.AnyAsync(item => item.OriginalMovementId == original.MovementId));
         Assert.Equal(3m, await db.InventoryBalances.Where(item =>
             item.ProductId == seed.ProductId && item.LocationId == seed.LocationId).SumAsync(item => item.Quantity));
+    }
+
+    [Fact]
+    public async Task Effective_movements_query_translates_and_excludes_corrections_on_postgresql()
+    {
+        var seed = await fixture.SeedAsync("PG-REPORT-SKU", "PG-REPORT-LOC", "3115");
+        var admin = await fixture.AddAdminAsync("Admin Reporte", "3116");
+
+        // 1. Movimiento normal
+        var normal = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, seed.Pin,
+            [new(seed.ProductId, 10m, DestinationLocationId: seed.LocationId)]));
+
+        // 2. Movimiento que será corregido
+        var original = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, seed.Pin,
+            [new(seed.ProductId, 5m, DestinationLocationId: seed.LocationId)]));
+
+        // 3. Aplicar corrección con reemplazo
+        await using (var db = fixture.CreateDbContext())
+        {
+            var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+            var movements = new InventoryMovementService(db, pins, TimeProvider.System);
+            var corrections = new InventoryCorrectionService(db, pins, movements, TimeProvider.System);
+
+            var corrResult = await corrections.ConfirmAsync(new(
+                Guid.NewGuid(),
+                original.MovementId!.Value,
+                admin.Id,
+                admin.Pin,
+                "Corrección efectiva en PostgreSQL",
+                new(InventoryMovementType.Entry, [new(seed.ProductId, 8m, DestinationLocationId: seed.LocationId)])));
+
+            Assert.Equal(InventoryCorrectionStatus.Success, corrResult.Status);
+        }
+
+        // 4. Consultar movimientos efectivos usando EffectiveMovementQuery
+        await using (var db = fixture.CreateDbContext())
+        {
+            var filter = new MovementReportFilter(
+                Sku: "report-sk",
+                LocationCode: "report-lo");
+            var effectiveMovements = await db.InventoryMovements
+                .AsNoTracking()
+                .ApplyFilter(db, filter)
+                .Include(m => m.ResponsibleUser)
+                .Include(m => m.Lines).ThenInclude(l => l.Product)
+                .Include(m => m.Lines).ThenInclude(l => l.Unit)
+                .Include(m => m.Lines).ThenInclude(l => l.DestinationLocation)
+                .Include(m => m.Lines).ThenInclude(l => l.BalanceChanges).ThenInclude(c => c.Location)
+                .OrderByDescending(m => m.OccurredAt)
+                .ToListAsync();
+
+            // Debe contener el normal (10) y el reemplazo (8), pero NO el original (5) ni el reverso
+            Assert.Equal(2, effectiveMovements.Count);
+            Assert.Contains(effectiveMovements, m => m.Id == normal.MovementId);
+            Assert.DoesNotContain(effectiveMovements, m => m.Id == original.MovementId);
+
+            var rowDtos = effectiveMovements.Select(EffectiveMovementQuery.ProjectToRowDto).ToArray();
+            Assert.Equal(2, rowDtos.Length);
+            Assert.All(rowDtos, dto => Assert.Equal(1, dto.DistinctSkuCount));
+            Assert.All(rowDtos, dto => Assert.NotEmpty(dto.Lines[0].BalanceChanges));
+
+            var byCompleteValues = await db.InventoryMovements.AsNoTracking()
+                .ApplyFilter(db, new MovementReportFilter(
+                    Sku: "PG-REPORT-SKU",
+                    LocationCode: "PG-REPORT-LOC"))
+                .Select(movement => movement.Id)
+                .ToListAsync();
+            Assert.Equal(2, byCompleteValues.Count);
+
+            var folio = normal.MovementId!.Value.ToString("N")[..8];
+            var byFolio = await db.InventoryMovements.AsNoTracking()
+                .ApplyFilter(db, new MovementReportFilter(Search: folio))
+                .Select(movement => movement.Id)
+                .ToListAsync();
+            Assert.Contains(normal.MovementId.Value, byFolio);
+        }
+    }
+
+    [Fact]
+    public async Task Wip_report_search_page_and_export_translate_on_postgresql()
+    {
+        var seed = await fixture.SeedAsync("PG-WIP-REPORT", "PG-WIP-SOURCE", "3118");
+        Guid wipAreaId;
+        await using (var setup = fixture.CreateDbContext())
+        {
+            var wipArea = new Location
+            {
+                Code = "PG-WIP-AREA",
+                Kind = LocationKind.Area,
+                OperationalRole = LocationOperationalRole.Wip
+            };
+            setup.Locations.Add(wipArea);
+            await setup.SaveChangesAsync();
+            wipAreaId = wipArea.Id;
+        }
+
+        var issue = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(),
+            InventoryMovementType.Exit,
+            seed.Pin,
+            [new(seed.ProductId, 4m, SourceLocationId: seed.LocationId)],
+            Purpose: InventoryMovementPurpose.ProductionIssue,
+            OperationalAreaId: wipAreaId));
+        Assert.Equal(InventoryMovementStatus.Success, issue.Status);
+
+        await using var db = fixture.CreateDbContext();
+        var lineId = await db.InventoryMovementLines
+            .Where(line => line.MovementId == issue.MovementId)
+            .Select(line => line.Id)
+            .SingleAsync();
+        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+        var disposition = await new WipDispositionService(db, pins, TimeProvider.System).ConfirmAsync(new(
+            Guid.NewGuid(),
+            lineId,
+            WipDispositionType.SupplierReturn,
+            1m,
+            seed.Pin,
+            Reference: "PG-RMA"));
+        Assert.Equal(WipDispositionStatus.Success, disposition.Status);
+
+        var reports = new WipReportService(db, new WarehouseClock(new WarehouseSettingsService(db)));
+        var search = await reports.SearchIssuesAsync("PG-WIP-REPORT");
+        var page = await reports.GetPageAsync(new(null, null, WipAreaId: wipAreaId), 1, 25);
+        var export = await reports.ExportAsync(new(null, null, WipAreaId: wipAreaId));
+
+        Assert.Contains(search, row => row.MovementId == issue.MovementId && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
+        Assert.Contains(page.Items, row => row.MovementId == issue.MovementId && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
+        Assert.Contains(page.Summary, row => row.ProductSku == "PG-WIP-REPORT" && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
+        Assert.Contains(export, row => row.MovementId == issue.MovementId && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
     }
 }
 

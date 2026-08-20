@@ -26,6 +26,25 @@ public sealed class WipExitFlowContractTests
         Assert.Contains("mode = \"wip\"", pageModel, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Wip_detail_starts_a_prefilled_return_only_when_quantity_remains()
+    {
+        var detail = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Reports", "Wip", "Details.cshtml"));
+        var returnPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "WipReturn.cshtml"));
+        var returnModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "WipReturn.cshtml.cs"));
+
+        Assert.Contains("Model.Issue.Returnable > 0", detail, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Operations/WipReturn\"", detail, StringComparison.Ordinal);
+        Assert.Contains("asp-route-lineId=\"@Model.Issue.MovementLineId\"", detail, StringComparison.Ordinal);
+        Assert.Contains("Registrar devolución", detail, StringComparison.Ordinal);
+        Assert.Contains("Surtimiento completamente procesado", detail, StringComparison.Ordinal);
+        Assert.Contains("asp-for=\"Input.OriginalMovementLineId\"", returnPage, StringComparison.Ordinal);
+        Assert.Contains("disponible @issue.Returnable", returnPage, StringComparison.Ordinal);
+        Assert.Contains("Input.OperationId = Guid.NewGuid()", returnModel, StringComparison.Ordinal);
+        Assert.Contains("Input.OriginalMovementLineId = selected", returnModel, StringComparison.Ordinal);
+        Assert.Contains("SelectedIssue = await reportService.GetIssueAsync(selected", returnModel, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

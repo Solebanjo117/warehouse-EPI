@@ -384,7 +384,7 @@
       if (selected.product?.id !== productId || !items) return;
       productLocations = items;
       renderProductRelationships();
-      if (!selected[primaryLocationKind] && items.length === 1)
+      if (operation !== "entry" && !selected[primaryLocationKind] && items.length === 1)
         await applySelection(primaryLocationKind, items[0], true);
     };
 

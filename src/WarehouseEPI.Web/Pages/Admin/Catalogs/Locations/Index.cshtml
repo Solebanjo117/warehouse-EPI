@@ -57,8 +57,39 @@
         @foreach(var element in Model.Map.Elements)
         {
             <section class="map-element-detail" data-map-detail="@element.Id" hidden><div class="d-flex justify-content-between"><div><span class="text-body-secondary">@(element.IsWip?"Rack WIP — no controla saldo":element.Kind=="Rack"?"Rack":"Área")</span><h2 class="h4">@element.Label</h2></div><button type="button" class="btn-close" data-map-close aria-label="Cerrar detalle"></button></div>
-            @if(element.Kind=="Rack") { <div class="map-keypad">@foreach(var pallet in new short[]{7,8,9,4,5,6,1,2,3}) { var position=element.Positions.FirstOrDefault(item=>item.PalletNumber==pallet); if(position is null){<span class="map-position missing"><strong>@pallet</strong><small>No disponible</small></span>}else{<button type="button" class="map-position @PositionState(position)" data-map-position="@position.LocationId"><strong>@pallet</strong><small>@position.Code</small><span>@position.ProductCount producto(s)</span></button>} }</div> }
-            @foreach(var position in element.Positions){<div class="map-position-detail" data-position-detail="@position.LocationId" hidden><h3 class="h5">@position.Code</h3><p>@(position.Description??"Sin descripción")</p><div class="d-flex gap-2 flex-wrap mb-2"><span class="badge text-bg-light border">@position.AssignmentCount asignación(es)</span>@if(position.HasNegative){<span class="badge text-bg-danger">Saldo negativo</span>}else if(position.HasInventory){<span class="badge text-bg-primary">Con saldo</span>}else{<span class="badge text-bg-secondary">Sin saldo</span>}</div>@foreach(var product in position.Products){<div class="map-product-row"><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@product.ProductId">@(string.IsNullOrEmpty(product.Sku)?"Producto":product.Sku)</a><span class="@(product.Quantity<0?"text-danger":"")">@product.Quantity.ToString("0.####") @product.Unit</span><small>@(product.IsAssigned?"Asignado":"Sin asignación activa")</small></div>}<div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="Details" asp-route-id="@position.LocationId" class="btn btn-primary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></div>}
+            @if(element.IsWip)
+            {
+                var wipAreaId = element.LocationId;
+                var issues = wipAreaId is Guid id
+                    ? Model.RecentWipIssues.GetValueOrDefault(id) ?? []
+                    : [];
+                <h3 class="h6 mt-3">Últimos surtimientos</h3>
+                @if(issues.Count == 0)
+                {
+                    <p class="text-body-secondary">Aún no hay surtimientos registrados en este WIP.</p>
+                }
+                else
+                {
+                    <div class="map-wip-issues">
+                    @foreach(var issue in issues)
+                    {
+                        <a asp-page="/Reports/Wip/Details" asp-route-id="@issue.MovementLineId" class="map-wip-issue">
+                            <div class="d-flex justify-content-between gap-2"><strong>@issue.ProductSku</strong><time datetime="@issue.OccurredAt.ToString("O")">@issue.OccurredAt.ToString("dd/MM/yyyy HH:mm")</time></div>
+                            @if(!string.IsNullOrWhiteSpace(issue.ProductDescription)){<span class="map-wip-description">@issue.ProductDescription</span>}
+                            <span><strong>Enviado:</strong> @issue.Issued.ToString("0.####") @issue.Unit desde @issue.SourceLocation</span>
+                            <span><strong>Responsable:</strong> @issue.Responsible</span>
+                            <span><strong>Devuelto:</strong> @((issue.WarehouseReturned + issue.SupplierReturned).ToString("0.####")) @issue.Unit · <strong>Consumo asumido:</strong> @issue.AssumedConsumed.ToString("0.####") @issue.Unit</span>
+                        </a>
+                    }
+                    </div>
+                }
+                <div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="/Reports/Wip/Index" asp-route-wipAreaId="@wipAreaId" class="btn btn-primary">Ver reporte WIP</a>@if(wipAreaId is Guid locationId){<a asp-page="Details" asp-route-id="@locationId" class="btn btn-outline-secondary">Ficha</a>}</div>
+            }
+            else
+            {
+                @if(element.Kind=="Rack") { <div class="map-keypad">@foreach(var pallet in new short[]{7,8,9,4,5,6,1,2,3}) { var position=element.Positions.FirstOrDefault(item=>item.PalletNumber==pallet); if(position is null){<span class="map-position missing"><strong>@pallet</strong><small>No disponible</small></span>}else{<button type="button" class="map-position @PositionState(position)" data-map-position="@position.LocationId"><strong>@pallet</strong><small>@position.Code</small><span>@position.ProductCount producto(s)</span></button>} }</div> }
+                @foreach(var position in element.Positions){<div class="map-position-detail" data-position-detail="@position.LocationId" hidden><h3 class="h5">@position.Code</h3><p>@(position.Description??"Sin descripción")</p><div class="d-flex gap-2 flex-wrap mb-2"><span class="badge text-bg-light border">@position.AssignmentCount asignación(es)</span>@if(position.HasNegative){<span class="badge text-bg-danger">Saldo negativo</span>}else if(position.HasInventory){<span class="badge text-bg-primary">Con saldo</span>}else{<span class="badge text-bg-secondary">Sin saldo</span>}</div>@foreach(var product in position.Products){<div class="map-product-row"><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@product.ProductId">@(string.IsNullOrEmpty(product.Sku)?"Producto":product.Sku)</a><span class="@(product.Quantity<0?"text-danger":"")">@product.Quantity.ToString("0.####") @product.Unit</span><small>@(product.IsAssigned?"Asignado":"Sin asignación activa")</small></div>}<div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="Details" asp-route-id="@position.LocationId" class="btn btn-primary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></div>}
+            }
             </section>
         }
         </aside>

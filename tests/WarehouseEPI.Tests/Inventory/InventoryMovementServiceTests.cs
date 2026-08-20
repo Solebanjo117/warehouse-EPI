@@ -453,6 +453,116 @@ public sealed class InventoryMovementServiceTests
             new WarehouseClock(new WarehouseSettingsService(fixture.Db))).GetIssueAsync(lineId))!.AssumedConsumed);
     }
 
+    [Fact]
+    public async Task Recent_wip_issues_are_filtered_ordered_limited_and_keep_effective_dispositions()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("WIP-RECENT");
+        var source = await fixture.AddLocationAsync("WIP-SOURCE");
+        var selectedWip = await fixture.AddLocationAsync("WIP-2", LocationOperationalRole.Wip);
+        var otherWip = await fixture.AddLocationAsync("WIP-3", LocationOperationalRole.Wip);
+        var start = new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
+        var issues = new List<InventoryMovement>();
+        for (var index = 1; index <= 13; index++)
+        {
+            var movement = CreateIssue(selectedWip.Id, index, start.AddMinutes(index));
+            issues.Add(movement);
+            fixture.Db.InventoryMovements.Add(movement);
+        }
+
+        fixture.Db.InventoryMovements.Add(CreateIssue(otherWip.Id, 777m, start.AddHours(2)));
+        fixture.Db.InventoryMovements.Add(new InventoryMovement
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "normal-wip-area",
+            Type = InventoryMovementType.Exit,
+            Purpose = InventoryMovementPurpose.GeneralExit,
+            OperationalAreaId = selectedWip.Id,
+            ResponsibleUserId = fixture.OperatorId,
+            OccurredAt = start.AddHours(3),
+            Lines =
+            [
+                new InventoryMovementLine
+                {
+                    LineNumber = 1,
+                    ProductId = product.Id,
+                    UnitId = product.BaseUnitId,
+                    Quantity = 888m,
+                    SourceLocationId = source.Id
+                }
+            ]
+        });
+        var corrected = CreateIssue(selectedWip.Id, 999m, start.AddHours(4));
+        var reversal = new InventoryMovement
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "wip-reversal",
+            Type = InventoryMovementType.Entry,
+            ResponsibleUserId = fixture.OperatorId,
+            OccurredAt = start.AddHours(5)
+        };
+        fixture.Db.InventoryMovements.AddRange(corrected, reversal);
+        fixture.Db.InventoryMovementCorrections.Add(new InventoryMovementCorrection
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "wip-correction",
+            Type = InventoryMovementCorrectionType.Reversal,
+            OriginalMovementId = corrected.Id,
+            ReversalMovementId = reversal.Id,
+            Reason = "Captura corregida",
+            RequestedByUserId = fixture.OperatorId,
+            AuthorizedByUserId = fixture.OperatorId
+        });
+        fixture.Db.WipDispositions.Add(new WipDisposition
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "wip-return",
+            OriginalMovementLineId = issues[^1].Lines.Single().Id,
+            Type = WipDispositionType.SupplierReturn,
+            Quantity = 2m,
+            ResponsibleUserId = fixture.OperatorId,
+            Reference = "RMA-RECENT"
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var rows = await new WipReportService(fixture.Db,
+            new WarehouseClock(new WarehouseSettingsService(fixture.Db)))
+            .GetRecentIssuesAsync(selectedWip.Id);
+
+        Assert.Equal(10, rows.Count);
+        Assert.All(rows, row => Assert.Equal(selectedWip.Id, row.WipAreaId));
+        Assert.Equal(13m, rows[0].Issued);
+        Assert.Equal(2m, rows[0].SupplierReturned);
+        Assert.Equal(11m, rows[0].AssumedConsumed);
+        Assert.Equal(4m, rows[^1].Issued);
+        Assert.DoesNotContain(rows, row => row.Issued is 777m or 888m or 999m);
+        Assert.Equal(rows.OrderByDescending(row => row.OccurredAt).Select(row => row.MovementId),
+            rows.Select(row => row.MovementId));
+
+        InventoryMovement CreateIssue(Guid wipAreaId, decimal quantity, DateTimeOffset occurredAt)
+            => new()
+            {
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = $"wip-{wipAreaId:N}-{quantity}",
+                Type = InventoryMovementType.Exit,
+                Purpose = InventoryMovementPurpose.ProductionIssue,
+                OperationalAreaId = wipAreaId,
+                ResponsibleUserId = fixture.OperatorId,
+                OccurredAt = occurredAt,
+                Lines =
+                [
+                    new InventoryMovementLine
+                    {
+                        LineNumber = 1,
+                        ProductId = product.Id,
+                        UnitId = product.BaseUnitId,
+                        Quantity = quantity,
+                        SourceLocationId = source.Id
+                    }
+                ]
+            };
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         internal const string LookupKey =

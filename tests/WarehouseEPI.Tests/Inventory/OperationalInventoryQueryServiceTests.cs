@@ -208,14 +208,32 @@ public sealed class OperationalInventoryQueryServiceTests
         await using var db = CreateDbContext();
         var product = new Product { Sku = "ALERT-MAIN", BaseUnitId = 1, MinimumStock = 10m };
         var negativeProduct = new Product { Sku = "ALERT-NEGATIVE", BaseUnitId = 1 };
+        var correctedProduct = new Product { Sku = "ALERT-CORRECTED", BaseUnitId = 1 };
         var assigned = new Location { Code = "ALERT-A", Kind = LocationKind.Area };
         var unassigned = new Location { Code = "ALERT-B", Kind = LocationKind.Area };
-        db.AddRange(product, negativeProduct, assigned, unassigned);
-        db.ProductLocationAssignments.Add(new ProductLocationAssignment { Product = product, Location = assigned });
+        var corrected = new Location { Code = "ALERT-CORRECTED", Kind = LocationKind.Area };
+        var oldLot = new ProductLot
+        {
+            Product = correctedProduct,
+            Number = "AUTO-20260819",
+            NormalizedNumber = "AUTO-20260819"
+        };
+        var currentLot = new ProductLot
+        {
+            Product = correctedProduct,
+            Number = "AUTO-20260820",
+            NormalizedNumber = "AUTO-20260820"
+        };
+        db.AddRange(product, negativeProduct, correctedProduct, assigned, unassigned, corrected, oldLot, currentLot);
+        db.ProductLocationAssignments.AddRange(
+            new ProductLocationAssignment { Product = product, Location = assigned },
+            new ProductLocationAssignment { Product = correctedProduct, Location = corrected });
         db.InventoryBalances.AddRange(
             new InventoryBalance { Product = product, Location = assigned, Quantity = 2m },
             new InventoryBalance { Product = product, Location = unassigned, Quantity = -1m },
-            new InventoryBalance { Product = negativeProduct, Location = unassigned, Quantity = -3m });
+            new InventoryBalance { Product = negativeProduct, Location = unassigned, Quantity = -3m },
+            new InventoryBalance { Product = correctedProduct, Location = corrected, Lot = oldLot, Quantity = -2m },
+            new InventoryBalance { Product = correctedProduct, Location = corrected, Lot = currentLot, Quantity = 2m });
         await db.SaveChangesAsync();
         var service = new InventoryQueryService(db);
 
@@ -226,6 +244,9 @@ public sealed class OperationalInventoryQueryServiceTests
         Assert.Equal(1, positions.Summary.Negative);
         Assert.Equal(1, positions.Summary.UnassignedBalances);
 
+        var correctedPositions = await service.GetProductInventoryAsync(correctedProduct.Id);
+        Assert.Equal(0m, Assert.Single(correctedPositions).Quantity);
+
         var summary = await service.GetAlertSummaryAsync();
         Assert.Equal(2, summary.NegativePositions);
         Assert.Equal(2, summary.NegativeProducts);
@@ -234,6 +255,7 @@ public sealed class OperationalInventoryQueryServiceTests
         var negativeAlerts = await service.GetNegativeAlertPageAsync("alert-b", 1, 25);
         Assert.Equal(2, negativeAlerts.TotalCount);
         Assert.All(negativeAlerts.Items, item => Assert.Equal("ALERT-B", item.LocationCode));
+        Assert.Empty((await service.GetNegativeAlertPageAsync("alert-corrected", 1, 25)).Items);
         var minimumAlerts = await service.GetBelowMinimumAlertPageAsync("alert-main", 1, 25);
         var minimum = Assert.Single(minimumAlerts.Items);
         Assert.Equal(9m, minimum.Deficit);

@@ -3,15 +3,23 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService mapService) : PageModel
+public sealed class IndexModel(
+    WarehouseDbContext dbContext,
+    WarehouseMapService mapService,
+    WipReportService wipReportService) : PageModel
 {
-    internal IndexModel(WarehouseDbContext dbContext) : this(dbContext, new WarehouseMapService(dbContext)) { }
+    internal IndexModel(WarehouseDbContext dbContext) : this(
+        dbContext,
+        new WarehouseMapService(dbContext),
+        new WipReportService(dbContext, new WarehouseClock(new WarehouseSettingsService(dbContext)))) { }
     private const int PageSize = 25;
     private static readonly short[] KeypadOrder = [7, 8, 9, 4, 5, 6, 1, 2, 3];
 
@@ -26,6 +34,8 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
     public string RackFilter { get; private set; } = "all";
     public string ViewMode { get; private set; } = "map";
     public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0);
+    public IReadOnlyDictionary<Guid, IReadOnlyList<WipIssueRow>> RecentWipIssues { get; private set; }
+        = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
     public IReadOnlySet<Guid> MapMatches { get; private set; } = new HashSet<Guid>();
     public Guid? HighlightLocationId { get; private set; }
     public string? RowCode { get; private set; }
@@ -62,6 +72,16 @@ public sealed class IndexModel(WarehouseDbContext dbContext, WarehouseMapService
         if (ViewMode == "map")
         {
             Map = await mapService.GetAsync(true, cancellationToken);
+            var recentWipIssues = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
+            foreach (var wipAreaId in Map.Elements.Where(element => element.IsWip)
+                         .Select(element => element.LocationId)
+                         .OfType<Guid>()
+                         .Distinct())
+            {
+                recentWipIssues[wipAreaId] = await wipReportService.GetRecentIssuesAsync(
+                    wipAreaId, 10, cancellationToken);
+            }
+            RecentWipIssues = recentWipIssues;
             MapMatches = (string.IsNullOrWhiteSpace(Search) ? [] : await query.Select(location => location.Id).ToListAsync(cancellationToken)).Append(HighlightLocationId ?? Guid.Empty).Where(id => id != Guid.Empty).ToHashSet();
         }
         if (ViewMode == "racks")
