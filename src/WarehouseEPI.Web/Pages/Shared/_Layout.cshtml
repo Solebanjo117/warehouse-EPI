@@ -87,6 +87,9 @@
                 <a class="app-nav-link @(IsCurrent("/Operations/Adjustment") ? "active" : null)" asp-page="/Operations/Adjustment" aria-current="@(IsCurrent("/Operations/Adjustment") ? "page" : null)" title="Ajuste">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Ajuste</span>
                 </a>
+                <a class="app-nav-link @(IsSection("/Operations/CycleCounts") ? "active" : null)" asp-page="/Operations/CycleCounts/Index" aria-current="@(IsSection("/Operations/CycleCounts") ? "page" : null)" title="Conteos cíclicos">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Conteos cíclicos</span>
+                </a>
             </div>
 
             <div class="app-nav-group">

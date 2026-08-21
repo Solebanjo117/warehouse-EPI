@@ -21,6 +21,7 @@
             <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
         </aside>
     }
+    <aside class="analytics-product-actions" aria-label="Operación de inventario"><a asp-page="/Operations/CycleCounts/Index">Conteos cíclicos</a></aside>
 
     <nav class="inventory-filter-tabs analytics-tabs" aria-label="Vista analítica">
         <a class="@(Model.View == "occupancy" ? "active" : null)" aria-current="@(Model.View == "occupancy" ? "page" : null)" asp-route-view="occupancy">Ocupación</a>

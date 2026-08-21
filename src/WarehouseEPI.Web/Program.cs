@@ -113,6 +113,7 @@ builder.Services.AddScoped<ProductLotAdministrationService>();
 builder.Services.AddScoped<ProductLotQueryService>();
 builder.Services.AddScoped<ProductCatalogQueryService>();
 builder.Services.AddScoped<InventoryQueryService>();
+builder.Services.AddScoped<CycleCountService>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
 builder.Services.AddScoped<MovementReportService>();
 builder.Services.AddScoped<ReportExportService>();

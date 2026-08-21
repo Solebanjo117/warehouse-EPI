@@ -1,0 +1,32 @@
+@page "{id:guid}"
+@using WarehouseEPI.Core.Entities
+@model WarehouseEPI.Web.Pages.Operations.CycleCounts.DetailsModel
+@{ ViewData["Title"] = "Campaña de conteo"; var campaign = Model.Campaign!; }
+<div class="inventory-analytics">
+    <header class="inventory-page-header analytics-header">
+        <div><a asp-page="Index" class="small text-decoration-none">← Conteos cíclicos</a><h1 class="h2 mt-2 mb-1">@campaign.Folio · @(campaign.Title ?? "Sin título")</h1><p class="text-muted mb-0">Estado: @campaign.Status · creada por @campaign.CreatedByName</p></div>
+        <div class="d-flex gap-2"><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="xlsx" class="btn btn-outline-success">Excel</a><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="csv" class="btn btn-outline-secondary">CSV</a></div>
+    </header>
+    @if (Model.Error is not null) { <div class="alert alert-danger">@Model.Error</div> }
+    <div class="d-flex flex-wrap gap-2">
+        <form method="post" asp-page-handler="Release"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><input type="password" name="Pin" required class="form-control d-inline-block" style="width: 10rem" placeholder="NIP" inputmode="numeric" autocomplete="off" /> <button class="btn btn-primary" disabled="@(campaign.Status != CycleCountCampaignStatus.Draft)">Liberar</button></form>
+        <form method="post" asp-page-handler="Cancel"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><input type="password" name="Pin" required class="form-control d-inline-block" style="width: 10rem" placeholder="NIP" inputmode="numeric" autocomplete="off" /> <button class="btn btn-outline-danger" disabled="@(campaign.Status is CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled)">Cancelar</button></form>
+    </div>
+    <div class="table-responsive analytics-table mt-4">
+        <table class="table align-middle"><thead><tr><th>Ubicación</th><th>Estado</th><th>Intentos</th><th>Resultado</th><th></th></tr></thead><tbody>
+        @foreach (var location in campaign.Locations)
+        {
+            <tr><td><strong>@location.LocationCode</strong><small class="d-block text-body-secondary">@(location.LocationDescription ?? "Sin descripción")</small></td><td><span class="badge text-bg-secondary">@location.Status</span></td><td>@location.AttemptCount</td><td>@if (location.AdjustmentMovementId is Guid movementId) { <a asp-page="/Operations/Receipt" asp-route-id="@movementId">Ajuste aplicado</a> }</td><td class="text-end">
+            @if (location.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)
+            {
+                <form method="post" asp-page-handler="Start" class="d-inline"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="locationId" value="@location.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><input type="password" name="Pin" required class="form-control form-control-sm d-inline-block" style="width:6rem" placeholder="NIP" inputmode="numeric" autocomplete="off" /><button class="btn btn-outline-primary btn-sm">Iniciar</button></form>
+            }
+            else if (location.Status == CycleCountLocationStatus.UnderReview)
+            {
+                <a asp-page="Review" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" class="btn btn-outline-warning btn-sm">Revisar</a>
+            }
+            </td></tr>
+        }
+        </tbody></table>
+    </div>
+</div>

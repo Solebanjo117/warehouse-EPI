@@ -28,6 +28,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<WarehouseMapLayout> WarehouseMapLayouts => Set<WarehouseMapLayout>();
     public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
     public DbSet<WarehouseMapRevision> WarehouseMapRevisions => Set<WarehouseMapRevision>();
+    public DbSet<CycleCountCampaign> CycleCountCampaigns => Set<CycleCountCampaign>();
+    public DbSet<CycleCountLocation> CycleCountLocations => Set<CycleCountLocation>();
+    public DbSet<CycleCountAttempt> CycleCountAttempts => Set<CycleCountAttempt>();
+    public DbSet<CycleCountEntry> CycleCountEntries => Set<CycleCountEntry>();
+    public DbSet<CycleCountAction> CycleCountActions => Set<CycleCountAction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,6 +57,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureWipDisposition(modelBuilder);
         ConfigureProductLotDateChange(modelBuilder);
         ConfigureWarehouseMap(modelBuilder);
+        ConfigureCycleCounts(modelBuilder);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -363,12 +369,13 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
                 "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
                 "(purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
-                "(purpose = 'STANDARD' AND operational_area_id IS NULL)");
+                "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
+                "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
         });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
@@ -573,6 +580,109 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         revision.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
+    private static void ConfigureCycleCounts(ModelBuilder modelBuilder)
+    {
+        var campaign = modelBuilder.Entity<CycleCountCampaign>();
+        campaign.ToTable("cycle_count_campaigns");
+        campaign.HasKey(item => item.Id);
+        campaign.Property(item => item.Id).HasColumnName("id");
+        campaign.Property(item => item.OperationId).HasColumnName("operation_id");
+        campaign.Property(item => item.Number).HasColumnName("number").ValueGeneratedOnAdd();
+        campaign.Property(item => item.Title).HasColumnName("title").HasMaxLength(160);
+        campaign.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        campaign.Property(item => item.Status).HasColumnName("status").HasMaxLength(30)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountCampaignStatus>(value, true));
+        campaign.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        campaign.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        campaign.Property(item => item.ReleasedAt).HasColumnName("released_at");
+        campaign.Property(item => item.CompletedAt).HasColumnName("completed_at");
+        campaign.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
+        campaign.Property(item => item.LastActionByUserId).HasColumnName("last_action_by_user_id");
+        campaign.HasIndex(item => item.Number).IsUnique();
+        campaign.HasIndex(item => item.OperationId).IsUnique();
+        campaign.HasIndex(item => new { item.Status, item.CreatedAt });
+        campaign.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        campaign.HasOne(item => item.LastActionByUser).WithMany().HasForeignKey(item => item.LastActionByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var location = modelBuilder.Entity<CycleCountLocation>();
+        location.ToTable("cycle_count_locations");
+        location.HasKey(item => item.Id);
+        location.Property(item => item.Id).HasColumnName("id");
+        location.Property(item => item.CampaignId).HasColumnName("campaign_id");
+        location.Property(item => item.LocationId).HasColumnName("location_id");
+        location.Property(item => item.SortOrder).HasColumnName("sort_order");
+        location.Property(item => item.Status).HasColumnName("status").HasMaxLength(30)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountLocationStatus>(value, true));
+        location.Property(item => item.AdjustmentMovementId).HasColumnName("adjustment_movement_id");
+        location.Property(item => item.LastActionByUserId).HasColumnName("last_action_by_user_id");
+        location.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        location.Property(item => item.CompletedAt).HasColumnName("completed_at");
+        location.HasIndex(item => new { item.CampaignId, item.LocationId }).IsUnique();
+        location.HasIndex(item => new { item.LocationId, item.Status });
+        location.HasIndex(item => item.AdjustmentMovementId).IsUnique().HasFilter("adjustment_movement_id IS NOT NULL");
+        location.HasOne(item => item.Campaign).WithMany(item => item.Locations).HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        location.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
+        location.HasOne(item => item.AdjustmentMovement).WithMany().HasForeignKey(item => item.AdjustmentMovementId).OnDelete(DeleteBehavior.Restrict);
+        location.HasOne(item => item.LastActionByUser).WithMany().HasForeignKey(item => item.LastActionByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var attempt = modelBuilder.Entity<CycleCountAttempt>();
+        attempt.ToTable("cycle_count_attempts");
+        attempt.HasKey(item => item.Id);
+        attempt.Property(item => item.Id).HasColumnName("id");
+        attempt.Property(item => item.OperationId).HasColumnName("operation_id");
+        attempt.Property(item => item.SubmissionOperationId).HasColumnName("submission_operation_id");
+        attempt.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        attempt.Property(item => item.AttemptNumber).HasColumnName("attempt_number");
+        attempt.Property(item => item.Status).HasColumnName("status").HasMaxLength(20)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountAttemptStatus>(value, true));
+        attempt.Property(item => item.StartedByUserId).HasColumnName("started_by_user_id");
+        attempt.Property(item => item.StartedAt).HasColumnName("started_at").HasDefaultValueSql("now()");
+        attempt.Property(item => item.SubmittedByUserId).HasColumnName("submitted_by_user_id");
+        attempt.Property(item => item.SubmittedAt).HasColumnName("submitted_at");
+        attempt.HasIndex(item => item.OperationId).IsUnique();
+        attempt.HasIndex(item => item.SubmissionOperationId).IsUnique().HasFilter("submission_operation_id IS NOT NULL");
+        attempt.HasIndex(item => new { item.CycleCountLocationId, item.AttemptNumber }).IsUnique();
+        attempt.HasOne(item => item.CycleCountLocation).WithMany(item => item.Attempts).HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
+        attempt.HasOne(item => item.StartedByUser).WithMany().HasForeignKey(item => item.StartedByUserId).OnDelete(DeleteBehavior.Restrict);
+        attempt.HasOne(item => item.SubmittedByUser).WithMany().HasForeignKey(item => item.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var entry = modelBuilder.Entity<CycleCountEntry>();
+        entry.ToTable("cycle_count_entries");
+        entry.HasKey(item => item.Id);
+        entry.Property(item => item.Id).HasColumnName("id");
+        entry.Property(item => item.CycleCountAttemptId).HasColumnName("cycle_count_attempt_id");
+        entry.Property(item => item.ProductId).HasColumnName("product_id");
+        entry.Property(item => item.UnitId).HasColumnName("unit_id");
+        entry.Property(item => item.ExpectedQuantity).HasColumnName("expected_quantity").HasPrecision(18, 4);
+        entry.Property(item => item.ExpectedBalanceVersion).HasColumnName("expected_balance_version");
+        entry.Property(item => item.CountedQuantity).HasColumnName("counted_quantity").HasPrecision(18, 4);
+        entry.Property(item => item.IsUnexpectedProduct).HasColumnName("is_unexpected_product").HasDefaultValue(false);
+        entry.HasIndex(item => new { item.CycleCountAttemptId, item.ProductId }).IsUnique();
+        entry.HasOne(item => item.CycleCountAttempt).WithMany(item => item.Entries).HasForeignKey(item => item.CycleCountAttemptId).OnDelete(DeleteBehavior.Restrict);
+        entry.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+        entry.HasOne(item => item.Unit).WithMany().HasForeignKey(item => item.UnitId).OnDelete(DeleteBehavior.Restrict);
+
+        var action = modelBuilder.Entity<CycleCountAction>();
+        action.ToTable("cycle_count_actions");
+        action.HasKey(item => item.Id);
+        action.Property(item => item.Id).HasColumnName("id");
+        action.Property(item => item.OperationId).HasColumnName("operation_id");
+        action.Property(item => item.CampaignId).HasColumnName("campaign_id");
+        action.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        action.Property(item => item.CycleCountAttemptId).HasColumnName("cycle_count_attempt_id");
+        action.Property(item => item.Type).HasColumnName("type").HasMaxLength(30)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountActionType>(value, true));
+        action.Property(item => item.ResponsibleUserId).HasColumnName("responsible_user_id");
+        action.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        action.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        action.HasIndex(item => new { item.CampaignId, item.RecordedAt });
+        action.HasIndex(item => item.OperationId).IsUnique().HasFilter("operation_id IS NOT NULL");
+        action.HasOne(item => item.Campaign).WithMany().HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.CycleCountLocation).WithMany().HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.CycleCountAttempt).WithMany().HasForeignKey(item => item.CycleCountAttemptId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
     private static void ConfigureInventoryMovementCorrection(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<InventoryMovementCorrection>();
@@ -658,7 +768,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision &&
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction &&
                 entry.State is EntityState.Modified or EntityState.Deleted);
 
         if (changedHistory)
@@ -688,6 +798,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.GeneralExit => "GENERAL_EXIT",
         InventoryMovementPurpose.ProductionIssue => "PRODUCTION_ISSUE",
         InventoryMovementPurpose.WipWarehouseReturn => "WIP_WAREHOUSE_RETURN",
+        InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
         _ => "STANDARD"
     };
 
@@ -696,6 +807,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "GENERAL_EXIT" => InventoryMovementPurpose.GeneralExit,
         "PRODUCTION_ISSUE" => InventoryMovementPurpose.ProductionIssue,
         "WIP_WAREHOUSE_RETURN" => InventoryMovementPurpose.WipWarehouseReturn,
+        "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
         _ => InventoryMovementPurpose.Standard
     };
 

@@ -2,6 +2,7 @@ using System.Text;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
@@ -238,6 +239,37 @@ public sealed class ReportExportServiceTests
         Assert.Contains("\"'=ROT-1\"", content);
         Assert.Contains(",3,12.5000,7.0000,", content);
         Assert.Contains("estado=all", content);
+        Assert.Contains("America/Matamoros", content);
+    }
+
+    [Fact]
+    public async Task Cycle_count_exports_preserve_numeric_dates_bom_and_formula_defense()
+    {
+        await using var db = CreateDbContext();
+        var exportService = new ReportExportService(new WarehouseSettingsService(db));
+        var started = new DateTimeOffset(2026, 8, 21, 14, 30, 0, TimeSpan.Zero);
+        var row = new CycleCountExportRow(
+            "=CC-000001", "+A-1-1", 2, "@SKU-1", "-Descripción", "EA",
+            7m, 5m, -2m, true, CycleCountLocationStatus.Completed, started, started.AddMinutes(4));
+
+        var xlsx = await exportService.ExportCycleCountsToExcelAsync([row]);
+        using (var workbook = new XLWorkbook(new MemoryStream(xlsx)))
+        {
+            var data = workbook.Worksheet("Conteos cíclicos").Row(6);
+            Assert.False(data.Cell(1).HasFormula);
+            Assert.False(data.Cell(4).HasFormula);
+            Assert.Equal(XLDataType.Number, data.Cell(7).DataType);
+            Assert.Equal(XLDataType.Number, data.Cell(8).DataType);
+            Assert.Equal(XLDataType.Number, data.Cell(9).DataType);
+            Assert.Equal(XLDataType.DateTime, data.Cell(12).DataType);
+            Assert.Equal(XLDataType.DateTime, data.Cell(13).DataType);
+        }
+
+        var csv = await exportService.ExportCycleCountsToCsvAsync([row]);
+        Assert.Equal([0xEF, 0xBB, 0xBF], csv[..3]);
+        var content = Encoding.UTF8.GetString(csv[3..]);
+        Assert.Contains("\"'=CC-000001\"", content);
+        Assert.Contains(",7.0000,5.0000,-2.0000,", content);
         Assert.Contains("America/Matamoros", content);
     }
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Text;
 using ClosedXML.Excel;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Reporting;
@@ -324,6 +325,47 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         return CsvBytes(sb);
     }
 
+    public async Task<byte[]> ExportCycleCountsToExcelAsync(IReadOnlyList<CycleCountExportRow> rows, CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Conteos cíclicos");
+        WriteInventoryHeader(worksheet, $"{settings.WarehouseName} - Conteos cíclicos", rows.Count, settings.TimeZoneId, "Resultados de campaña", timeZone);
+        WriteTableHeaders(worksheet, ["Folio", "Ubicación", "Intento", "SKU", "Descripción", "Unidad", "Esperado", "Contado", "Diferencia", "Inesperado", "Estado", "Inicio", "Enviado"]);
+        var currentRow = 6;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.Folio)); worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.LocationCode)); worksheet.Cell(currentRow, 3).SetValue(row.AttemptNumber);
+            worksheet.Cell(currentRow, 4).SetValue(SanitizeText(row.Sku)); worksheet.Cell(currentRow, 5).SetValue(SanitizeText(row.Description)); worksheet.Cell(currentRow, 6).SetValue(SanitizeText(row.UnitCode));
+            worksheet.Cell(currentRow, 7).SetValue(row.ExpectedQuantity); SetNullableNumber(worksheet.Cell(currentRow, 8), row.CountedQuantity); SetNullableNumber(worksheet.Cell(currentRow, 9), row.Difference);
+            worksheet.Cell(currentRow, 10).SetValue(row.IsUnexpectedProduct ? "Sí" : "No"); worksheet.Cell(currentRow, 11).SetValue(SanitizeText(row.LocationStatus.ToString()));
+            worksheet.Cell(currentRow, 12).SetValue(TimeZoneInfo.ConvertTime(row.StartedAt, timeZone).DateTime); worksheet.Cell(currentRow, 12).Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+            if (row.SubmittedAt is not null) { worksheet.Cell(currentRow, 13).SetValue(TimeZoneInfo.ConvertTime(row.SubmittedAt.Value, timeZone).DateTime); worksheet.Cell(currentRow, 13).Style.DateFormat.Format = "yyyy-mm-dd hh:mm"; }
+            foreach (var column in new[] { 7, 8, 9 }) worksheet.Cell(currentRow, column).Style.NumberFormat.Format = "#,##0.0000";
+            currentRow++;
+        }
+        worksheet.Columns().AdjustToContents();
+        using var stream = new MemoryStream(); workbook.SaveAs(stream); return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportCycleCountsToCsvAsync(IReadOnlyList<CycleCountExportRow> rows, CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var builder = new StringBuilder("Folio,Ubicación,Intento,SKU,Descripción,Unidad,Esperado,Contado,Diferencia,Inesperado,Estado,Inicio,Enviado,Zona horaria\r\n");
+        foreach (var row in rows)
+        {
+            builder.Append(EscapeCsv(SanitizeText(row.Folio))).Append(',').Append(EscapeCsv(SanitizeText(row.LocationCode))).Append(',').Append(row.AttemptNumber).Append(',')
+                .Append(EscapeCsv(SanitizeText(row.Sku))).Append(',').Append(EscapeCsv(SanitizeText(row.Description))).Append(',').Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',')
+                .Append(row.ExpectedQuantity.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',').Append(FormatNullableNumber(row.CountedQuantity)).Append(',').Append(FormatNullableNumber(row.Difference)).Append(',')
+                .Append(EscapeCsv(row.IsUnexpectedProduct ? "Sí" : "No")).Append(',').Append(EscapeCsv(SanitizeText(row.LocationStatus.ToString()))).Append(',')
+                .Append(EscapeCsv(TimeZoneInfo.ConvertTime(row.StartedAt, timeZone).ToString("yyyy-MM-dd HH:mm"))).Append(',').Append(EscapeCsv(row.SubmittedAt is null ? string.Empty : TimeZoneInfo.ConvertTime(row.SubmittedAt.Value, timeZone).ToString("yyyy-MM-dd HH:mm"))).Append(',')
+                .Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).AppendLine();
+        }
+        var encoding = new UTF8Encoding(true); return encoding.GetPreamble().Concat(encoding.GetBytes(builder.ToString())).ToArray();
+    }
+
     private static void WriteInventoryHeader(
         IXLWorksheet worksheet,
         string title,
@@ -488,6 +530,7 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         InventoryMovementPurpose.GeneralExit => "Salida general",
         InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
         InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP",
+        InventoryMovementPurpose.CycleCountAdjustment => "Conteo cíclico",
         _ => purpose.ToString()
     };
 }

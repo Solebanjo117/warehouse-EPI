@@ -119,7 +119,7 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         if (balances.Count == 0) return new(productId, locationId, 0m, 0, false, false);
         var total = balances.Sum(item => item.Quantity);
         var text = string.Join('|', balances.OrderBy(item => item.LotId).Select(item =>
-            $"{item.LotId}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
+            $"{item.LotId:N}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
         var version = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
         return new(productId, locationId, total, version, true, total < 0);
     }

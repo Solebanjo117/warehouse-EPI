@@ -1,0 +1,14 @@
+@page "/Operations/CycleCounts"
+@using WarehouseEPI.Core.Entities
+@model WarehouseEPI.Web.Pages.Operations.CycleCounts.IndexModel
+@{
+    ViewData["Title"] = "Conteos cíclicos";
+}
+<div class="inventory-analytics">
+    <header class="inventory-page-header analytics-header"><div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Conteos cíclicos</h1><p class="text-muted mb-0">Captura ciega por ubicación y autorización trazable de diferencias.</p></div><a asp-page="Create" class="btn btn-primary">Nueva campaña</a></header>
+    <form method="get" class="analytics-filter-card analytics-filter-form"><div><label class="form-label" for="cycle-search">Folio o título</label><input id="cycle-search" name="search" value="@Model.Search" class="form-control" /></div><div><label class="form-label" for="cycle-status">Estado</label><select id="cycle-status" name="status" class="form-select"><option value="">Todos</option>@foreach (var status in Enum.GetValues<CycleCountCampaignStatus>()) { <option value="@status" selected="@(Model.Status == status)">@status</option> }</select></div><div><label class="form-label" for="cycle-from">Desde</label><input id="cycle-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div><div><label class="form-label" for="cycle-to">Hasta</label><input id="cycle-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div><div class="analytics-filter-actions"><button class="btn btn-outline-primary">Filtrar</button></div></form>
+    <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Folio</th><th>Campaña</th><th>Estado</th><th>Progreso</th><th>En revisión</th><th>Creada</th><th></th></tr></thead><tbody>
+    @if (Model.Campaigns.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay campañas de conteo.</td></tr> }
+    @foreach (var item in Model.Campaigns) { <tr><td class="fw-semibold">@item.Folio</td><td>@(item.Title ?? "Sin título")</td><td><span class="badge text-bg-secondary">@item.Status</span></td><td>@item.CompletedLocationCount / @item.LocationCount ubicaciones</td><td>@item.DifferenceLocationCount</td><td><time datetime="@item.CreatedAt.ToString("O")">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</time></td><td class="text-end"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Abrir</a></td></tr> }
+    </tbody></table></div>
+</div>

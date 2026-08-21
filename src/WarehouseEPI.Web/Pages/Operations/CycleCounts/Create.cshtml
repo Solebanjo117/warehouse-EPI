@@ -1,0 +1,28 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.CycleCounts.CreateModel
+@{ ViewData["Title"] = "Nueva campaña"; }
+<div class="inventory-analytics">
+    <header class="inventory-page-header"><div><a asp-page="Index" class="small text-decoration-none">← Conteos cíclicos</a><h1 class="h2 mt-2">Nueva campaña de conteo</h1><p class="text-muted mb-0">Selecciona manualmente las ubicaciones. El NIP se solicita al crear.</p></div></header>
+    <form method="post" class="analytics-filter-card">
+        <input asp-for="Input.OperationId" type="hidden" value="@Guid.NewGuid()" />
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        @if (Model.Error is not null) { <div class="alert alert-danger">@Model.Error</div> }
+        <div class="row g-3">
+            <div class="col-md-6"><label asp-for="Input.Title" class="form-label">Título</label><input asp-for="Input.Title" class="form-control" placeholder="Ej. Conteo fila A" /></div>
+            <div class="col-md-6"><label asp-for="Input.Pin" class="form-label">NIP responsable</label><input asp-for="Input.Pin" class="form-control" type="password" inputmode="numeric" maxlength="8" autocomplete="off" /></div>
+            <div class="col-12"><label asp-for="Input.Notes" class="form-label">Notas</label><textarea asp-for="Input.Notes" class="form-control" rows="2"></textarea></div>
+        </div>
+        <fieldset class="mt-4">
+            <legend class="h5">Seleccionar por grupo</legend><p class="text-muted small">Las selecciones por fila, rack y ubicación se combinan sin duplicar posiciones.</p>
+            <div class="row g-3">
+                <div class="col-md-6"><div class="fw-semibold mb-2">Filas completas</div>@foreach (var row in Model.Rows) { <label class="form-check"><input class="form-check-input" type="checkbox" name="Input.RowCodes" value="@row" /> <span class="form-check-label">Fila @row</span></label> }</div>
+                <div class="col-md-6"><div class="fw-semibold mb-2">Racks completos</div>@foreach (var rack in Model.Racks) { <label class="form-check"><input class="form-check-input" type="checkbox" name="Input.RackNumbers" value="@rack" /> <span class="form-check-label">Rack @rack</span></label> }</div>
+            </div>
+        </fieldset>
+        <fieldset class="mt-4">
+            <legend class="h5">Ubicaciones individuales</legend>
+            <div class="row g-2">@foreach (var location in Model.Locations) { <div class="col-12 col-md-6 col-xl-4"><label class="form-check border rounded p-2 w-100"><input class="form-check-input me-2" type="checkbox" name="Input.LocationIds" value="@location.Id" /><strong>@location.Code</strong><small class="d-block text-body-secondary">@(location.Description ?? "Sin descripción") · Fila @(location.RowCode ?? "—") · Rack @(location.RackNumber?.ToString() ?? "—")</small></label></div> }</div>
+        </fieldset>
+        <div class="mt-4 d-flex gap-2"><a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a><button class="btn btn-primary">Crear campaña</button></div>
+    </form>
+</div>

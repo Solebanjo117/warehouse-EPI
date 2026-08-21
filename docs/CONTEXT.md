@@ -1,6 +1,6 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 20 de agosto de 2026.
+Actualizado: 21 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
@@ -15,8 +15,8 @@ principales pantallas implementadas, pero todavía requiere validación física 
 mantiene trabajo parcial en 11.6 y 11.7. WIP está implementado y su migración
 está aplicada, aunque aún no forma parte de una Release publicada ni se ha
 validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están completadas;
-13.3 y 13.4 están implementadas y automatizadas, con validación física
-LAN/tablet pendiente. El siguiente bloque planificado es 13.5. La protección
+13.3, 13.4 y 13.5 están implementadas y automatizadas, con validación física
+LAN/tablet/lector/impresora pendiente. El siguiente bloque planificado es 13.6. La protección
 de `main` exige el check `Quality`.
 
 ## 1. Objetivo
@@ -878,8 +878,8 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 ### Fase 12: etiquetas, trazabilidad de proceso y piloto conectado
 
 La incorporación de 12.1 a 12.3 documenta una necesidad nueva. Los bloques de
-reporting 13.3 y 13.4 ya fueron implementados; antes de iniciar la fase 12 se
-debe confirmar su prioridad frente a 13.5 y cerrar las decisiones operativas
+reporting 13.3 a 13.5 ya fueron implementados; antes de iniciar la fase 12 se
+debe confirmar su prioridad frente a 13.6 y cerrar las decisiones operativas
 pendientes.
 
 #### Fase 12.1: catálogo único y generación centralizada de documentos — propuesta
@@ -1051,8 +1051,48 @@ pendientes.
   interfaz, los filtros y las descargas en la laptop LAN y tablets reales; la
   aplicación no se inició durante esta implementación.
 - La consulta pública de Existencias ya existente no se reimplementó y no se
-  añadieron migraciones ni paquetes. El siguiente bloque planificado es 13.5,
-  conteos cíclicos persistentes y ajustes autorizados.
+  añadieron migraciones ni paquetes. Después se implementó 13.5, conteos
+  cíclicos persistentes y ajustes autorizados.
+
+#### Fase 13.5: conteos cíclicos persistentes y ajustes autorizados — implementada; migración y validación física pendientes
+
+- Se incorporó el modelo persistente de campañas `CC-000001`, ubicaciones,
+  intentos/reconteos, líneas por producto + ubicación y acciones de auditoría.
+  Las campañas y ubicaciones conservan estados explícitos; una ubicación no
+  puede pertenecer a dos campañas abiertas y los intentos anteriores nunca se
+  sobrescriben.
+- `CycleCountService` permite seleccionar posiciones físicas activas por fila,
+  rack o ubicación, liberar y cancelar campañas, iniciar conteos ciegos,
+  registrar cero/ubicación vacía y productos inesperados, solicitar reconteo y
+  autorizar diferencias con NIP de ADMIN u OPERATOR. Los productos conocidos
+  proceden de asignaciones activas o de cualquier saldo distinto de cero.
+- El saldo esperado y su versión agregada se capturan al iniciar. Se comparan
+  antes de enviar y antes de aprobar; cualquier movimiento concurrente marca la
+  posición `Stale` y obliga a iniciar un nuevo intento. Las coincidencias se
+  concilian sin movimiento. Una aprobación genera atómicamente un solo
+  `Adjustment` con propósito `CycleCountAdjustment`, folio de campaña y enlace
+  desde la ubicación contada; no se bloquean ubicaciones.
+- `/Operations/CycleCounts` y sus páginas Create, Details, Count, Review, Print
+  y Export son públicas dentro de la LAN. Todos los cambios usan antiforgery y
+  solicitan NIP; el NIP no se persiste ni se devuelve. La hoja HTML imprimible
+  permanece ciega y los resultados se exportan a CSV UTF-8 BOM o XLSX con
+  números/fechas nativos, defensa contra fórmulas y rechazo completo por encima
+  de 10,000 líneas.
+- La migración `Phase135CycleCounts` crea las cinco tablas y amplía el propósito
+  de movimientos sin agregar paquetes ni saldos paralelos. Se deja generada y
+  pendiente de aplicación deliberadamente; esta implementación no inicia ni
+  publica la aplicación.
+- Las pruebas automatizadas cubren conciliación sin ajuste, aprobación de
+  diferencias, concurrencia `Stale`, reconteo inmutable, campañas superpuestas,
+  exclusión WIP, idempotencia del envío, cantidades inválidas y contratos web
+  de acceso, ceguera, impresión, navegación y exportación. Sigue pendiente la
+  validación física en laptop LAN, tablets, lector HID/cámara e impresora, así
+  como aplicar/auditar la migración en la base de producción mediante el flujo
+  de respaldo habitual. La compilación Release queda en 0 advertencias y 0
+  errores; las 15 pruebas dirigidas de conteos/exportación pasan y la suite
+  completa queda en 218/237. Las mismas 19 fallas HTTP 400/antiforgery del host
+  `WebApplicationFactory` permanecen como línea base preexistente. El siguiente
+  bloque es 13.6, alertas operativas.
 
 ### Fase 14: PWA y operación sin conexión
 
@@ -1342,8 +1382,9 @@ Release 0.10.7 está activa como servicio Windows y 10.8 continúa pospuesta.
 implementadas, con trabajo parcial en 11.6 y 11.7 y validación física pendiente.
 La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
 la base antes de cambiar ese estado. Las fases 13.1 y 13.2 están completadas y
-13.3 y 13.4 están implementadas, con validación física LAN/tablet pendiente; el
-siguiente bloque planificado es 13.5. La fase 12 ahora contempla centralizar
+13.3, 13.4 y 13.5 están implementadas, con la migración de 13.5 sin aplicar y
+validación física LAN/tablet/lector/impresora pendiente; el siguiente bloque
+planificado es 13.6. La fase 12 ahora contempla centralizar
 etiquetas 4x6, placas de pallet y rutas de producción usando el catálogo del
 sistema, pero su contrato e implementación siguen pendientes. Después quedan el
 piloto físico, conteos/alertas avanzados, PWA/offline, liberación v1.0,
