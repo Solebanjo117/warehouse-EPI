@@ -29,6 +29,7 @@ public sealed class InventoryAnalyticsPostgreSqlTests(PostgreSqlInventoryFixture
             PalletNumber = 1
         };
         db.Add(rack);
+        db.ProductBarcodes.Add(new ProductBarcode { Product = product, Barcode = $"ANALYTICS-{suffix}-BARCODE" });
         db.InventoryBalances.Add(
             new InventoryBalance { Product = product, Location = rack, Quantity = 3m });
         var exit = new InventoryMovement
@@ -51,13 +52,18 @@ public sealed class InventoryAnalyticsPostgreSqlTests(PostgreSqlInventoryFixture
 
         var service = new InventoryAnalyticsService(db, new WarehouseSettingsService(db));
         var occupancy = await service.GetOccupancyAsync();
-        var rotation = await service.GetRotationPageAsync(new InventoryAnalyticsFilter(ProductStatus: "all"));
+        var activity = await service.GetExitActivityPageAsync(new InventoryAnalyticsFilter(
+            ProductStatus: "all",
+            Search: $"{suffix}-barcode",
+            PageSize: 1));
         var stagnant = await service.GetStagnantPageAsync(
             new InventoryAnalyticsFilter(ProductStatus: "all"),
             DateTimeOffset.UtcNow);
 
         Assert.Contains(occupancy.Rows, row => row.RowCode == "Z" && row.Summary.OccupiedCount == 1);
-        Assert.Contains(rotation.Items, row => row.ProductId == product.Id && row.EffectiveExitMovementCount == 1);
+        Assert.Contains(activity.Items, row => row.ProductId == product.Id && row.EffectiveExitMovementCount == 1);
+        Assert.Equal(1, activity.TotalCount);
+        Assert.Equal(1, activity.PageSize);
         Assert.Contains(stagnant.Items, row => row.ProductId == product.Id);
     }
 }

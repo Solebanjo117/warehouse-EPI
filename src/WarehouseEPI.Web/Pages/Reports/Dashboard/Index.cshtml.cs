@@ -19,17 +19,23 @@ public sealed class IndexModel(
         new DailyDashboardMetricsDto(0, 0, 0, 0, []));
 
     public async Task OnGetAsync(CancellationToken cancellationToken) =>
-        Snapshot = await GetSnapshotAsync(cancellationToken);
+        Snapshot = await GetSnapshotAsync(false, cancellationToken);
 
-    public async Task<IActionResult> OnGetMetricsAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetMetricsAsync(
+        bool refresh = false,
+        CancellationToken cancellationToken = default)
     {
         Response.Headers.CacheControl = "no-store, no-cache";
         Response.Headers.Pragma = "no-cache";
-        return new JsonResult(await GetSnapshotAsync(cancellationToken));
+        return new JsonResult(await GetSnapshotAsync(refresh, cancellationToken));
     }
 
-    private async Task<DailyDashboardSnapshotDto> GetSnapshotAsync(CancellationToken cancellationToken)
+    private async Task<DailyDashboardSnapshotDto> GetSnapshotAsync(
+        bool refresh,
+        CancellationToken cancellationToken)
     {
+        if (refresh)
+            memoryCache.Remove(CacheKey);
         if (memoryCache.TryGetValue<DailyDashboardSnapshotDto>(CacheKey, out var cached) && cached is not null)
             return cached;
 

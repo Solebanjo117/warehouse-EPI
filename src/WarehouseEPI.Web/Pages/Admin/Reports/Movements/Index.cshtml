@@ -8,7 +8,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <div>
         <h1 class="h2 mb-1">Reporte Analítico de Movimientos</h1>
-        <p class="text-muted mb-0">Movimientos efectivos vigentes (excluye anulaciones y reversos contables).</p>
+        <p class="text-muted mb-0">Auditoría y conciliación de movimientos efectivos vigentes; excluye originales corregidos y reversos.</p>
     </div>
     <div class="d-flex gap-2">
         <a class="btn btn-outline-success d-inline-flex align-items-center gap-1"
@@ -42,6 +42,12 @@
             <span>CSV</span>
         </a>
     </div>
+</div>
+
+<div class="alert alert-light border small" role="note">
+    <strong>Población:</strong> una fila por operación efectiva, con sus líneas de detalle.
+    <strong class="ms-2">Período local:</strong> @(Model.From?.ToString("dd/MM/yyyy") ?? "inicio")–@(Model.To?.ToString("dd/MM/yyyy") ?? "actualidad").
+    <strong class="ms-2">Zona:</strong> @Model.TimeZoneId.
 </div>
 
 <div class="card mb-3 shadow-sm border-0">

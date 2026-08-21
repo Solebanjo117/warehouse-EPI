@@ -118,8 +118,8 @@ public sealed record LocationOccupancyReportDto(
     LocationOccupancySummaryDto Summary,
     IReadOnlyList<LocationOccupancyRowDto> Rows);
 
-/// <summary>Métrica determinista de rotación por SKU (número de salidas, cantidad en su unidad y SKU).</summary>
-public sealed record SkuRotationMetricDto(
+/// <summary>Actividad determinista de salidas por SKU, sin presentarla como tasa de rotación.</summary>
+public sealed record SkuExitActivityMetricDto(
     Guid ProductId,
     string Sku,
     string? Description,
@@ -153,7 +153,7 @@ public sealed record StagnantProductDto(
     StagnantCategory Category,
     bool IsActive);
 
-/// <summary>Filtros normalizados para rotación y estancamiento de productos.</summary>
+/// <summary>Filtros normalizados para actividad de salidas y estancamiento de productos.</summary>
 public sealed record InventoryAnalyticsFilter(
     DateTimeOffset? FromUtc = null,
     DateTimeOffset? ToUtc = null,

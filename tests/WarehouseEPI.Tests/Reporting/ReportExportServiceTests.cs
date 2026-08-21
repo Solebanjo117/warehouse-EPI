@@ -203,23 +203,23 @@ public sealed class ReportExportServiceTests
             ProductStatus: "all",
             Search: "=peligroso",
             UnitId: 1);
-        var rotation = new SkuRotationMetricDto(
+        var activity = new SkuExitActivityMetricDto(
             Guid.NewGuid(), "=ROT-1", "+Descripción", 1, "EA", 3, 12.5m, 7m, lastExit, false);
         var stagnant = new StagnantProductDto(
             Guid.NewGuid(), "@STG-1", "-Descripción", 1, "EA", 9.25m, lastExit, 95,
             StagnantCategory.Days90Plus, true);
 
-        var rotationXlsx = await exportService.ExportRotationToExcelAsync([rotation], filter);
-        using (var workbook = new XLWorkbook(new MemoryStream(rotationXlsx)))
+        var activityXlsx = await exportService.ExportExitActivityToExcelAsync([activity], filter);
+        using (var workbook = new XLWorkbook(new MemoryStream(activityXlsx)))
         {
-            var row = workbook.Worksheet("Rotación").Row(6);
+            var row = workbook.Worksheet("Actividad salidas").Row(6);
             Assert.False(row.Cell(1).HasFormula);
             Assert.Equal(XLDataType.Text, row.Cell(1).DataType);
             Assert.Equal(XLDataType.Number, row.Cell(5).DataType);
             Assert.Equal(XLDataType.Number, row.Cell(6).DataType);
             Assert.Equal(XLDataType.Number, row.Cell(7).DataType);
             Assert.Equal(XLDataType.DateTime, row.Cell(8).DataType);
-            Assert.Contains("estado=all", workbook.Worksheet("Rotación").Cell(3, 1).GetString());
+            Assert.Contains("estado=all", workbook.Worksheet("Actividad salidas").Cell(3, 1).GetString());
         }
 
         var stagnantXlsx = await exportService.ExportStagnantToExcelAsync([stagnant], filter);
@@ -233,7 +233,7 @@ public sealed class ReportExportServiceTests
             Assert.Equal("90+ días", row.Cell(8).GetString());
         }
 
-        var csv = await exportService.ExportRotationToCsvAsync([rotation], filter);
+        var csv = await exportService.ExportExitActivityToCsvAsync([activity], filter);
         Assert.Equal([0xEF, 0xBB, 0xBF], csv[..3]);
         var content = Encoding.UTF8.GetString(csv[3..]);
         Assert.Contains("\"'=ROT-1\"", content);

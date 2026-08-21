@@ -15,7 +15,8 @@ public sealed class IndexModel(
     MovementReportService reportService,
     ReportExportService exportService,
     WarehouseClock clock,
-    WarehouseDbContext dbContext) : PageModel
+    WarehouseDbContext dbContext,
+    WarehouseSettingsService settingsService) : PageModel
 {
     public EffectiveMovementPage Results { get; private set; } = new([], 0, 1, 25);
 
@@ -33,6 +34,7 @@ public sealed class IndexModel(
     public Guid? ResponsibleUserId { get; private set; }
     public int PageNumber { get; private set; } = 1;
     public int PageSize { get; private set; } = 25;
+    public string TimeZoneId { get; private set; } = "UTC";
 
     public IReadOnlyList<SelectListItem> UserOptions { get; private set; } = [];
 
@@ -51,6 +53,7 @@ public sealed class IndexModel(
         CancellationToken cancellationToken = default)
     {
         Period = period ?? "30";
+        TimeZoneId = (await settingsService.GetAsync(cancellationToken)).TimeZoneId;
         var today = await clock.GetDateAsync(DateTimeOffset.UtcNow, cancellationToken);
 
         if (from is null && to is null && Period != "all")

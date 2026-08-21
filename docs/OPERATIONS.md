@@ -146,6 +146,47 @@ pwsh ./scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1
 Ejecuta ambos comandos como administrador. No pases contraseñas por parámetros,
 archivos versionados, consola compartida ni documentación.
 
+### Runbook pendiente: migración de conteos cíclicos de Fase 13.5
+
+Este procedimiento queda preparado, pero no autoriza por sí mismo una
+intervención productiva. Ejecútalo únicamente durante una ventana aprobada y
+con una identidad de migración; el rol mínimo de la aplicación no debe recibir
+permisos DDL.
+
+1. Crea y valida un respaldo antes de tocar el esquema:
+
+   ```powershell
+   pwsh ./scripts/security/Invoke-WarehouseEpiBackup.ps1
+   pwsh ./scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1
+   ```
+
+2. Genera un SQL acotado desde la última migración previa y revísalo sin
+   aplicarlo:
+
+   ```powershell
+   dotnet ef migrations script 20260819150547_WipProductionFlow 20260821120408_Phase135CycleCounts --idempotent --project ./src/WarehouseEPI.Infrastructure/WarehouseEPI.Infrastructure.csproj --startup-project ./src/WarehouseEPI.Web/WarehouseEPI.Web.csproj --configuration Release --output ./artifacts/phase-13-5-cycle-counts.sql
+   ```
+
+   Confirma que crea únicamente las cinco tablas de conteos cíclicos, sus
+   restricciones e índices y la ampliación del propósito de movimientos. Si el
+   SQL intenta retirar tablas, saldos o historial, cancela la intervención.
+
+3. Solo después de aprobar respaldo y SQL, aplica el destino explícito con la
+   configuración productiva protegida:
+
+   ```powershell
+   dotnet ef database update 20260821120408_Phase135CycleCounts --project ./src/WarehouseEPI.Infrastructure/WarehouseEPI.Infrastructure.csproj --startup-project ./src/WarehouseEPI.Web/WarehouseEPI.Web.csproj --configuration Release
+   ```
+
+4. Audita `__EFMigrationsHistory`, existencia de las cinco tablas, restricciones
+   e índices; después valida creación, conteo ciego, reconteo, conciliación sin
+   ajuste y aprobación autorizada de una diferencia. Registra por separado la
+   prueba en laptop LAN, tablet, lector HID/cámara e impresora.
+
+No inicies, detengas ni reemplaces el servicio como efecto colateral de estos
+comandos. Si la Release activa requiere actualización, utiliza el procedimiento
+de publicación y reversión de la sección siguiente.
+
 ## Publicar, actualizar y revertir una Release
 
 Una Release es una carpeta inmutable y no se compila dentro de la instancia

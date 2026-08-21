@@ -188,18 +188,18 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         return result;
     }
 
-    public async Task<byte[]> ExportRotationToExcelAsync(
-        IReadOnlyList<SkuRotationMetricDto> rows,
+    public async Task<byte[]> ExportExitActivityToExcelAsync(
+        IReadOnlyList<SkuExitActivityMetricDto> rows,
         InventoryAnalyticsFilter filter,
         CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.GetAsync(cancellationToken);
         var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
         using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("Rotación");
+        var worksheet = workbook.Worksheets.Add("Actividad salidas");
         WriteInventoryHeader(
             worksheet,
-            $"{settings.WarehouseName} - Rotación de inventario",
+            $"{settings.WarehouseName} - Actividad de salidas por SKU",
             rows.Count,
             settings.TimeZoneId,
             FormatAnalyticsFilter(filter),
@@ -230,8 +230,8 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         return stream.ToArray();
     }
 
-    public async Task<byte[]> ExportRotationToCsvAsync(
-        IReadOnlyList<SkuRotationMetricDto> rows,
+    public async Task<byte[]> ExportExitActivityToCsvAsync(
+        IReadOnlyList<SkuExitActivityMetricDto> rows,
         InventoryAnalyticsFilter filter,
         CancellationToken cancellationToken = default)
     {

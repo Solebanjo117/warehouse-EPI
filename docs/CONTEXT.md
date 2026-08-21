@@ -953,7 +953,7 @@ pendientes.
 
 - Dividida en 6 subfases incrementales: 13.1 (contrato analítico y movimientos
   efectivos), 13.2 (reportes tabulares y exportación segura), 13.3 (tablero
-  diario LAN y gráficos reactivos), 13.4 (analítica de ocupación, rotación y
+  diario LAN y gráficos reactivos), 13.4 (analítica de ocupación, actividad de salidas y
   estancamiento),
   13.5 (conteos cíclicos persistentes y ajustes autorizados) y 13.6 (alertas
   operativas y croquis interactivo).
@@ -964,7 +964,7 @@ pendientes.
 - Helper LINQ centralizado `EffectiveMovementQuery.cs` que excluye automáticamente movimientos originales corregidos (`OriginalMovementId`) y reversos (`ReversalMovementId`), conservando movimientos estándar y reemplazos vigentes (incluyendo cadenas de corrección múltiple).
 - Prohibición estricta de suma de unidades heterogéneas: totales globales y gráficos generales se expresan en número de operaciones efectivas, líneas o SKUs distintos. Las cantidades físicas solo se totalizan por SKU, por unidad base homogénea o con desglose tabular por unidad.
 - Ocupación física de racks clasificada en 5 estados mutuamente excluyentes (Inactiva, Bloqueada, Negativa, Ocupada > 0, Vacía = 0) con fórmula protegida contra división por cero.
-- Rotación determinista (`EffectiveExitMovementCount DESC, QuantityInBaseUnit DESC, Sku ASC`) y estancamiento en 4 rangos de antigüedad (30-59 días, 60-89 días, 90+ días y sin salida histórica) calculados con `WarehouseClock`.
+- Actividad de salidas determinista (`EffectiveExitMovementCount DESC, QuantityInBaseUnit DESC, Sku ASC`) y estancamiento en 4 rangos de antigüedad (30-59 días, 60-89 días, 90+ días y sin salida histórica) calculados con `WarehouseClock`.
 - Pruebas xUnit de filtros, correcciones encadenadas, anulaciones, ajustes y salvaguardas, más prueba de integración en PostgreSQL real `warehouse_epi_test` para validar la traducción nativa de la consulta —incluida la búsqueda por folio— sin evaluación en memoria.
 
 #### Fase 13.2: reportes tabulares y exportación segura — completada
@@ -977,19 +977,21 @@ pendientes.
 #### Fase 13.3: tablero diario LAN y gráficos reactivos — implementada; validación física pendiente
 
 - `DailyDashboardService.cs` calcula por fecha local movimientos efectivos y
-  ajustes del día, posiciones negativas agrupadas por producto + ubicación y
+  ajustes del día, saldos negativos agrupados por producto + ubicación y
   productos activos bajo mínimo. La tendencia conserva 14 días calendario,
   incluidos días sin actividad, y expresa entradas, salidas, transferencias,
   ajustes y SKUs distintos sin sumar cantidades de unidades heterogéneas.
 - `/Reports/Dashboard` es una página pública de solo lectura para la LAN, con
   carga inicial renderizada en servidor, cuatro tarjetas y barras apiladas
-  nativas que no incorporan dependencias gráficas externas. Los enlaces hacia
-  reportes y alertas administrativas aparecen únicamente con sesión ADMIN.
+  nativas que no incorporan dependencias gráficas externas. Negativos y mínimos
+  enlazan para todos los usuarios al detalle público de excepciones; movimientos
+  y ajustes conservan su detalle únicamente para ADMIN.
 - El handler JSON `Metrics` usa `Cache-Control: no-store`; los snapshots
   inmutables se comparten durante 30 segundos en memoria. El cliente consulta
   cada 60 segundos, evita solicitudes superpuestas, pausa cuando la pestaña está
   oculta y conserva el último dato con advertencia explícita si falla una
-  actualización.
+  actualización. El botón manual invalida únicamente el snapshot del tablero;
+  la hora visible pertenece al snapshot realmente generado.
 - La mejora visual 13.3.1 conserva exactamente el mismo snapshot y añade eje
   con escala, líneas guía, barras con mayor contraste, selección accesible de
   día, detalle táctil/teclado y vistas locales de 7 o 14 días. También muestra
@@ -1013,10 +1015,11 @@ pendientes.
   HTTP 400/host/antiforgery preexistentes de `WebApplicationFactory`. Falta
   validar visualmente actualización, temas y legibilidad en la laptop LAN y
   tablets reales.
-- El alcance propio de 13.3 no mezcla ocupación, rotación, conteos cíclicos ni
-  alertas avanzadas; ocupación y rotación se implementaron después como 13.4.
+- El alcance propio de 13.3 no mezcla ocupación, actividad por SKU, conteos
+  cíclicos ni alertas avanzadas; ocupación y actividad de salidas se
+  implementaron después como 13.4.
 
-#### Fase 13.4: analítica de ocupación, rotación y estancamiento — implementada; validación física pendiente
+#### Fase 13.4: analítica de ocupación, actividad de salidas y estancamiento — implementada; validación física pendiente
 
 - `InventoryAnalyticsService.cs` consume saldos existentes y movimientos
   efectivos, sin crear nuevas tablas ni saldos. La ocupación considera
@@ -1024,32 +1027,43 @@ pendientes.
   y aplica la precedencia inactiva, bloqueada, negativa, ocupada y vacía. Publica
   métricas globales y por fila; la utilización excluye bloqueadas e inactivas y
   protege la división entre cero.
-- La rotación incluye todos los productos filtrados, aun con cero salidas, y
-  admite 30, 90, 180 días o todo el historial. Cuenta salidas efectivas distintas,
-  suma cantidades solo dentro del SKU y su unidad base, conserva existencia
-  actual y última salida histórica y usa orden determinista. El estancamiento
+- La actividad de salidas incluye todos los productos filtrados, aun con cero
+  salidas, y admite 30, 90, 180 días o todo el historial. Cuenta salidas
+  efectivas distintas, suma cantidades solo dentro del SKU y su unidad base,
+  conserva existencia actual y última salida histórica y usa orden determinista;
+  no se presenta como tasa de rotación contra inventario promedio. El estancamiento
   exige existencia positiva y clasifica 30–59, 60–89, 90+ y nunca salió con
   fechas locales del almacén.
 - `/Reports/Inventory` es pública dentro de la LAN, de solo lectura y separada
   de `/Inventory`, Alertas, Ubicaciones y el croquis. Ofrece pestañas GET,
-  búsqueda por SKU/descripción/referencia, estado activo/inactivo/todos, unidad,
-  período y páginas de 25 productos. Las lecturas se comparten en memoria por
-  60 segundos y la clave conserva los filtros. Los productos enlazan a la
-  consulta pública; ficha, alertas y ubicaciones solo aparecen para ADMIN.
-- Rotación y estancamiento se exportan públicamente a CSV RFC 4180 con UTF-8 BOM
-  y a XLSX con números y fechas nativos. Ambas exportaciones conservan filtros,
-  neutralizan fórmulas y rechazan el archivo completo si supera 10,000 productos;
-  ocupación no se exporta en 13.4.
+  búsqueda parcial por SKU/descripción/referencia/código de barras, estado
+  activo/inactivo/todos, unidad, período y páginas de 25 productos ejecutadas en
+  PostgreSQL antes de materializar. Las lecturas se comparten en memoria por 60
+  segundos, la clave conserva los filtros, la hora pertenece al snapshot y
+  `refresh=true` invalida solo la consulta actual.
+- La pestaña pública de excepciones reutiliza `InventoryQueryService`: lista
+  saldos negativos por producto + ubicación y productos bajo mínimo, con enlaces
+  de solo lectura hacia `/Inventory`. Las acciones de catálogo permanecen ADMIN.
+- Actividad de salidas y estancamiento se exportan únicamente con sesión ADMIN a
+  CSV RFC 4180 con UTF-8 BOM o XLSX con números y fechas nativos. El handler
+  rechaza también llamadas directas sin el rol. Ambas exportaciones conservan
+  filtros, neutralizan fórmulas y rechazan el archivo completo si supera 10,000
+  productos; ocupación y excepciones no se exportan.
 - Las pruebas dirigidas cubren estados y precedencia de ocupación, agrupación de
-  lotes, filtros, paginación, ventanas, cero salidas, correcciones encadenadas,
+  lotes, filtros, paginación en servidor, código de barras, ventanas, cero
+  salidas, correcciones encadenadas, caché y refresco manual, hora real del
+  snapshot, rutas públicas de excepciones, autorización directa de exportación,
   límites de estancamiento, límite de exportación, CSV/XLSX, contratos públicos
   y enlaces ADMIN. La consulta se valida además contra PostgreSQL real
-  `warehouse_epi_test`: Reporting y los contratos web dirigidos pasan 41/41.
-  La compilación Release queda sin advertencias ni errores y la suite completa
-  queda en 207/226; sus 19 fallas continúan siendo los HTTP 400/host/antiforgery
-  preexistentes de `WebApplicationFactory`. Falta comprobar visualmente la
-  interfaz, los filtros y las descargas en la laptop LAN y tablets reales; la
-  aplicación no se inició durante esta implementación.
+  `warehouse_epi_test`: Reporting y los contratos web dirigidos pasan 43/43.
+  La compilación Release queda sin advertencias ni errores, `node --check` y
+  `git diff --check` pasan, y la suite completa queda en 223/242; sus 19 fallas
+  continúan siendo los HTTP 400/host/antiforgery preexistentes de
+  `WebApplicationFactory`. La compuerta global de `dotnet format whitespace`
+  sigue bloqueada por formato, finales de línea y codificación preexistentes en
+  conteos cíclicos y migraciones fuera de esta entrega. Falta comprobar
+  visualmente la interfaz, los filtros y las descargas en la laptop LAN y
+  tablets reales; la aplicación no se inició durante esta implementación.
 - La consulta pública de Existencias ya existente no se reimplementó y no se
   añadieron migraciones ni paquetes. Después se implementó 13.5, conteos
   cíclicos persistentes y ajustes autorizados.

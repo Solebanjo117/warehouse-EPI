@@ -1196,6 +1196,235 @@ button.relationship-choice:focus-visible,
   .app-main { max-width: none; padding: 0; }
 }
 
+/* Formularios ADMIN de productos */
+.product-editor-workspace {
+  max-width: 76rem;
+  margin: 0 auto;
+}
+
+.product-editor-header,
+.product-editor-module-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.product-editor-header { margin-bottom: 1rem; }
+
+.product-editor-eyebrow,
+.product-editor-step {
+  display: block;
+  margin-bottom: .25rem;
+  color: var(--bs-secondary-color);
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.product-editor-product-code {
+  margin-top: .25rem;
+  color: var(--bs-secondary-color);
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.product-editor-validation.validation-summary-valid { display: none; }
+.product-editor-validation ul { margin-bottom: 0; }
+
+.product-editor-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.product-editor-card,
+.product-editor-module {
+  border-color: var(--bs-border-color);
+  border-radius: .9rem;
+  box-shadow: 0 .2rem .75rem rgba(20, 34, 54, .05);
+}
+
+.product-editor-section-heading {
+  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+.product-editor-control { min-height: 44px; }
+
+.product-editor-status-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 5rem;
+  padding: .85rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .7rem;
+  background: var(--bs-tertiary-bg);
+}
+
+.product-editor-status-control .form-switch {
+  flex: 0 0 auto;
+  min-height: 2rem;
+}
+
+.product-editor-status-control .form-check-input {
+  width: 2.75rem;
+  height: 1.5rem;
+}
+
+.product-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: .75rem;
+  padding-top: 1rem;
+}
+
+.product-editor-module { margin-top: 1.25rem; }
+.product-editor-module-header { margin-bottom: 1rem; }
+
+.product-editor-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: .3rem .7rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.product-editor-search {
+  display: flex;
+  align-items: flex-end;
+  gap: .75rem;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .75rem;
+  background: var(--bs-tertiary-bg);
+}
+
+.product-editor-search-results,
+.product-editor-subsection { margin-top: 1.25rem; }
+
+.product-editor-list {
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .75rem;
+  list-style: none;
+}
+
+.product-editor-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: .75rem 1rem;
+  min-height: 4.5rem;
+  padding: .8rem 1rem;
+  background: var(--bs-body-bg);
+}
+
+.product-editor-list-row + .product-editor-list-row { border-top: 1px solid var(--bs-border-color); }
+.product-editor-list-row.is-inactive { background: var(--bs-tertiary-bg); }
+
+.product-editor-list-main {
+  display: grid;
+  min-width: 0;
+  gap: .15rem;
+}
+
+.product-editor-list-main > * { overflow-wrap: anywhere; }
+
+.product-editor-list-status,
+.product-editor-list-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .5rem;
+}
+
+.product-editor-list-actions form { margin: 0; }
+
+.product-editor-list-actions .btn,
+.product-editor-list-row > form .btn { min-height: 44px; }
+
+.product-editor-empty {
+  padding: 1rem;
+  border: 1px dashed var(--bs-border-color);
+  border-radius: .75rem;
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-secondary-color);
+  text-align: center;
+}
+
+.product-editor-inline-form {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(10rem, 1fr) auto auto;
+  align-items: end;
+  gap: .75rem;
+  padding: 1rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: .75rem;
+  background: var(--bs-tertiary-bg);
+}
+
+.product-editor-inline-form-heading { grid-column: 1 / -1; }
+.product-editor-primary-check { display: flex; align-items: center; min-height: 48px; }
+.product-editor-barcode-value strong { font-family: var(--bs-font-monospace); }
+
+@media (max-width: 991.98px) {
+  .product-editor-form-grid { grid-template-columns: 1fr; }
+
+  .product-editor-actions {
+    position: sticky;
+    z-index: 1010;
+    bottom: 0;
+    margin: 1rem -.5rem 0;
+    padding: .75rem .5rem calc(.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+  }
+
+  .product-editor-inline-form { grid-template-columns: minmax(0, 1fr) minmax(10rem, .65fr); }
+  .product-editor-inline-form-heading { grid-column: 1 / -1; }
+}
+
+@media (max-width: 767.98px) {
+  .product-editor-header,
+  .product-editor-module-header { align-items: stretch; flex-direction: column; }
+
+  .product-editor-header > .d-flex .btn { flex: 1 1 auto; }
+  .product-editor-search { align-items: stretch; flex-direction: column; }
+  .product-editor-search .btn { width: 100%; }
+
+  .product-editor-list-row { grid-template-columns: 1fr; align-items: stretch; }
+  .product-editor-list-status,
+  .product-editor-list-actions { justify-content: flex-start; }
+  .product-editor-list-actions .btn,
+  .product-editor-list-row > form,
+  .product-editor-list-row > form .btn { width: 100%; }
+
+  .product-editor-inline-form { grid-template-columns: 1fr; }
+  .product-editor-inline-form-heading { grid-column: auto; }
+  .product-editor-inline-form > .btn { width: 100%; }
+}
+
+@media (max-width: 575.98px) {
+  .product-editor-actions .btn { flex: 1 1 0; }
+  .product-editor-status-control { align-items: flex-start; flex-direction: column; }
+}
+
 /* Áreas WIP: destino operativo sin saldo. */
 .map-element.wip rect{fill:#f4a340!important;stroke:#9a4d00}.map-element.wip text{fill:#3d2500}
 
