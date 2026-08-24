@@ -12,7 +12,7 @@ namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Map;
 public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore previews) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
-    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], false);
+    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], [], false, null, "IMPERIAL");
     public string? PreviewToken { get; private set; }
     public IReadOnlyList<WarehouseMapRevisionView> Revisions { get; private set; } = [];
     [TempData] public string? Message { get; set; }
@@ -23,8 +23,10 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         {
             OperationId = Guid.NewGuid(),
             GeometryJson = JsonSerializer.Serialize(Map.Elements.Concat(Map.Unplaced).Select(ToGeometry)),
-            ArchitectureJson = JsonSerializer.Serialize(Map.Architecture.Select(ToArchitectureItem)),
-            LayerStateJson = JsonSerializer.Serialize(Map.Layers.Select(item => new WarehouseMapLayerState(item.Code, item.IsLocked)))
+            ArchitectureJson = JsonSerializer.Serialize(Map.Architecture.Concat(Map.ArchivedArchitecture).Select(ToArchitectureItem)),
+            LayerStateJson = JsonSerializer.Serialize(Map.Layers.Select(item => new WarehouseMapLayerState(item.Code, item.IsLocked))),
+            ScaleUnitsPerInch = Map.ScaleUnitsPerInch,
+            MeasurementSystem = Map.MeasurementSystem
         };
         if (!Map.IsInitialized) PreviewToken = previews.Save(CurrentUserId()).Token; else Revisions = await maps.GetRevisionsAsync(token: token);
     }
@@ -39,7 +41,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var layers = DeserializeLayers();
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
         var result = await maps.InitializeAsync(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry,
-            layers, architecture, token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
+            layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         return await CompleteAsync(result, "Croquis inicial confirmado.", token);
     }
 
@@ -53,8 +55,22 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var layers = DeserializeLayers();
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
         var result = await maps.SaveAsync(new(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry,
-            layers, architecture), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
+            layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         return await CompleteAsync(result, "Cambios del croquis guardados.", token);
+    }
+
+    public async Task<IActionResult> OnPostReviewAsync(CancellationToken token)
+    {
+        IReadOnlyList<WarehouseMapGeometry> geometry;
+        try { geometry = JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []; }
+        catch (JsonException) { return new JsonResult(new { errors = new[] { "La geometría recibida no es válida." } }) { StatusCode = 400 }; }
+        var architecture = DeserializeArchitecture();
+        var layers = DeserializeLayers();
+        if (!ModelState.IsValid)
+            return new JsonResult(new { errors = ModelState.Values.SelectMany(item => item.Errors).Select(item => item.ErrorMessage) }) { StatusCode = 400 };
+        var review = await maps.ReviewAsync(new(Input.OperationId, CurrentUserId(), string.Empty, Input.Reason,
+            geometry, layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem), token);
+        return new JsonResult(review) { StatusCode = review.Errors.Count == 0 ? 200 : 400 };
     }
 
     private async Task<IActionResult> CompleteAsync(WarehouseMapSaveResult result, string message, CancellationToken token)
@@ -77,13 +93,12 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
             {
                 var draft = (JsonSerializer.Deserialize<WarehouseMapArchitectureItem[]>(Input.ArchitectureJson) ?? [])
                     .ToDictionary(item => item.Id);
-                var currentIds = Map.Architecture.Select(item => item.Id).ToHashSet();
-                Map = Map with
-                {
-                    Architecture = Map.Architecture.Select(item => ApplyArchitectureItem(item, draft))
-                        .Concat(draft.Values.Where(item => !currentIds.Contains(item.Id)).Select(ToArchitectureView))
-                        .OrderBy(item => item.ZIndex).ToArray()
-                };
+                var current = Map.Architecture.Concat(Map.ArchivedArchitecture).ToArray();
+                var currentIds = current.Select(item => item.Id).ToHashSet();
+                var merged = current.Select(item => ApplyArchitectureItem(item, draft))
+                    .Concat(draft.Values.Where(item => !currentIds.Contains(item.Id)).Select(ToArchitectureView))
+                    .OrderBy(item => item.ZIndex).ToArray();
+                Map = Map with { Architecture = merged.Where(item => !item.IsArchived).ToArray(), ArchivedArchitecture = merged.Where(item => item.IsArchived).ToArray() };
             }
             catch (JsonException) { Input.ArchitectureJson = string.Empty; }
         }
@@ -100,7 +115,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         Input.OperationId = Guid.NewGuid();
         ModelState.Remove($"{nameof(Input)}.{nameof(InputModel.OperationId)}");
         if (string.IsNullOrWhiteSpace(Input.GeometryJson)) Input.GeometryJson = JsonSerializer.Serialize(Map.Elements.Concat(Map.Unplaced).Select(ToGeometry));
-        if (string.IsNullOrWhiteSpace(Input.ArchitectureJson)) Input.ArchitectureJson = JsonSerializer.Serialize(Map.Architecture.Select(ToArchitectureItem));
+        if (string.IsNullOrWhiteSpace(Input.ArchitectureJson)) Input.ArchitectureJson = JsonSerializer.Serialize(Map.Architecture.Concat(Map.ArchivedArchitecture).Select(ToArchitectureItem));
         if (string.IsNullOrWhiteSpace(Input.LayerStateJson)) Input.LayerStateJson = JsonSerializer.Serialize(Map.Layers.Select(item => new WarehouseMapLayerState(item.Code, item.IsLocked)));
     }
     private IReadOnlyList<WarehouseMapArchitectureItem> DeserializeArchitecture()
@@ -118,13 +133,13 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
     private static WarehouseMapArchitectureItem ToArchitectureItem(WarehouseMapArchitecturalElementView item) =>
         new(item.Id, item.LayerCode, item.Kind, item.Label, item.X, item.Y, item.Width, item.Height, item.Rotation,
             item.CornerRadius, item.Points, item.StrokeToken, item.FillToken, item.StrokeWidth, item.IsDashed,
-            item.ZIndex, item.IsLocked);
+            item.ZIndex, item.IsLocked, item.GroupId, item.IsArchived);
     private static WarehouseMapElementView ApplyGeometry(WarehouseMapElementView item, IReadOnlyDictionary<Guid, WarehouseMapGeometry> draft) => draft.TryGetValue(item.Id, out var geometry) ? item with { X = geometry.X, Y = geometry.Y, Width = geometry.Width, Height = geometry.Height, Rotation = geometry.Rotation, ZIndex = geometry.ZIndex, IsVisible = geometry.IsVisible } : item;
     private static WarehouseMapArchitecturalElementView ApplyArchitectureItem(WarehouseMapArchitecturalElementView item, IReadOnlyDictionary<Guid, WarehouseMapArchitectureItem> draft) =>
         draft.TryGetValue(item.Id, out var value) ? ToArchitectureView(value) : item;
     private static WarehouseMapArchitecturalElementView ToArchitectureView(WarehouseMapArchitectureItem item) =>
         new(item.Id, item.LayerCode, item.Kind, item.Label, item.X, item.Y, item.Width, item.Height, item.Rotation,
             item.CornerRadius, item.Points, item.StrokeToken, item.FillToken, item.StrokeWidth, item.IsDashed,
-            item.ZIndex, item.IsLocked);
-    public sealed class InputModel { public Guid OperationId { get; set; } public string GeometryJson { get; set; } = "[]"; public string ArchitectureJson { get; set; } = "[]"; public string LayerStateJson { get; set; } = "[]"; public string? Reason { get; set; } public string Pin { get; set; } = string.Empty; }
+            item.ZIndex, item.IsLocked, item.GroupId, item.IsArchived);
+    public sealed class InputModel { public Guid OperationId { get; set; } public string GeometryJson { get; set; } = "[]"; public string ArchitectureJson { get; set; } = "[]"; public string LayerStateJson { get; set; } = "[]"; public decimal? ScaleUnitsPerInch { get; set; } public string MeasurementSystem { get; set; } = "IMPERIAL"; public string? Reason { get; set; } public string Pin { get; set; } = string.Empty; }
 }

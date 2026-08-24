@@ -24,7 +24,9 @@ public sealed record WarehouseMapArchitectureItem(
     decimal StrokeWidth,
     bool IsDashed,
     int ZIndex,
-    bool IsLocked);
+    bool IsLocked,
+    Guid? GroupId = null,
+    bool IsArchived = false);
 
 public sealed record WarehouseMapLayerState(string Code, bool IsLocked);
 
@@ -53,7 +55,9 @@ public sealed record WarehouseMapArchitecturalElementView(
     decimal StrokeWidth,
     bool IsDashed,
     int ZIndex,
-    bool IsLocked);
+    bool IsLocked,
+    Guid? GroupId = null,
+    bool IsArchived = false);
 
 internal sealed record WarehouseMapStoredGeometry(
     decimal X,
@@ -122,7 +126,8 @@ internal static class WarehouseMapArchitectureCatalog
         var geometry = ReadGeometry(item);
         return new(item.Id, layerCode, item.Kind.ToString(), item.Label, geometry.X, geometry.Y, geometry.Width,
             geometry.Height, geometry.Rotation, geometry.CornerRadius, geometry.Points, item.StrokeToken,
-            item.FillToken, item.StrokeWidth, item.IsDashed, item.ZIndex, item.IsLocked);
+            item.FillToken, item.StrokeWidth, item.IsDashed, item.ZIndex, item.IsLocked, item.GroupId,
+            item.IsArchived);
     }
 
     public static WarehouseMapArchitecturalElementView ToView(WarehouseMapArchitecturalElement item, string layerCode)
@@ -130,7 +135,8 @@ internal static class WarehouseMapArchitectureCatalog
         var geometry = ReadGeometry(item);
         return new(item.Id, layerCode, item.Kind.ToString(), item.Label, geometry.X, geometry.Y, geometry.Width,
             geometry.Height, geometry.Rotation, geometry.CornerRadius, geometry.Points, item.StrokeToken,
-            item.FillToken, item.StrokeWidth, item.IsDashed, item.ZIndex, item.IsLocked);
+            item.FillToken, item.StrokeWidth, item.IsDashed, item.ZIndex, item.IsLocked, item.GroupId,
+            item.IsArchived);
     }
 
     public static string Code(WarehouseMapLayerCode code) => code switch
@@ -156,7 +162,9 @@ internal static class WarehouseMapArchitectureCatalog
             StrokeWidth = item.StrokeWidth,
             IsDashed = item.IsDashed,
             ZIndex = zIndex,
-            IsLocked = false
+            IsLocked = item.IsLocked,
+            GroupId = item.GroupId,
+            IsArchived = item.IsArchived
         };
 
     private static WarehouseMapLayer Layer(WarehouseMapLayerCode code, string name, short order, bool locked) => new()

@@ -628,12 +628,22 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private static void ConfigureWarehouseMap(ModelBuilder modelBuilder)
     {
         var layout = modelBuilder.Entity<WarehouseMapLayout>();
-        layout.ToTable("warehouse_map_layouts", table => table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1"));
+        layout.ToTable("warehouse_map_layouts", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1");
+            table.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
+            table.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
+        });
         layout.HasKey(item => item.Id);
         layout.Property(item => item.Id).HasColumnName("id").ValueGeneratedNever();
         layout.Property(item => item.Version).HasColumnName("version");
         layout.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         layout.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        layout.Property(item => item.ScaleUnitsPerInch).HasColumnName("scale_units_per_inch").HasPrecision(12, 6);
+        layout.Property(item => item.MeasurementSystem).HasColumnName("measurement_system").HasMaxLength(10)
+            .HasConversion(value => value == WarehouseMapMeasurementSystem.Imperial ? "IMPERIAL" : "METRIC",
+                value => value == "METRIC" ? WarehouseMapMeasurementSystem.Metric : WarehouseMapMeasurementSystem.Imperial)
+            .HasDefaultValue(WarehouseMapMeasurementSystem.Imperial);
         layout.Ignore(item => item.RowVersion);
         layout.HasOne(item => item.UpdatedByUser).WithMany().HasForeignKey(item => item.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
 
@@ -695,6 +705,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         architectural.Property(item => item.Id).HasColumnName("id");
         architectural.Property(item => item.LayoutId).HasColumnName("layout_id");
         architectural.Property(item => item.LayerId).HasColumnName("layer_id");
+        architectural.Property(item => item.GroupId).HasColumnName("group_id");
         architectural.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(12).HasConversion(
             value => value == WarehouseMapArchitecturalElementKind.Rectangle ? "RECTANGLE" :
                 value == WarehouseMapArchitecturalElementKind.Polyline ? "POLYLINE" : "TEXT",
@@ -708,7 +719,10 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         architectural.Property(item => item.IsDashed).HasColumnName("is_dashed");
         architectural.Property(item => item.ZIndex).HasColumnName("z_index");
         architectural.Property(item => item.IsLocked).HasColumnName("is_locked");
+        architectural.Property(item => item.IsArchived).HasColumnName("is_archived").HasDefaultValue(false);
         architectural.HasIndex(item => new { item.LayoutId, item.LayerId, item.ZIndex });
+        architectural.HasIndex(item => new { item.LayoutId, item.GroupId }).HasFilter("group_id IS NOT NULL");
+        architectural.HasIndex(item => new { item.LayoutId, item.IsArchived });
         architectural.HasOne(item => item.Layout).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
         architectural.HasOne(item => item.Layer).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayerId).OnDelete(DeleteBehavior.Restrict);
 

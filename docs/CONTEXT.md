@@ -1,6 +1,6 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 21 de agosto de 2026.
+Actualizado: 24 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
@@ -12,8 +12,9 @@ y conversiones, descartada por decisión del negocio. Las fases 10.1 a 10.3
 están completadas; 10.4 a 10.6 están implementadas; la Release `0.10.7` está
 activa como servicio Windows y 10.8 continúa pospuesta. La fase 11 tiene sus
 principales pantallas implementadas, pero todavía requiere validación física,
-mantiene trabajo parcial en 11.6 y 11.7, e implementa 11.9.1 y 11.9.2 del
-editor arquitectónico ligero con migraciones y validación física pendientes. WIP está implementado
+mantiene trabajo parcial en 11.6 y 11.7, e implementa 11.9.1 a 11.9.3 del
+editor arquitectónico ligero. Las migraciones 11.9.1/11.9.2 están aplicadas;
+11.9.3 mantiene migración y validación visual/física pendientes. WIP está implementado
 y su migración está aplicada, aunque aún no forma parte de una Release publicada
 ni se ha validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están
 completadas;
@@ -892,7 +893,7 @@ lotes o asignaciones. Los racks y áreas operativas seguirán procediendo del
 catálogo y las adiciones continuarán entrando por **Sin colocar**. Todas las
 revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
 
-##### Fase 11.9.1: modelo arquitectónico, capas y compatibilidad — implementada; migración y validación visual/física pendientes
+##### Fase 11.9.1: modelo arquitectónico, capas y compatibilidad — implementada; migración aplicada, validación visual/física pendiente
 
 - `WarehouseMapLayer` separa Estructura, Pasillos, Zonas, Textos, Medidas y
   Ubicaciones operativas. El bloqueo forma parte de la revisión; mostrar u
@@ -914,13 +915,13 @@ revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
   teclado, pero impide mezclar arquitectura y ubicaciones en una selección. Las
   funciones existentes de racks y **Sin colocar** conservan su contrato.
 - La migración `20260824183000_AddWarehouseMapArchitecture` crea únicamente
-  `warehouse_map_layers` y `warehouse_map_architectural_elements`; está generada
-  pero **no aplicada** a la base operativa. Build Release pasó sin advertencias,
+  `warehouse_map_layers` y `warehouse_map_architectural_elements`; el 24 de agosto
+  de 2026 se verificó aplicada en `__EFMigrationsHistory`. Build Release pasó sin advertencias,
   Las pruebas focales y la prueba PostgreSQL aislada del croquis aprobaron. La
   validación visual en navegador y prueba física en laptop/tablet continúan
   pendientes.
 
-##### Fase 11.9.2: dibujo y edición básica de plano — implementada; migración y validación visual/física pendientes
+##### Fase 11.9.2: dibujo y edición básica de plano — implementada; migración aplicada, validación visual/física pendiente
 
 - El editor ADMIN incorpora Seleccionar, Desplazar, Muro, Rectángulo, Polígono,
   Puerta, Pasillo, Zona y Texto como presets de `Rectangle`, `Polyline` y
@@ -943,27 +944,43 @@ revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
   esquema 3 con antes/después completos y altas; la versión aumenta una vez y
   la idempotencia incluye la definición completa.
 - `20260824210000_ExpandWarehouseMapArchitectureStyles` solo amplía la
-  restricción de estilos de las tablas arquitectónicas y no está aplicada a la
-  base operativa. Build Release, `node --check`, 46 pruebas focales y la prueba
+  restricción de estilos de las tablas arquitectónicas; el 24 de agosto de 2026
+  se verificó aplicada en `__EFMigrationsHistory`. Build Release, `node --check`, 46 pruebas focales y la prueba
   PostgreSQL aislada aprobaron. No hubo navegador activo; validación visual y
   prueba física en laptop/tablet permanecen pendientes.
 
-##### Fase 11.9.3: productividad, escala y validaciones — propuesta
+##### Fase 11.9.3: productividad, escala imperial y validaciones — implementada; migración y validación visual/física pendientes
 
-- Añadir duplicar, copiar/pegar dentro del plano, agrupar/desagrupar, bloquear
-  elementos, ordenar al frente/fondo y distribuir con separación uniforme.
-- Incorporar una escala calibrable y cotas de distancia. La escala será una
-  propiedad visual del plano y no alterará códigos, capacidad ni reglas de
-  inventario.
-- Advertir elementos fuera del lienzo, geometrías inválidas, pasillos sin ancho
-  legible y superposiciones entre racks o zonas. Las reglas físicas que puedan
-  bloquear el guardado requieren primero confirmación operativa; hasta entonces
-  serán advertencias textuales que no dependan solo del color.
-- Ofrecer una revisión previa de cambios que resuma altas, modificaciones,
-  ocultamientos y eliminaciones arquitectónicas antes de solicitar el NIP.
-- Criterio de cierre: las acciones masivas son reversibles, las advertencias
-  identifican los elementos afectados y la auditoría permite explicar qué
-  cambió entre dos versiones.
+- La arquitectura permite duplicar, copiar/pegar dentro del editor, agrupación
+  persistente sin anidamiento, distribución, bloqueo individual y orden estable
+  dentro de una capa. Los IDs nuevos se generan con Web Crypto; estas acciones
+  no se ofrecen a ubicaciones operativas.
+- El marco de selección puede iniciarse sobre arquitectura bloqueada y vuelve a
+  seleccionar varios objetos por arrastre. Mantiene separadas arquitectura y
+  ubicaciones, respeta la selección aditiva y expande grupos arquitectónicos
+  completos.
+- Retirar arquitectura persistida usa `IsArchived`: desaparece de la consulta,
+  conserva su fila y puede restaurarse desde el editor. Los grupos se archivan y
+  restauran juntos; ningún POST puede omitir o eliminar físicamente un ID guardado.
+- El layout persiste `ScaleUnitsPerInch` y `MeasurementSystem`. El sistema
+  predeterminado es `IMPERIAL` con pulgadas/yardas sin pies; puede publicar cm/m
+  sin recalibrar. Las cotas son pares `Polyline` + `Text` agrupados en
+  `DIMENSIONS`, con texto derivado de la escala.
+- Un handler ADMIN de revisión valida sin escribir y resume ubicaciones, capas,
+  altas, modificaciones, archivados, restauraciones, escala y unidades antes de
+  solicitar el NIP. El guardado vuelve a validar, conserva idempotencia y registra
+  esquema 4 con antes/después completos dentro de una sola transacción.
+- Geometrías, escala, grupos y cotas inválidos bloquean. Pasillos menores de 32
+  pulgadas, rack-rack, zona-zona y racks dentro de pasillos son advertencias
+  textuales no normativas que identifican los elementos afectados.
+- `20260824233000_AddWarehouseMapProductivityScale` agrega únicamente escala y
+  unidades al layout, y grupo/archivado a arquitectura. El snapshot no tiene
+  cambios pendientes; aplicar, revertir y reaplicar en `warehouse_epi_test`
+  preservó ubicaciones. No se aplicó a `warehouseEPI`.
+- Build Release, pruebas focales, `node --check` y pruebas PostgreSQL aisladas
+  aprobaron. El servicio estaba detenido, por lo que el error runtime de
+  Ubicaciones y la validación visual Claro/Oscuro/responsive no pudieron
+  comprobarse sin cambiar el estado operativo; la prueba física continúa pendiente.
 
 ##### Fase 11.9.4: rendimiento, fondo de referencia y validación física — propuesta
 
@@ -1605,10 +1622,11 @@ Las fases 10.1 a 10.3 están completadas; 10.4 a 10.6 están implementadas; la
 Release 0.10.7 está activa como servicio Windows y 10.8 continúa pospuesta.
 `Quality` es obligatorio en `main`. La fase 11 tiene sus principales pantallas
 implementadas, con trabajo parcial en 11.6 y 11.7 y validación física pendiente.
-La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
+    La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
 la base antes de cambiar ese estado. Las fases 11.9.1 y 11.9.2 del editor
-arquitectónico ligero están implementadas en código, con sus migraciones sin
-aplicar y validación visual/física pendiente; 11.9.3 y 11.9.4 siguen propuestas. Las
+arquitectónico ligero están implementadas y sus migraciones se verificaron
+aplicadas. 11.9.3 está implementada con migración sin aplicar y validación
+visual/física pendiente; 11.9.4 sigue propuesta. Las
 fases 13.1 y 13.2 están completadas y
 13.3, 13.4 y 13.5 están implementadas, con la migración de 13.5 sin aplicar y
 validación física LAN/tablet/lector/impresora pendiente; el siguiente bloque

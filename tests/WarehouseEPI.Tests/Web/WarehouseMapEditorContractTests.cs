@@ -10,6 +10,11 @@ public sealed class WarehouseMapEditorContractTests
 
         Assert.Contains("const selected = new Set()", script, StringComparison.Ordinal);
         Assert.Contains("kind: \"marquee\"", script, StringComparison.Ordinal);
+        Assert.Contains("selectionType", script, StringComparison.Ordinal);
+        Assert.Contains("operationalMatches.length ? operationalMatches : architectureMatches", script, StringComparison.Ordinal);
+        Assert.Contains("interaction.additive ? [...interaction.previous, ...matches]", script, StringComparison.Ordinal);
+        Assert.Contains("matchedGroups.has(element.dataset.groupId)", script, StringComparison.Ordinal);
+        Assert.Contains("targetElement && !layerIsLocked(layerCode(targetElement))", script, StringComparison.Ordinal);
         Assert.Contains("resizeGroup", script, StringComparison.Ordinal);
         Assert.Contains("data-editor-mirror", script, StringComparison.Ordinal);
         Assert.Contains("data-editor-group-resize", script, StringComparison.Ordinal);
@@ -132,7 +137,7 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("kind: \"pinch\"", script, StringComparison.Ordinal);
         Assert.Contains("warehouseEpi.mapEditor.workspace.v2", script, StringComparison.Ordinal);
         Assert.Contains("item.dataset.persisted !== \"true\"", script, StringComparison.Ordinal);
-        Assert.DoesNotContain("fetch(", script, StringComparison.Ordinal);
+        Assert.Contains("?handler=Review", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -146,6 +151,41 @@ public sealed class WarehouseMapEditorContractTests
         Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("locations", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Phase_1193_exposes_productivity_scale_dimensions_archiving_and_server_review()
+    {
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+        var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml.cs"));
+
+        foreach (var contract in new[] { "data-editor-duplicate", "data-editor-group", "data-editor-ungroup", "data-editor-element-lock", "data-editor-order", "data-editor-archive", "data-editor-restore", "data-editor-measurement", "data-editor-scale", "data-editor-review-button", "data-editor-review-modal" })
+            Assert.Contains(contract, page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-tool=\"dimension\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-tool=\"calibrate\"", page, StringComparison.Ordinal);
+        Assert.Contains("internalClipboard", script, StringComparison.Ordinal);
+        Assert.Contains("groupId", script, StringComparison.Ordinal);
+        Assert.Contains("formatDistance", script, StringComparison.Ordinal);
+        Assert.Contains("updateDimensionLabels", script, StringComparison.Ordinal);
+        Assert.Contains("archiveArchitecture", script, StringComparison.Ordinal);
+        Assert.Contains("OnPostReviewAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("ReviewAsync", pageModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Phase_1193_migration_only_extends_the_warehouse_map_tables()
+    {
+        var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260824233000_AddWarehouseMapProductivityScale.cs"));
+
+        Assert.Contains("scale_units_per_inch", migration, StringComparison.Ordinal);
+        Assert.Contains("measurement_system", migration, StringComparison.Ordinal);
+        Assert.Contains("group_id", migration, StringComparison.Ordinal);
+        Assert.Contains("is_archived", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("locations\"", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
     }
 

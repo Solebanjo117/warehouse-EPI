@@ -34,7 +34,7 @@ public sealed class IndexModel(
     public string Kind { get; private set; } = "all";
     public string RackFilter { get; private set; } = "all";
     public string ViewMode { get; private set; } = "map";
-    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], false);
+    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], [], false, null, "IMPERIAL");
     public IReadOnlyDictionary<Guid, IReadOnlyList<WipIssueRow>> RecentWipIssues { get; private set; }
         = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
     public IReadOnlySet<Guid> MapMatches { get; private set; } = new HashSet<Guid>();

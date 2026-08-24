@@ -22,6 +22,7 @@
            data-fill-token="@item.FillToken" data-stroke-width="@item.StrokeWidth.ToString(CultureInfo.InvariantCulture)"
            data-dashed="@item.IsDashed.ToString().ToLowerInvariant()" data-z="@item.ZIndex"
            data-element-locked="@item.IsLocked.ToString().ToLowerInvariant()" data-persisted="true"
+           data-group-id="@item.GroupId" data-archived="@item.IsArchived.ToString().ToLowerInvariant()"
            transform="@transform" tabindex="@(isEditor ? "0" : null)" role="@(isEditor ? "button" : null)"
            aria-label="@(isEditor ? $"Elemento arquitectónico {item.Label ?? item.Kind}" : null)">
             @if (item.Kind == "Rectangle")

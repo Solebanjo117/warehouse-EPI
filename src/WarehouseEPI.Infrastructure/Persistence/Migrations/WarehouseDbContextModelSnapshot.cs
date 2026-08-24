@@ -2013,6 +2013,16 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("jsonb")
                         .HasColumnName("geometry_json");
 
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<bool>("IsArchived")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_archived");
+
                     b.Property<bool>("IsDashed")
                         .HasColumnType("boolean")
                         .HasColumnName("is_dashed");
@@ -2060,6 +2070,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.HasIndex("LayerId");
 
                     b.HasIndex("LayoutId", "LayerId", "ZIndex");
+
+                    b.HasIndex("LayoutId", "GroupId")
+                        .HasFilter("group_id IS NOT NULL");
+
+                    b.HasIndex("LayoutId", "IsArchived");
 
                     b.ToTable("warehouse_map_architectural_elements", null, t =>
                         {
@@ -2231,6 +2246,19 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("id");
 
+                    b.Property<string>("MeasurementSystem")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("IMPERIAL")
+                        .HasColumnName("measurement_system");
+
+                    b.Property<decimal?>("ScaleUnitsPerInch")
+                        .HasPrecision(12, 6)
+                        .HasColumnType("numeric(12,6)")
+                        .HasColumnName("scale_units_per_inch");
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -2251,6 +2279,10 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("warehouse_map_layouts", null, t =>
                         {
+                            t.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
+
+                            t.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
+
                             t.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1");
                         });
                 });

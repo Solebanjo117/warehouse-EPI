@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Configuration;
 using Npgsql;
 using WarehouseEPI.Core.Entities;
@@ -45,13 +47,39 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
             item.ZIndex, item.IsLocked)).Append(new WarehouseMapArchitectureItem(Guid.NewGuid(), "ZONES",
                 "Rectangle", "Zona PostgreSQL", 700, 400, 120, 80, 0, 0, [], "WARNING", "WARNING",
                 2, false, 999, false)).ToArray();
-        var result = await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin, "Ajuste", geometry, layers, architecture));
+        var result = await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin, "Ajuste", geometry, layers, architecture, 12m, "IMPERIAL"));
 
         Assert.Equal(WarehouseMapSaveStatus.Success, result.Status);
         Assert.Equal(initialized.Version + 1, result.Version);
         Assert.Equal(6, await db.WarehouseMapLayers.CountAsync());
         Assert.Equal(18, await db.WarehouseMapArchitecturalElements.CountAsync());
         Assert.Equal(geometry.Length, await db.WarehouseMapElements.CountAsync());
+        Assert.Equal(12m, (await db.WarehouseMapLayouts.AsNoTracking().SingleAsync()).ScaleUnitsPerInch);
+    }
+
+    [Fact]
+    public async Task Phase_1193_migration_reverts_and_reapplies_without_touching_operational_rows()
+    {
+        await using var db = fixture.CreateDbContext();
+        db.Locations.Add(new Location { Code = "PG-MIGRATION-MAP", Kind = LocationKind.Area });
+        await db.SaveChangesAsync();
+        var locationCount = await db.Locations.CountAsync();
+        var migrator = db.GetService<IMigrator>();
+
+        await migrator.MigrateAsync("20260824210000_ExpandWarehouseMapArchitectureStyles");
+        Assert.Equal(locationCount, await db.Locations.CountAsync());
+
+        await migrator.MigrateAsync("20260824233000_AddWarehouseMapProductivityScale");
+        Assert.Equal(locationCount, await db.Locations.CountAsync());
+        var columns = await db.Database.SqlQueryRaw<string>("""
+            SELECT column_name::text AS "Value"
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'warehouse_map_layouts'
+              AND column_name IN ('measurement_system', 'scale_units_per_inch')
+            ORDER BY column_name
+            """).ToArrayAsync();
+        Assert.Equal(["measurement_system", "scale_units_per_inch"], columns);
     }
 
     [Fact]
