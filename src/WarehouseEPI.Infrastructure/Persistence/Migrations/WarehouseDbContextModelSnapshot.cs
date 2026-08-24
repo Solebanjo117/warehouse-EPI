@@ -87,6 +87,320 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountAction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("campaign_id");
+
+                    b.Property<Guid?>("CycleCountAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_attempt_id");
+
+                    b.Property<Guid?>("CycleCountLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_location_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CycleCountAttemptId");
+
+                    b.HasIndex("CycleCountLocationId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique()
+                        .HasFilter("operation_id IS NOT NULL");
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("CampaignId", "RecordedAt");
+
+                    b.ToTable("cycle_count_actions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AttemptNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempt_number");
+
+                    b.Property<Guid>("CycleCountLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_location_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("StartedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("StartedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("started_by_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid?>("SubmissionOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_operation_id");
+
+                    b.Property<DateTimeOffset?>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<Guid?>("SubmittedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submitted_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("StartedByUserId");
+
+                    b.HasIndex("SubmissionOperationId")
+                        .IsUnique()
+                        .HasFilter("submission_operation_id IS NOT NULL");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("CycleCountLocationId", "AttemptNumber")
+                        .IsUnique();
+
+                    b.ToTable("cycle_count_attempts", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountCampaign", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid?>("LastActionByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_action_by_user_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<long>("Number")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("number");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Number"));
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("released_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("title");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LastActionByUserId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("cycle_count_campaigns", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("CountedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("counted_quantity");
+
+                    b.Property<Guid>("CycleCountAttemptId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_attempt_id");
+
+                    b.Property<long>("ExpectedBalanceVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("expected_balance_version");
+
+                    b.Property<decimal>("ExpectedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("expected_quantity");
+
+                    b.Property<bool>("IsUnexpectedProduct")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_unexpected_product");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<short>("UnitId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("unit_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("CycleCountAttemptId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("cycle_count_entries", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AdjustmentMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("adjustment_movement_id");
+
+                    b.Property<Guid>("CampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("campaign_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("LastActionByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_action_by_user_id");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer")
+                        .HasColumnName("sort_order");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdjustmentMovementId")
+                        .IsUnique()
+                        .HasFilter("adjustment_movement_id IS NOT NULL");
+
+                    b.HasIndex("LastActionByUserId");
+
+                    b.HasIndex("CampaignId", "LocationId")
+                        .IsUnique();
+
+                    b.HasIndex("LocationId", "Status");
+
+                    b.ToTable("cycle_count_locations", (string)null);
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryBalance", b =>
                 {
                     b.Property<Guid>("Id")
@@ -277,11 +591,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("inventory_movements", null, t =>
                         {
+                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
+
                             t.HasCheckConstraint("ck_inventory_movements_type", "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
-
-                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN')");
-
-                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL)");
                         });
                 });
 
@@ -442,6 +756,289 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_inventory_movement_lines_number", "line_number > 0");
                         });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelAsset", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<byte[]>("Content")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("content");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_archived");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("Sha256")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("sha256")
+                        .IsFixedLength();
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Sha256")
+                        .IsUnique();
+
+                    b.ToTable("label_assets", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_label_assets_dimensions", "width BETWEEN 1 AND 4096 AND height BETWEEN 1 AND 4096");
+
+                            t.HasCheckConstraint("ck_label_assets_size", "octet_length(content) BETWEEN 1 AND 1048576");
+
+                            t.HasCheckConstraint("ck_label_assets_type", "content_type IN ('image/png','image/jpeg')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CurrentPublishedVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_published_version_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("CurrentPublishedVersionId");
+
+                    b.ToTable("label_templates", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_label_templates_code", "code = upper(btrim(code)) AND code ~ '^[A-Z0-9][A-Z0-9-]{2,59}$'");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AuthorizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("authorized_by_user_id");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("RequestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_id");
+
+                    b.Property<Guid>("TemplateVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_version_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.HasIndex("TemplateVersionId");
+
+                    b.HasIndex("TemplateId", "RecordedAt");
+
+                    b.ToTable("label_template_events", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateVersion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("DesignJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("design_json");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<DateTimeOffset?>("RetiredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("retired_at");
+
+                    b.Property<Guid?>("RetiredByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("retired_by_user_id");
+
+                    b.Property<uint>("RowVersion")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.Property<string>("SizePreset")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("size_preset");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("TemplateId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("PublishedByUserId");
+
+                    b.HasIndex("RetiredByUserId");
+
+                    b.HasIndex("TemplateId")
+                        .IsUnique()
+                        .HasFilter("status IN ('DRAFT','IN_VALIDATION')");
+
+                    b.HasIndex("TemplateId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("label_template_versions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_label_template_versions_number", "version > 0");
+
+                            t.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P')");
+
+                            t.HasCheckConstraint("ck_label_template_versions_status", "status IN ('DRAFT','IN_VALIDATION','PUBLISHED','RETIRED')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateVersionAsset", b =>
+                {
+                    b.Property<Guid>("TemplateVersionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("template_version_id");
+
+                    b.Property<Guid>("AssetId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("asset_id");
+
+                    b.HasKey("TemplateVersionId", "AssetId");
+
+                    b.HasIndex("AssetId");
+
+                    b.ToTable("label_template_version_assets", (string)null);
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Location", b =>
@@ -1398,6 +1995,114 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapArchitecturalElement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("FillToken")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("fill_token");
+
+                    b.Property<string>("GeometryJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("geometry_json");
+
+                    b.Property<Guid?>("GroupId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("group_id");
+
+                    b.Property<bool>("IsArchived")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_archived");
+
+                    b.Property<bool>("IsDashed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_dashed");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_locked");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("label");
+
+                    b.Property<Guid>("LayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("layer_id");
+
+                    b.Property<short>("LayoutId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("layout_id");
+
+                    b.Property<string>("StrokeToken")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("stroke_token");
+
+                    b.Property<decimal>("StrokeWidth")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("stroke_width");
+
+                    b.Property<int>("ZIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("z_index");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayerId");
+
+                    b.HasIndex("LayoutId", "LayerId", "ZIndex");
+
+                    b.HasIndex("LayoutId", "GroupId")
+                        .HasFilter("group_id IS NOT NULL");
+
+                    b.HasIndex("LayoutId", "IsArchived");
+
+                    b.ToTable("warehouse_map_architectural_elements", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_architectural_kind", "kind IN ('RECTANGLE', 'POLYLINE', 'TEXT')");
+
+                            t.HasCheckConstraint("ck_warehouse_map_architectural_style", "stroke_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND fill_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND stroke_width >= 0 AND stroke_width <= 12");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapArchitecturalElement", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayer", "Layer")
+                        .WithMany("ArchitecturalElements")
+                        .HasForeignKey("LayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
+                        .WithMany("ArchitecturalElements")
+                        .HasForeignKey("LayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Layer");
+
+                    b.Navigation("Layout");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapElement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1480,11 +2185,79 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsLocked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_locked");
+
+                    b.Property<short>("LayoutId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("layout_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("name");
+
+                    b.Property<short>("SortOrder")
+                        .HasColumnType("smallint")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayoutId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("warehouse_map_layers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_layer_code", "code IN ('STRUCTURE', 'AISLES', 'ZONES', 'TEXT', 'DIMENSIONS', 'OPERATIONS')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
+                        .WithMany("Layers")
+                        .HasForeignKey("LayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Layout");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
                 {
                     b.Property<short>("Id")
                         .HasColumnType("smallint")
                         .HasColumnName("id");
+
+                    b.Property<string>("MeasurementSystem")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasDefaultValue("IMPERIAL")
+                        .HasColumnName("measurement_system");
+
+                    b.Property<decimal?>("ScaleUnitsPerInch")
+                        .HasPrecision(12, 6)
+                        .HasColumnType("numeric(12,6)")
+                        .HasColumnName("scale_units_per_inch");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
@@ -1506,6 +2279,10 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("warehouse_map_layouts", null, t =>
                         {
+                            t.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
+
+                            t.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
+
                             t.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1");
                         });
                 });
@@ -1687,6 +2464,143 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("UpdatedByUser");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountAction", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountCampaign", "Campaign")
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountAttempt", "CycleCountAttempt")
+                        .WithMany()
+                        .HasForeignKey("CycleCountAttemptId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountLocation", "CycleCountLocation")
+                        .WithMany()
+                        .HasForeignKey("CycleCountLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Campaign");
+
+                    b.Navigation("CycleCountAttempt");
+
+                    b.Navigation("CycleCountLocation");
+
+                    b.Navigation("ResponsibleUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountAttempt", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountLocation", "CycleCountLocation")
+                        .WithMany("Attempts")
+                        .HasForeignKey("CycleCountLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "StartedByUser")
+                        .WithMany()
+                        .HasForeignKey("StartedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CycleCountLocation");
+
+                    b.Navigation("StartedByUser");
+
+                    b.Navigation("SubmittedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountCampaign", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "LastActionByUser")
+                        .WithMany()
+                        .HasForeignKey("LastActionByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("LastActionByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountEntry", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountAttempt", "CycleCountAttempt")
+                        .WithMany("Entries")
+                        .HasForeignKey("CycleCountAttemptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CycleCountAttempt");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountLocation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "AdjustmentMovement")
+                        .WithMany()
+                        .HasForeignKey("AdjustmentMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountCampaign", "Campaign")
+                        .WithMany("Locations")
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "LastActionByUser")
+                        .WithMany()
+                        .HasForeignKey("LastActionByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AdjustmentMovement");
+
+                    b.Navigation("Campaign");
+
+                    b.Navigation("LastActionByUser");
+
+                    b.Navigation("Location");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryBalance", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
@@ -1845,6 +2759,111 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("SourceLocation");
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelAsset", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplate", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.LabelTemplateVersion", "CurrentPublishedVersion")
+                        .WithMany()
+                        .HasForeignKey("CurrentPublishedVersionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CurrentPublishedVersion");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.LabelTemplate", "Template")
+                        .WithMany("Events")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.LabelTemplateVersion", "TemplateVersion")
+                        .WithMany("Events")
+                        .HasForeignKey("TemplateVersionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+
+                    b.Navigation("RequestedByUser");
+
+                    b.Navigation("Template");
+
+                    b.Navigation("TemplateVersion");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateVersion", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "PublishedByUser")
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "RetiredByUser")
+                        .WithMany()
+                        .HasForeignKey("RetiredByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.LabelTemplate", "Template")
+                        .WithMany("Versions")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("PublishedByUser");
+
+                    b.Navigation("RetiredByUser");
+
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateVersionAsset", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.LabelAsset", "Asset")
+                        .WithMany("Versions")
+                        .HasForeignKey("AssetId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.LabelTemplateVersion", "TemplateVersion")
+                        .WithMany("Assets")
+                        .HasForeignKey("TemplateVersionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Asset");
+
+                    b.Navigation("TemplateVersion");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
@@ -2038,6 +3057,21 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("ReversesDisposition");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountAttempt", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountCampaign", b =>
+                {
+                    b.Navigation("Locations");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountLocation", b =>
+                {
+                    b.Navigation("Attempts");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryMovement", b =>
                 {
                     b.Navigation("Lines");
@@ -2046,6 +3080,25 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryMovementLine", b =>
                 {
                     b.Navigation("BalanceChanges");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelAsset", b =>
+                {
+                    b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplate", b =>
+                {
+                    b.Navigation("Events");
+
+                    b.Navigation("Versions");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelTemplateVersion", b =>
+                {
+                    b.Navigation("Assets");
+
+                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Location", b =>
@@ -2084,7 +3137,16 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
                 {
+                    b.Navigation("ArchitecturalElements");
+
                     b.Navigation("Elements");
+
+                    b.Navigation("Layers");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
+                {
+                    b.Navigation("ArchitecturalElements");
                 });
 #pragma warning restore 612, 618
         }

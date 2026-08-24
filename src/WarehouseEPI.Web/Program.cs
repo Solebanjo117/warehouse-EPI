@@ -82,6 +82,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Admin/System", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Account", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Settings", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Admin/Labels", "AdminOnly");
 });
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseNpgsql(
@@ -113,7 +114,12 @@ builder.Services.AddScoped<ProductLotAdministrationService>();
 builder.Services.AddScoped<ProductLotQueryService>();
 builder.Services.AddScoped<ProductCatalogQueryService>();
 builder.Services.AddScoped<InventoryQueryService>();
+builder.Services.AddScoped<CycleCountService>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.BarcodeRenderingService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelTemplateService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelAssetService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelDocumentService>();
 builder.Services.AddScoped<MovementReportService>();
 builder.Services.AddScoped<ReportExportService>();
 builder.Services.AddScoped<DailyDashboardService>();
@@ -303,6 +309,17 @@ app.MapGet("/branding/logo", async Task<IResult> (HttpContext context, Warehouse
     context.Response.Headers.ETag = $"\"{business.LogoHash}\"";
     context.Response.Headers.CacheControl = "public,max-age=604800,immutable";
     return Results.File(path, business.LogoContentType, enableRangeProcessing: false);
+}).AllowAnonymous();
+
+app.MapGet("/Labels/Assets/{id:guid}", async Task<IResult> (Guid id, HttpContext context,
+    WarehouseEPI.Infrastructure.Labels.LabelAssetService assets, CancellationToken cancellationToken) =>
+{
+    var isAdmin = context.User.IsInRole("ADMIN");
+    var asset = await assets.GetContentAsync(id, isAdmin, cancellationToken);
+    if (asset is null) return TypedResults.NotFound();
+    context.Response.Headers.ETag = $"\"{asset.Sha256}\"";
+    context.Response.Headers.CacheControl = isAdmin ? "private,no-store" : "public,max-age=604800,immutable";
+    return Results.File(asset.Content, asset.ContentType, enableRangeProcessing: false);
 }).AllowAnonymous();
 
 app.MapStaticAssets();

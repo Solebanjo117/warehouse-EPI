@@ -36,6 +36,24 @@ PostgreSQL.
 La prueba opcional del archivo de productos usa
 `WAREHOUSE_EPI_PRODUCT_WORKBOOK`; solo valida la lectura y no inserta productos.
 
+### Compilaciones aisladas
+
+Cuando una aplicacion en ejecucion pueda bloquear la salida normal, coloca los
+artefactos aislados bajo `artifacts/` en la raiz del repositorio. Restaura la
+ruta una vez antes de reutilizarla con `--no-restore`:
+
+```powershell
+$validationArtifacts = Join-Path (Get-Location) 'artifacts\validation\manual-build'
+dotnet restore WarehouseEPI.sln --locked-mode --artifacts-path $validationArtifacts
+dotnet build WarehouseEPI.sln -c Release --no-restore `
+  --artifacts-path $validationArtifacts `
+  -p:UseAppHost=false
+```
+
+No uses `-p:OutputPath=artifacts\...` con una ruta relativa: MSBuild la resuelve
+dentro de cada proyecto y puede incorporar esas salidas como contenido en las
+compilaciones siguientes.
+
 ## Dependencias, formato y cobertura
 
 Las versiones de paquetes se administran desde `Directory.Packages.props` y sus

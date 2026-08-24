@@ -27,7 +27,19 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductLotDateChange> ProductLotDateChanges => Set<ProductLotDateChange>();
     public DbSet<WarehouseMapLayout> WarehouseMapLayouts => Set<WarehouseMapLayout>();
     public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
+    public DbSet<WarehouseMapLayer> WarehouseMapLayers => Set<WarehouseMapLayer>();
+    public DbSet<WarehouseMapArchitecturalElement> WarehouseMapArchitecturalElements => Set<WarehouseMapArchitecturalElement>();
     public DbSet<WarehouseMapRevision> WarehouseMapRevisions => Set<WarehouseMapRevision>();
+    public DbSet<CycleCountCampaign> CycleCountCampaigns => Set<CycleCountCampaign>();
+    public DbSet<CycleCountLocation> CycleCountLocations => Set<CycleCountLocation>();
+    public DbSet<CycleCountAttempt> CycleCountAttempts => Set<CycleCountAttempt>();
+    public DbSet<CycleCountEntry> CycleCountEntries => Set<CycleCountEntry>();
+    public DbSet<CycleCountAction> CycleCountActions => Set<CycleCountAction>();
+    public DbSet<LabelTemplate> LabelTemplates => Set<LabelTemplate>();
+    public DbSet<LabelTemplateVersion> LabelTemplateVersions => Set<LabelTemplateVersion>();
+    public DbSet<LabelAsset> LabelAssets => Set<LabelAsset>();
+    public DbSet<LabelTemplateVersionAsset> LabelTemplateVersionAssets => Set<LabelTemplateVersionAsset>();
+    public DbSet<LabelTemplateEvent> LabelTemplateEvents => Set<LabelTemplateEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,6 +64,101 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureWipDisposition(modelBuilder);
         ConfigureProductLotDateChange(modelBuilder);
         ConfigureWarehouseMap(modelBuilder);
+        ConfigureCycleCounts(modelBuilder);
+        ConfigureLabels(modelBuilder);
+    }
+
+    private static void ConfigureLabels(ModelBuilder modelBuilder)
+    {
+        var template = modelBuilder.Entity<LabelTemplate>();
+        template.ToTable("label_templates", table => table.HasCheckConstraint("ck_label_templates_code", "code = upper(btrim(code)) AND code ~ '^[A-Z0-9][A-Z0-9-]{2,59}$'"));
+        template.HasKey(item => item.Id);
+        template.Property(item => item.Id).HasColumnName("id");
+        template.Property(item => item.Code).HasColumnName("code").HasMaxLength(60).IsRequired();
+        template.Property(item => item.CurrentPublishedVersionId).HasColumnName("current_published_version_id");
+        template.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        template.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        template.HasIndex(item => item.Code).IsUnique();
+
+        var version = modelBuilder.Entity<LabelTemplateVersion>();
+        version.ToTable("label_template_versions", table =>
+        {
+            table.HasCheckConstraint("ck_label_template_versions_number", "version > 0");
+            table.HasCheckConstraint("ck_label_template_versions_status", "status IN ('DRAFT','IN_VALIDATION','PUBLISHED','RETIRED')");
+            table.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P')");
+        });
+        version.HasKey(item => item.Id);
+        version.Property(item => item.Id).HasColumnName("id");
+        version.Property(item => item.TemplateId).HasColumnName("template_id");
+        version.Property(item => item.Version).HasColumnName("version");
+        version.Property(item => item.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+        version.Property(item => item.SizePreset).HasColumnName("size_preset").HasMaxLength(12)
+            .HasConversion(value => LabelSizeToDatabase(value), value => LabelSizeFromDatabase(value));
+        version.Property(item => item.Status).HasColumnName("status").HasMaxLength(20).HasConversion(
+            value => value == LabelTemplateStatus.InValidation ? "IN_VALIDATION" : value.ToString().ToUpperInvariant(),
+            value => value == "IN_VALIDATION" ? LabelTemplateStatus.InValidation : Enum.Parse<LabelTemplateStatus>(value, true));
+        version.Property(item => item.DesignJson).HasColumnName("design_json").HasColumnType("jsonb").IsRequired();
+        version.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        version.Property(item => item.PublishedByUserId).HasColumnName("published_by_user_id");
+        version.Property(item => item.RetiredByUserId).HasColumnName("retired_by_user_id");
+        version.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        version.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        version.Property(item => item.PublishedAt).HasColumnName("published_at");
+        version.Property(item => item.RetiredAt).HasColumnName("retired_at");
+        version.Property(item => item.RowVersion).IsRowVersion().HasColumnName("xmin");
+        version.HasIndex(item => new { item.TemplateId, item.Version }).IsUnique();
+        version.HasIndex(item => item.TemplateId).IsUnique().HasFilter("status IN ('DRAFT','IN_VALIDATION')");
+        version.HasOne(item => item.Template).WithMany(item => item.Versions).HasForeignKey(item => item.TemplateId).OnDelete(DeleteBehavior.Restrict);
+        version.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        version.HasOne(item => item.PublishedByUser).WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
+        version.HasOne(item => item.RetiredByUser).WithMany().HasForeignKey(item => item.RetiredByUserId).OnDelete(DeleteBehavior.Restrict);
+        template.HasOne(item => item.CurrentPublishedVersion).WithMany().HasForeignKey(item => item.CurrentPublishedVersionId).OnDelete(DeleteBehavior.Restrict);
+
+        var asset = modelBuilder.Entity<LabelAsset>();
+        asset.ToTable("label_assets", table =>
+        {
+            table.HasCheckConstraint("ck_label_assets_size", "octet_length(content) BETWEEN 1 AND 1048576");
+            table.HasCheckConstraint("ck_label_assets_dimensions", "width BETWEEN 1 AND 4096 AND height BETWEEN 1 AND 4096");
+            table.HasCheckConstraint("ck_label_assets_type", "content_type IN ('image/png','image/jpeg')");
+        });
+        asset.HasKey(item => item.Id);
+        asset.Property(item => item.Id).HasColumnName("id");
+        asset.Property(item => item.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+        asset.Property(item => item.ContentType).HasColumnName("content_type").HasMaxLength(20).IsRequired();
+        asset.Property(item => item.Content).HasColumnName("content").IsRequired();
+        asset.Property(item => item.Sha256).HasColumnName("sha256").HasMaxLength(64).IsFixedLength().IsRequired();
+        asset.Property(item => item.Width).HasColumnName("width");
+        asset.Property(item => item.Height).HasColumnName("height");
+        asset.Property(item => item.IsArchived).HasColumnName("is_archived");
+        asset.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        asset.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        asset.HasIndex(item => item.Sha256).IsUnique();
+        asset.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var versionAsset = modelBuilder.Entity<LabelTemplateVersionAsset>();
+        versionAsset.ToTable("label_template_version_assets");
+        versionAsset.HasKey(item => new { item.TemplateVersionId, item.AssetId });
+        versionAsset.Property(item => item.TemplateVersionId).HasColumnName("template_version_id");
+        versionAsset.Property(item => item.AssetId).HasColumnName("asset_id");
+        versionAsset.HasOne(item => item.TemplateVersion).WithMany(item => item.Assets).HasForeignKey(item => item.TemplateVersionId).OnDelete(DeleteBehavior.Cascade);
+        versionAsset.HasOne(item => item.Asset).WithMany(item => item.Versions).HasForeignKey(item => item.AssetId).OnDelete(DeleteBehavior.Restrict);
+
+        var auditEvent = modelBuilder.Entity<LabelTemplateEvent>();
+        auditEvent.ToTable("label_template_events");
+        auditEvent.HasKey(item => item.Id);
+        auditEvent.Property(item => item.Id).HasColumnName("id");
+        auditEvent.Property(item => item.TemplateId).HasColumnName("template_id");
+        auditEvent.Property(item => item.TemplateVersionId).HasColumnName("template_version_id");
+        auditEvent.Property(item => item.Type).HasColumnName("type").HasMaxLength(30).HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<LabelTemplateEventType>(value, true));
+        auditEvent.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        auditEvent.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        auditEvent.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500);
+        auditEvent.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        auditEvent.HasIndex(item => new { item.TemplateId, item.RecordedAt });
+        auditEvent.HasOne(item => item.Template).WithMany(item => item.Events).HasForeignKey(item => item.TemplateId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.TemplateVersion).WithMany(item => item.Events).HasForeignKey(item => item.TemplateVersionId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -363,12 +470,13 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
                 "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
                 "(purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
-                "(purpose = 'STANDARD' AND operational_area_id IS NULL)");
+                "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
+                "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
         });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
@@ -520,12 +628,22 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private static void ConfigureWarehouseMap(ModelBuilder modelBuilder)
     {
         var layout = modelBuilder.Entity<WarehouseMapLayout>();
-        layout.ToTable("warehouse_map_layouts", table => table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1"));
+        layout.ToTable("warehouse_map_layouts", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1");
+            table.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
+            table.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
+        });
         layout.HasKey(item => item.Id);
         layout.Property(item => item.Id).HasColumnName("id").ValueGeneratedNever();
         layout.Property(item => item.Version).HasColumnName("version");
         layout.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         layout.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        layout.Property(item => item.ScaleUnitsPerInch).HasColumnName("scale_units_per_inch").HasPrecision(12, 6);
+        layout.Property(item => item.MeasurementSystem).HasColumnName("measurement_system").HasMaxLength(10)
+            .HasConversion(value => value == WarehouseMapMeasurementSystem.Imperial ? "IMPERIAL" : "METRIC",
+                value => value == "METRIC" ? WarehouseMapMeasurementSystem.Metric : WarehouseMapMeasurementSystem.Imperial)
+            .HasDefaultValue(WarehouseMapMeasurementSystem.Imperial);
         layout.Ignore(item => item.RowVersion);
         layout.HasOne(item => item.UpdatedByUser).WithMany().HasForeignKey(item => item.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
 
@@ -554,6 +672,60 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         element.HasOne(item => item.Layout).WithMany(item => item.Elements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
         element.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
 
+        var layer = modelBuilder.Entity<WarehouseMapLayer>();
+        layer.ToTable("warehouse_map_layers", table =>
+            table.HasCheckConstraint("ck_warehouse_map_layer_code", "code IN ('STRUCTURE', 'AISLES', 'ZONES', 'TEXT', 'DIMENSIONS', 'OPERATIONS')"));
+        layer.HasKey(item => item.Id);
+        layer.Property(item => item.Id).HasColumnName("id");
+        layer.Property(item => item.LayoutId).HasColumnName("layout_id");
+        layer.Property(item => item.Code).HasColumnName("code").HasMaxLength(16).HasConversion(
+            value => value == WarehouseMapLayerCode.Structure ? "STRUCTURE" :
+                value == WarehouseMapLayerCode.Aisles ? "AISLES" :
+                value == WarehouseMapLayerCode.Zones ? "ZONES" :
+                value == WarehouseMapLayerCode.Text ? "TEXT" :
+                value == WarehouseMapLayerCode.Dimensions ? "DIMENSIONS" : "OPERATIONS",
+            value => value == "STRUCTURE" ? WarehouseMapLayerCode.Structure :
+                value == "AISLES" ? WarehouseMapLayerCode.Aisles :
+                value == "ZONES" ? WarehouseMapLayerCode.Zones :
+                value == "TEXT" ? WarehouseMapLayerCode.Text :
+                value == "DIMENSIONS" ? WarehouseMapLayerCode.Dimensions : WarehouseMapLayerCode.Operations);
+        layer.Property(item => item.Name).HasColumnName("name").HasMaxLength(40).IsRequired();
+        layer.Property(item => item.SortOrder).HasColumnName("sort_order");
+        layer.Property(item => item.IsLocked).HasColumnName("is_locked").HasDefaultValue(true);
+        layer.HasIndex(item => new { item.LayoutId, item.Code }).IsUnique();
+        layer.HasOne(item => item.Layout).WithMany(item => item.Layers).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
+
+        var architectural = modelBuilder.Entity<WarehouseMapArchitecturalElement>();
+        architectural.ToTable("warehouse_map_architectural_elements", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_architectural_kind", "kind IN ('RECTANGLE', 'POLYLINE', 'TEXT')");
+            table.HasCheckConstraint("ck_warehouse_map_architectural_style", "stroke_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND fill_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND stroke_width >= 0 AND stroke_width <= 12");
+        });
+        architectural.HasKey(item => item.Id);
+        architectural.Property(item => item.Id).HasColumnName("id");
+        architectural.Property(item => item.LayoutId).HasColumnName("layout_id");
+        architectural.Property(item => item.LayerId).HasColumnName("layer_id");
+        architectural.Property(item => item.GroupId).HasColumnName("group_id");
+        architectural.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(12).HasConversion(
+            value => value == WarehouseMapArchitecturalElementKind.Rectangle ? "RECTANGLE" :
+                value == WarehouseMapArchitecturalElementKind.Polyline ? "POLYLINE" : "TEXT",
+            value => value == "RECTANGLE" ? WarehouseMapArchitecturalElementKind.Rectangle :
+                value == "POLYLINE" ? WarehouseMapArchitecturalElementKind.Polyline : WarehouseMapArchitecturalElementKind.Text);
+        architectural.Property(item => item.Label).HasColumnName("label").HasMaxLength(120);
+        architectural.Property(item => item.GeometryJson).HasColumnName("geometry_json").HasColumnType("jsonb").IsRequired();
+        architectural.Property(item => item.StrokeToken).HasColumnName("stroke_token").HasMaxLength(16).IsRequired();
+        architectural.Property(item => item.FillToken).HasColumnName("fill_token").HasMaxLength(16).IsRequired();
+        architectural.Property(item => item.StrokeWidth).HasColumnName("stroke_width").HasPrecision(5, 2);
+        architectural.Property(item => item.IsDashed).HasColumnName("is_dashed");
+        architectural.Property(item => item.ZIndex).HasColumnName("z_index");
+        architectural.Property(item => item.IsLocked).HasColumnName("is_locked");
+        architectural.Property(item => item.IsArchived).HasColumnName("is_archived").HasDefaultValue(false);
+        architectural.HasIndex(item => new { item.LayoutId, item.LayerId, item.ZIndex });
+        architectural.HasIndex(item => new { item.LayoutId, item.GroupId }).HasFilter("group_id IS NOT NULL");
+        architectural.HasIndex(item => new { item.LayoutId, item.IsArchived });
+        architectural.HasOne(item => item.Layout).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
+        architectural.HasOne(item => item.Layer).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayerId).OnDelete(DeleteBehavior.Restrict);
+
         var revision = modelBuilder.Entity<WarehouseMapRevision>();
         revision.ToTable("warehouse_map_revisions");
         revision.HasKey(item => item.Id);
@@ -571,6 +743,109 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         revision.HasIndex(item => item.RecordedAt);
         revision.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
         revision.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
+    private static void ConfigureCycleCounts(ModelBuilder modelBuilder)
+    {
+        var campaign = modelBuilder.Entity<CycleCountCampaign>();
+        campaign.ToTable("cycle_count_campaigns");
+        campaign.HasKey(item => item.Id);
+        campaign.Property(item => item.Id).HasColumnName("id");
+        campaign.Property(item => item.OperationId).HasColumnName("operation_id");
+        campaign.Property(item => item.Number).HasColumnName("number").ValueGeneratedOnAdd();
+        campaign.Property(item => item.Title).HasColumnName("title").HasMaxLength(160);
+        campaign.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        campaign.Property(item => item.Status).HasColumnName("status").HasMaxLength(30)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountCampaignStatus>(value, true));
+        campaign.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        campaign.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        campaign.Property(item => item.ReleasedAt).HasColumnName("released_at");
+        campaign.Property(item => item.CompletedAt).HasColumnName("completed_at");
+        campaign.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
+        campaign.Property(item => item.LastActionByUserId).HasColumnName("last_action_by_user_id");
+        campaign.HasIndex(item => item.Number).IsUnique();
+        campaign.HasIndex(item => item.OperationId).IsUnique();
+        campaign.HasIndex(item => new { item.Status, item.CreatedAt });
+        campaign.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        campaign.HasOne(item => item.LastActionByUser).WithMany().HasForeignKey(item => item.LastActionByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var location = modelBuilder.Entity<CycleCountLocation>();
+        location.ToTable("cycle_count_locations");
+        location.HasKey(item => item.Id);
+        location.Property(item => item.Id).HasColumnName("id");
+        location.Property(item => item.CampaignId).HasColumnName("campaign_id");
+        location.Property(item => item.LocationId).HasColumnName("location_id");
+        location.Property(item => item.SortOrder).HasColumnName("sort_order");
+        location.Property(item => item.Status).HasColumnName("status").HasMaxLength(30)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountLocationStatus>(value, true));
+        location.Property(item => item.AdjustmentMovementId).HasColumnName("adjustment_movement_id");
+        location.Property(item => item.LastActionByUserId).HasColumnName("last_action_by_user_id");
+        location.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        location.Property(item => item.CompletedAt).HasColumnName("completed_at");
+        location.HasIndex(item => new { item.CampaignId, item.LocationId }).IsUnique();
+        location.HasIndex(item => new { item.LocationId, item.Status });
+        location.HasIndex(item => item.AdjustmentMovementId).IsUnique().HasFilter("adjustment_movement_id IS NOT NULL");
+        location.HasOne(item => item.Campaign).WithMany(item => item.Locations).HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        location.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
+        location.HasOne(item => item.AdjustmentMovement).WithMany().HasForeignKey(item => item.AdjustmentMovementId).OnDelete(DeleteBehavior.Restrict);
+        location.HasOne(item => item.LastActionByUser).WithMany().HasForeignKey(item => item.LastActionByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var attempt = modelBuilder.Entity<CycleCountAttempt>();
+        attempt.ToTable("cycle_count_attempts");
+        attempt.HasKey(item => item.Id);
+        attempt.Property(item => item.Id).HasColumnName("id");
+        attempt.Property(item => item.OperationId).HasColumnName("operation_id");
+        attempt.Property(item => item.SubmissionOperationId).HasColumnName("submission_operation_id");
+        attempt.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        attempt.Property(item => item.AttemptNumber).HasColumnName("attempt_number");
+        attempt.Property(item => item.Status).HasColumnName("status").HasMaxLength(20)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountAttemptStatus>(value, true));
+        attempt.Property(item => item.StartedByUserId).HasColumnName("started_by_user_id");
+        attempt.Property(item => item.StartedAt).HasColumnName("started_at").HasDefaultValueSql("now()");
+        attempt.Property(item => item.SubmittedByUserId).HasColumnName("submitted_by_user_id");
+        attempt.Property(item => item.SubmittedAt).HasColumnName("submitted_at");
+        attempt.HasIndex(item => item.OperationId).IsUnique();
+        attempt.HasIndex(item => item.SubmissionOperationId).IsUnique().HasFilter("submission_operation_id IS NOT NULL");
+        attempt.HasIndex(item => new { item.CycleCountLocationId, item.AttemptNumber }).IsUnique();
+        attempt.HasOne(item => item.CycleCountLocation).WithMany(item => item.Attempts).HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
+        attempt.HasOne(item => item.StartedByUser).WithMany().HasForeignKey(item => item.StartedByUserId).OnDelete(DeleteBehavior.Restrict);
+        attempt.HasOne(item => item.SubmittedByUser).WithMany().HasForeignKey(item => item.SubmittedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var entry = modelBuilder.Entity<CycleCountEntry>();
+        entry.ToTable("cycle_count_entries");
+        entry.HasKey(item => item.Id);
+        entry.Property(item => item.Id).HasColumnName("id");
+        entry.Property(item => item.CycleCountAttemptId).HasColumnName("cycle_count_attempt_id");
+        entry.Property(item => item.ProductId).HasColumnName("product_id");
+        entry.Property(item => item.UnitId).HasColumnName("unit_id");
+        entry.Property(item => item.ExpectedQuantity).HasColumnName("expected_quantity").HasPrecision(18, 4);
+        entry.Property(item => item.ExpectedBalanceVersion).HasColumnName("expected_balance_version");
+        entry.Property(item => item.CountedQuantity).HasColumnName("counted_quantity").HasPrecision(18, 4);
+        entry.Property(item => item.IsUnexpectedProduct).HasColumnName("is_unexpected_product").HasDefaultValue(false);
+        entry.HasIndex(item => new { item.CycleCountAttemptId, item.ProductId }).IsUnique();
+        entry.HasOne(item => item.CycleCountAttempt).WithMany(item => item.Entries).HasForeignKey(item => item.CycleCountAttemptId).OnDelete(DeleteBehavior.Restrict);
+        entry.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+        entry.HasOne(item => item.Unit).WithMany().HasForeignKey(item => item.UnitId).OnDelete(DeleteBehavior.Restrict);
+
+        var action = modelBuilder.Entity<CycleCountAction>();
+        action.ToTable("cycle_count_actions");
+        action.HasKey(item => item.Id);
+        action.Property(item => item.Id).HasColumnName("id");
+        action.Property(item => item.OperationId).HasColumnName("operation_id");
+        action.Property(item => item.CampaignId).HasColumnName("campaign_id");
+        action.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        action.Property(item => item.CycleCountAttemptId).HasColumnName("cycle_count_attempt_id");
+        action.Property(item => item.Type).HasColumnName("type").HasMaxLength(30)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountActionType>(value, true));
+        action.Property(item => item.ResponsibleUserId).HasColumnName("responsible_user_id");
+        action.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        action.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        action.HasIndex(item => new { item.CampaignId, item.RecordedAt });
+        action.HasIndex(item => item.OperationId).IsUnique().HasFilter("operation_id IS NOT NULL");
+        action.HasOne(item => item.Campaign).WithMany().HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.CycleCountLocation).WithMany().HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.CycleCountAttempt).WithMany().HasForeignKey(item => item.CycleCountAttemptId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureInventoryMovementCorrection(ModelBuilder modelBuilder)
@@ -658,11 +933,19 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision &&
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or LabelTemplateEvent &&
                 entry.State is EntityState.Modified or EntityState.Deleted);
 
         if (changedHistory)
             throw new InvalidOperationException("Los movimientos confirmados y su historial son inmutables.");
+
+        var changedPublishedTemplate = ChangeTracker.Entries<LabelTemplateVersion>().Any(entry =>
+            (entry.State is EntityState.Modified or EntityState.Deleted) &&
+            (entry.OriginalValues.GetValue<LabelTemplateStatus>(nameof(LabelTemplateVersion.Status)) is LabelTemplateStatus.Published or LabelTemplateStatus.Retired) &&
+            !(entry.State == EntityState.Modified && entry.Properties.All(property =>
+                !property.IsModified || property.Metadata.Name is nameof(LabelTemplateVersion.Status) or nameof(LabelTemplateVersion.RetiredAt) or nameof(LabelTemplateVersion.RetiredByUserId))));
+        if (changedPublishedTemplate)
+            throw new InvalidOperationException("Las versiones publicadas de etiquetas son inmutables.");
     }
 
     private static string MovementTypeToDatabase(InventoryMovementType value) => value switch
@@ -672,6 +955,22 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementType.Transfer => "TRANSFER",
         InventoryMovementType.Adjustment => "ADJUSTMENT",
         _ => throw new InvalidOperationException("Tipo de movimiento no soportado.")
+    };
+
+    private static string LabelSizeToDatabase(LabelSizePreset value) => value switch
+    {
+        LabelSizePreset.SixByFourLandscape => "6X4_L",
+        LabelSizePreset.FourBySixPortrait => "4X6_P",
+        LabelSizePreset.ThreeByOneLandscape => "3X1_L",
+        _ => "4X45_P"
+    };
+
+    private static LabelSizePreset LabelSizeFromDatabase(string value) => value switch
+    {
+        "6X4_L" => LabelSizePreset.SixByFourLandscape,
+        "4X6_P" => LabelSizePreset.FourBySixPortrait,
+        "3X1_L" => LabelSizePreset.ThreeByOneLandscape,
+        _ => LabelSizePreset.FourByFourPointFivePortrait
     };
 
     private static InventoryMovementType MovementTypeFromDatabase(string value) => value switch
@@ -688,6 +987,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.GeneralExit => "GENERAL_EXIT",
         InventoryMovementPurpose.ProductionIssue => "PRODUCTION_ISSUE",
         InventoryMovementPurpose.WipWarehouseReturn => "WIP_WAREHOUSE_RETURN",
+        InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
         _ => "STANDARD"
     };
 
@@ -696,6 +996,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "GENERAL_EXIT" => InventoryMovementPurpose.GeneralExit,
         "PRODUCTION_ISSUE" => InventoryMovementPurpose.ProductionIssue,
         "WIP_WAREHOUSE_RETURN" => InventoryMovementPurpose.WipWarehouseReturn,
+        "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
         _ => InventoryMovementPurpose.Standard
     };
 

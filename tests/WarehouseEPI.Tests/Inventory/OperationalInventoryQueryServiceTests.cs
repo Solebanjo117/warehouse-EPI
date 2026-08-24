@@ -242,6 +242,7 @@ public sealed class OperationalInventoryQueryServiceTests
         Assert.Equal(unassigned.Id, positions.Items[0].LocationId);
         Assert.Equal(2, positions.Summary.Positions);
         Assert.Equal(1, positions.Summary.Negative);
+        Assert.Equal(0, positions.Summary.AssignedZero);
         Assert.Equal(1, positions.Summary.UnassignedBalances);
 
         var correctedPositions = await service.GetProductInventoryAsync(correctedProduct.Id);
@@ -260,6 +261,82 @@ public sealed class OperationalInventoryQueryServiceTests
         var minimum = Assert.Single(minimumAlerts.Items);
         Assert.Equal(9m, minimum.Deficit);
         Assert.Equal(10m, minimum.CoveragePercent);
+    }
+
+    [Fact]
+    public async Task Inventory_pages_count_assigned_zero_and_locate_a_highlighted_position()
+    {
+        await using var db = CreateDbContext();
+        var product = new Product { Sku = "PAGED-INVENTORY", BaseUnitId = 1 };
+        var locations = Enumerable.Range(1, 30)
+            .Select(number => new Location { Code = $"PAGED-{number:00}", Kind = LocationKind.Rack })
+            .ToArray();
+        db.Add(product);
+        db.AddRange(locations);
+        db.ProductLocationAssignments.AddRange(locations.Select(location => new ProductLocationAssignment
+        {
+            Product = product,
+            Location = location
+        }));
+        db.InventoryBalances.Add(new InventoryBalance
+        {
+            Product = product,
+            Location = locations[0],
+            Quantity = 4m
+        });
+        await db.SaveChangesAsync();
+        var service = new InventoryQueryService(db);
+
+        var highlighted = await service.GetProductInventoryPageAsync(
+            product.Id,
+            InventoryPositionFilter.All,
+            1,
+            10,
+            locations[24].Id);
+
+        Assert.Equal(3, highlighted.PageNumber);
+        Assert.Contains(highlighted.Items, item => item.LocationId == locations[24].Id);
+        Assert.Equal(29, highlighted.Summary.AssignedZero);
+
+        var explicitPage = await service.GetProductInventoryPageAsync(
+            product.Id,
+            InventoryPositionFilter.All,
+            2,
+            10);
+        Assert.Equal(2, explicitPage.PageNumber);
+        Assert.DoesNotContain(explicitPage.Items, item => item.LocationId == locations[24].Id);
+
+        var excludedHighlight = await service.GetProductInventoryPageAsync(
+            product.Id,
+            InventoryPositionFilter.WithBalance,
+            1,
+            10,
+            locations[24].Id);
+        Assert.Equal(1, excludedHighlight.PageNumber);
+        Assert.Single(excludedHighlight.Items);
+        Assert.Equal(locations[0].Id, excludedHighlight.Items[0].LocationId);
+
+        var sharedLocation = new Location { Code = "PAGED-PRODUCTS", Kind = LocationKind.Area };
+        var products = Enumerable.Range(1, 30)
+            .Select(number => new Product { Sku = $"PAGED-PRODUCT-{number:00}", BaseUnitId = 1 })
+            .ToArray();
+        db.Add(sharedLocation);
+        db.AddRange(products);
+        db.ProductLocationAssignments.AddRange(products.Select(item => new ProductLocationAssignment
+        {
+            Product = item,
+            Location = sharedLocation
+        }));
+        await db.SaveChangesAsync();
+
+        var highlightedProduct = await service.GetLocationInventoryPageAsync(
+            sharedLocation.Id,
+            InventoryPositionFilter.All,
+            1,
+            10,
+            products[24].Id);
+        Assert.Equal(3, highlightedProduct.PageNumber);
+        Assert.Contains(highlightedProduct.Items, item => item.ProductId == products[24].Id);
     }
 
     private static WarehouseDbContext CreateDbContext()

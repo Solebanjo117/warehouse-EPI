@@ -243,13 +243,13 @@
     updateMetric("effectiveAdjustmentsToday", metrics.effectiveAdjustmentsToday);
     selectedIndex = Math.min(selectedIndex, visiblePoints().length - 1);
     refreshChart("none");
-    if (status) { status.classList.remove("is-stale"); status.replaceChildren(document.createTextNode("Actualizado: ")); const time = document.createElement("time"); time.dateTime = snapshot.generatedAtLocal; time.textContent = timestamp(snapshot.generatedAtLocal); status.appendChild(time); }
+    if (status) { status.classList.remove("is-stale"); status.replaceChildren(document.createTextNode("Datos generados: ")); const time = document.createElement("time"); time.dateTime = snapshot.generatedAtLocal; time.textContent = timestamp(snapshot.generatedAtLocal); status.appendChild(time); }
   };
   const schedule = () => { window.clearTimeout(timerId); if (!document.hidden) timerId = window.setTimeout(refresh, intervalMilliseconds); };
-  const refresh = async () => {
+  const refresh = async (forceRefresh = false) => {
     if (requestInProgress || document.hidden) return;
     requestInProgress = true; shell.setAttribute("aria-busy", "true"); refreshButton?.setAttribute("disabled", "disabled"); if (status) status.textContent = "Actualizando datos…";
-    try { const response = await fetch(dashboard.dataset.metricsUrl, { headers: { Accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error(`HTTP ${response.status}`); renderSnapshot(await response.json()); }
+    try { const metricsUrl = new URL(dashboard.dataset.metricsUrl, window.location.href); if (forceRefresh) metricsUrl.searchParams.set("refresh", "true"); const response = await fetch(metricsUrl, { headers: { Accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error(`HTTP ${response.status}`); renderSnapshot(await response.json()); }
     catch { if (status) { status.classList.add("is-stale"); status.textContent = "Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente."; } }
     finally { requestInProgress = false; shell.setAttribute("aria-busy", "false"); refreshButton?.removeAttribute("disabled"); schedule(); }
   };
@@ -258,8 +258,8 @@
   createChart();
   ranges.forEach((button) => button.addEventListener("click", () => { selectedRange = number(button.dataset.dashboardRange); ranges.forEach((candidate) => { const active = number(candidate.dataset.dashboardRange) === selectedRange; candidate.classList.toggle("active", active); candidate.setAttribute("aria-pressed", String(active)); }); refreshChart("none"); }));
   canvas.addEventListener("keydown", (event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); select(selectedIndex + (event.key === "ArrowLeft" ? -1 : 1)); } if (event.key === " " || event.key === "Enter") { event.preventDefault(); select(selectedIndex); } });
-  refreshButton?.addEventListener("click", refresh);
-  document.addEventListener("visibilitychange", () => { if (document.hidden) window.clearTimeout(timerId); else refresh(); });
+  refreshButton?.addEventListener("click", () => refresh(true));
+  document.addEventListener("visibilitychange", () => { if (document.hidden) window.clearTimeout(timerId); else refresh(false); });
   new MutationObserver(() => refreshChart("none")).observe(document.documentElement, { attributes: true, attributeFilter: ["data-bs-theme"] });
   schedule();
 })();

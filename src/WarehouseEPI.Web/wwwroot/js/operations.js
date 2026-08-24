@@ -1050,11 +1050,17 @@
     const resolve = async (code) => {
       const value = code.trim();
       if (!value) return false;
-      const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveInventoryCode", code: value })}`);
+      let resolution;
+      try {
+        resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveInventoryCode", code: value })}`);
+      } catch {
+        resolution = null;
+      }
       if (!resolution) {
-        const message = "No fue posible validar el código. Intenta nuevamente.";
+        const message = "No fue posible consultar la red local. Conservamos el código para que puedas reintentar.";
         input.setCustomValidity(message);
         setFeedback(message);
+        input.focus();
         return false;
       }
       input.setCustomValidity("");
@@ -1072,8 +1078,18 @@
     const search = debounce(async (sequence) => {
       const query = input.value.trim();
       if (!query) { results.replaceChildren(); return; }
-      const data = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "InventorySearch", q: query })}`);
+      let data;
+      try {
+        data = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "InventorySearch", q: query })}`);
+      } catch {
+        data = null;
+      }
       if (sequence !== searchSequence) return;
+      if (!data) {
+        results.replaceChildren();
+        setFeedback("No fue posible buscar en la red local. Revisa la conexión e intenta nuevamente.");
+        return;
+      }
       renderSearchResults(data);
     });
     input.addEventListener("input", () => {
@@ -1085,11 +1101,40 @@
     input.addEventListener("keydown", async (event) => {
       if (event.key !== "Enter") return;
       event.preventDefault();
+      if (!input.value.trim()) {
+        const message = "Escribe o escanea un producto o una ubicación.";
+        input.setCustomValidity(message);
+        setFeedback(message);
+        input.reportValidity();
+        input.focus();
+        return;
+      }
       searchSequence++;
       results.replaceChildren();
       await resolve(input.value);
     });
-    form.addEventListener("submit", () => results.replaceChildren());
+    form.addEventListener("submit", (event) => {
+      const query = input.value.trim();
+      if (!query) {
+        event.preventDefault();
+        const message = "Escribe o escanea un producto o una ubicación.";
+        input.setCustomValidity(message);
+        setFeedback(message);
+        input.reportValidity();
+        input.focus();
+        return;
+      }
+      input.setCustomValidity("");
+      results.replaceChildren();
+    });
+
+    const highlighted = inventoryWorkspace.querySelector('[data-inventory-highlighted="true"]');
+    if (highlighted) {
+      requestAnimationFrame(() => {
+        highlighted.focus({ preventScroll: true });
+        highlighted.scrollIntoView({ block: "center" });
+      });
+    }
 
     const modalElement = inventoryWorkspace.querySelector("[data-inventory-camera-modal]");
     const cameraButton = inventoryWorkspace.querySelector("[data-inventory-camera]");

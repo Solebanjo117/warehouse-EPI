@@ -91,6 +91,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var login = await client.GetAsync("/Admin/Login");
         var users = await client.GetAsync("/Admin/Users");
         var products = await client.GetAsync("/Admin/Catalogs/Products");
+        var productTypes = await client.GetAsync("/Admin/Catalogs/ProductTypes");
+        var productClasses = await client.GetAsync("/Admin/Catalogs/ProductClasses");
         var productImport = await client.GetAsync("/Admin/Catalogs/Products/Import");
         var locations = await client.GetAsync("/Admin/Catalogs/Locations");
         var locationGeneration = await client.GetAsync("/Admin/Catalogs/Locations/Generate");
@@ -108,6 +110,10 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Equal("/Admin/Login", users.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, products.StatusCode);
         Assert.Equal("/Admin/Login", products.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, productTypes.StatusCode);
+        Assert.Equal("/Admin/Login", productTypes.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, productClasses.StatusCode);
+        Assert.Equal("/Admin/Login", productClasses.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, productImport.StatusCode);
         Assert.Equal("/Admin/Login", productImport.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, locations.StatusCode);
@@ -174,7 +180,22 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
 
         var products = await client.GetAsync("/Admin/Catalogs/Products");
         Assert.Equal(HttpStatusCode.OK, products.StatusCode);
-        Assert.Contains("Crear producto", await products.Content.ReadAsStringAsync());
+        var productsHtml = await products.Content.ReadAsStringAsync();
+        Assert.Contains("Crear producto", productsHtml);
+        Assert.Contains("href=\"/Admin/Catalogs/ProductTypes\"", productsHtml);
+        Assert.Contains("href=\"/Admin/Catalogs/ProductClasses\"", productsHtml);
+
+        var productTypes = await client.GetAsync("/Admin/Catalogs/ProductTypes");
+        var productTypesHtml = await productTypes.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, productTypes.StatusCode);
+        Assert.Contains("Tipos registrados", productTypesHtml);
+        Assert.Contains("aria-current=\"page\"", productTypesHtml);
+
+        var productClasses = await client.GetAsync("/Admin/Catalogs/ProductClasses");
+        var productClassesHtml = await productClasses.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, productClasses.StatusCode);
+        Assert.Contains("Clases registradas", productClassesHtml);
+        Assert.Contains("aria-current=\"page\"", productClassesHtml);
 
         var createPage = await client.GetAsync("/Admin/Catalogs/Products/Create");
         var createHtml = await createPage.Content.ReadAsStringAsync();
@@ -182,6 +203,26 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
             createHtml,
             "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
         Assert.True(createToken.Success, "No se encontró el token antiforgery del producto.");
+        Assert.Contains("Información del producto", createHtml);
+        Assert.Contains("Configuración", createHtml);
+        Assert.Contains("Guardar producto", createHtml);
+        Assert.Contains("href=\"/Admin/Catalogs/Products\"", createHtml);
+        Assert.Contains("name=\"Input.Sku\"", createHtml);
+        Assert.Contains("name=\"Input.BaseUnitId\"", createHtml);
+
+        var invalidCreateResponse = await client.PostAsync(
+            "/Admin/Catalogs/Products/Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Sku"] = string.Empty,
+                ["Input.BaseUnitId"] = "0",
+                ["Input.MinimumStock"] = "0",
+                ["__RequestVerificationToken"] = WebUtility.HtmlDecode(createToken.Groups[1].Value)
+            }));
+        var invalidCreateHtml = await invalidCreateResponse.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, invalidCreateResponse.StatusCode);
+        Assert.Contains("role=\"alert\"", invalidCreateHtml);
+        Assert.Contains("El SKU es obligatorio.", invalidCreateHtml);
 
         var createResponse = await client.PostAsync(
             "/Admin/Catalogs/Products/Create",
@@ -207,6 +248,12 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
             "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
         Assert.Equal(HttpStatusCode.OK, editPage.StatusCode);
         Assert.True(editToken.Success, "No se encontró el token antiforgery de edición del producto.");
+        Assert.Contains("Guardar cambios", editHtml);
+        Assert.Contains("Ver ficha", editHtml);
+        Assert.Contains("Ubicaciones asignadas", editHtml);
+        Assert.Contains("Códigos de barras", editHtml);
+        Assert.Contains("handler=AddBarcode", editHtml);
+        Assert.Contains($"href=\"/Admin/Catalogs/Products/Details/{savedProduct.Id}\"", editHtml);
 
         var editResponse = await client.PostAsync(
             $"/Admin/Catalogs/Products/Edit/{savedProduct.Id}",
@@ -275,10 +322,11 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.True(await verificationDb.Locations.AnyAsync(location => location.Code == "Z-1-9"));
 
         var generatedLocation = await verificationDb.Locations.SingleAsync(location => location.Code == "Z-1-9");
-        var assignmentPage = await client.GetAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}");
+        var assignmentPage = await client.GetAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}?locationSearch=Z-1-9");
         var assignmentHtml = await assignmentPage.Content.ReadAsStringAsync();
         var assignmentToken = Regex.Match(assignmentHtml, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
         Assert.True(assignmentToken.Success);
+        Assert.Contains("handler=AssignLocation", assignmentHtml);
         var assignmentResponse = await client.PostAsync(
             $"/Admin/Catalogs/Products/Edit/{savedProduct.Id}?handler=AssignLocation",
             new FormUrlEncodedContent(new Dictionary<string, string>

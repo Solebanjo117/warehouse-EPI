@@ -37,6 +37,9 @@ internal static class InventoryMovementRules
         if (command.Purpose == InventoryMovementPurpose.WipWarehouseReturn &&
             (command.Type != InventoryMovementType.Entry || command.OperationalAreaId is not null))
             errors.Add("Una devolución WIP a bodega requiere una entrada sin área operativa destino.");
+        if (command.Purpose == InventoryMovementPurpose.CycleCountAdjustment &&
+            (command.Type != InventoryMovementType.Adjustment || command.OperationalAreaId is not null))
+            errors.Add("Un ajuste de conteo cíclico requiere tipo ajuste y no admite un área operativa.");
         if (command.Purpose == InventoryMovementPurpose.Standard && command.OperationalAreaId is not null)
             errors.Add("Un movimiento estándar no admite un área operativa destino.");
 
@@ -92,9 +95,9 @@ internal static class InventoryMovementRules
                 continue;
             }
 
-            if (!product.IsActive)
+            if (!product.IsActive && !(command.Purpose == InventoryMovementPurpose.CycleCountAdjustment && command.Type == InventoryMovementType.Adjustment))
                 errors.Add($"Línea {index + 1}: el producto está inactivo.");
-            if (!product.BaseUnit.IsActive)
+            if (!product.BaseUnit.IsActive && !(command.Purpose == InventoryMovementPurpose.CycleCountAdjustment && command.Type == InventoryMovementType.Adjustment))
                 errors.Add($"Línea {index + 1}: la unidad base está inactiva.");
             if (!product.BaseUnit.AllowsDecimals && decimal.Truncate(line.Quantity) != line.Quantity)
                 errors.Add($"Línea {index + 1}: la unidad base no permite cantidades decimales.");

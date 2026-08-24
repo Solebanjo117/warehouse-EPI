@@ -23,11 +23,11 @@
     <form method="get" class="inventory-search-card" data-inventory-search-form novalidate>
         <label for="inventory-code" class="form-label fw-semibold">Producto o ubicación</label>
         <div class="input-group input-group-lg entry-capture-input">
-            <input id="inventory-code" name="code" class="form-control" type="search" autocomplete="off" autocapitalize="characters" placeholder="Escanea o escribe SKU, barras o ubicación" autofocus data-inventory-search-input />
+            <input id="inventory-code" name="code" class="form-control" type="search" autocomplete="off" autocapitalize="characters" placeholder="Escanea o escribe SKU, barras o ubicación" aria-describedby="inventory-search-feedback" autofocus required data-inventory-search-input />
             <button type="button" class="btn btn-outline-secondary" data-inventory-camera aria-label="Escanear con cámara" title="Escanear con cámara"><svg aria-hidden="true" viewBox="0 0 16 16" width="1.2em" height="1.2em" fill="currentColor"><path d="M1 4.5A1.5 1.5 0 0 1 2.5 3h1.586l.707-.707A1 1 0 0 1 5.5 2h5a1 1 0 0 1 .707.293L11.914 3H13.5A1.5 1.5 0 0 1 15 4.5v7a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 1 11.5zm7 1a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5m0 1a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3" /></svg></button>
             <button class="btn btn-primary" type="submit">Consultar</button>
         </div>
-        <div class="inventory-search-feedback d-none" role="status" aria-live="polite" data-inventory-feedback></div>
+        <div id="inventory-search-feedback" class="inventory-search-feedback d-none" role="status" aria-live="polite" data-inventory-feedback></div>
         <div class="inventory-search-results" data-inventory-search-results></div>
     </form>
 
@@ -42,7 +42,7 @@
             <div>
                 @if (Model.Product is not null)
                 {
-                    <span class="inventory-eyebrow">Producto</span><h2 class="h3 mb-1">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@Model.Product.Id">@Model.Product.Sku</a> } else { @Model.Product.Sku }</h2><p class="mb-0 text-muted">@(Model.Product.Description ?? "Sin descripción")</p>
+                    <span class="inventory-eyebrow">Producto</span><h2 class="h3 mb-1">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@Model.Product.Id">@Model.Product.Sku</a> } else { @Model.Product.Sku }</h2><p class="mb-0 text-muted">@(Model.Product.Description ?? "Sin descripción")</p>
                     @if (!Model.Product.IsActive) { <span class="badge text-bg-secondary mt-2">Producto inactivo</span> }
                 }
                 else if (Model.Location is not null)
@@ -53,21 +53,34 @@
                 }
             </div>
             @if (Model.Product is not null) { <div class="inventory-total"><span>Total global</span><strong>@Model.ProductTotal.ToString("0.####") @Model.Product.UnitCode</strong></div> }
-            <a asp-page="Index" class="btn btn-outline-secondary">Nueva consulta</a>
+            <div class="inventory-identity-actions">
+                @if (isAdmin && Model.Product is not null)
+                {
+                    <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@Model.Product.Id" class="btn btn-outline-primary">Ficha</a>
+                    <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-secondary">Movimientos</a>
+                    <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-search="@Model.Product.Sku" asp-route-status="all" asp-route-viewMode="map" class="btn btn-outline-secondary">Croquis</a>
+                }
+                else if (isAdmin && Model.Location is not null)
+                {
+                    <a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@Model.Location.Id" class="btn btn-outline-primary">Ficha</a>
+                    <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Location.Code" class="btn btn-outline-secondary">Movimientos</a>
+                    <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-status="all" asp-route-viewMode="map" asp-route-highlightLocationId="@Model.Location.Id" class="btn btn-outline-secondary">Croquis</a>
+                }
+                <a asp-page="Index" class="btn btn-outline-secondary">Nueva consulta</a>
+            </div>
         </section>
 
-        <section class="inventory-metrics" aria-label="Resumen de existencias">
-            <article><strong>@Model.Results.Summary.Positions</strong><span>@(Model.Product is not null ? "Ubicaciones" : "Productos")</span></article>
-            <article><strong>@Model.Results.Summary.WithBalance</strong><span>Con saldo</span></article>
-            <article><strong>@Model.Results.Summary.Negative</strong><span>Negativos</span></article>
-            <article><strong>@Model.Results.Summary.ActiveAssignments</strong><span>Asignados</span></article>
-            <article><strong>@Model.Results.Summary.UnassignedBalances</strong><span>Sin asignación</span></article>
-        </section>
-
-        <nav class="inventory-filter-tabs" aria-label="Filtrar posiciones">
-            @foreach (var item in new[] { ("all", "Todos"), ("balance", "Con saldo"), ("negative", "Negativos"), ("assigned-zero", "Asignados en cero"), ("unassigned-balance", "Sin asignación") })
+        <nav class="inventory-filter-cards" aria-label="Resumen y filtros de existencias">
+            @foreach (var item in new[]
             {
-                <a class="@(filter == item.Item1 ? "active" : null)" aria-current="@(filter == item.Item1 ? "page" : null)" asp-route-productId="@Model.Product?.Id" asp-route-locationId="@Model.Location?.Id" asp-route-filter="@item.Item1" asp-route-highlightLocationId="@Model.HighlightLocationId" asp-route-highlightProductId="@Model.HighlightProductId">@item.Item2</a>
+                (Code: "all", Label: Model.Product is not null ? "Todas las ubicaciones" : "Todos los productos", Count: Model.Results.Summary.Positions),
+                (Code: "balance", Label: "Con saldo", Count: Model.Results.Summary.WithBalance),
+                (Code: "negative", Label: "Negativos", Count: Model.Results.Summary.Negative),
+                (Code: "assigned-zero", Label: "Asignados en cero", Count: Model.Results.Summary.AssignedZero),
+                (Code: "unassigned-balance", Label: "Saldo sin asignación", Count: Model.Results.Summary.UnassignedBalances)
+            })
+            {
+                <a class="@(filter == item.Code ? "active" : null)" aria-current="@(filter == item.Code ? "page" : null)" asp-route-productId="@Model.Product?.Id" asp-route-locationId="@Model.Location?.Id" asp-route-filter="@item.Code" asp-route-highlightLocationId="@Model.HighlightLocationId" asp-route-highlightProductId="@Model.HighlightProductId"><strong>@item.Count</strong><span>@item.Label</span></a>
             }
         </nav>
 
@@ -80,11 +93,12 @@
             @foreach (var position in Model.Results.Items)
             {
                 var highlighted = position.LocationId == Model.HighlightLocationId || position.ProductId == Model.HighlightProductId;
-                <article class="inventory-position @(highlighted ? "is-highlighted" : null)" @(highlighted ? "tabindex=-1" : null)>
-                    <div class="inventory-position-product"><span class="inventory-card-label">Producto</span>@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@position.ProductId" class="fw-bold">@position.ProductSku</a> } else { <strong>@position.ProductSku</strong> }<small>@(position.ProductDescription ?? "Sin descripción")</small>@if (!position.ProductIsActive) { <span class="badge text-bg-secondary">Producto inactivo</span> }</div>
+                <article class="inventory-position @(highlighted ? "is-highlighted" : null)" tabindex="@(highlighted ? "-1" : null)" data-inventory-highlighted="@(highlighted ? "true" : null)">
+                    @if (highlighted) { <span class="visually-hidden">Resultado destacado desde Alertas.</span> }
+                    <div class="inventory-position-product"><span class="inventory-card-label">Producto</span>@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@position.ProductId" class="fw-bold">@position.ProductSku</a> } else { <strong>@position.ProductSku</strong> }<small>@(position.ProductDescription ?? "Sin descripción")</small>@if (!position.ProductIsActive) { <span class="badge text-bg-secondary">Producto inactivo</span> }</div>
                     <div class="inventory-position-location"><span class="inventory-card-label">Ubicación</span>@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@position.LocationId" class="fw-bold">@position.LocationCode</a> } else { <strong>@position.LocationCode</strong> }<small>@(position.LocationDescription ?? "Ubicación operativa")</small>@if (!position.LocationIsActive) { <span class="badge text-bg-secondary">Ubicación inactiva</span> } else if (position.LocationIsBlocked) { <span class="badge text-bg-warning">Ubicación bloqueada</span> }</div>
-                    <div class="inventory-position-state"><span class="inventory-card-label">Estado</span>@if (position.HasActiveAssignment) { <span class="badge text-bg-success">Asignado</span> } else { <span class="badge text-bg-secondary">Sin asignación</span> } @if (position.IsNegative) { <span class="badge text-bg-danger">Saldo negativo</span> }</div>
-                    <div class="inventory-position-quantity"><span class="inventory-card-label">Cantidad</span><strong>@position.Quantity.ToString("0.####") @position.UnitCode</strong></div>
+                    <div class="inventory-position-state"><span class="inventory-card-label">Estado</span>@if (position.HasActiveAssignment && position.Quantity == 0) { <span class="badge text-bg-secondary">Asignado · saldo cero</span> } else if (position.HasActiveAssignment) { <span class="badge text-bg-success">Asignado · con saldo</span> } else { <span class="badge text-bg-warning">Saldo sin asignación</span> } @if (position.IsNegative) { <span class="badge text-bg-danger">Saldo negativo</span> }</div>
+                    <div class="inventory-position-quantity @(position.IsNegative ? "is-negative" : null)"><span class="inventory-card-label">Cantidad</span><strong>@position.Quantity.ToString("0.####") @position.UnitCode</strong></div>
                 </article>
             }
         </section>
@@ -95,5 +109,5 @@
         }
     }
 
-    <div class="modal fade" id="inventory-camera-scanner" tabindex="-1" aria-hidden="true" data-inventory-camera-modal><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5">Escanear código</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><div class="camera-preview" data-inventory-camera-preview><video class="w-100" autoplay muted playsinline data-inventory-camera-video></video></div><p class="mb-0 mt-3" role="status" aria-live="polite" data-inventory-camera-status>Preparando cámara…</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-lg d-none" data-camera-switch>Cambiar cámara</button><label class="btn btn-outline-primary btn-lg mb-0" for="inventory-camera-photo">Tomar foto</label><input id="inventory-camera-photo" class="visually-hidden" type="file" accept="image/*" capture="environment" data-inventory-camera-photo /><button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Cancelar</button></div></div></div></div>
+    <div class="modal fade" id="inventory-camera-scanner" tabindex="-1" aria-labelledby="inventory-camera-scanner-title" aria-hidden="true" data-inventory-camera-modal><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="inventory-camera-scanner-title">Escanear código</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><div class="camera-preview" data-inventory-camera-preview><video class="w-100" autoplay muted playsinline data-inventory-camera-video></video></div><p class="mb-0 mt-3" role="status" aria-live="polite" data-inventory-camera-status>Preparando cámara…</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-lg d-none" data-camera-switch>Cambiar cámara</button><label class="btn btn-outline-primary btn-lg mb-0" for="inventory-camera-photo">Tomar foto</label><input id="inventory-camera-photo" class="visually-hidden" type="file" accept="image/*" capture="environment" data-inventory-camera-photo /><button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Cancelar</button></div></div></div></div>
 </div>

@@ -1,0 +1,104 @@
+@page "{id:guid}"
+@using WarehouseEPI.Core.Entities
+@model WarehouseEPI.Web.Pages.Operations.CycleCounts.DetailsModel
+@{
+    ViewData["Title"] = "Campaña de conteo";
+    var campaign = Model.Campaign!;
+    var completed = campaign.Locations.Count(item => item.Status == CycleCountLocationStatus.Completed);
+    var reviewing = campaign.Locations.Count(item => item.Status is CycleCountLocationStatus.UnderReview or CycleCountLocationStatus.Stale);
+    var counting = campaign.Locations.Count(item => item.Status is CycleCountLocationStatus.Counting or CycleCountLocationStatus.RecountRequested);
+    var progress = campaign.Locations.Count == 0 ? 0 : (int)Math.Round(completed * 100d / campaign.Locations.Count);
+    var canStart = campaign.Status is CycleCountCampaignStatus.Released or CycleCountCampaignStatus.InProgress or CycleCountCampaignStatus.UnderReview;
+    var rowGroups = campaign.Locations.GroupBy(item => item.RowCode ?? "Áreas").OrderBy(group => group.Key == "Áreas").ThenBy(group => group.Key).ToArray();
+}
+
+<div class="inventory-analytics cycle-count-workspace">
+    <header class="inventory-page-header cycle-detail-header">
+        <div><a asp-page="Index" class="small text-decoration-none">← Conteos cíclicos</a><span class="eyebrow mt-2">@campaign.Folio</span><h1 class="h2 mb-1">@(campaign.Title ?? "Campaña sin título")</h1><p class="text-muted mb-0">Creada por @campaign.CreatedByName · varios operadores pueden contar ubicaciones diferentes.</p></div>
+        <div class="cycle-detail-header-actions"><span class="badge @CycleCountPresentation.CampaignStatusClass(campaign.Status)">@CycleCountPresentation.CampaignStatusLabel(campaign.Status)</span><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="xlsx" class="btn btn-outline-success">Excel</a><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="csv" class="btn btn-outline-secondary">CSV</a></div>
+    </header>
+
+    @if (Model.Error is not null) { <div class="alert alert-danger" role="alert">@Model.Error</div> }
+
+    <section class="cycle-detail-overview" aria-label="Resumen de campaña">
+        <article><span>Progreso</span><strong>@completed / @campaign.Locations.Count</strong><div class="progress" role="progressbar" aria-label="Progreso de la campaña" aria-valuenow="@progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:@progress%"></div></div></article>
+        <article><span>En conteo</span><strong>@counting</strong><small>Ubicaciones iniciadas o en reconteo</small></article>
+        <article class="@(reviewing > 0 ? "has-attention" : null)"><span>Requieren atención</span><strong>@reviewing</strong><small>Diferencias o saldo modificado</small></article>
+    </section>
+
+    @if (campaign.Status == CycleCountCampaignStatus.Draft)
+    {
+        <section class="analytics-filter-card cycle-primary-panel" aria-labelledby="release-campaign-title">
+            <div><span class="eyebrow">Siguiente paso</span><h2 id="release-campaign-title" class="h5 mb-1">Liberar para comenzar</h2><p class="text-muted mb-0">Después de liberar, los operadores podrán iniciar ubicaciones usando su propio NIP.</p></div>
+            <form method="post" asp-page-handler="Release" class="cycle-inline-action"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="release-pin">NIP para liberar campaña</label><input id="release-pin" type="password" name="Pin" required class="form-control" placeholder="NIP" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><button class="btn btn-primary">Liberar campaña</button></form>
+        </section>
+    }
+    else if (campaign.Status == CycleCountCampaignStatus.Completed)
+    {
+        <div class="alert alert-success mb-0"><strong>Campaña completada.</strong> Todas las ubicaciones quedaron conciliadas o autorizadas.</div>
+    }
+    else if (campaign.Status == CycleCountCampaignStatus.Cancelled)
+    {
+        <div class="alert alert-secondary mb-0"><strong>Campaña cancelada.</strong> Se conserva para consulta y auditoría.</div>
+    }
+
+    <section aria-labelledby="cycle-location-work-title">
+        <div class="cycle-section-heading cycle-location-heading"><div><span class="eyebrow">Trabajo por ubicación</span><h2 id="cycle-location-work-title" class="h4 mb-1">Ubicaciones de la campaña</h2><p class="text-muted mb-0">Abre una fila y continúa con la ubicación que te corresponde.</p></div><span class="cycle-location-total">@campaign.Locations.Count ubicaciones</span></div>
+
+        <div class="cycle-detail-groups">
+            @foreach (var row in rowGroups)
+            {
+                <details class="cycle-detail-row" open="@(rowGroups.Length == 1)">
+                    <summary><span><strong>@(row.Key == "Áreas" ? "Áreas de almacenamiento" : $"Fila {row.Key}")</strong><small>@row.Count() ubicaciones</small></span><span>@row.Count(item => item.Status == CycleCountLocationStatus.Completed) completadas</span></summary>
+                    <div class="cycle-detail-row-body">
+                        @foreach (var rack in row.GroupBy(item => item.RackNumber).OrderBy(group => group.Key is null).ThenBy(group => group.Key))
+                        {
+                            <section class="cycle-detail-rack" aria-label="@(rack.Key is null ? "Áreas" : $"Rack {row.Key}-{rack.Key}")">
+                                <header><h3 class="h6 mb-0">@(rack.Key is null ? "Ubicaciones especiales" : $"Rack {row.Key}-{rack.Key}")</h3><span>@rack.Count(item => item.Status == CycleCountLocationStatus.Completed) / @rack.Count()</span></header>
+                                <div class="cycle-location-cards">
+                                    @foreach (var location in rack)
+                                    {
+                                        <article class="cycle-location-card">
+                                            <div class="cycle-location-card-main"><div><strong>@location.LocationCode</strong><small>@(location.LocationDescription ?? "Sin descripción")</small></div><span class="badge @CycleCountPresentation.LocationStatusClass(location.Status)">@CycleCountPresentation.LocationStatusLabel(location.Status)</span></div>
+                                            <dl><div><dt>Intentos</dt><dd>@location.AttemptCount</dd></div><div><dt>Resultado</dt><dd>@if (location.AdjustmentMovementId is Guid movementId) { <a asp-page="/Operations/Receipt" asp-route-id="@movementId">Ajuste aplicado</a> } else if (location.Status == CycleCountLocationStatus.Completed) { <span>Conciliada</span> } else { <span>Pendiente</span> }</dd></div></dl>
+                                            <div class="cycle-location-card-action">
+                                                @if (location.Status == CycleCountLocationStatus.UnderReview)
+                                                {
+                                                    <a asp-page="Review" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" class="btn btn-warning w-100">Revisar diferencia</a>
+                                                }
+                                                else if (canStart && location.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)
+                                                {
+                                                    var pinId = $"start-pin-{location.Id:N}";
+                                                    <form method="post" asp-page-handler="Start"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="locationId" value="@location.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="@pinId">NIP para iniciar @location.LocationCode</label><input id="@pinId" type="password" name="Pin" required class="form-control" placeholder="NIP" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><button class="btn btn-outline-primary">Iniciar conteo</button></form>
+                                                }
+                                                else if (location.Status == CycleCountLocationStatus.Counting)
+                                                {
+                                                    @if (location.ActiveAttemptId is Guid attemptId)
+                                                    {
+                                                        <a asp-page="Count" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" asp-route-attemptId="@attemptId" class="btn btn-primary w-100">Continuar conteo</a>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="cycle-location-note">El intento abierto no está disponible. Actualiza la página.</span>
+                                                    }
+                                                }
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+                </details>
+            }
+        </div>
+    </section>
+
+    @if (campaign.Status is not (CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled))
+    {
+        <details class="cycle-danger-zone">
+            <summary>Cancelar campaña</summary>
+            <div><p>La cancelación conserva la campaña y su auditoría, pero impide iniciar nuevos conteos.</p><form method="post" asp-page-handler="Cancel" class="cycle-inline-action"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="cancel-pin">NIP para cancelar campaña</label><input id="cancel-pin" type="password" name="Pin" required class="form-control" placeholder="NIP" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><label class="visually-hidden" for="cancel-notes">Motivo de cancelación</label><input id="cancel-notes" type="text" name="Notes" class="form-control" maxlength="500" placeholder="Motivo de cancelación" /><button class="btn btn-outline-danger">Cancelar campaña</button></form></div>
+        </details>
+    }
+</div>

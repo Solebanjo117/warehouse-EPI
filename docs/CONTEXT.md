@@ -1,6 +1,6 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 20 de agosto de 2026.
+Actualizado: 24 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
@@ -11,12 +11,15 @@ requisitos definitivos sin confirmación.
 y conversiones, descartada por decisión del negocio. Las fases 10.1 a 10.3
 están completadas; 10.4 a 10.6 están implementadas; la Release `0.10.7` está
 activa como servicio Windows y 10.8 continúa pospuesta. La fase 11 tiene sus
-principales pantallas implementadas, pero todavía requiere validación física y
-mantiene trabajo parcial en 11.6 y 11.7. WIP está implementado y su migración
-está aplicada, aunque aún no forma parte de una Release publicada ni se ha
-validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están completadas;
-13.3 y 13.4 están implementadas y automatizadas, con validación física
-LAN/tablet pendiente. El siguiente bloque planificado es 13.5. La protección
+principales pantallas implementadas, pero todavía requiere validación física,
+mantiene trabajo parcial en 11.6 y 11.7, e implementa 11.9.1 a 11.9.3 del
+editor arquitectónico ligero. Las migraciones 11.9.1/11.9.2 están aplicadas;
+11.9.3 mantiene migración y validación visual/física pendientes. WIP está implementado
+y su migración está aplicada, aunque aún no forma parte de una Release publicada
+ni se ha validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están
+completadas;
+13.3, 13.4 y 13.5 están implementadas y automatizadas, con validación física
+LAN/tablet/lector/impresora pendiente. El siguiente bloque planificado es 13.6. La protección
 de `main` exige el check `Quality`.
 
 ## 1. Objetivo
@@ -875,11 +878,142 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   Falta validar físicamente geometría, orientación, zoom, interacción táctil y
   temas Claro/Oscuro en laptop y tablets reales.
 
+#### Fase 11.9: editor arquitectónico ligero del croquis — en implementación
+
+El objetivo es permitir que un ADMIN mantenga delimitaciones físicas del
+almacén con una experiencia semejante a un editor básico de planos, sin
+convertir Warehouse EPI en un CAD general. La ampliación reutilizará Razor
+Pages, SVG, Bootstrap y JavaScript local; no dependerá de Internet ni cargará
+sus herramientas fuera de la ruta de edición ADMIN.
+
+La capa arquitectónica permanecerá separada de la capa operativa. Dibujar o
+mover muros, pasillos, puertas, zonas, textos o cotas no podrá crear ni
+renombrar ubicaciones, cambiar códigos `Fila-Rack-Pallet`, saldos, movimientos,
+lotes o asignaciones. Los racks y áreas operativas seguirán procediendo del
+catálogo y las adiciones continuarán entrando por **Sin colocar**. Todas las
+revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
+
+##### Fase 11.9.1: modelo arquitectónico, capas y compatibilidad — implementada; migración aplicada, validación visual/física pendiente
+
+- `WarehouseMapLayer` separa Estructura, Pasillos, Zonas, Textos, Medidas y
+  Ubicaciones operativas. El bloqueo forma parte de la revisión; mostrar u
+  ocultar es una preferencia local del editor y nunca cambia la consulta.
+- `WarehouseMapArchitecturalElement` persiste rectángulos, polilíneas y textos
+  mediante geometría JSONB validada, estilos semánticos y orden. No tiene
+  relación con `Location`, asignaciones o inventario y 11.9.1 no expone altas,
+  bajas, estilos, dibujo, vértices ni redimensionado arquitectónico.
+- Sin datos persistidos, el servicio reproduce con IDs estables los 17
+  elementos del SVG público completo: perímetro, seis divisiones, cuatro zonas
+  y seis textos. Consulta y editor usan un solo renderizador Razor; el archivo
+  `warehouse-floor-base.svg` permanece sin cambios como respaldo.
+- El primer guardado válido con NIP ADMIN persiste ese fondo y seis capas dentro
+  de la misma transacción que la geometría operativa. La versión aumenta una
+  vez, la idempotencia incluye las tres colecciones y la auditoría JSON usa
+  esquema 2 con antes/después de operación, capas y arquitectura. Revisiones
+  anteriores permanecen intactas.
+- El editor permite desbloquear una capa y desplazar sus primitivas, incluso por
+  teclado, pero impide mezclar arquitectura y ubicaciones en una selección. Las
+  funciones existentes de racks y **Sin colocar** conservan su contrato.
+- La migración `20260824183000_AddWarehouseMapArchitecture` crea únicamente
+  `warehouse_map_layers` y `warehouse_map_architectural_elements`; el 24 de agosto
+  de 2026 se verificó aplicada en `__EFMigrationsHistory`. Build Release pasó sin advertencias,
+  Las pruebas focales y la prueba PostgreSQL aislada del croquis aprobaron. La
+  validación visual en navegador y prueba física en laptop/tablet continúan
+  pendientes.
+
+##### Fase 11.9.2: dibujo y edición básica de plano — implementada; migración aplicada, validación visual/física pendiente
+
+- El editor ADMIN incorpora Seleccionar, Desplazar, Muro, Rectángulo, Polígono,
+  Puerta, Pasillo, Zona y Texto como presets de `Rectangle`, `Polyline` y
+  `Text`; no se añadieron tipos persistidos ni dependencias de Internet.
+- El payload arquitectónico contiene definición, geometría y estilo completos.
+  Admite IDs nuevos generados con Web Crypto, pero exige conservar todos los
+  IDs persistidos y rechaza cambios de tipo, capa, orden o bloqueo individual.
+  Solo un objeto aún no guardado puede descartarse.
+- Rectángulos se dibujan por arrastre y las polilíneas por puntos con
+  Finalizar/Enter/doble clic, Cancelar/Escape y vértices editables. El panel de
+  propiedades ofrece posición, tamaño contextual, rotación ortogonal, texto,
+  trazo, relleno, grosor y línea discontinua; selección múltiple arquitectónica
+  conserva movimiento y estilos comunes sin mezclarse con ubicaciones.
+- La cuadrícula usa un único `<pattern>` de 10, 25 o 50 unidades. Visibilidad y
+  ajuste se guardan solo en `localStorage`; snapping prioriza extremos, centros
+  y guías, Alt lo suspende. Zoom 25–400 %, encajar, rueda, pan, coordenadas y
+  gesto de pinza no forman parte del POST.
+- El servicio valida hasta 500 objetos, 64 puntos, estilos semánticos, capas
+  desbloqueadas y límites transformados de `1600 × 900`. La auditoría usa
+  esquema 3 con antes/después completos y altas; la versión aumenta una vez y
+  la idempotencia incluye la definición completa.
+- `20260824210000_ExpandWarehouseMapArchitectureStyles` solo amplía la
+  restricción de estilos de las tablas arquitectónicas; el 24 de agosto de 2026
+  se verificó aplicada en `__EFMigrationsHistory`. Build Release, `node --check`, 46 pruebas focales y la prueba
+  PostgreSQL aislada aprobaron. No hubo navegador activo; validación visual y
+  prueba física en laptop/tablet permanecen pendientes.
+
+##### Fase 11.9.3: productividad, escala imperial y validaciones — implementada; migración y validación visual/física pendientes
+
+- La arquitectura permite duplicar, copiar/pegar dentro del editor, agrupación
+  persistente sin anidamiento, distribución, bloqueo individual y orden estable
+  dentro de una capa. Los IDs nuevos se generan con Web Crypto; estas acciones
+  no se ofrecen a ubicaciones operativas.
+- El marco de selección puede iniciarse sobre arquitectura bloqueada y vuelve a
+  seleccionar varios objetos por arrastre. Mantiene separadas arquitectura y
+  ubicaciones, respeta la selección aditiva y expande grupos arquitectónicos
+  completos.
+- Retirar arquitectura persistida usa `IsArchived`: desaparece de la consulta,
+  conserva su fila y puede restaurarse desde el editor. Los grupos se archivan y
+  restauran juntos; ningún POST puede omitir o eliminar físicamente un ID guardado.
+- El layout persiste `ScaleUnitsPerInch` y `MeasurementSystem`. El sistema
+  predeterminado es `IMPERIAL` con pulgadas/yardas sin pies; puede publicar cm/m
+  sin recalibrar. Las cotas son pares `Polyline` + `Text` agrupados en
+  `DIMENSIONS`, con texto derivado de la escala.
+- Un handler ADMIN de revisión valida sin escribir y resume ubicaciones, capas,
+  altas, modificaciones, archivados, restauraciones, escala y unidades antes de
+  solicitar el NIP. El guardado vuelve a validar, conserva idempotencia y registra
+  esquema 4 con antes/después completos dentro de una sola transacción.
+- Geometrías, escala, grupos y cotas inválidos bloquean. Pasillos menores de 32
+  pulgadas, rack-rack, zona-zona y racks dentro de pasillos son advertencias
+  textuales no normativas que identifican los elementos afectados.
+- `20260824233000_AddWarehouseMapProductivityScale` agrega únicamente escala y
+  unidades al layout, y grupo/archivado a arquitectura. El snapshot no tiene
+  cambios pendientes; aplicar, revertir y reaplicar en `warehouse_epi_test`
+  preservó ubicaciones. No se aplicó a `warehouseEPI`.
+- Build Release, pruebas focales, `node --check` y pruebas PostgreSQL aisladas
+  aprobaron. El servicio estaba detenido, por lo que el error runtime de
+  Ubicaciones y la validación visual Claro/Oscuro/responsive no pudieron
+  comprobarse sin cambiar el estado operativo; la prueba física continúa pendiente.
+
+##### Fase 11.9.4: rendimiento, fondo de referencia y validación física — propuesta
+
+- Optimizar movimiento y redimensionado mediante `requestAnimationFrame`,
+  limitar recálculos a elementos o capas afectados y evitar observadores o
+  efectos globales. La consulta normal del croquis no cargará el código del
+  editor.
+- Diseñar para un plano habitual de 100 a 300 objetos y comprobar de forma
+  dirigida un caso de 500 objetos. Si el volumen real supera ese rango, medir
+  antes de incorporar virtualización u otra complejidad.
+- Permitir opcionalmente una imagen raster local comprimida como fondo de
+  referencia, con opacidad, bloqueo y calibración. El formato, tamaño máximo,
+  almacenamiento y retención deberán definirse antes de implementarlo; no se
+  incrustarán fotografías grandes directamente en cada revisión JSON.
+- Verificar en navegador los temas Claro/Oscuro/Sistema, teclado, foco, zoom,
+  selección, textos largos y recuperación ante error. Mantener pendiente la
+  validación física hasta probar ratón en laptop y gesto/tacto en tablet Android
+  horizontal y vertical con un plano de tamaño real.
+- Criterio de cierre: edición fluida en el hardware objetivo, guardado y recarga
+  sin pérdida geométrica, consulta liviana y evidencia separada de pruebas
+  automatizadas, navegador y dispositivos físicos.
+
+Quedan fuera de 11.9 la importación o exportación DWG/DXF, curvas Bézier,
+bibliotecas CAD completas, colaboración simultánea en tiempo real, cálculo
+estructural, rutas automáticas de evacuación y reglas legales no confirmadas.
+Importar PDF o intercambiar formatos técnicos se evaluará después de validar el
+editor SVG y demostrar una necesidad operativa concreta.
+
 ### Fase 12: etiquetas, trazabilidad de proceso y piloto conectado
 
 La incorporación de 12.1 a 12.3 documenta una necesidad nueva. Los bloques de
-reporting 13.3 y 13.4 ya fueron implementados; antes de iniciar la fase 12 se
-debe confirmar su prioridad frente a 13.5 y cerrar las decisiones operativas
+reporting 13.3 a 13.5 ya fueron implementados; antes de iniciar la fase 12 se
+debe confirmar su prioridad frente a 13.6 y cerrar las decisiones operativas
 pendientes.
 
 #### Fase 12.1: catálogo único y generación centralizada de documentos — propuesta
@@ -905,6 +1039,45 @@ pendientes.
   tamaño mínimo y densidad adecuada para la impresora, y validarse leyendo una
   muestra real. Los Excel actuales mezclan `Libre Barcode 128` y
   `Libre Barcode 39`; la simbología final de cada campo debe quedar explícita.
+
+##### Fase 12.1.1: editor visual de etiquetas — propuesta
+
+- Incorporar una pantalla exclusivamente ADMIN para diseñar etiquetas con una
+  experiencia inspirada en Canva o PowerPoint, pero limitada al dominio de
+  impresión: lienzo con dimensiones físicas, cuadrícula, guías, zoom, ajuste
+  magnético, selección, arrastre, redimensionado, rotación, alineación,
+  distribución, orden de capas, duplicado y deshacer/rehacer.
+- Permitir texto, imágenes locales autorizadas, líneas, rectángulos y códigos de
+  barras, además de campos dinámicos seleccionables —SKU, descripción, código,
+  cantidad, unidad, lote, fechas, orden de compra, placa de pallet, proveedor,
+  responsable y datos aprobados de producción—. No permitir HTML, JavaScript,
+  URLs, fuentes o imágenes remotas ni expresiones arbitrarias.
+- Guardar cada diseño como un documento JSON validado por el servidor con
+  tamaño, orientación, DPI objetivo, elementos, coordenadas, estilos y enlaces
+  a campos permitidos. El navegador no será autoridad de integridad; el servidor
+  rechazará tipos desconocidos, coordenadas fuera del lienzo, recursos no
+  autorizados y campos incompatibles con la familia de etiqueta.
+- Manejar estados **Borrador**, **En validación**, **Publicado** y **Retirado**.
+  Solo las versiones publicadas estarán disponibles para operación. Publicar
+  crea una versión inmutable; una modificación posterior parte de una copia y
+  nunca cambia el diseño histórico usado por impresiones anteriores.
+- Ofrecer vista previa con un producto o movimiento real, prueba con SKU corto y
+  largo, y advertencias textuales por desbordamiento, texto recortado, contraste,
+  zona silenciosa insuficiente, código demasiado denso o elementos fuera del
+  área imprimible. El color no será el único indicador.
+- Mantener separadas la edición y la operación: ADMIN diseña, valida, publica y
+  retira; ADMIN u OPERATOR seleccionan una plantilla publicada, completan los
+  datos permitidos y el número de copias. El operador no mueve elementos ni
+  altera estilos durante la impresión.
+- Reutilizar Razor Pages, Bootstrap, SVG, CSS y JavaScript local. El editor se
+  cargará únicamente en su ruta ADMIN y evitará introducir un framework SPA o
+  una dependencia de Internet. Debe conservar temas Claro/Oscuro/Sistema,
+  teclado, foco visible, objetivos táctiles y `prefers-reduced-motion`.
+- El primer cierre será deliberadamente menor que Canva: sin colaboración en
+  tiempo real, animaciones, video, efectos fotográficos, complementos, HTML
+  libre, scripting, fuentes web ni importación directa de PowerPoint/Canva.
+  Importar/exportar formatos externos se evaluará después de validar el editor
+  y las impresoras reales.
 
 #### Fase 12.2: placa de pallet al recibir — propuesta; contrato pendiente
 
@@ -953,7 +1126,7 @@ pendientes.
 
 - Dividida en 6 subfases incrementales: 13.1 (contrato analítico y movimientos
   efectivos), 13.2 (reportes tabulares y exportación segura), 13.3 (tablero
-  diario LAN y gráficos reactivos), 13.4 (analítica de ocupación, rotación y
+  diario LAN y gráficos reactivos), 13.4 (analítica de ocupación, actividad de salidas y
   estancamiento),
   13.5 (conteos cíclicos persistentes y ajustes autorizados) y 13.6 (alertas
   operativas y croquis interactivo).
@@ -964,32 +1137,35 @@ pendientes.
 - Helper LINQ centralizado `EffectiveMovementQuery.cs` que excluye automáticamente movimientos originales corregidos (`OriginalMovementId`) y reversos (`ReversalMovementId`), conservando movimientos estándar y reemplazos vigentes (incluyendo cadenas de corrección múltiple).
 - Prohibición estricta de suma de unidades heterogéneas: totales globales y gráficos generales se expresan en número de operaciones efectivas, líneas o SKUs distintos. Las cantidades físicas solo se totalizan por SKU, por unidad base homogénea o con desglose tabular por unidad.
 - Ocupación física de racks clasificada en 5 estados mutuamente excluyentes (Inactiva, Bloqueada, Negativa, Ocupada > 0, Vacía = 0) con fórmula protegida contra división por cero.
-- Rotación determinista (`EffectiveExitMovementCount DESC, QuantityInBaseUnit DESC, Sku ASC`) y estancamiento en 4 rangos de antigüedad (30-59 días, 60-89 días, 90+ días y sin salida histórica) calculados con `WarehouseClock`.
+- Actividad de salidas determinista (`EffectiveExitMovementCount DESC, QuantityInBaseUnit DESC, Sku ASC`) y estancamiento en 4 rangos de antigüedad (30-59 días, 60-89 días, 90+ días y sin salida histórica) calculados con `WarehouseClock`.
 - Pruebas xUnit de filtros, correcciones encadenadas, anulaciones, ajustes y salvaguardas, más prueba de integración en PostgreSQL real `warehouse_epi_test` para validar la traducción nativa de la consulta —incluida la búsqueda por folio— sin evaluación en memoria.
 
 #### Fase 13.2: reportes tabulares y exportación segura — completada
 
 - `MovementReportService.cs`: Consultas paginadas, ordenadas y filtradas por fecha local/UTC, propósito, tipo, producto, ubicación, responsable, folio y búsqueda. Producto y ubicación aceptan fragmentos sin distinguir mayúsculas; producto cubre SKU, descripción, referencia y códigos de barras, mientras ubicación cubre área, origen, destino y cambios históricos de saldo. Los lotes y sus ubicaciones se reconstruyen desde las instantáneas históricas de `InventoryBalanceChange`, y los ajustes distinguen saldo anterior, diferencia y saldo resultante.
 - `ReportExportService.cs`: Exportación a Excel `.xlsx` con ClosedXML (celdas de fecha nativas, cantidades numéricas reales `#,##0.0000`, filtros aplicados y textos forzados a string sin fórmula) y exportación a CSV RFC 4180 con UTF-8 BOM (`0xEF, 0xBB, 0xBF`), metadatos de zona horaria/filtros y defensa contra formula injection (`'`, `=`/`+`/`-`/`@`) aplicada estrictamente a campos de texto sin alterar números negativos. El límite de 10,000 se calcula sobre líneas de detalle y rechaza explícitamente la exportación completa en vez de truncarla silenciosamente.
-- Interfaz Razor `/Admin/Reports/Movements/Index.cshtml` con filtros de período rápido, tabla responsiva con badges de tipo/propósito y desglose de líneas. Enlace integrado en la navegación de `_Layout.cshtml` bajo la política `AdminOnly`.
-- Suite dirigida ampliada a 26 pruebas unitarias y de integración xUnit aprobadas al 100%, con compilación en Release sin advertencias ni errores.
+- Interfaz ADMIN unificada `/Admin/Inventory/Movements` con vista predeterminada de movimientos efectivos vigentes y pestaña de auditoría completa para originales corregidos, reversos y reemplazos. Comparte filtros reproducibles de período, tipo, propósito, producto, ubicación, responsable y búsqueda; cada operación enlaza al detalle existente y conserva el retorno al listado filtrado. La ruta anterior `/Admin/Reports/Movements` redirige por compatibilidad, y `_Layout.cshtml` mantiene una sola entrada **Movimientos** bajo la política `AdminOnly`.
+- Las exportaciones Excel/CSV de ambas vistas se generan mediante `ReportExportService`: reproducen población y filtros, limitan 10,000 filas reales, conservan tipos nativos y aplican defensas contra formula injection. Auditoría añade estado de corrección y cambios históricos sin alterar movimientos ni saldos.
+- Suite dirigida de consultas, exportaciones, rutas y traducción PostgreSQL aprobada, con compilación en Release sin advertencias ni errores. La validación visual y física en laptop/tablet permanece pendiente.
 
 #### Fase 13.3: tablero diario LAN y gráficos reactivos — implementada; validación física pendiente
 
 - `DailyDashboardService.cs` calcula por fecha local movimientos efectivos y
-  ajustes del día, posiciones negativas agrupadas por producto + ubicación y
+  ajustes del día, saldos negativos agrupados por producto + ubicación y
   productos activos bajo mínimo. La tendencia conserva 14 días calendario,
   incluidos días sin actividad, y expresa entradas, salidas, transferencias,
   ajustes y SKUs distintos sin sumar cantidades de unidades heterogéneas.
 - `/Reports/Dashboard` es una página pública de solo lectura para la LAN, con
   carga inicial renderizada en servidor, cuatro tarjetas y barras apiladas
-  nativas que no incorporan dependencias gráficas externas. Los enlaces hacia
-  reportes y alertas administrativas aparecen únicamente con sesión ADMIN.
+  nativas que no incorporan dependencias gráficas externas. Negativos y mínimos
+  enlazan para todos los usuarios al detalle público de excepciones; movimientos
+  y ajustes conservan su detalle únicamente para ADMIN.
 - El handler JSON `Metrics` usa `Cache-Control: no-store`; los snapshots
   inmutables se comparten durante 30 segundos en memoria. El cliente consulta
   cada 60 segundos, evita solicitudes superpuestas, pausa cuando la pestaña está
   oculta y conserva el último dato con advertencia explícita si falla una
-  actualización.
+  actualización. El botón manual invalida únicamente el snapshot del tablero;
+  la hora visible pertenece al snapshot realmente generado.
 - La mejora visual 13.3.1 conserva exactamente el mismo snapshot y añade eje
   con escala, líneas guía, barras con mayor contraste, selección accesible de
   día, detalle táctil/teclado y vistas locales de 7 o 14 días. También muestra
@@ -1013,10 +1189,11 @@ pendientes.
   HTTP 400/host/antiforgery preexistentes de `WebApplicationFactory`. Falta
   validar visualmente actualización, temas y legibilidad en la laptop LAN y
   tablets reales.
-- El alcance propio de 13.3 no mezcla ocupación, rotación, conteos cíclicos ni
-  alertas avanzadas; ocupación y rotación se implementaron después como 13.4.
+- El alcance propio de 13.3 no mezcla ocupación, actividad por SKU, conteos
+  cíclicos ni alertas avanzadas; ocupación y actividad de salidas se
+  implementaron después como 13.4.
 
-#### Fase 13.4: analítica de ocupación, rotación y estancamiento — implementada; validación física pendiente
+#### Fase 13.4: analítica de ocupación, actividad de salidas y estancamiento — implementada; validación física pendiente
 
 - `InventoryAnalyticsService.cs` consume saldos existentes y movimientos
   efectivos, sin crear nuevas tablas ni saldos. La ocupación considera
@@ -1024,35 +1201,86 @@ pendientes.
   y aplica la precedencia inactiva, bloqueada, negativa, ocupada y vacía. Publica
   métricas globales y por fila; la utilización excluye bloqueadas e inactivas y
   protege la división entre cero.
-- La rotación incluye todos los productos filtrados, aun con cero salidas, y
-  admite 30, 90, 180 días o todo el historial. Cuenta salidas efectivas distintas,
-  suma cantidades solo dentro del SKU y su unidad base, conserva existencia
-  actual y última salida histórica y usa orden determinista. El estancamiento
+- La actividad de salidas incluye todos los productos filtrados, aun con cero
+  salidas, y admite 30, 90, 180 días o todo el historial. Cuenta salidas
+  efectivas distintas, suma cantidades solo dentro del SKU y su unidad base,
+  conserva existencia actual y última salida histórica y usa orden determinista;
+  no se presenta como tasa de rotación contra inventario promedio. El estancamiento
   exige existencia positiva y clasifica 30–59, 60–89, 90+ y nunca salió con
   fechas locales del almacén.
 - `/Reports/Inventory` es pública dentro de la LAN, de solo lectura y separada
   de `/Inventory`, Alertas, Ubicaciones y el croquis. Ofrece pestañas GET,
-  búsqueda por SKU/descripción/referencia, estado activo/inactivo/todos, unidad,
-  período y páginas de 25 productos. Las lecturas se comparten en memoria por
-  60 segundos y la clave conserva los filtros. Los productos enlazan a la
-  consulta pública; ficha, alertas y ubicaciones solo aparecen para ADMIN.
-- Rotación y estancamiento se exportan públicamente a CSV RFC 4180 con UTF-8 BOM
-  y a XLSX con números y fechas nativos. Ambas exportaciones conservan filtros,
-  neutralizan fórmulas y rechazan el archivo completo si supera 10,000 productos;
-  ocupación no se exporta en 13.4.
+  búsqueda parcial por SKU/descripción/referencia/código de barras, estado
+  activo/inactivo/todos, unidad, período y páginas de 25 productos ejecutadas en
+  PostgreSQL antes de materializar. Las lecturas se comparten en memoria por 60
+  segundos, la clave conserva los filtros, la hora pertenece al snapshot y
+  `refresh=true` invalida solo la consulta actual.
+- La pestaña pública de excepciones reutiliza `InventoryQueryService`: lista
+  saldos negativos por producto + ubicación y productos bajo mínimo, con enlaces
+  de solo lectura hacia `/Inventory`. Las acciones de catálogo permanecen ADMIN.
+- Actividad de salidas y estancamiento se exportan únicamente con sesión ADMIN a
+  CSV RFC 4180 con UTF-8 BOM o XLSX con números y fechas nativos. El handler
+  rechaza también llamadas directas sin el rol. Ambas exportaciones conservan
+  filtros, neutralizan fórmulas y rechazan el archivo completo si supera 10,000
+  productos; ocupación y excepciones no se exportan.
 - Las pruebas dirigidas cubren estados y precedencia de ocupación, agrupación de
-  lotes, filtros, paginación, ventanas, cero salidas, correcciones encadenadas,
+  lotes, filtros, paginación en servidor, código de barras, ventanas, cero
+  salidas, correcciones encadenadas, caché y refresco manual, hora real del
+  snapshot, rutas públicas de excepciones, autorización directa de exportación,
   límites de estancamiento, límite de exportación, CSV/XLSX, contratos públicos
   y enlaces ADMIN. La consulta se valida además contra PostgreSQL real
-  `warehouse_epi_test`: Reporting y los contratos web dirigidos pasan 41/41.
-  La compilación Release queda sin advertencias ni errores y la suite completa
-  queda en 207/226; sus 19 fallas continúan siendo los HTTP 400/host/antiforgery
-  preexistentes de `WebApplicationFactory`. Falta comprobar visualmente la
-  interfaz, los filtros y las descargas en la laptop LAN y tablets reales; la
-  aplicación no se inició durante esta implementación.
+  `warehouse_epi_test`: Reporting y los contratos web dirigidos pasan 43/43.
+  La compilación Release queda sin advertencias ni errores, `node --check` y
+  `git diff --check` pasan, y la suite completa queda en 223/242; sus 19 fallas
+  continúan siendo los HTTP 400/host/antiforgery preexistentes de
+  `WebApplicationFactory`. La compuerta global de `dotnet format whitespace`
+  sigue bloqueada por formato, finales de línea y codificación preexistentes en
+  conteos cíclicos y migraciones fuera de esta entrega. Falta comprobar
+  visualmente la interfaz, los filtros y las descargas en la laptop LAN y
+  tablets reales; la aplicación no se inició durante esta implementación.
 - La consulta pública de Existencias ya existente no se reimplementó y no se
-  añadieron migraciones ni paquetes. El siguiente bloque planificado es 13.5,
-  conteos cíclicos persistentes y ajustes autorizados.
+  añadieron migraciones ni paquetes. Después se implementó 13.5, conteos
+  cíclicos persistentes y ajustes autorizados.
+
+#### Fase 13.5: conteos cíclicos persistentes y ajustes autorizados — implementada; migración y validación física pendientes
+
+- Se incorporó el modelo persistente de campañas `CC-000001`, ubicaciones,
+  intentos/reconteos, líneas por producto + ubicación y acciones de auditoría.
+  Las campañas y ubicaciones conservan estados explícitos; una ubicación no
+  puede pertenecer a dos campañas abiertas y los intentos anteriores nunca se
+  sobrescriben.
+- `CycleCountService` permite seleccionar posiciones físicas activas por fila,
+  rack o ubicación, liberar y cancelar campañas, iniciar conteos ciegos,
+  registrar cero/ubicación vacía y productos inesperados, solicitar reconteo y
+  autorizar diferencias con NIP de ADMIN u OPERATOR. Los productos conocidos
+  proceden de asignaciones activas o de cualquier saldo distinto de cero.
+- El saldo esperado y su versión agregada se capturan al iniciar. Se comparan
+  antes de enviar y antes de aprobar; cualquier movimiento concurrente marca la
+  posición `Stale` y obliga a iniciar un nuevo intento. Las coincidencias se
+  concilian sin movimiento. Una aprobación genera atómicamente un solo
+  `Adjustment` con propósito `CycleCountAdjustment`, folio de campaña y enlace
+  desde la ubicación contada; no se bloquean ubicaciones.
+- `/Operations/CycleCounts` y sus páginas Create, Details, Count, Review, Print
+  y Export son públicas dentro de la LAN. Todos los cambios usan antiforgery y
+  solicitan NIP; el NIP no se persiste ni se devuelve. La hoja HTML imprimible
+  permanece ciega y los resultados se exportan a CSV UTF-8 BOM o XLSX con
+  números/fechas nativos, defensa contra fórmulas y rechazo completo por encima
+  de 10,000 líneas.
+- La migración `Phase135CycleCounts` crea las cinco tablas y amplía el propósito
+  de movimientos sin agregar paquetes ni saldos paralelos. Se deja generada y
+  pendiente de aplicación deliberadamente; esta implementación no inicia ni
+  publica la aplicación.
+- Las pruebas automatizadas cubren conciliación sin ajuste, aprobación de
+  diferencias, concurrencia `Stale`, reconteo inmutable, campañas superpuestas,
+  exclusión WIP, idempotencia del envío, cantidades inválidas y contratos web
+  de acceso, ceguera, impresión, navegación y exportación. Sigue pendiente la
+  validación física en laptop LAN, tablets, lector HID/cámara e impresora, así
+  como aplicar/auditar la migración en la base de producción mediante el flujo
+  de respaldo habitual. La compilación Release queda en 0 advertencias y 0
+  errores; las 15 pruebas dirigidas de conteos/exportación pasan y la suite
+  completa queda en 218/237. Las mismas 19 fallas HTTP 400/antiforgery del host
+  `WebApplicationFactory` permanecen como línea base preexistente. El siguiente
+  bloque es 13.6, alertas operativas.
 
 ### Fase 14: PWA y operación sin conexión
 
@@ -1101,7 +1329,12 @@ Antes de implementar el área correspondiente, confirmar:
 - si la placa identifica un pallet rastreable o solamente documenta una
   recepción, y cuándo se asigna al recibir de Empaque o de proveedor;
 - número/formato de orden de trabajo, rutas por producto, etapas obligatorias y
-  tratamiento de parciales, rechazo, merma y retrabajo en producción.
+  tratamiento de parciales, rechazo, merma y retrabajo en producción;
+- tamaño máximo de imágenes locales, fuentes permitidas, DPI de diseño,
+  tolerancia de sangrado/márgenes y si se permitirá crear tamaños personalizados
+  además de 6x4, 4x6, 3x1 y 4x4.5;
+- si la publicación de una plantilla requerirá solamente NIP ADMIN o también
+  una segunda aprobación y una muestra física escaneada.
 
 ## 10. Reglas para continuar el desarrollo
 
@@ -1229,10 +1462,13 @@ finales de presentación.
 1. **Catálogo único.** La selección consulta los productos y códigos existentes
    mediante el servicio de catálogo; se retiran `XLOOKUP` y las tres copias de
    `MASTER LIST`.
-2. **Registro de formatos.** Definir códigos estables de plantilla y conservar
-   inicialmente sus diseños como Razor/HTML/CSS versionados en Git. ADMIN puede
-   activar una versión y consultar su historial, pero no se permitirá HTML libre
-   editable desde la interfaz en el primer alcance.
+2. **Registro y edición de formatos.** El motor central guarda códigos estables,
+   versiones y documentos `LabelDesignDocumentV1` validados. El editor ADMIN
+   trabaja en milésimas de pulgada sobre cuatro tamaños registrados; admite
+   texto, campos, Code 128, imágenes locales, líneas y rectángulos, sin HTML,
+   fórmulas, scripts, URLs ni medidas libres. El ciclo es Borrador → En
+   validación → Publicado → Retirado; una versión publicada es inmutable y para
+   modificarla se duplica como el siguiente borrador.
 3. **Código de barras local.** Un `BarcodeRenderingService` encapsula
    `ZXing.Net`, valida el contenido y genera Code 128 como SVG con zona
    silenciosa y texto legible. No depender de `Libre Barcode 128/39`, Excel o
@@ -1241,14 +1477,14 @@ finales de presentación.
    tipada y crea una vista previa exacta. El primer adaptador será HTML/SVG con
    CSS de impresión; un adaptador ZPL se agregará solamente si las impresoras
    confirmadas lo requieren.
-5. **Auditoría.** Persistir un evento por generación/reimpresión con plantilla y
-   versión, snapshot de datos, producto, movimiento/orden relacionado, usuario,
-   fecha, copias y motivo de reimpresión. No es necesario almacenar el SVG si
-   puede reproducirse exactamente desde la versión y el snapshot.
-6. **Seguridad.** ADMIN administra formatos. ADMIN y OPERATOR pueden generar
-   durante una operación permitida, confirmando NIP cuando la impresión queda
-   ligada a una recepción o evento de proceso. Una reimpresión nunca vuelve a
-   aplicar inventario.
+5. **Auditoría administrativa.** Se persisten eventos inmutables de creación,
+   envío a validación, publicación, duplicado y retiro. Esta fase no almacena
+   etiquetas generadas, snapshots, responsables ni eventos de impresión; la
+   reimpresión exacta queda como ampliación futura.
+6. **Seguridad.** ADMIN administra formatos y publica con su sesión, sin NIP.
+   Retirar la versión vigente sí exige motivo y NIP de un ADMIN activo. El
+   generador operativo es público dentro de la LAN y previsualiza sin NIP; una
+   impresión nunca aplica inventario.
 7. **Integraciones.** Entrada desde Empaque/Proveedor puede ofrecer la placa
    después de confirmar el movimiento. Routing genera eventos propios y solo
    crea/vincula una Entrada final mediante un contrato explícito e idempotente.
@@ -1257,21 +1493,67 @@ finales de presentación.
 
 1. Prototipo `LBL-6X4-ZEBRA` con un SKU corto y uno largo; generar Code 128,
    imprimir y volver a decodificar el valor.
-2. Implementar `PLT-LICENSE-PLATE` en modo **label-only**, ligado a una Entrada,
+2. Implementar el editor visual mínimo sobre la plantilla 6x4 ya validada:
+   texto, campos dinámicos, Code 128, imagen local, formas básicas, arrastre,
+   tamaño, alineación, capas, deshacer/rehacer y ciclo
+   Borrador/En validación/Publicado/Retirado.
+3. Implementar `PLT-LICENSE-PLATE` en modo **label-only**, ligado a una Entrada,
    mientras no se apruebe inventario por pallet.
-3. Incorporar `LBL-4X45-RECEIVING` y después las variantes parcial/móvil.
-4. Modelar datos de producción antes de migrar Spouted Bags, Berms, Raincaps y
+4. Incorporar `LBL-4X45-RECEIVING` y después las variantes parcial/móvil.
+5. Modelar datos de producción antes de migrar Spouted Bags, Berms, Raincaps y
    Custom Spout; evitar formularios aislados que vuelvan a duplicar información.
-5. Implementar `DOC-PROCESS-ROUTING` como flujo trazable y luego su versión
+6. Implementar `DOC-PROCESS-ROUTING` como flujo trazable y luego su versión
    imprimible.
-6. Validar cada formato en la impresora y lector reales: dimensiones, DPI,
+7. Validar cada formato en la impresora y lector reales: dimensiones, DPI,
    márgenes, orientación, contraste, zona silenciosa, SKU largo, cantidad de
    copias, reimpresión y lectura desde tablet/HID.
 
 Pruebas mínimas: generación determinista; decodificación de ida y vuelta del
 Code 128; contenido y tamaño de cada plantilla; protección contra texto/HTML
 malicioso; permisos y NIP; auditoría de reimpresión; idempotencia de placa ligada
-a Entrada; y confirmación de que imprimir no cambia saldos ni movimientos.
+a Entrada; validación del esquema JSON; versionado/publicación inmutable;
+desbordamientos y límites del lienzo; deshacer/rehacer; navegación por teclado;
+y confirmación de que editar o imprimir no cambia saldos ni movimientos.
+
+### 12.5 Estado del motor dinámico y editor visual
+
+- `/Operations/Labels` es el generador único: selecciona una versión publicada,
+  busca o lee por HID un producto activo, completa catálogo/campos configurados,
+  captura 1 a 100 copias y genera la vista previa sin NIP. La ruta heredada
+  `/Operations/Labels/4x6` conserva compatibilidad y abre
+  `LBL-6X4-ZEBRA`. La navegación **Etiquetas** separa **Generar etiquetas** de
+  **Diseñar formatos**, visible solo para ADMIN.
+- `/Admin/Labels/Templates` administra plantillas y versiones;
+  `/Admin/Labels/Templates/Edit` ofrece el editor SVG con selección múltiple,
+  arrastre, redimensionado, rotación por propiedades, alineación, distribución,
+  capas, cuadrícula, snapping, zoom, deshacer/rehacer y teclado;
+  `/Admin/Labels/Assets` controla imágenes PNG/JPEG deduplicadas por SHA-256.
+- La migración `DynamicLabelTemplates` crea `label_templates`,
+  `label_template_versions`, `label_assets`, referencias de recursos y eventos
+  administrativos, y precarga únicamente `LBL-6X4-ZEBRA` versión 1 publicada.
+  El usuario confirmó el 24 de agosto de 2026 que ya ejecutó las migraciones;
+  queda pendiente registrar la auditoría del esquema aplicado y su respaldo.
+- La migración de datos `SeedRemaining4x6ExcelTemplates`, generada pero **no
+  aplicada automáticamente**, incorpora como versión 1 publicada
+  `LBL-4X6-STANDARD`, `LBL-3X1-COMPACT`, `LBL-6X4-PARTIAL`,
+  `LBL-6X4-SPOUTED`, `LBL-6X4-BERM`, `LBL-6X4-RAINCAP`,
+  `LBL-6X4-CUSTOM-SPOUT`, `LBL-6X4-MOBILE` y `LBL-4X45-RECEIVING`. Es una
+  migración solo de datos: no crea tablas ni altera inventario. Los campos
+  especiales son opcionales; aceptan captura en computadora y muestran una
+  línea para escritura manual cuando quedan vacíos.
+- Los dos códigos —SKU/ITEM y cantidad— se generan localmente como Code 128 SVG
+  mediante `ZXing.Net` 0.16.11. La impresión usa HTML/CSS del navegador y no
+  depende de Excel, fuentes de barras, servicios externos ni Internet.
+- No se persisten generaciones, folios, responsables ni motivos de impresión;
+  reimprimir exige capturar nuevamente los datos actuales. Generar o imprimir no
+  crea ni actualiza movimientos, saldos, lotes, pallets o asignaciones.
+- Compilación y pruebas focales cubren el catálogo de diez plantillas, renderer,
+  esquema, Code 128, migración PostgreSQL y flujo HTTP. El usuario confirmó el
+  24 de agosto de 2026 que la etiqueta Zebra vigente se lee con el escáner.
+  Siguen pendientes la comparación visual y física de los nueve formatos
+  migrados en laptop/tablet e impresoras reales: temas, textos largos, los
+  cuatro tamaños, DPI, márgenes, orientación y lectura HID. No considerar esos
+  nueve formatos validados físicamente hasta completar las comprobaciones.
 
 ## 13. Surtimiento WIP (implementado y migrado; pendiente de Release y validación física)
 
@@ -1340,10 +1622,15 @@ Las fases 10.1 a 10.3 están completadas; 10.4 a 10.6 están implementadas; la
 Release 0.10.7 está activa como servicio Windows y 10.8 continúa pospuesta.
 `Quality` es obligatorio en `main`. La fase 11 tiene sus principales pantallas
 implementadas, con trabajo parcial en 11.6 y 11.7 y validación física pendiente.
-La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
-la base antes de cambiar ese estado. Las fases 13.1 y 13.2 están completadas y
-13.3 y 13.4 están implementadas, con validación física LAN/tablet pendiente; el
-siguiente bloque planificado es 13.5. La fase 12 ahora contempla centralizar
+    La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
+la base antes de cambiar ese estado. Las fases 11.9.1 y 11.9.2 del editor
+arquitectónico ligero están implementadas y sus migraciones se verificaron
+aplicadas. 11.9.3 está implementada con migración sin aplicar y validación
+visual/física pendiente; 11.9.4 sigue propuesta. Las
+fases 13.1 y 13.2 están completadas y
+13.3, 13.4 y 13.5 están implementadas, con la migración de 13.5 sin aplicar y
+validación física LAN/tablet/lector/impresora pendiente; el siguiente bloque
+planificado es 13.6. La fase 12 ahora contempla centralizar
 etiquetas 4x6, placas de pallet y rutas de producción usando el catálogo del
 sistema, pero su contrato e implementación siguen pendientes. Después quedan el
 piloto físico, conteos/alertas avanzados, PWA/offline, liberación v1.0,

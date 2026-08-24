@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
@@ -11,6 +12,7 @@ namespace WarehouseEPI.Web.Pages.Reports.Inventory;
 
 public sealed class IndexModel(
     InventoryAnalyticsService analyticsService,
+    InventoryQueryService inventoryQueryService,
     ReportExportService exportService,
     WarehouseDbContext dbContext,
     WarehouseClock clock,
@@ -23,54 +25,101 @@ public sealed class IndexModel(
     private TimeZoneInfo displayTimeZone = TimeZoneInfo.Utc;
 
     public string View { get; private set; } = "occupancy";
+    public string ExceptionView { get; private set; } = "negative";
     public string Period { get; private set; } = "90";
     public string Status { get; private set; } = "active";
     public string? Search { get; private set; }
     public short? UnitId { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
-    public LocationOccupancyReportDto Occupancy { get; private set; } = new(
-        new(0, 0, 0, 0, 0, 0),
-        []);
-    public InventoryAnalyticsPage<SkuRotationMetricDto> Rotation { get; private set; } = new([], 0, 1, PageSize);
+    public LocationOccupancyReportDto Occupancy { get; private set; } = new(new(0, 0, 0, 0, 0, 0), []);
+    public InventoryAnalyticsPage<SkuExitActivityMetricDto> Activity { get; private set; } = new([], 0, 1, PageSize);
     public InventoryAnalyticsPage<StagnantProductDto> Stagnant { get; private set; } = new([], 0, 1, PageSize);
+    public InventoryAlertSummary ExceptionSummary { get; private set; } = new(0, 0, 0);
+    public InventoryAlertPage<NegativeInventoryAlert> NegativeExceptions { get; private set; } = new([], 0);
+    public InventoryAlertPage<MinimumStockInventoryAlert> MinimumExceptions { get; private set; } = new([], 0);
+    public int ExceptionPageNumber { get; private set; } = 1;
+    public int ExceptionTotalPages { get; private set; } = 1;
     public IReadOnlyList<SelectListItem> UnitOptions { get; private set; } = [];
 
     public async Task OnGetAsync(
         string? view,
+        string? exception,
         string? period,
         string? status,
         string? search,
         short? unitId,
         int pageNumber = 1,
+        bool refresh = false,
         CancellationToken cancellationToken = default)
     {
-        Normalize(view, period, status, search, unitId);
-        var nowUtc = timeProvider.GetUtcNow();
-        UpdatedAt = await clock.ConvertAsync(nowUtc, cancellationToken);
+        Normalize(view, exception, period, status, search, unitId);
         await LoadDisplayTimeZoneAsync(cancellationToken);
 
         if (View == "occupancy")
         {
-            Occupancy = await GetCachedAsync(
+            var cached = await GetCachedAsync(
                 "reporting:inventory-analytics:occupancy",
-                () => analyticsService.GetOccupancyAsync(cancellationToken));
+                () => analyticsService.GetOccupancyAsync(cancellationToken),
+                refresh);
+            Occupancy = cached.Data;
+            UpdatedAt = TimeZoneInfo.ConvertTime(cached.GeneratedAtUtc, displayTimeZone);
+            return;
+        }
+
+        if (View == "exceptions")
+        {
+            var requestedPage = Math.Max(1, pageNumber);
+            var key = $"reporting:inventory-analytics:exceptions:{ExceptionView}:{Search}:{requestedPage}";
+            var cached = await GetCachedAsync(
+                key,
+                async () =>
+                {
+                    var summary = await inventoryQueryService.GetAlertSummaryAsync(cancellationToken);
+                    if (ExceptionView == "minimum")
+                    {
+                        var minimum = await inventoryQueryService.GetBelowMinimumAlertPageAsync(
+                            Search, requestedPage, PageSize, cancellationToken);
+                        return new ExceptionReportData(summary, null, minimum);
+                    }
+
+                    var negative = await inventoryQueryService.GetNegativeAlertPageAsync(
+                        Search, requestedPage, PageSize, cancellationToken);
+                    return new ExceptionReportData(summary, negative, null);
+                },
+                refresh);
+            ExceptionSummary = cached.Data.Summary;
+            NegativeExceptions = cached.Data.Negative ?? NegativeExceptions;
+            MinimumExceptions = cached.Data.Minimum ?? MinimumExceptions;
+            var totalCount = ExceptionView == "minimum"
+                ? MinimumExceptions.TotalCount
+                : NegativeExceptions.TotalCount;
+            ExceptionTotalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)PageSize));
+            ExceptionPageNumber = Math.Clamp(requestedPage, 1, ExceptionTotalPages);
+            UpdatedAt = TimeZoneInfo.ConvertTime(cached.GeneratedAtUtc, displayTimeZone);
             return;
         }
 
         await LoadUnitOptionsAsync(cancellationToken);
+        var nowUtc = timeProvider.GetUtcNow();
         var filter = await BuildFilterAsync(pageNumber, nowUtc, cancellationToken);
         var cacheKey = CacheKey(View, filter, Period);
-        if (View == "rotation")
+        if (View == "activity")
         {
-            Rotation = await GetCachedAsync(
+            var cached = await GetCachedAsync(
                 cacheKey,
-                () => analyticsService.GetRotationPageAsync(filter, cancellationToken));
+                () => analyticsService.GetExitActivityPageAsync(filter, cancellationToken),
+                refresh);
+            Activity = cached.Data;
+            UpdatedAt = TimeZoneInfo.ConvertTime(cached.GeneratedAtUtc, displayTimeZone);
         }
         else
         {
-            Stagnant = await GetCachedAsync(
+            var cached = await GetCachedAsync(
                 cacheKey,
-                () => analyticsService.GetStagnantPageAsync(filter, nowUtc, cancellationToken));
+                () => analyticsService.GetStagnantPageAsync(filter, nowUtc, cancellationToken),
+                refresh);
+            Stagnant = cached.Data;
+            UpdatedAt = TimeZoneInfo.ConvertTime(cached.GeneratedAtUtc, displayTimeZone);
         }
     }
 
@@ -83,9 +132,12 @@ public sealed class IndexModel(
         short? unitId,
         CancellationToken cancellationToken = default)
     {
-        Normalize(view, period, status, search, unitId);
-        if (View == "occupancy")
-            return BadRequest("La ocupación no se exporta en la fase 13.4.");
+        if (!User.IsInRole("ADMIN"))
+            return Forbid();
+
+        Normalize(view, null, period, status, search, unitId);
+        if (View is "occupancy" or "exceptions")
+            return BadRequest("La ocupación y las excepciones no se exportan en esta fase.");
         if (format is not ("csv" or "xlsx"))
             return BadRequest("El formato debe ser csv o xlsx.");
 
@@ -94,15 +146,15 @@ public sealed class IndexModel(
         var localNow = await clock.ConvertAsync(nowUtc, cancellationToken);
         byte[] bytes;
         string fileName;
-        if (View == "rotation")
+        if (View == "activity")
         {
-            var batch = await analyticsService.GetRotationExportAsync(filter, 10000, cancellationToken);
+            var batch = await analyticsService.GetExitActivityExportAsync(filter, 10000, cancellationToken);
             if (batch.ExceedsLimit)
                 return ExportLimit(batch.TotalRows, batch.MaximumRows);
             bytes = format == "xlsx"
-                ? await exportService.ExportRotationToExcelAsync(batch.Items, filter, cancellationToken)
-                : await exportService.ExportRotationToCsvAsync(batch.Items, filter, cancellationToken);
-            fileName = $"rotacion-inventario-{localNow:yyyyMMdd-HHmmss}.{format}";
+                ? await exportService.ExportExitActivityToExcelAsync(batch.Items, filter, cancellationToken)
+                : await exportService.ExportExitActivityToCsvAsync(batch.Items, filter, cancellationToken);
+            fileName = $"actividad-salidas-sku-{localNow:yyyyMMdd-HHmmss}.{format}";
         }
         else
         {
@@ -143,7 +195,7 @@ public sealed class IndexModel(
     {
         DateOnly? from = null;
         DateOnly? to = null;
-        if (View == "rotation" && Period != "all")
+        if (View == "activity" && Period != "all")
         {
             var today = await clock.GetDateAsync(nowUtc, cancellationToken);
             var days = Period switch { "30" => 30, "180" => 180, _ => 90 };
@@ -161,9 +213,21 @@ public sealed class IndexModel(
             PageSize);
     }
 
-    private void Normalize(string? view, string? period, string? status, string? search, short? unitId)
+    private void Normalize(
+        string? view,
+        string? exception,
+        string? period,
+        string? status,
+        string? search,
+        short? unitId)
     {
-        View = view is "rotation" or "stagnant" ? view : "occupancy";
+        View = view switch
+        {
+            "rotation" => "activity",
+            "activity" or "stagnant" or "exceptions" => view,
+            _ => "occupancy"
+        };
+        ExceptionView = exception == "minimum" ? "minimum" : "negative";
         Period = period is "30" or "180" or "all" ? period : "90";
         Status = status is "inactive" or "all" ? status : "active";
         Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
@@ -185,11 +249,17 @@ public sealed class IndexModel(
         displayTimeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
     }
 
-    private async Task<T> GetCachedAsync<T>(string key, Func<Task<T>> factory) where T : class
+    private async Task<CachedAnalyticsResult<T>> GetCachedAsync<T>(
+        string key,
+        Func<Task<T>> factory,
+        bool refresh) where T : class
     {
-        if (memoryCache.TryGetValue<T>(key, out var cached) && cached is not null)
+        if (refresh)
+            memoryCache.Remove(key);
+        if (memoryCache.TryGetValue<CachedAnalyticsResult<T>>(key, out var cached) && cached is not null)
             return cached;
-        var value = await factory();
+
+        var value = new CachedAnalyticsResult<T>(await factory(), timeProvider.GetUtcNow());
         memoryCache.Set(key, value, CacheDuration);
         return value;
     }
@@ -199,4 +269,10 @@ public sealed class IndexModel(
 
     private BadRequestObjectResult ExportLimit(int totalRows, int maximumRows) => BadRequest(
         $"La exportación contiene {totalRows:N0} productos y supera el límite de {maximumRows:N0}. Aplica filtros más específicos.");
+
+    private sealed record CachedAnalyticsResult<T>(T Data, DateTimeOffset GeneratedAtUtc);
+    private sealed record ExceptionReportData(
+        InventoryAlertSummary Summary,
+        InventoryAlertPage<NegativeInventoryAlert>? Negative,
+        InventoryAlertPage<MinimumStockInventoryAlert>? Minimum);
 }

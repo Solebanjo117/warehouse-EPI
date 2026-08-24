@@ -1,6 +1,25 @@
 @page
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.CreateModel
-@{ ViewData["Title"]="Crear producto"; }
-<h1 class="h2 mb-3">Crear producto</h1>
-<partial name="_ProductForm" model="Model" />
-@section Scripts{<partial name="_ValidationScriptsPartial"/>}
+@{
+    ViewData["Title"] = "Crear producto";
+}
+
+<div class="product-editor-workspace">
+    <header class="product-editor-header">
+        <div>
+            <span class="product-editor-eyebrow">Catálogo de productos</span>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <h1 class="h2 mb-0">Crear producto</h1>
+                <span class="badge text-bg-primary">Nuevo</span>
+            </div>
+            <p class="text-body-secondary mb-0">Registra la identificación y configuración base del producto.</p>
+        </div>
+        <a asp-page="Index" class="btn btn-outline-secondary">Volver a productos</a>
+    </header>
+
+    <partial name="_ProductForm" model="Model" />
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

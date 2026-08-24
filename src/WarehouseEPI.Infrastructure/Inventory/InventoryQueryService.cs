@@ -67,6 +67,7 @@ public sealed record InventoryPositionSummary(
     int WithBalance,
     int Negative,
     int ActiveAssignments,
+    int AssignedZero,
     int UnassignedBalances);
 
 public sealed record InventoryPositionPage(
@@ -119,7 +120,7 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         if (balances.Count == 0) return new(productId, locationId, 0m, 0, false, false);
         var total = balances.Sum(item => item.Quantity);
         var text = string.Join('|', balances.OrderBy(item => item.LotId).Select(item =>
-            $"{item.LotId}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
+            $"{item.LotId:N}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
         var version = BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
         return new(productId, locationId, total, version, true, total < 0);
     }
@@ -179,16 +180,28 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         InventoryPositionFilter filter,
         int pageNumber,
         int pageSize,
+        Guid? highlightedLocationId = null,
         CancellationToken cancellationToken = default) =>
-        CreatePositionPage(await GetProductInventoryAsync(productId, cancellationToken), filter, pageNumber, pageSize);
+        CreatePositionPage(
+            await GetProductInventoryAsync(productId, cancellationToken),
+            filter,
+            pageNumber,
+            pageSize,
+            highlightedLocationId: highlightedLocationId);
 
     public async Task<InventoryPositionPage> GetLocationInventoryPageAsync(
         Guid locationId,
         InventoryPositionFilter filter,
         int pageNumber,
         int pageSize,
+        Guid? highlightedProductId = null,
         CancellationToken cancellationToken = default) =>
-        CreatePositionPage(await GetLocationInventoryAsync(locationId, cancellationToken), filter, pageNumber, pageSize);
+        CreatePositionPage(
+            await GetLocationInventoryAsync(locationId, cancellationToken),
+            filter,
+            pageNumber,
+            pageSize,
+            highlightedProductId: highlightedProductId);
 
     public async Task<decimal> GetProductTotalAsync(
         Guid productId,
@@ -415,13 +428,16 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         IReadOnlyList<InventoryPositionView> positions,
         InventoryPositionFilter filter,
         int pageNumber,
-        int pageSize)
+        int pageSize,
+        Guid? highlightedProductId = null,
+        Guid? highlightedLocationId = null)
     {
         var summary = new InventoryPositionSummary(
             positions.Count,
             positions.Count(item => item.HasNonZeroBalance),
             positions.Count(item => item.IsNegative),
             positions.Count(item => item.HasActiveAssignment),
+            positions.Count(item => item.HasActiveAssignment && item.Quantity == 0),
             positions.Count(item => item.HasNonZeroBalance && !item.HasActiveAssignment));
         var filtered = positions.Where(item => filter switch
         {
@@ -433,7 +449,12 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         }).ToArray();
         var normalizedPageSize = Math.Clamp(pageSize, 1, 100);
         var totalPages = Math.Max(1, (int)Math.Ceiling(filtered.Length / (double)normalizedPageSize));
-        var page = Math.Clamp(Math.Max(1, pageNumber), 1, totalPages);
+        var highlightedIndex = Array.FindIndex(filtered, item =>
+            (highlightedProductId is Guid productId && item.ProductId == productId) ||
+            (highlightedLocationId is Guid locationId && item.LocationId == locationId));
+        var page = highlightedIndex >= 0
+            ? (highlightedIndex / normalizedPageSize) + 1
+            : Math.Clamp(Math.Max(1, pageNumber), 1, totalPages);
         return new(filtered.Skip((page - 1) * normalizedPageSize).Take(normalizedPageSize).ToArray(), filtered.Length,
             page, normalizedPageSize, summary);
     }

@@ -1,11 +1,258 @@
 @page
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Map.EditModel
-@{ ViewData["Title"]="Editar croquis"; }
-<div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><div><h1 class="h2 mb-1">Editar croquis</h1><p class="text-body-secondary mb-0">Mueve la capa operativa; muros, pasillos y códigos de ubicación no cambian.</p></div><a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="map" class="btn btn-outline-secondary">Cancelar</a></div>
+@using global::System.Globalization
+@{ ViewData["Title"] = "Editar croquis"; }
+
+<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+    <div>
+        <h1 class="h2 mb-1">Editar croquis</h1>
+        <p class="text-body-secondary mb-0">Edita ubicaciones y desplaza la arquitectura por capas; los códigos y el inventario no cambian.</p>
+    </div>
+    <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="map" class="btn btn-outline-secondary">Cancelar</a>
+</div>
 <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+@if (Model.Map.UsesLegacyArchitecture)
+{
+    <div class="alert alert-info"><strong>Plano compatible sin persistir.</strong> El fondo actual se conservará como arquitectura auditada al guardar esta revisión.</div>
+}
+
 <div class="map-editor" data-map-editor data-initialized="@Model.Map.IsInitialized.ToString().ToLowerInvariant()">
-<div class="map-editor-toolbar"><button type="button" class="btn btn-outline-secondary" data-editor-undo disabled>Deshacer</button><button type="button" class="btn btn-outline-secondary" data-editor-redo disabled>Rehacer</button><button type="button" class="btn btn-outline-secondary" data-editor-multi aria-pressed="false">Selección múltiple</button><div class="btn-group"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-align-menu>Alinear</button><ul class="dropdown-menu"><li><button type="button" class="dropdown-item" data-editor-align="left">Izquierda</button></li><li><button type="button" class="dropdown-item" data-editor-align="center-x">Centro horizontal</button></li><li><button type="button" class="dropdown-item" data-editor-align="right">Derecha</button></li><li><hr class="dropdown-divider"/></li><li><button type="button" class="dropdown-item" data-editor-align="top">Arriba</button></li><li><button type="button" class="dropdown-item" data-editor-align="center-y">Centro vertical</button></li><li><button type="button" class="dropdown-item" data-editor-align="bottom">Abajo</button></li></ul></div><div class="btn-group"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-distribute-menu>Distribuir</button><ul class="dropdown-menu"><li><button type="button" class="dropdown-item" data-editor-distribute="x">Horizontal</button></li><li><button type="button" class="dropdown-item" data-editor-distribute="y">Vertical</button></li></ul></div><button type="button" class="btn btn-outline-secondary" data-editor-sort-row disabled>Ordenar fila</button><div class="btn-group"><button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-size-menu>Igualar tamaño</button><ul class="dropdown-menu"><li><button type="button" class="dropdown-item" data-editor-size="width">Ancho</button></li><li><button type="button" class="dropdown-item" data-editor-size="height">Alto</button></li><li><button type="button" class="dropdown-item" data-editor-size="both">Ambos</button></li></ul></div><button type="button" class="btn btn-outline-secondary" data-editor-rotate disabled>Girar 90°</button><button type="button" class="btn btn-outline-secondary" data-editor-mirror disabled>Invertir horizontal</button><button type="button" class="btn btn-outline-secondary" data-editor-hide disabled>Ocultar</button><span class="editor-selection-count" data-editor-selection-count>Sin selección</span><span class="editor-reference" data-editor-reference hidden></span><span class="ms-auto">Versión @Model.Map.Version</span></div>
-<div class="row g-3"><div class="col-xl-9"><div class="warehouse-map-viewport editor-viewport"><svg class="warehouse-map editor-canvas" viewBox="0 0 1600 900" data-editor-svg><g class="map-building"><rect x="35" y="35" width="1530" height="820" rx="12"/><path d="M55 740H1545M260 35V155M55 250H260M1250 35V150M1495 150V315M1260 805H1545"/></g><g data-editor-layer>@foreach(var element in Model.Map.Elements.Concat(Model.Map.Unplaced)){<g class="map-element editor-element @(element.IsVisible?"":"is-hidden")" data-editor-element="@element.Id" data-row-code="@element.RowCode" data-rack-number="@element.RackNumber" data-x="@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" data-y="@element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" data-width="@element.Width.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" data-height="@element.Height.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" data-rotation="@element.Rotation" data-z="@element.ZIndex" data-visible="@element.IsVisible.ToString().ToLowerInvariant()" transform="translate(@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)) rotate(@element.Rotation)"><rect width="@element.Width.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" height="@element.Height.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" rx="4"/><text x="6" y="18">@element.Label</text><rect class="editor-resize-handle" x="@(element.Width-10)" y="@(element.Height-10)" width="12" height="12"/></g>}</g><g class="editor-selection" data-editor-selection></g></svg></div></div>
-<aside class="col-xl-3"><div class="card card-body mb-3"><h2 class="h5">Sin colocar / ocultos</h2><div class="map-unplaced-list">@foreach(var item in Model.Map.Unplaced){<button type="button" class="btn btn-outline-secondary text-start" data-editor-place="@item.Id">@item.Label</button>}@if(Model.Map.Unplaced.Count==0){<span class="text-body-secondary">Todos los elementos están colocados.</span>}</div></div><div class="card card-body"><h2 class="h5">Confirmar cambios</h2><form method="post" data-map-save-form><input asp-for="Input.OperationId" type="hidden"/><input asp-for="Input.GeometryJson" type="hidden" data-editor-geometry/><div class="mb-3"><label asp-for="Input.Reason" class="form-label">Motivo (opcional)</label><textarea asp-for="Input.Reason" class="form-control" maxlength="500"></textarea></div><div class="mb-3"><label asp-for="Input.Pin" class="form-label">NIP ADMIN</label><input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric" autocomplete="off" required/></div>@if(Model.Map.IsInitialized){<button asp-page-handler="Save" class="btn btn-primary w-100">Guardar revisión</button>}else{<p class="small text-body-secondary">La propuesta incluye @Model.Map.Elements.Count elementos colocados y @Model.Map.Unplaced.Count pendientes.</p><button asp-page-handler="Initialize" class="btn btn-primary w-100">Confirmar croquis inicial</button>}</form></div></aside></div></div>
-@if(Model.Revisions.Count>0){<section class="card mt-4"><div class="card-body"><h2 class="h4">Historial de revisiones</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Versión</th><th>Fecha</th><th>Solicitó / autorizó</th><th>Motivo</th></tr></thead><tbody>@foreach(var item in Model.Revisions){<tr><td>@item.PreviousVersion → @item.NewVersion</td><td>@item.RecordedAt.ToString("yyyy-MM-dd HH:mm")</td><td>@item.RequestedBy / @item.AuthorizedBy</td><td>@(item.Reason??"Sin motivo")</td></tr>}</tbody></table></div></div></section>}
+    <div class="map-editor-toolbar">
+        <div class="btn-group map-editor-tools" role="group" aria-label="Herramientas de plano">
+            <button type="button" class="btn btn-primary active" data-editor-tool="select" aria-pressed="true">Seleccionar</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="pan" aria-pressed="false">Desplazar</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="wall" data-tool-layer="STRUCTURE" aria-pressed="false">Muro</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="rectangle" data-tool-layer="STRUCTURE" aria-pressed="false">Rectángulo</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="polygon" data-tool-layer="ZONES" aria-pressed="false">Polígono</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="door" data-tool-layer="STRUCTURE" aria-pressed="false">Puerta</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="aisle" data-tool-layer="AISLES" aria-pressed="false">Pasillo</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="zone" data-tool-layer="ZONES" aria-pressed="false">Zona</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="text" data-tool-layer="TEXT" aria-pressed="false">Texto</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="dimension" data-tool-layer="DIMENSIONS" aria-pressed="false">Cota</button>
+            <button type="button" class="btn btn-outline-secondary" data-editor-tool="calibrate" aria-pressed="false">Calibrar</button>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" data-editor-undo disabled>Deshacer</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-redo disabled>Rehacer</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-multi aria-pressed="false">Selección múltiple</button>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-align-menu>Alinear</button>
+            <ul class="dropdown-menu">
+                <li><button type="button" class="dropdown-item" data-editor-align="left">Izquierda</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-align="center-x">Centro horizontal</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-align="right">Derecha</button></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li><button type="button" class="dropdown-item" data-editor-align="top">Arriba</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-align="center-y">Centro vertical</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-align="bottom">Abajo</button></li>
+            </ul>
+        </div>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-distribute-menu>Distribuir</button>
+            <ul class="dropdown-menu"><li><button type="button" class="dropdown-item" data-editor-distribute="x">Horizontal</button></li><li><button type="button" class="dropdown-item" data-editor-distribute="y">Vertical</button></li></ul>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" data-editor-sort-row disabled>Ordenar fila</button>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-size-menu>Igualar tamaño</button>
+            <ul class="dropdown-menu"><li><button type="button" class="dropdown-item" data-editor-size="width">Ancho</button></li><li><button type="button" class="dropdown-item" data-editor-size="height">Alto</button></li><li><button type="button" class="dropdown-item" data-editor-size="both">Ambos</button></li></ul>
+        </div>
+        <button type="button" class="btn btn-outline-secondary" data-editor-rotate disabled>Girar 90°</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-mirror disabled>Invertir horizontal</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-hide disabled>Ocultar</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-duplicate disabled>Duplicar</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-group disabled>Agrupar</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-ungroup disabled>Desagrupar</button>
+        <button type="button" class="btn btn-outline-secondary" data-editor-element-lock disabled>Bloquear</button>
+        <div class="btn-group">
+            <button type="button" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" disabled data-editor-order-menu>Orden</button>
+            <ul class="dropdown-menu">
+                <li><button type="button" class="dropdown-item" data-editor-order="front">Traer al frente</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-order="forward">Avanzar</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-order="backward">Retroceder</button></li>
+                <li><button type="button" class="dropdown-item" data-editor-order="back">Enviar al fondo</button></li>
+            </ul>
+        </div>
+        <button type="button" class="btn btn-outline-danger" data-editor-archive disabled>Archivar</button>
+        <span class="editor-selection-count" data-editor-selection-count>Sin selección</span>
+        <span class="editor-reference" data-editor-reference hidden></span>
+        <span class="ms-auto">Versión @Model.Map.Version</span>
+    </div>
+    <div class="map-editor-contextbar" data-editor-contextbar aria-live="polite">
+        <span data-editor-status>Herramienta Seleccionar.</span>
+        <button type="button" class="btn btn-sm btn-primary" data-editor-finish hidden>Finalizar</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-editor-cancel hidden>Cancelar</button>
+        <button type="button" class="btn btn-sm btn-outline-danger" data-editor-discard-new disabled>Descartar objeto nuevo</button>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-xl-9">
+            <div class="warehouse-map-viewport editor-viewport">
+                <svg class="warehouse-map editor-canvas" viewBox="0 0 1600 900" data-editor-svg aria-label="Editor del croquis del almacén">
+                    <defs>
+                        <pattern id="warehouse-map-editor-grid" width="25" height="25" patternUnits="userSpaceOnUse" data-editor-grid-pattern>
+                            <path d="M 25 0 L 0 0 0 25" class="editor-grid-line" />
+                        </pattern>
+                    </defs>
+                    <rect class="editor-grid" width="1600" height="900" fill="url(#warehouse-map-editor-grid)" data-editor-grid />
+                    <partial name="/Pages/Admin/Catalogs/Locations/_WarehouseMapArchitecture.cshtml" model="Model.Map.Architecture" />
+                    <g data-editor-layer data-architecture-layer="OPERATIONS">
+                    @foreach (var element in Model.Map.Elements.Concat(Model.Map.Unplaced))
+                    {
+                        <g class="map-element editor-element @(element.IsVisible ? "" : "is-hidden")" data-editor-element="@element.Id"
+                           data-row-code="@element.RowCode" data-rack-number="@element.RackNumber"
+                           data-x="@element.X.ToString(CultureInfo.InvariantCulture)" data-y="@element.Y.ToString(CultureInfo.InvariantCulture)"
+                           data-width="@element.Width.ToString(CultureInfo.InvariantCulture)" data-height="@element.Height.ToString(CultureInfo.InvariantCulture)"
+                           data-rotation="@element.Rotation" data-z="@element.ZIndex" data-visible="@element.IsVisible.ToString().ToLowerInvariant()"
+                           transform="translate(@element.X.ToString(CultureInfo.InvariantCulture) @element.Y.ToString(CultureInfo.InvariantCulture)) rotate(@element.Rotation)" tabindex="0" role="button" aria-label="@element.Label">
+                            <rect width="@element.Width.ToString(CultureInfo.InvariantCulture)" height="@element.Height.ToString(CultureInfo.InvariantCulture)" rx="4" />
+                            <text x="6" y="18">@element.Label</text>
+                            <rect class="editor-resize-handle" x="@(element.Width - 10)" y="@(element.Height - 10)" width="12" height="12" />
+                        </g>
+                    }
+                    </g>
+                    <g class="editor-guides" data-editor-guides></g>
+                    <g class="editor-selection" data-editor-selection></g>
+                </svg>
+            </div>
+            <div class="map-editor-viewport-controls" aria-label="Navegación del plano">
+                <button type="button" class="btn btn-outline-secondary" data-editor-zoom-out aria-label="Alejar">−</button>
+                <output data-editor-zoom>100 %</output>
+                <button type="button" class="btn btn-outline-secondary" data-editor-zoom-in aria-label="Acercar">+</button>
+                <button type="button" class="btn btn-outline-secondary" data-editor-fit>Encajar plano</button>
+                <span class="ms-auto">Coordenadas: <output data-editor-coordinates>—</output></span>
+            </div>
+        </div>
+        <aside class="col-xl-3">
+            <div class="card card-body mb-3" data-editor-properties>
+                <h2 class="h5">Propiedades</h2>
+                <p class="small text-body-secondary" data-editor-properties-empty>Selecciona un elemento arquitectónico editable.</p>
+                <div data-editor-properties-fields hidden>
+                    <p class="small mb-2"><strong data-property-kind>Elemento</strong> · <span data-property-layer></span></p>
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label" for="map-property-x">X</label><input id="map-property-x" class="form-control" type="number" step="1" min="0" data-property="x" /></div>
+                        <div class="col-6"><label class="form-label" for="map-property-y">Y</label><input id="map-property-y" class="form-control" type="number" step="1" min="0" data-property="y" /></div>
+                        <div class="col-6" data-property-group="rectangle"><label class="form-label" for="map-property-width">Ancho</label><input id="map-property-width" class="form-control" type="number" step="1" min="1" data-property="width" /></div>
+                        <div class="col-6" data-property-group="rectangle"><label class="form-label" for="map-property-height">Alto</label><input id="map-property-height" class="form-control" type="number" step="1" min="1" data-property="height" /></div>
+                        <div class="col-6" data-property-group="rectangle"><label class="form-label" for="map-property-radius">Radio</label><input id="map-property-radius" class="form-control" type="number" step="1" min="0" data-property="radius" /></div>
+                        <div class="col-6" data-property-group="single"><label class="form-label" for="map-property-rotation">Rotación</label><select id="map-property-rotation" class="form-select" data-property="rotation"><option>0</option><option>90</option><option>180</option><option>270</option></select></div>
+                        <div class="col-12" data-property-group="text"><label class="form-label" for="map-property-label">Texto</label><input id="map-property-label" class="form-control" maxlength="120" data-property="label" /></div>
+                        <div class="col-6"><label class="form-label" for="map-property-stroke">Trazo</label><select id="map-property-stroke" class="form-select" data-property="strokeToken"><option value="NONE">Ninguno</option><option value="SECONDARY">Neutro</option><option value="PRIMARY">Principal</option><option value="INFO">Informativo</option><option value="WARNING">Advertencia</option><option value="SUCCESS">Confirmación</option></select></div>
+                        <div class="col-6"><label class="form-label" for="map-property-fill">Relleno</label><select id="map-property-fill" class="form-select" data-property="fillToken"><option value="NONE">Ninguno</option><option value="SECONDARY">Neutro</option><option value="PRIMARY">Principal</option><option value="INFO">Informativo</option><option value="WARNING">Advertencia</option><option value="SUCCESS">Confirmación</option></select></div>
+                        <div class="col-6"><label class="form-label" for="map-property-stroke-width">Grosor</label><input id="map-property-stroke-width" class="form-control" type="number" min="0" max="12" step="0.5" data-property="strokeWidth" /></div>
+                        <div class="col-6 d-flex align-items-end"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" data-property="dashed" /> <span class="form-check-label">Discontinua</span></label></div>
+                    </div>
+                    <div data-property-vertex hidden class="mt-3">
+                        <h3 class="h6">Vértice activo</h3>
+                        <div class="row g-2"><div class="col-6"><label class="form-label" for="map-vertex-x">X</label><input id="map-vertex-x" class="form-control" type="number" step="1" data-vertex-property="x" /></div><div class="col-6"><label class="form-label" for="map-vertex-y">Y</label><input id="map-vertex-y" class="form-control" type="number" step="1" data-vertex-property="y" /></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="card card-body mb-3">
+                <h2 class="h5">Cuadrícula y ajuste</h2>
+                <div class="row g-2 align-items-end">
+                    <div class="col-6"><label class="form-label" for="map-grid-size">Separación</label><select id="map-grid-size" class="form-select" data-editor-grid-size><option>10</option><option selected>25</option><option>50</option></select></div>
+                    <div class="col-6"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" checked data-editor-grid-visible /> <span class="form-check-label">Mostrar</span></label></div>
+                    <div class="col-12"><label class="form-check"><input class="form-check-input" type="checkbox" checked data-editor-snap /> <span class="form-check-label">Ajustar a extremos, centros, guías y cuadrícula</span></label></div>
+                </div>
+                <p class="small text-body-secondary mt-2 mb-0">Mantén Alt para mover sin ajuste.</p>
+            </div>
+            <div class="card card-body mb-3">
+                <h2 class="h5">Escala y unidades</h2>
+                <label class="form-label" for="map-measurement-system">Presentación publicada</label>
+                <select id="map-measurement-system" class="form-select mb-2" data-editor-measurement>
+                    <option value="IMPERIAL" selected="@(Model.Map.MeasurementSystem == "IMPERIAL" ? "selected" : null)">Pulgadas / yardas</option>
+                    <option value="METRIC" selected="@(Model.Map.MeasurementSystem == "METRIC" ? "selected" : null)">Centímetros / metros</option>
+                </select>
+                <p class="small mb-2">Escala: <strong data-editor-scale-status>@(Model.Map.ScaleUnitsPerInch is null ? "Sin calibrar" : $"{Model.Map.ScaleUnitsPerInch:0.######} unidades SVG/in")</strong></p>
+                <div class="row g-2">
+                    <div class="col-7"><label class="form-label" for="map-calibration-distance">Distancia real</label><input id="map-calibration-distance" class="form-control" type="number" min="0.01" step="0.01" data-editor-calibration-distance /></div>
+                    <div class="col-5"><label class="form-label" for="map-calibration-unit">Unidad</label><select id="map-calibration-unit" class="form-select" data-editor-calibration-unit><option value="IN">in</option><option value="YD">yd</option><option value="CM">cm</option><option value="M">m</option></select></div>
+                </div>
+                <p class="small text-body-secondary mt-2 mb-0">Elige Calibrar y marca dos puntos. Cambiar unidades no cambia la geometría.</p>
+            </div>
+            <div class="card card-body mb-3">
+                <h2 class="h5">Capas</h2>
+                <p class="small text-body-secondary">Mostrar u ocultar solo cambia este editor. Bloquear se guarda en la revisión.</p>
+                <div class="map-layer-list">
+                @foreach (var layer in Model.Map.Layers.OrderBy(item => item.SortOrder))
+                {
+                    <div class="map-layer-row" data-editor-layer-row="@layer.Code">
+                        <label class="form-check mb-0">
+                            <input class="form-check-input" type="checkbox" checked data-editor-layer-visible="@layer.Code" />
+                            <span class="form-check-label">@layer.Name <small>(@layer.ElementCount)</small></span>
+                        </label>
+                        <button type="button" class="btn btn-sm @(layer.IsLocked ? "btn-outline-secondary" : "btn-outline-primary")"
+                                data-editor-layer-lock="@layer.Code" aria-pressed="@layer.IsLocked.ToString().ToLowerInvariant()">
+                            @(layer.IsLocked ? "Bloqueada" : "Editable")
+                        </button>
+                    </div>
+                }
+                </div>
+            </div>
+            <div class="card card-body mb-3">
+                <h2 class="h5">Arquitectura archivada</h2>
+                <p class="small text-body-secondary">El archivado es reversible y no elimina filas ni auditoría.</p>
+                <div class="map-unplaced-list" data-editor-archived-list>
+                @foreach (var item in Model.Map.ArchivedArchitecture)
+                {
+                    <button type="button" class="btn btn-outline-secondary text-start" data-editor-restore="@item.Id">Restaurar @(item.Label ?? item.Kind)</button>
+                }
+                @if (Model.Map.ArchivedArchitecture.Count == 0) { <span class="text-body-secondary" data-editor-archived-empty>No hay elementos archivados.</span> }
+                </div>
+            </div>
+            <div class="card card-body mb-3">
+                <h2 class="h5">Sin colocar / ocultos</h2>
+                <div class="map-unplaced-list">
+                @foreach (var item in Model.Map.Unplaced)
+                {
+                    <button type="button" class="btn btn-outline-secondary text-start" data-editor-place="@item.Id">@item.Label</button>
+                }
+                @if (Model.Map.Unplaced.Count == 0) { <span class="text-body-secondary">Todos los elementos están colocados.</span> }
+                </div>
+            </div>
+            <div class="card card-body">
+                <h2 class="h5">Confirmar cambios</h2>
+                <form method="post" data-map-save-form>
+                    <input asp-for="Input.OperationId" type="hidden" />
+                    <input asp-for="Input.GeometryJson" type="hidden" data-editor-geometry />
+                    <input asp-for="Input.ArchitectureJson" type="hidden" data-editor-architecture />
+                    <input asp-for="Input.LayerStateJson" type="hidden" data-editor-layer-state />
+                    <input asp-for="Input.ScaleUnitsPerInch" type="hidden" data-editor-scale />
+                    <input asp-for="Input.MeasurementSystem" type="hidden" data-editor-measurement-field />
+                    <div class="mb-3"><label asp-for="Input.Reason" class="form-label">Motivo (opcional)</label><textarea asp-for="Input.Reason" class="form-control" maxlength="500"></textarea></div>
+                    @if (Model.Map.IsInitialized)
+                    {
+                        <button type="button" class="btn btn-primary w-100" data-editor-review-button>Revisar cambios</button>
+                        <div class="modal fade" tabindex="-1" aria-labelledby="map-review-title" data-editor-review-modal>
+                            <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
+                                <div class="modal-header"><h2 class="modal-title h5" id="map-review-title">Revisión antes de guardar</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
+                                <div class="modal-body">
+                                    <div data-editor-review-status role="status">Preparando revisión…</div>
+                                    <div data-editor-review-content hidden>
+                                        <dl class="row small" data-editor-review-summary></dl>
+                                        <div class="alert alert-warning" data-editor-review-warnings hidden><strong>Advertencias editoriales</strong><ul class="mb-0 mt-2"></ul><label class="form-check mt-3"><input class="form-check-input" type="checkbox" data-editor-warning-ack /> <span class="form-check-label">Reconozco estas advertencias y deseo continuar.</span></label></div>
+                                        <div class="mb-3"><label asp-for="Input.Pin" class="form-label">NIP ADMIN</label><input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric" autocomplete="off" data-editor-review-pin /></div>
+                                    </div>
+                                </div>
+                                <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver al plano</button><button asp-page-handler="Save" class="btn btn-primary" disabled data-editor-save-reviewed>Guardar revisión</button></div>
+                            </div></div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="mb-3"><label asp-for="Input.Pin" class="form-label">NIP ADMIN</label><input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric" autocomplete="off" required /></div>
+                        <input type="hidden" name="previewToken" value="@Model.PreviewToken" />
+                        <p class="small text-body-secondary">La propuesta incluye @Model.Map.Elements.Count elementos colocados y @Model.Map.Unplaced.Count pendientes.</p>
+                        <button asp-page-handler="Initialize" class="btn btn-primary w-100">Confirmar croquis inicial</button>
+                    }
+                </form>
+            </div>
+        </aside>
+    </div>
+</div>
+
+@if (Model.Revisions.Count > 0)
+{
+    <section class="card mt-4"><div class="card-body"><h2 class="h4">Historial de revisiones</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Versión</th><th>Fecha</th><th>Solicitó / autorizó</th><th>Motivo y detalle</th></tr></thead><tbody>@foreach (var item in Model.Revisions) { <tr><td>@item.PreviousVersion → @item.NewVersion</td><td>@item.RecordedAt.ToString("yyyy-MM-dd HH:mm")</td><td>@item.RequestedBy / @item.AuthorizedBy</td><td><span>@(item.Reason ?? "Sin motivo")</span><details class="mt-2"><summary>Ver cambios auditados</summary><p class="small mt-2 mb-0">Esquema @item.SchemaVersion. @item.Summary</p></details></td></tr> }</tbody></table></div></div></section>
+}
+
 @section Scripts { <script src="~/js/warehouse-map.js" asp-append-version="true"></script> }

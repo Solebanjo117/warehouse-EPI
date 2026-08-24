@@ -16,10 +16,12 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
     public InventoryMovementDetail Movement { get; private set; } = null!;
     public bool CanReplace { get; private set; }
     [BindProperty] public InputModel Input { get; set; } = new();
+    [BindProperty(SupportsGet = true)] public string? ReturnUrl { get; set; }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken token)
     {
         if (!await LoadAsync(id, token)) return NotFound();
+        ReturnUrl = SafeReturnUrl(ReturnUrl);
         var line = await db.InventoryMovementLines.AsNoTracking().Include(l => l.BalanceChanges).SingleAsync(l => l.MovementId == id, token);
         Input = InputModel.From(line, Movement.Type); return Page();
     }
@@ -27,6 +29,7 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
     public async Task<IActionResult> OnPostAsync(Guid id, CancellationToken token)
     {
         if (!await LoadAsync(id, token)) return NotFound();
+        ReturnUrl = SafeReturnUrl(ReturnUrl);
         if (!ModelState.IsValid) { Input.Pin = string.Empty; return Page(); }
         if (!Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var requestedBy)) return Forbid();
         InventoryReplacementCommand? replacement = null;
@@ -40,7 +43,7 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         var result = await corrections.ConfirmAsync(new(Input.OperationId, id, requestedBy, Input.Pin, Input.Reason, replacement), token);
         Input.Pin = string.Empty;
         if (result.Status == InventoryCorrectionStatus.Success && result.ReversalMovementId is Guid reversal)
-            return RedirectToPage("Details", new { id = result.ReplacementMovementId ?? reversal });
+            return RedirectToPage("Details", new { id = result.ReplacementMovementId ?? reversal, returnUrl = ReturnUrl });
         ModelState.AddModelError(string.Empty, Message(result)); return Page();
     }
 
@@ -51,6 +54,7 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         Movement = movement; CanReplace = movement.Lines.Count == 1 && movement.OriginalCorrection is null && movement.ReversalCorrection is null;
         return true;
     }
+    private string SafeReturnUrl(string? returnUrl) => Url.IsLocalUrl(returnUrl) ? returnUrl : Url.Page("Index") ?? "/Admin/Inventory/Movements";
     private static string Message(InventoryCorrectionResult result) => result.Status switch
     {
         InventoryCorrectionStatus.InvalidPin => "NIP inválido o sin permiso administrativo.",

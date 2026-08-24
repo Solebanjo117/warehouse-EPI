@@ -1,0 +1,22 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Labels.Assets.IndexModel
+@{ ViewData["Title"] = "Imágenes de etiquetas"; }
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-start gap-3 mb-4"><div><a asp-page="../Templates/Index" class="small">← Formatos</a><h1 class="h3">Biblioteca de imágenes</h1><p class="text-body-secondary">Solo PNG/JPEG locales, máximo 1 MiB y 4096×4096.</p></div></div>
+    @if (TempData["StatusMessage"] is string message) { <div class="alert alert-success">@message</div> }
+    <div asp-validation-summary="All" class="alert alert-danger"></div>
+    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="card card-body shadow-sm mb-4">
+        <label asp-for="Image" class="form-label fw-semibold">Agregar imagen</label><div class="input-group"><input asp-for="Image" class="form-control" type="file" accept="image/png,image/jpeg" required /><button class="btn btn-primary">Subir</button></div>
+    </form>
+    <div class="row g-3">
+        @foreach (var item in Model.Items)
+        {
+            <div class="col-sm-6 col-lg-4 col-xl-3"><article class="card h-100 shadow-sm @(item.IsArchived ? "opacity-50" : null)">
+                <div class="ratio ratio-4x3 bg-white border-bottom"><img src="/Labels/Assets/@item.Id" alt="" class="object-fit-contain p-2" /></div>
+                <div class="card-body"><h2 class="h6 text-break">@item.Name</h2><div class="small text-body-secondary">@item.Width × @item.Height · @item.ContentType</div></div>
+                <form method="post" asp-page-handler="Archive" asp-route-id="@item.Id" asp-route-archived="@(!item.IsArchived)" class="card-footer d-grid"><button class="btn btn-sm btn-outline-secondary">@(item.IsArchived ? "Restaurar" : "Archivar")</button></form>
+            </article></div>
+        }
+        @if (Model.Items.Count == 0) { <div class="col-12 text-center text-body-secondary py-5">No hay imágenes en la biblioteca.</div> }
+    </div>
+</div>

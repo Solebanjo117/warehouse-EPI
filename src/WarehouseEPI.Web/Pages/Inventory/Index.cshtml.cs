@@ -11,7 +11,7 @@ public sealed class IndexModel(
 
     public OperationalProductResult? Product { get; private set; }
     public OperationalLocationResult? Location { get; private set; }
-    public InventoryPositionPage Results { get; private set; } = new([], 0, 1, PageSize, new(0, 0, 0, 0, 0));
+    public InventoryPositionPage Results { get; private set; } = new([], 0, 1, PageSize, new(0, 0, 0, 0, 0, 0));
     public decimal ProductTotal { get; private set; }
     public string? ErrorMessage { get; private set; }
     public InventoryPositionFilter Filter { get; private set; }
@@ -26,7 +26,7 @@ public sealed class IndexModel(
         string? locationCode,
         string? code,
         string? filter,
-        int pageNumber = 1,
+        int? pageNumber = null,
         Guid? highlightLocationId = null,
         Guid? highlightProductId = null,
         CancellationToken cancellationToken = default)
@@ -59,7 +59,7 @@ public sealed class IndexModel(
                 ErrorMessage = "No se encontró la ubicación.";
                 return;
             }
-            Results = await inventoryQuery.GetLocationInventoryPageAsync(Location.Id, Filter, pageNumber, PageSize, cancellationToken);
+            Results = await LoadLocationAsync(pageNumber, cancellationToken);
             return;
         }
 
@@ -81,17 +81,32 @@ public sealed class IndexModel(
         if (resolution.Location is not null)
         {
             Location = resolution.Location;
-            Results = await inventoryQuery.GetLocationInventoryPageAsync(Location.Id, Filter, pageNumber, PageSize, cancellationToken);
+            Results = await LoadLocationAsync(pageNumber, cancellationToken);
             return;
         }
         ErrorMessage = "No se encontró un producto ni una ubicación con ese código.";
     }
 
-    private async Task LoadProductAsync(int pageNumber, CancellationToken cancellationToken)
+    private async Task LoadProductAsync(int? pageNumber, CancellationToken cancellationToken)
     {
-        Results = await inventoryQuery.GetProductInventoryPageAsync(Product!.Id, Filter, pageNumber, PageSize, cancellationToken);
+        Results = await inventoryQuery.GetProductInventoryPageAsync(
+            Product!.Id,
+            Filter,
+            pageNumber ?? 1,
+            PageSize,
+            pageNumber is null ? HighlightLocationId : null,
+            cancellationToken);
         ProductTotal = await inventoryQuery.GetProductTotalAsync(Product.Id, cancellationToken);
     }
+
+    private Task<InventoryPositionPage> LoadLocationAsync(int? pageNumber, CancellationToken cancellationToken) =>
+        inventoryQuery.GetLocationInventoryPageAsync(
+            Location!.Id,
+            Filter,
+            pageNumber ?? 1,
+            PageSize,
+            pageNumber is null ? HighlightProductId : null,
+            cancellationToken);
 
     private static InventoryPositionFilter ParseFilter(string? value) => value?.ToLowerInvariant() switch
     {

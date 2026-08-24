@@ -57,7 +57,7 @@ public sealed class InventoryAnalyticsServiceTests
     }
 
     [Fact]
-    public async Task Rotation_includes_zero_exit_products_filters_and_excludes_correction_chain()
+    public async Task Exit_activity_includes_zero_exit_products_filters_and_excludes_correction_chain()
     {
         await using var db = CreateDbContext();
         var user = User();
@@ -66,6 +66,7 @@ public sealed class InventoryAnalyticsServiceTests
         var inactive = Product("ROT-INACTIVE", isActive: false, unitId: 2);
         var location = Location("ROT-01", "R");
         db.AddRange(user, active, zero, inactive, location);
+        db.ProductBarcodes.Add(new ProductBarcode { Product = active, Barcode = "BAR-ACTIVITY-4287" });
         db.InventoryBalances.AddRange(Balance(active, location, 12m), Balance(zero, location, 3m));
 
         AddExit(db, user, active, new(2026, 5, 1, 12, 0, 0, TimeSpan.Zero), 100m);
@@ -84,7 +85,7 @@ public sealed class InventoryAnalyticsServiceTests
             NowUtc.AddDays(1),
             ProductStatus: "active",
             PageSize: 25);
-        var page = await Service(db).GetRotationPageAsync(filter);
+        var page = await Service(db).GetExitActivityPageAsync(filter);
 
         Assert.Equal(2, page.TotalCount);
         Assert.Equal("ROT-A", page.Items[0].Sku);
@@ -95,19 +96,22 @@ public sealed class InventoryAnalyticsServiceTests
         Assert.Equal("ROT-ZERO", page.Items[1].Sku);
         Assert.Equal(0, page.Items[1].EffectiveExitMovementCount);
 
-        var search = await Service(db).GetRotationPageAsync(filter with { Search = "ref-a" });
+        var search = await Service(db).GetExitActivityPageAsync(filter with { Search = "ref-a" });
         Assert.Single(search.Items);
         Assert.Equal("ROT-A", search.Items[0].Sku);
+        var barcodeSearch = await Service(db).GetExitActivityPageAsync(filter with { Search = "activity-42" });
+        Assert.Single(barcodeSearch.Items);
+        Assert.Equal("ROT-A", barcodeSearch.Items[0].Sku);
 
-        var inactiveOnly = await Service(db).GetRotationPageAsync(filter with { ProductStatus = "inactive" });
+        var inactiveOnly = await Service(db).GetExitActivityPageAsync(filter with { ProductStatus = "inactive" });
         Assert.Single(inactiveOnly.Items);
         Assert.False(inactiveOnly.Items[0].IsActive);
 
-        var boxes = await Service(db).GetRotationPageAsync(filter with { ProductStatus = "all", UnitId = 2 });
+        var boxes = await Service(db).GetExitActivityPageAsync(filter with { ProductStatus = "all", UnitId = 2 });
         Assert.Single(boxes.Items);
         Assert.Equal("BX", boxes.Items[0].UnitCode);
 
-        var allHistory = await Service(db).GetRotationPageAsync(filter with { FromUtc = null, ToUtc = null });
+        var allHistory = await Service(db).GetExitActivityPageAsync(filter with { FromUtc = null, ToUtc = null });
         Assert.Equal(2, allHistory.Items[0].EffectiveExitMovementCount);
         Assert.Equal(103m, allHistory.Items[0].QuantityInBaseUnit);
     }
@@ -168,7 +172,7 @@ public sealed class InventoryAnalyticsServiceTests
         db.Products.AddRange(Product("LIMIT-A"), Product("LIMIT-B"));
         await db.SaveChangesAsync();
 
-        var batch = await Service(db).GetRotationExportAsync(new InventoryAnalyticsFilter(), maximumRows: 1);
+        var batch = await Service(db).GetExitActivityExportAsync(new InventoryAnalyticsFilter(), maximumRows: 1);
 
         Assert.True(batch.ExceedsLimit);
         Assert.Equal(2, batch.TotalRows);

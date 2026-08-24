@@ -5,5 +5,6 @@ public enum InventoryMovementPurpose
     Standard,
     GeneralExit,
     ProductionIssue,
-    WipWarehouseReturn
+    WipWarehouseReturn,
+    CycleCountAdjustment
 }

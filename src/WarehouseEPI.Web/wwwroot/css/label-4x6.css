@@ -1,0 +1,88 @@
+.label-workspace { max-width: 78rem; margin: 0 auto; }
+.label-page-header,
+.label-preview-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.label-eyebrow { display: block; margin-bottom: .25rem; color: var(--bs-secondary-color); font-size: .75rem; font-weight: 800; letter-spacing: .055em; text-transform: uppercase; }
+.label-create-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.label-form-card { min-width: 0; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .9rem; background: var(--bs-body-bg); box-shadow: 0 .2rem .75rem rgba(20, 34, 54, .05); }
+.label-submit-card { grid-column: 1 / -1; }
+.label-section-heading { display: flex; align-items: flex-start; gap: .75rem; margin-bottom: 1rem; }
+.label-step-number { display: inline-grid; flex: 0 0 2.25rem; width: 2.25rem; height: 2.25rem; place-items: center; border-radius: 999px; background: var(--bs-primary-bg-subtle); color: var(--bs-primary-text-emphasis); font-weight: 800; }
+.label-form-card .form-control,
+.label-form-card .input-group-text,
+.label-form-card .btn { min-height: 44px; }
+.label-product-results { position: relative; z-index: 2; max-height: 17rem; overflow-y: auto; }
+.label-product-results button { display: grid; flex: 0 0 auto; min-width: 0; min-height: 52px; align-content: start; gap: .15rem; text-align: left; white-space: normal; }
+.label-product-results button > * { min-width: 0; overflow-wrap: anywhere; }
+.label-product-results button span { line-height: 1.25; }
+.label-product-results button small { color: var(--bs-secondary-color); line-height: 1.2; }
+.label-repack-check { display: flex; min-height: 48px; align-items: center; gap: .55rem; margin: 0; padding: .75rem .85rem .75rem 2.3rem; border: 1px solid var(--bs-border-color); border-radius: .55rem; background: var(--bs-tertiary-bg); }
+.label-preview-section { margin-top: 1.5rem; }
+.label-preview-toolbar { align-items: center; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .9rem; background: var(--bs-body-bg); }
+.label-print-pages { display: grid; justify-items: center; gap: 1.25rem; }
+.label-dynamic { position: relative; width: var(--label-width); max-width: 100%; aspect-ratio: calc(var(--label-width) / var(--label-height)); overflow: hidden; box-sizing: border-box; border: 1px solid #111; background: #fff; color: #000; }
+.label-element { position: absolute; display: flex; overflow: hidden; box-sizing: border-box; align-items: center; line-height: 1.05; white-space: pre-wrap; overflow-wrap: anywhere; transform-origin: center; }
+.label-element[style*="text-align:center"] { justify-content: center; }
+.label-element[style*="text-align:right"] { justify-content: flex-end; }
+.label-element-field,.label-element-text { justify-content: inherit; }
+.label-element-code128 svg,.label-element-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.label-element-line { overflow: visible; }
+.label-line { display: block; width: 100%; border-top: max(1px, .012in) solid currentColor; }
+.label-element.is-blank-line { border-bottom: max(1px, .012in) solid currentColor; }
+.label-6x4 { position: relative; display: grid; grid-template-rows: 1.3fr 1fr 1.05fr; width: min(100%, 60rem); aspect-ratio: 3 / 2; overflow: hidden; box-sizing: border-box; padding: 2.3%; border: 2px solid #111; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
+.label-field-name { display: block; font-size: clamp(.65rem, 1.35vw, 1.05rem); font-weight: 900; letter-spacing: .04em; }
+.label-identity { display: grid; min-height: 0; grid-template-columns: 7.5rem minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; column-gap: .5rem; border-bottom: 2px solid #111; }
+.label-identity .label-field-name { align-self: start; }
+.label-product-barcode { min-width: 0; min-height: 0; }
+.label-product-barcode svg,
+.label-quantity-barcode svg { display: block; width: 100%; height: 100%; }
+.label-sku { grid-column: 1 / -1; overflow-wrap: anywhere; font-size: clamp(1rem, 2.6vw, 2.3rem); line-height: 1; text-align: center; }
+.label-description { display: grid; min-height: 0; align-content: center; padding: 1.5% 0; border-bottom: 2px solid #111; }
+.label-description strong { overflow: hidden; font-size: clamp(1rem, 2.75vw, 2.5rem); line-height: 1.05; text-align: center; overflow-wrap: anywhere; }
+.label-data-row { display: grid; min-height: 0; grid-template-columns: 1.5fr .9fr .65fr; gap: 2%; padding-top: 1.5%; }
+.label-data-row > div { display: grid; min-width: 0; align-content: start; }
+.label-quantity { grid-template-columns: 1fr auto; grid-template-rows: auto minmax(0, 1fr); column-gap: .3rem; }
+.label-quantity .label-field-name { grid-column: 1 / -1; }
+.label-quantity-barcode { min-height: 0; }
+.label-quantity > strong { align-self: center; font-size: clamp(1rem, 2.7vw, 2.35rem); line-height: 1; white-space: nowrap; }
+.label-quantity small { font-size: .48em; }
+.label-date strong,
+.label-repack strong { align-self: center; font-size: clamp(.85rem, 1.8vw, 1.5rem); overflow-wrap: anywhere; }
+.label-repack { padding-left: 7%; border-left: 2px solid #111; }
+.label-repack.is-repack strong { font-size: clamp(1.2rem, 2.8vw, 2.35rem); }
+.label-template-mark { position: absolute; right: 2.3%; bottom: .5%; font-size: clamp(.45rem, .75vw, .65rem); font-weight: 700; }
+
+@media (max-width: 767.98px) {
+  .label-create-grid { grid-template-columns: 1fr; }
+  .label-submit-card { grid-column: auto; }
+  .label-preview-toolbar { display: grid; }
+  .label-preview-toolbar .btn { width: 100%; }
+  .label-identity { grid-template-columns: 4.5rem minmax(0, 1fr); }
+}
+
+@media print {
+  html,
+  body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  .app-topbar,
+  .app-sidebar,
+  .app-backdrop,
+  .app-footer,
+  .no-label-print { display: none !important; }
+  .app-content,
+  .app-main,
+  .label-workspace,
+  .label-preview-section,
+  .label-print-pages { display: block !important; width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .label-6x4 { width: 6in; height: 4in; aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; padding: .14in; print-color-adjust: exact; }
+  .label-6x4:last-child { break-after: auto; page-break-after: auto; }
+  .label-dynamic { width: var(--label-width); max-width: none; height: var(--label-height); aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; print-color-adjust: exact; }
+  .label-dynamic:last-child { break-after: auto; page-break-after: auto; }
+  .label-field-name { font-size: 9pt; }
+  .label-identity { grid-template-columns: .75in minmax(0, 1fr); }
+  .label-sku { font-size: 19pt; }
+  .label-description strong { font-size: 21pt; }
+  .label-quantity > strong { font-size: 19pt; }
+  .label-date strong { font-size: 13pt; }
+  .label-repack strong,
+  .label-repack.is-repack strong { font-size: 17pt; }
+  .label-template-mark { right: .14in; bottom: .03in; font-size: 5pt; }
+}

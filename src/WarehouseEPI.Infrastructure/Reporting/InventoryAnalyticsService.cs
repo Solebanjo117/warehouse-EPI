@@ -5,7 +5,7 @@ using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Reporting;
 
-/// <summary>Consultas analíticas de ocupación, rotación y estancamiento.</summary>
+/// <summary>Consultas analíticas de ocupación, actividad de salidas y estancamiento.</summary>
 public sealed class InventoryAnalyticsService(
     WarehouseDbContext dbContext,
     WarehouseSettingsService settingsService)
@@ -51,27 +51,36 @@ public sealed class InventoryAnalyticsService(
         return new(Summarize(states.Select(state => state.State)), rows);
     }
 
-    public async Task<InventoryAnalyticsPage<SkuRotationMetricDto>> GetRotationPageAsync(
+    public async Task<InventoryAnalyticsPage<SkuExitActivityMetricDto>> GetExitActivityPageAsync(
         InventoryAnalyticsFilter filter,
         CancellationToken cancellationToken = default)
     {
         var normalized = Normalize(filter);
-        var rows = await BuildRotationAsync(normalized, cancellationToken);
-        return Page(rows, normalized.PageNumber, normalized.PageSize);
+        var products = ApplyProductFilter(normalized);
+        var totalCount = await products.CountAsync(cancellationToken);
+        var pageNumber = NormalizePage(normalized.PageNumber, normalized.PageSize, totalCount);
+        var rows = await ProjectExitActivity(OrderExitActivity(products, normalized)
+            .Skip((pageNumber - 1) * normalized.PageSize)
+            .Take(normalized.PageSize), normalized)
+            .ToListAsync(cancellationToken);
+        return new(rows, totalCount, pageNumber, normalized.PageSize);
     }
 
-    public async Task<InventoryAnalyticsExportBatch<SkuRotationMetricDto>> GetRotationExportAsync(
+    public async Task<InventoryAnalyticsExportBatch<SkuExitActivityMetricDto>> GetExitActivityExportAsync(
         InventoryAnalyticsFilter filter,
         int maximumRows = 10000,
         CancellationToken cancellationToken = default)
     {
         var normalized = Normalize(filter);
         var limit = Math.Clamp(maximumRows, 1, 50000);
-        var products = await LoadProductsAsync(normalized, cancellationToken);
-        if (products.Count > limit)
-            return new([], products.Count, limit);
+        var products = ApplyProductFilter(normalized);
+        var totalCount = await products.CountAsync(cancellationToken);
+        if (totalCount > limit)
+            return new([], totalCount, limit);
 
-        return new(await BuildRotationAsync(normalized, cancellationToken, products), products.Count, limit);
+        var rows = await ProjectExitActivity(OrderExitActivity(products, normalized), normalized)
+            .ToListAsync(cancellationToken);
+        return new(rows, totalCount, limit);
     }
 
     public async Task<InventoryAnalyticsPage<StagnantProductDto>> GetStagnantPageAsync(
@@ -80,8 +89,18 @@ public sealed class InventoryAnalyticsService(
         CancellationToken cancellationToken = default)
     {
         var normalized = Normalize(filter);
-        var rows = await BuildStagnantAsync(normalized, nowUtc, cancellationToken);
-        return Page(rows, normalized.PageNumber, normalized.PageSize);
+        var context = await BuildStagnantQueryAsync(normalized, nowUtc, cancellationToken);
+        var totalCount = await context.Products.CountAsync(cancellationToken);
+        var pageNumber = NormalizePage(normalized.PageNumber, normalized.PageSize, totalCount);
+        var rows = await ProjectStagnant(OrderStagnant(context.Products)
+            .Skip((pageNumber - 1) * normalized.PageSize)
+            .Take(normalized.PageSize))
+            .ToListAsync(cancellationToken);
+        return new(
+            rows.Select(row => ToStagnantDto(row, context.WarehouseDate, context.TimeZone)).ToArray(),
+            totalCount,
+            pageNumber,
+            normalized.PageSize);
     }
 
     public async Task<InventoryAnalyticsExportBatch<StagnantProductDto>> GetStagnantExportAsync(
@@ -91,116 +110,130 @@ public sealed class InventoryAnalyticsService(
         CancellationToken cancellationToken = default)
     {
         var normalized = Normalize(filter);
-        var rows = await BuildStagnantAsync(normalized, nowUtc, cancellationToken);
         var limit = Math.Clamp(maximumRows, 1, 50000);
-        return rows.Count > limit
-            ? new([], rows.Count, limit)
-            : new(rows, rows.Count, limit);
-    }
+        var context = await BuildStagnantQueryAsync(normalized, nowUtc, cancellationToken);
+        var totalCount = await context.Products.CountAsync(cancellationToken);
+        if (totalCount > limit)
+            return new([], totalCount, limit);
 
-    private async Task<IReadOnlyList<SkuRotationMetricDto>> BuildRotationAsync(
-        InventoryAnalyticsFilter filter,
-        CancellationToken cancellationToken,
-        IReadOnlyList<ProductProjection>? loadedProducts = null)
-    {
-        var products = loadedProducts ?? await LoadProductsAsync(filter, cancellationToken);
-        var productIds = products.Select(product => product.Id).ToArray();
-        if (productIds.Length == 0)
-            return [];
-
-        var currentStock = await LoadCurrentStockAsync(productIds, cancellationToken);
-        var rankingQuery = EffectiveExitLines(productIds);
-        if (filter.FromUtc is not null)
-            rankingQuery = rankingQuery.Where(line => line.Movement.OccurredAt >= filter.FromUtc.Value);
-        if (filter.ToUtc is not null)
-            rankingQuery = rankingQuery.Where(line => line.Movement.OccurredAt < filter.ToUtc.Value);
-
-        var ranking = await rankingQuery
-            .GroupBy(line => line.ProductId)
-            .Select(lines => new ExitRankingProjection(
-                lines.Key,
-                lines.Select(line => line.MovementId).Distinct().Count(),
-                lines.Sum(line => line.Quantity)))
+        var rows = await ProjectStagnant(OrderStagnant(context.Products))
             .ToListAsync(cancellationToken);
-        var rankingByProduct = ranking.ToDictionary(row => row.ProductId);
-        var lastExits = await LoadLastExitsAsync(productIds, cancellationToken);
-
-        return products
-            .Select(product =>
-            {
-                var metric = rankingByProduct.GetValueOrDefault(product.Id);
-                return new SkuRotationMetricDto(
-                    product.Id,
-                    product.Sku,
-                    product.Description,
-                    product.UnitId,
-                    product.UnitCode,
-                    metric?.MovementCount ?? 0,
-                    metric?.Quantity ?? 0m,
-                    currentStock.GetValueOrDefault(product.Id),
-                    lastExits.GetValueOrDefault(product.Id),
-                    product.IsActive);
-            })
-            .OrderByDescending(row => row.EffectiveExitMovementCount)
-            .ThenByDescending(row => row.QuantityInBaseUnit)
-            .ThenBy(row => row.Sku, StringComparer.Ordinal)
-            .ToArray();
+        return new(
+            rows.Select(row => ToStagnantDto(row, context.WarehouseDate, context.TimeZone)).ToArray(),
+            totalCount,
+            limit);
     }
 
-    private async Task<IReadOnlyList<StagnantProductDto>> BuildStagnantAsync(
+    private IQueryable<Product> OrderExitActivity(
+        IQueryable<Product> products,
+        InventoryAnalyticsFilter filter)
+    {
+        var rankingLines = EffectiveExitLines();
+        if (filter.FromUtc is not null)
+            rankingLines = rankingLines.Where(line => line.Movement.OccurredAt >= filter.FromUtc.Value);
+        if (filter.ToUtc is not null)
+            rankingLines = rankingLines.Where(line => line.Movement.OccurredAt < filter.ToUtc.Value);
+        return products
+            .OrderByDescending(product => rankingLines
+                .Where(line => line.ProductId == product.Id)
+                .Select(line => line.MovementId)
+                .Distinct()
+                .Count())
+            .ThenByDescending(product => rankingLines
+                .Where(line => line.ProductId == product.Id)
+                .Sum(line => (decimal?)line.Quantity) ?? 0m)
+            .ThenBy(product => product.Sku);
+    }
+
+    private IQueryable<SkuExitActivityMetricDto> ProjectExitActivity(
+        IQueryable<Product> products,
+        InventoryAnalyticsFilter filter)
+    {
+        var rankingLines = EffectiveExitLines();
+        if (filter.FromUtc is not null)
+            rankingLines = rankingLines.Where(line => line.Movement.OccurredAt >= filter.FromUtc.Value);
+        if (filter.ToUtc is not null)
+            rankingLines = rankingLines.Where(line => line.Movement.OccurredAt < filter.ToUtc.Value);
+        var allExitLines = EffectiveExitLines();
+        return products.Select(product => new SkuExitActivityMetricDto(
+                product.Id,
+                product.Sku,
+                product.Description,
+                product.BaseUnitId,
+                product.BaseUnit.Code,
+                rankingLines
+                    .Where(line => line.ProductId == product.Id)
+                    .Select(line => line.MovementId)
+                    .Distinct()
+                    .Count(),
+                rankingLines
+                    .Where(line => line.ProductId == product.Id)
+                    .Sum(line => (decimal?)line.Quantity) ?? 0m,
+                dbContext.InventoryBalances
+                    .Where(balance => balance.ProductId == product.Id)
+                    .Sum(balance => (decimal?)balance.Quantity) ?? 0m,
+                allExitLines
+                    .Where(line => line.ProductId == product.Id)
+                    .Max(line => (DateTimeOffset?)line.Movement.OccurredAt),
+                product.IsActive));
+    }
+
+    private async Task<StagnantQueryContext> BuildStagnantQueryAsync(
         InventoryAnalyticsFilter filter,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        var products = await LoadProductsAsync(filter, cancellationToken);
-        var productIds = products.Select(product => product.Id).ToArray();
-        if (productIds.Length == 0)
-            return [];
-
-        var currentStock = await LoadCurrentStockAsync(productIds, cancellationToken);
-        var candidates = products.Where(product => currentStock.GetValueOrDefault(product.Id) > 0m).ToArray();
-        if (candidates.Length == 0)
-            return [];
-
-        var candidateIds = candidates.Select(product => product.Id).ToArray();
-        var lastExits = await LoadLastExitsAsync(candidateIds, cancellationToken);
         var settings = await settingsService.GetAsync(cancellationToken);
         var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
         var warehouseDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(nowUtc, timeZone).DateTime);
-
-        return candidates
-            .Select(product =>
-            {
-                var lastExitUtc = lastExits.GetValueOrDefault(product.Id);
-                var days = lastExitUtc is null
-                    ? (int?)null
-                    : warehouseDate.DayNumber - DateOnly.FromDateTime(
-                        TimeZoneInfo.ConvertTime(lastExitUtc.Value, timeZone).DateTime).DayNumber;
-                var category = Category(days);
-                return category is null
-                    ? null
-                    : new StagnantProductDto(
-                        product.Id,
-                        product.Sku,
-                        product.Description,
-                        product.UnitId,
-                        product.UnitCode,
-                        currentStock[product.Id],
-                        lastExitUtc,
-                        days,
-                        category.Value,
-                        product.IsActive);
-            })
-            .OfType<StagnantProductDto>()
-            .OrderBy(row => CategoryPriority(row.Category))
-            .ThenByDescending(row => row.DaysWithoutExit)
-            .ThenBy(row => row.Sku, StringComparer.Ordinal)
-            .ToArray();
+        var staleBeforeUtc = ToUtcStart(warehouseDate.AddDays(-29), timeZone);
+        var products = ApplyProductFilter(filter);
+        var allExitLines = EffectiveExitLines();
+        products = products.Where(product =>
+            (dbContext.InventoryBalances
+                    .Where(balance => balance.ProductId == product.Id)
+                    .Sum(balance => (decimal?)balance.Quantity) ?? 0m) > 0m &&
+            (allExitLines
+                    .Where(line => line.ProductId == product.Id)
+                    .Max(line => (DateTimeOffset?)line.Movement.OccurredAt) == null ||
+             allExitLines
+                    .Where(line => line.ProductId == product.Id)
+                    .Max(line => (DateTimeOffset?)line.Movement.OccurredAt) < staleBeforeUtc));
+        return new(products, warehouseDate, timeZone);
     }
 
-    private async Task<IReadOnlyList<ProductProjection>> LoadProductsAsync(
-        InventoryAnalyticsFilter filter,
-        CancellationToken cancellationToken)
+    private IQueryable<Product> OrderStagnant(IQueryable<Product> products)
+    {
+        var allExitLines = EffectiveExitLines();
+        return products
+            .OrderBy(product => allExitLines
+                .Where(line => line.ProductId == product.Id)
+                .Max(line => (DateTimeOffset?)line.Movement.OccurredAt) != null)
+            .ThenBy(product => allExitLines
+                .Where(line => line.ProductId == product.Id)
+                .Max(line => (DateTimeOffset?)line.Movement.OccurredAt))
+            .ThenBy(product => product.Sku);
+    }
+
+    private IQueryable<StagnantProjection> ProjectStagnant(IQueryable<Product> products)
+    {
+        var allExitLines = EffectiveExitLines();
+        return products.Select(product => new StagnantProjection(
+            product.Id,
+            product.Sku,
+            product.Description,
+            product.BaseUnitId,
+            product.BaseUnit.Code,
+            dbContext.InventoryBalances
+                .Where(balance => balance.ProductId == product.Id)
+                .Sum(balance => (decimal?)balance.Quantity) ?? 0m,
+            allExitLines
+                .Where(line => line.ProductId == product.Id)
+                .Max(line => (DateTimeOffset?)line.Movement.OccurredAt),
+            product.IsActive));
+    }
+
+    private IQueryable<Product> ApplyProductFilter(InventoryAnalyticsFilter filter)
     {
         var query = dbContext.Products.AsNoTracking().AsQueryable();
         query = filter.ProductStatus switch
@@ -217,50 +250,18 @@ public sealed class InventoryAnalyticsService(
             query = query.Where(product =>
                 product.Sku.ToUpper().Contains(term) ||
                 (product.Description != null && product.Description.ToUpper().Contains(term)) ||
-                (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(term)));
+                (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(term)) ||
+                product.Barcodes.Any(barcode => barcode.Barcode.ToUpper().Contains(term)));
         }
-
-        return await query
-            .OrderBy(product => product.Sku)
-            .Select(product => new ProductProjection(
-                product.Id,
-                product.Sku,
-                product.Description,
-                product.BaseUnitId,
-                product.BaseUnit.Code,
-                product.IsActive))
-            .ToListAsync(cancellationToken);
+        return query;
     }
 
-    private async Task<Dictionary<Guid, decimal>> LoadCurrentStockAsync(
-        Guid[] productIds,
-        CancellationToken cancellationToken) =>
-        await dbContext.InventoryBalances
-            .AsNoTracking()
-            .Where(balance => productIds.Contains(balance.ProductId))
-            .GroupBy(balance => balance.ProductId)
-            .Select(balances => new { ProductId = balances.Key, Quantity = balances.Sum(balance => balance.Quantity) })
-            .ToDictionaryAsync(row => row.ProductId, row => row.Quantity, cancellationToken);
-
-    private async Task<Dictionary<Guid, DateTimeOffset?>> LoadLastExitsAsync(
-        Guid[] productIds,
-        CancellationToken cancellationToken) =>
-        await EffectiveExitLines(productIds)
-            .GroupBy(line => line.ProductId)
-            .Select(lines => new
-            {
-                ProductId = lines.Key,
-                LastExit = (DateTimeOffset?)lines.Max(line => line.Movement.OccurredAt)
-            })
-            .ToDictionaryAsync(row => row.ProductId, row => row.LastExit, cancellationToken);
-
-    private IQueryable<InventoryMovementLine> EffectiveExitLines(Guid[] productIds) =>
+    private IQueryable<InventoryMovementLine> EffectiveExitLines() =>
         dbContext.InventoryMovements
             .AsNoTracking()
             .WhereEffective(dbContext)
             .Where(movement => movement.Type == InventoryMovementType.Exit)
             .SelectMany(movement => movement.Lines)
-            .Where(line => productIds.Contains(line.ProductId))
             .AsQueryable();
 
     private static InventoryAnalyticsFilter Normalize(InventoryAnalyticsFilter filter) => filter with
@@ -271,19 +272,8 @@ public sealed class InventoryAnalyticsService(
         PageSize = Math.Clamp(filter.PageSize, 1, 100)
     };
 
-    private static InventoryAnalyticsPage<T> Page<T>(
-        IReadOnlyList<T> rows,
-        int requestedPage,
-        int pageSize)
-    {
-        var totalPages = Math.Max(1, (int)Math.Ceiling(rows.Count / (double)pageSize));
-        var page = Math.Clamp(requestedPage, 1, totalPages);
-        return new(
-            rows.Skip((page - 1) * pageSize).Take(pageSize).ToArray(),
-            rows.Count,
-            page,
-            pageSize);
-    }
+    private static int NormalizePage(int requestedPage, int pageSize, int totalCount) =>
+        Math.Clamp(requestedPage, 1, Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize)));
 
     private static LocationOccupancySummaryDto Summarize(IEnumerable<OccupancyKind> states)
     {
@@ -322,24 +312,54 @@ public sealed class InventoryAnalyticsService(
         _ => null
     };
 
-    private static int CategoryPriority(StagnantCategory category) => category switch
+    private static StagnantProductDto ToStagnantDto(
+        StagnantProjection row,
+        DateOnly warehouseDate,
+        TimeZoneInfo timeZone)
     {
-        StagnantCategory.NeverExited => 0,
-        StagnantCategory.Days90Plus => 1,
-        StagnantCategory.Days60To89 => 2,
-        _ => 3
-    };
+        var days = row.LastExitDateUtc is null
+            ? (int?)null
+            : warehouseDate.DayNumber - DateOnly.FromDateTime(
+                TimeZoneInfo.ConvertTime(row.LastExitDateUtc.Value, timeZone).DateTime).DayNumber;
+        return new(
+            row.ProductId,
+            row.Sku,
+            row.Description,
+            row.UnitId,
+            row.UnitCode,
+            row.CurrentStock,
+            row.LastExitDateUtc,
+            days,
+            Category(days)!.Value,
+            row.IsActive);
+    }
+
+    private static DateTimeOffset ToUtcStart(DateOnly date, TimeZoneInfo timeZone)
+    {
+        var local = DateTime.SpecifyKind(date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
+        while (timeZone.IsInvalidTime(local))
+            local = local.AddMinutes(30);
+        var offset = timeZone.IsAmbiguousTime(local)
+            ? timeZone.GetAmbiguousTimeOffsets(local).Max()
+            : timeZone.GetUtcOffset(local);
+        return new DateTimeOffset(local, offset).ToUniversalTime();
+    }
 
     private enum OccupancyKind { Inactive, Blocked, Negative, Occupied, Empty }
     private sealed record OccupancyLocation(Guid Id, string RowCode, bool IsActive, bool IsBlocked);
     private sealed record OccupancyBalance(Guid LocationId, decimal Quantity);
     private sealed record OccupancyState(string RowCode, OccupancyKind State);
-    private sealed record ProductProjection(
-        Guid Id,
+    private sealed record StagnantProjection(
+        Guid ProductId,
         string Sku,
         string? Description,
         short UnitId,
         string UnitCode,
+        decimal CurrentStock,
+        DateTimeOffset? LastExitDateUtc,
         bool IsActive);
-    private sealed record ExitRankingProjection(Guid ProductId, int MovementCount, decimal Quantity);
+    private sealed record StagnantQueryContext(
+        IQueryable<Product> Products,
+        DateOnly WarehouseDate,
+        TimeZoneInfo TimeZone);
 }

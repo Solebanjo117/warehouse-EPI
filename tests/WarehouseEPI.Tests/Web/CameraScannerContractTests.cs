@@ -16,6 +16,21 @@ public sealed class CameraScannerContractTests
         Assert.Contains("data-camera-switch", File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Inventory", "Index.cshtml")), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Inventory_lookup_announces_failures_and_restores_context()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Inventory", "Index.cshtml"));
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js"));
+
+        Assert.Contains("aria-labelledby=\"inventory-camera-scanner-title\"", page, StringComparison.Ordinal);
+        Assert.Contains("aria-describedby=\"inventory-search-feedback\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-inventory-highlighted", page, StringComparison.Ordinal);
+        Assert.Contains("Escribe o escanea un producto o una ubicación.", script, StringComparison.Ordinal);
+        Assert.Contains("No fue posible buscar en la red local.", script, StringComparison.Ordinal);
+        Assert.Contains("highlighted.scrollIntoView", script, StringComparison.Ordinal);
+        Assert.Contains("if (!resolving) input.focus()", script, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

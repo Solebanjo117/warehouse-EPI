@@ -1,0 +1,174 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.CycleCounts.CreateModel
+@{
+    ViewData["Title"] = "Nueva campaña";
+    var selectedIds = Model.Input.LocationIds.ToHashSet();
+}
+
+<div class="inventory-analytics cycle-count-workspace">
+    <header class="inventory-page-header">
+        <a asp-page="Index" class="small text-decoration-none">← Conteos cíclicos</a>
+        <div class="mt-2">
+            <span class="eyebrow">Preparar el trabajo</span>
+            <h1 class="h2 mb-1">Nueva campaña de conteo</h1>
+            <p class="text-muted mb-0">Define qué posiciones se contarán. Varios operadores pueden trabajar la misma campaña en ubicaciones diferentes.</p>
+        </div>
+    </header>
+
+    <ol class="cycle-stepper" aria-label="Pasos para crear la campaña">
+        <li><span>1</span><strong>Datos</strong></li>
+        <li><span>2</span><strong>Ubicaciones</strong></li>
+        <li><span>3</span><strong>Confirmar</strong></li>
+    </ol>
+
+    <form method="post" data-cycle-count-create>
+        <input asp-for="Input.OperationId" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        @if (Model.Error is not null)
+        {
+            <div class="alert alert-danger" role="alert">@Model.Error</div>
+        }
+
+        <div class="cycle-create-layout">
+            <div class="cycle-create-main">
+                <section class="analytics-filter-card cycle-create-section" aria-labelledby="cycle-step-data">
+                    <div class="cycle-section-heading">
+                        <span class="cycle-step-number" aria-hidden="true">1</span>
+                        <div><h2 id="cycle-step-data" class="h5 mb-1">Identifica la campaña</h2><p class="text-muted small mb-0">Usa un nombre que ayude al siguiente turno a reconocer el trabajo.</p></div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="Input.Title" class="form-label">Título</label>
+                            <input asp-for="Input.Title" class="form-control" placeholder="Ej. Fila A · turno matutino" />
+                            <span asp-validation-for="Input.Title" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Input.Notes" class="form-label">Indicaciones opcionales</label>
+                            <textarea asp-for="Input.Notes" class="form-control" rows="2" placeholder="Ej. Dividir A-1 a A-5 y A-6 a A-10"></textarea>
+                            <span asp-validation-for="Input.Notes" class="text-danger"></span>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="analytics-filter-card cycle-create-section" aria-labelledby="cycle-step-locations">
+                    <div class="cycle-section-heading">
+                        <span class="cycle-step-number" aria-hidden="true">2</span>
+                        <div><h2 id="cycle-step-locations" class="h5 mb-1">Selecciona el alcance físico</h2><p class="text-muted small mb-0">Abre una fila, selecciona racks completos y ajusta posiciones individuales solo cuando sea necesario.</p></div>
+                    </div>
+
+                    <div class="cycle-selector-tools cycle-js-action" aria-label="Herramientas de selección">
+                        <div class="cycle-location-search">
+                            <label for="cycle-location-search" class="form-label">Buscar ubicación</label>
+                            <input id="cycle-location-search" type="search" class="form-control" placeholder="Ej. A-3-8" autocomplete="off" data-cycle-search />
+                        </div>
+                        <label class="form-check cycle-selected-filter">
+                            <input class="form-check-input" type="checkbox" data-cycle-selected-only />
+                            <span class="form-check-label">Solo seleccionadas</span>
+                        </label>
+                        <button type="button" class="btn btn-outline-secondary" data-cycle-clear>Limpiar selección</button>
+                    </div>
+
+                    <p class="visually-hidden" role="status" aria-live="polite" data-cycle-status></p>
+
+                    <div class="cycle-location-groups" data-cycle-groups>
+                        @foreach (var row in Model.RowGroups)
+                        {
+                            <details class="cycle-row-group" data-cycle-row-group data-row="@row.RowCode">
+                                <summary><span><strong>Fila @row.RowCode</strong><small>@row.Racks.Count racks · @row.LocationCount ubicaciones</small></span><span class="cycle-group-count" data-cycle-row-count>0 seleccionadas</span></summary>
+                                <div class="cycle-row-body">
+                                    <label class="form-check cycle-group-toggle cycle-js-action">
+                                        <input class="form-check-input" type="checkbox" data-cycle-group-toggle data-group-type="row" data-row="@row.RowCode" />
+                                        <span class="form-check-label">Seleccionar toda la fila @row.RowCode</span>
+                                    </label>
+                                    <div class="cycle-rack-list">
+                                        @foreach (var rack in row.Racks)
+                                        {
+                                            <details class="cycle-rack-group" data-cycle-rack-group data-row="@row.RowCode" data-rack="@rack.RackNumber">
+                                                <summary><span><strong>@row.RowCode-@rack.RackNumber</strong><small>@rack.Locations.Count posiciones</small></span><span class="cycle-group-count" data-cycle-rack-count>0 / @rack.Locations.Count</span></summary>
+                                                <div class="cycle-rack-body">
+                                                    <label class="form-check cycle-group-toggle cycle-js-action">
+                                                        <input class="form-check-input" type="checkbox" data-cycle-group-toggle data-group-type="rack" data-row="@row.RowCode" data-rack="@rack.RackNumber" />
+                                                        <span class="form-check-label">Seleccionar rack @row.RowCode-@rack.RackNumber completo</span>
+                                                    </label>
+                                                    <div class="cycle-pallet-grid">
+                                                        @foreach (var location in rack.Locations)
+                                                        {
+                                                            <label class="cycle-location-choice" data-cycle-location-choice data-search-text="@location.Code @location.Description">
+                                                                <input class="form-check-input" type="checkbox" name="Input.LocationIds" value="@location.Id" checked="@selectedIds.Contains(location.Id)" data-cycle-location data-row="@row.RowCode" data-rack="@rack.RackNumber" data-summary-group="Fila @row.RowCode" />
+                                                                <span><strong>@location.Code</strong><small>@(location.Description ?? $"Posición {location.PalletNumber}")</small></span>
+                                                            </label>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </details>
+                                        }
+                                    </div>
+                                </div>
+                            </details>
+                        }
+
+                        @if (Model.AreaLocations.Count != 0)
+                        {
+                            <details class="cycle-row-group" data-cycle-area-group>
+                                <summary><span><strong>Áreas de almacenamiento</strong><small>@Model.AreaLocations.Count ubicaciones fuera de racks</small></span><span class="cycle-group-count" data-cycle-area-count>0 seleccionadas</span></summary>
+                                <div class="cycle-row-body">
+                                    <label class="form-check cycle-group-toggle cycle-js-action">
+                                        <input class="form-check-input" type="checkbox" data-cycle-group-toggle data-group-type="area" />
+                                        <span class="form-check-label">Seleccionar todas las áreas disponibles</span>
+                                    </label>
+                                    <div class="cycle-area-grid">
+                                        @foreach (var location in Model.AreaLocations)
+                                        {
+                                            <label class="cycle-location-choice" data-cycle-location-choice data-search-text="@location.Code @location.Description">
+                                                <input class="form-check-input" type="checkbox" name="Input.LocationIds" value="@location.Id" checked="@selectedIds.Contains(location.Id)" data-cycle-location data-area="true" data-summary-group="Áreas" />
+                                                <span><strong>@location.Code</strong><small>@(location.Description ?? "Sin descripción")</small></span>
+                                            </label>
+                                        }
+                                    </div>
+                                </div>
+                            </details>
+                        }
+                    </div>
+
+                    @if (Model.Locations.Count == 0)
+                    {
+                        <div class="cycle-empty"><strong>No hay ubicaciones disponibles.</strong><span>Revisa que existan posiciones activas, no bloqueadas y que controlen inventario.</span></div>
+                    }
+                </section>
+            </div>
+
+            <aside class="analytics-filter-card cycle-create-summary" aria-labelledby="cycle-step-confirm">
+                <div class="cycle-section-heading">
+                    <span class="cycle-step-number" aria-hidden="true">3</span>
+                    <div><h2 id="cycle-step-confirm" class="h5 mb-1">Revisa y confirma</h2><p class="text-muted small mb-0">El NIP autoriza la creación; no asigna la campaña a una sola persona.</p></div>
+                </div>
+
+                <div class="cycle-selection-total"><strong data-cycle-total>@selectedIds.Count</strong><span>ubicaciones seleccionadas</span></div>
+                <ul class="cycle-selection-summary" data-cycle-summary-groups>
+                    @if (selectedIds.Count == 0) { <li data-cycle-empty-summary>Selecciona al menos una ubicación.</li> }
+                </ul>
+                <button type="button" class="btn btn-outline-secondary w-100 cycle-js-action" data-cycle-review-selected>Ver seleccionadas</button>
+
+                <div class="mt-3">
+                    <label for="cycle-pin" class="form-label">NIP responsable</label>
+                    <input id="cycle-pin" name="Input.Pin" value="" class="form-control" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" required />
+                    <div class="form-text">Se solicitará nuevamente el NIP al iniciar cada ubicación.</div>
+                </div>
+
+                <div class="cycle-create-actions">
+                    <a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>
+                    <button class="btn btn-primary" data-cycle-submit>Crear campaña</button>
+                </div>
+            </aside>
+        </div>
+        <div class="cycle-mobile-summary cycle-js-action" data-cycle-mobile-summary>
+            <span><strong data-cycle-mobile-total>@selectedIds.Count</strong> ubicaciones</span>
+            <button type="button" class="btn btn-primary" data-cycle-go-confirm>Revisar y confirmar</button>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/cycle-count-create.js" asp-append-version="true"></script>
+}

@@ -25,12 +25,37 @@ public sealed class DashboardRouteTests
             PageContext = new PageContext { HttpContext = new DefaultHttpContext() }
         };
 
-        var result = await model.OnGetMetricsAsync(CancellationToken.None);
+        var result = await model.OnGetMetricsAsync(false, CancellationToken.None);
 
         var json = Assert.IsType<JsonResult>(result);
         var snapshot = Assert.IsType<DailyDashboardSnapshotDto>(json.Value);
         Assert.Equal(14, snapshot.Metrics.RecentActivityTrend.Count);
         Assert.Contains("no-store", model.Response.Headers.CacheControl.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Metrics_handler_uses_cache_for_polling_and_bypasses_it_for_manual_refresh()
+    {
+        await using var db = CreateDbContext();
+        var time = new MutableTimeProvider(new DateTimeOffset(2026, 8, 21, 12, 0, 0, TimeSpan.Zero));
+        var model = new IndexModel(
+            new DailyDashboardService(db, new WarehouseSettingsService(db)),
+            new MemoryCache(Options.Create(new MemoryCacheOptions())),
+            time)
+        {
+            PageContext = new PageContext { HttpContext = new DefaultHttpContext() }
+        };
+
+        var first = Assert.IsType<DailyDashboardSnapshotDto>(
+            Assert.IsType<JsonResult>(await model.OnGetMetricsAsync(false)).Value);
+        time.Advance(TimeSpan.FromMinutes(5));
+        var cached = Assert.IsType<DailyDashboardSnapshotDto>(
+            Assert.IsType<JsonResult>(await model.OnGetMetricsAsync(false)).Value);
+        var refreshed = Assert.IsType<DailyDashboardSnapshotDto>(
+            Assert.IsType<JsonResult>(await model.OnGetMetricsAsync(true)).Value);
+
+        Assert.Equal(first.GeneratedAtLocal, cached.GeneratedAtLocal);
+        Assert.True(refreshed.GeneratedAtLocal > cached.GeneratedAtLocal);
     }
 
     [Fact]
@@ -59,8 +84,12 @@ public sealed class DashboardRouteTests
         Assert.Contains("/js/daily-dashboard.js", page, StringComparison.Ordinal);
         Assert.Contains("User.IsInRole(\"ADMIN\")", page, StringComparison.Ordinal);
         Assert.Contains("if (isAdmin)", page, StringComparison.Ordinal);
-        Assert.Contains("/Admin/Reports/Movements/Index", page, StringComparison.Ordinal);
-        Assert.Contains("/Admin/Inventory/Alerts", page, StringComparison.Ordinal);
+        Assert.Contains("/Admin/Inventory/Movements/Index", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-view=\"effective\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Admin/Reports/Movements/Index", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-view=\"exceptions\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-exception=\"negative\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-exception=\"minimum\"", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -75,6 +104,8 @@ public sealed class DashboardRouteTests
         Assert.Contains("Datos sin actualizar", script, StringComparison.Ordinal);
         Assert.Contains("Actualizando datos", script, StringComparison.Ordinal);
         Assert.Contains("cache: \"no-store\"", script, StringComparison.Ordinal);
+        Assert.Contains("searchParams.set(\"refresh\", \"true\")", script, StringComparison.Ordinal);
+        Assert.Contains("() => refresh(true)", script, StringComparison.Ordinal);
         Assert.Contains("selectedRange = 14", script, StringComparison.Ordinal);
         Assert.Contains("new Chart", script, StringComparison.Ordinal);
         Assert.Contains("shell.classList.add(\"is-ready\")", script, StringComparison.Ordinal);
@@ -116,5 +147,11 @@ public sealed class DashboardRouteTests
         var db = new WarehouseDbContext(options);
         db.Database.EnsureCreated();
         return db;
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset current) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => current;
+        public void Advance(TimeSpan interval) => current = current.Add(interval);
     }
 }
