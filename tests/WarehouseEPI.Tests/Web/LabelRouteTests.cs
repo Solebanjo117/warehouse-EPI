@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Labels;
 using WarehouseEPI.Infrastructure.Persistence;
 
 namespace WarehouseEPI.Tests.Web;
@@ -47,6 +48,35 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.DoesNotContain("Input.Pin", getHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("NIP ADMIN", getHtml, StringComparison.Ordinal);
 
+        foreach (var template in seed.TemplateVersions)
+        {
+            var templateGet = await client.GetAsync($"/Operations/Labels?Template={template.Value}");
+            var templateHtml = await templateGet.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, templateGet.StatusCode);
+            Assert.Contains(template.Key, templateHtml, StringComparison.Ordinal);
+
+            var templatePost = await PostAsync(client, template.Value, seed.ProductId, 1);
+            var previewHtml = await templatePost.Content.ReadAsStringAsync();
+            Assert.Equal(HttpStatusCode.OK, templatePost.StatusCode);
+            Assert.Contains(template.Key, previewHtml, StringComparison.Ordinal);
+            Assert.Equal(1, Regex.Count(previewHtml, "data-label-copy=\""));
+            var size = template.Key switch
+            {
+                "LBL-4X6-STANDARD" => "4in 6in",
+                "LBL-3X1-COMPACT" => "3in 1in",
+                "LBL-4X45-RECEIVING" => "4in 4.5in",
+                _ => "6in 4in"
+            };
+            Assert.Contains($"@page {{ size: {size}; margin: 0; }}", previewHtml, StringComparison.Ordinal);
+        }
+
+        var spouted = seed.TemplateVersions["LBL-6X4-SPOUTED"];
+        var blankSpouted = await PostAsync(client, spouted, seed.ProductId, 1);
+        Assert.Contains("is-blank-line", await blankSpouted.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        var invalidSpouted = await PostAsync(client, spouted, seed.ProductId, 1,
+            new Dictionary<string, string> { ["mfd"] = "fecha-inválida" });
+        Assert.Contains("MFD debe ser una fecha válida", await invalidSpouted.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+
         var missingToken = await client.PostAsync("/Operations/Labels", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
 
@@ -74,10 +104,11 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Empty(await db.InventoryBalances.Where(balance => balance.ProductId == seed.ProductId).ToListAsync());
     }
 
-    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, Guid templateVersionId, Guid productId, int copies)
+    private static async Task<HttpResponseMessage> PostAsync(HttpClient client, Guid templateVersionId, Guid productId,
+        int copies, IReadOnlyDictionary<string, string>? additionalValues = null)
     {
         var token = Token(await client.GetStringAsync($"/Operations/Labels?Template={templateVersionId}"));
-        return await client.PostAsync("/Operations/Labels", new FormUrlEncodedContent(new Dictionary<string, string>
+        var form = new Dictionary<string, string>
         {
             ["Input.TemplateVersionId"] = templateVersionId.ToString(),
             ["Input.ProductId"] = productId.ToString(),
@@ -86,7 +117,10 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
             ["Input.Values[input.isRepack]"] = "true",
             ["Input.Copies"] = copies.ToString(System.Globalization.CultureInfo.InvariantCulture),
             ["__RequestVerificationToken"] = token
-        }));
+        };
+        foreach (var value in additionalValues ?? new Dictionary<string, string>())
+            form[$"Input.Values[{value.Key}]"] = value.Value;
+        return await client.PostAsync("/Operations/Labels", new FormUrlEncodedContent(form));
     }
 
     private async Task<Seed> SeedAsync()
@@ -104,9 +138,30 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
             template.CurrentPublishedVersion = version;
             db.AddRange(template, version);
         }
+        foreach (var preset in LabelTemplatePresetCatalog.RemainingExcelTemplates)
+        {
+            if (await db.LabelTemplates.AnyAsync(item => item.Code == preset.Code)) continue;
+            var migratedTemplate = new LabelTemplate { Id = preset.TemplateId, Code = preset.Code };
+            var migratedVersion = new LabelTemplateVersion
+            {
+                Id = preset.VersionId,
+                Template = migratedTemplate,
+                Version = 1,
+                Name = preset.Name,
+                SizePreset = preset.Size,
+                Status = LabelTemplateStatus.Published,
+                DesignJson = LabelDesignSerializer.Serialize(preset.Design),
+                PublishedAt = DateTimeOffset.UtcNow
+            };
+            migratedTemplate.CurrentPublishedVersion = migratedVersion;
+            db.AddRange(migratedTemplate, migratedVersion);
+        }
         db.AddRange(product, inactive);
         await db.SaveChangesAsync();
-        return new(product.Id, product.Sku, inactive.Id, template.CurrentPublishedVersionId!.Value);
+        var templateVersions = await db.LabelTemplates.AsNoTracking()
+            .Where(item => item.CurrentPublishedVersionId != null)
+            .ToDictionaryAsync(item => item.Code, item => item.CurrentPublishedVersionId!.Value);
+        return new(product.Id, product.Sku, inactive.Id, template.CurrentPublishedVersionId!.Value, templateVersions);
     }
 
     private static string Token(string html)
@@ -116,5 +171,6 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         return WebUtility.HtmlDecode(match.Groups[1].Value);
     }
 
-    private sealed record Seed(Guid ProductId, string Sku, Guid InactiveProductId, Guid TemplateVersionId);
+    private sealed record Seed(Guid ProductId, string Sku, Guid InactiveProductId, Guid TemplateVersionId,
+        IReadOnlyDictionary<string, Guid> TemplateVersions);
 }

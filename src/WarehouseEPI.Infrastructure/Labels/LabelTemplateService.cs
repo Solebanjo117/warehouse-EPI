@@ -21,9 +21,10 @@ public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService p
 {
     public async Task<IReadOnlyList<LabelTemplateChoice>> GetPublishedAsync(CancellationToken token = default) =>
         await db.LabelTemplates.AsNoTracking().Where(item => item.CurrentPublishedVersionId != null)
+            .OrderBy(item => item.CurrentPublishedVersion!.Name)
             .Select(item => new LabelTemplateChoice(item.Id, item.CurrentPublishedVersionId!.Value, item.Code,
                 item.CurrentPublishedVersion!.Name, item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset))
-            .OrderBy(item => item.Name).ToListAsync(token);
+            .ToListAsync(token);
 
     public async Task<LabelTemplateChoice?> GetPublishedAsync(Guid versionId, CancellationToken token = default) =>
         await db.LabelTemplates.AsNoTracking().Where(item => item.CurrentPublishedVersionId == versionId)
@@ -40,9 +41,11 @@ public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService p
             .SingleOrDefaultAsync(item => item.Id == versionId && item.Template.CurrentPublishedVersionId == versionId && item.Status == LabelTemplateStatus.Published, token);
 
     public async Task<IReadOnlyList<LabelTemplateAdminRow>> GetAdminRowsAsync(CancellationToken token = default) =>
-        await db.LabelTemplateVersions.AsNoTracking().Select(item => new LabelTemplateAdminRow(item.TemplateId, item.Template.Code,
+        await db.LabelTemplateVersions.AsNoTracking()
+            .OrderBy(item => item.Template.Code).ThenByDescending(item => item.Version)
+            .Select(item => new LabelTemplateAdminRow(item.TemplateId, item.Template.Code,
             item.Id, item.Name, item.Version, item.Status, item.Template.CurrentPublishedVersionId == item.Id, item.UpdatedAt))
-            .OrderBy(item => item.Code).ThenByDescending(item => item.Version).ToListAsync(token);
+            .ToListAsync(token);
 
     public async Task<LabelVersionEditor?> GetEditorAsync(Guid versionId, CancellationToken token = default)
     {
@@ -233,9 +236,18 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
             var value = submitted.GetValueOrDefault(field.Key)?.Trim() ?? field.DefaultValue?.Trim() ?? string.Empty;
             if (field.Required && value.Length == 0) errors.Add($"{field.Label} es obligatorio.");
             if (value.Length > 200) errors.Add($"{field.Label} excede 200 caracteres.");
-            if (field.Type == LabelFieldType.Number && value.Length > 0 && !decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out _)) errors.Add($"{field.Label} debe ser numérico.");
-            if (field.Type == LabelFieldType.Date && value.Length > 0 && !DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) errors.Add($"{field.Label} debe ser una fecha válida.");
+            if (field.Type == LabelFieldType.Number && value.Length > 0)
+            {
+                if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var number)) errors.Add($"{field.Label} debe ser numérico.");
+                else value = number.ToString("0.####", CultureInfo.InvariantCulture);
+            }
+            if (field.Type == LabelFieldType.Date && value.Length > 0)
+            {
+                if (!DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)) errors.Add($"{field.Label} debe ser una fecha válida.");
+                else value = date.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
+            }
             if (field.Type == LabelFieldType.Boolean && value.Length > 0 && value is not ("true" or "false")) errors.Add($"{field.Label} debe ser sí o no.");
+            else if (field.Type == LabelFieldType.Boolean && value.Length > 0) value = value == "true" ? "YES" : "NO";
             if (field.Type == LabelFieldType.Select && value.Length > 0 && !field.Options.Contains(value, StringComparer.Ordinal)) errors.Add($"{field.Label} contiene una opción inválida.");
             normalized[field.Key] = value;
         }

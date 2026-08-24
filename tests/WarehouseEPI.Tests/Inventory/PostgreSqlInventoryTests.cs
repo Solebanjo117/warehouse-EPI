@@ -37,10 +37,21 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
             .Select(item => new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible))
             .ToArray();
 
-        var result = await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin, "Ajuste", geometry));
+        var layers = map.Layers.Select(item => new WarehouseMapLayerState(item.Code,
+            item.Code == "ZONES" ? false : item.IsLocked)).ToArray();
+        var architecture = map.Architecture.Select(item => new WarehouseMapArchitectureItem(item.Id,
+            item.LayerCode, item.Kind, item.Label, item.X, item.Y, item.Width, item.Height, item.Rotation,
+            item.CornerRadius, item.Points, item.StrokeToken, item.FillToken, item.StrokeWidth, item.IsDashed,
+            item.ZIndex, item.IsLocked)).Append(new WarehouseMapArchitectureItem(Guid.NewGuid(), "ZONES",
+                "Rectangle", "Zona PostgreSQL", 700, 400, 120, 80, 0, 0, [], "WARNING", "WARNING",
+                2, false, 999, false)).ToArray();
+        var result = await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin, "Ajuste", geometry, layers, architecture));
 
         Assert.Equal(WarehouseMapSaveStatus.Success, result.Status);
         Assert.Equal(initialized.Version + 1, result.Version);
+        Assert.Equal(6, await db.WarehouseMapLayers.CountAsync());
+        Assert.Equal(18, await db.WarehouseMapArchitecturalElements.CountAsync());
+        Assert.Equal(geometry.Length, await db.WarehouseMapElements.CountAsync());
     }
 
     [Fact]

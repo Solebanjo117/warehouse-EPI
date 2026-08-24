@@ -9,4 +9,6 @@ public sealed class WarehouseMapLayout
     public uint RowVersion { get; set; }
     public User? UpdatedByUser { get; set; }
     public ICollection<WarehouseMapElement> Elements { get; set; } = [];
+    public ICollection<WarehouseMapLayer> Layers { get; set; } = [];
+    public ICollection<WarehouseMapArchitecturalElement> ArchitecturalElements { get; set; } = [];
 }

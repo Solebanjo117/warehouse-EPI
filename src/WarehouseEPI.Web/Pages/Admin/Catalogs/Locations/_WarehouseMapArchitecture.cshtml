@@ -1,0 +1,46 @@
+@using global::System.Globalization
+@using WarehouseEPI.Infrastructure.Locations
+@model IReadOnlyList<WarehouseMapArchitecturalElementView>
+@{
+    var isEditor = string.Equals(ViewContext.RouteData.Values["page"]?.ToString(),
+        "/Admin/Catalogs/Locations/Map/Edit", StringComparison.OrdinalIgnoreCase);
+}
+<g class="map-architecture" data-map-architecture aria-hidden="@(!isEditor).ToString().ToLowerInvariant()">
+@foreach (var layer in Model.GroupBy(item => item.LayerCode))
+{
+    <g class="map-architecture-layer" data-architecture-layer="@layer.Key">
+    @foreach (var item in layer.OrderBy(value => value.ZIndex))
+    {
+        var transform = $"translate({item.X.ToString(CultureInfo.InvariantCulture)} {item.Y.ToString(CultureInfo.InvariantCulture)}) rotate({item.Rotation})";
+        var points = string.Join(" ", item.Points.Select(point => $"{point.X.ToString(CultureInfo.InvariantCulture)},{point.Y.ToString(CultureInfo.InvariantCulture)}"));
+        <g class="map-architecture-element @(isEditor ? "editor-architecture-element" : "")"
+           data-architecture-element="@item.Id" data-layer-code="@item.LayerCode" data-kind="@item.Kind"
+           data-x="@item.X.ToString(CultureInfo.InvariantCulture)" data-y="@item.Y.ToString(CultureInfo.InvariantCulture)"
+           data-width="@item.Width.ToString(CultureInfo.InvariantCulture)" data-height="@item.Height.ToString(CultureInfo.InvariantCulture)"
+           data-rotation="@item.Rotation" data-radius="@item.CornerRadius.ToString(CultureInfo.InvariantCulture)"
+           data-points="@points" data-label="@item.Label" data-stroke-token="@item.StrokeToken"
+           data-fill-token="@item.FillToken" data-stroke-width="@item.StrokeWidth.ToString(CultureInfo.InvariantCulture)"
+           data-dashed="@item.IsDashed.ToString().ToLowerInvariant()" data-z="@item.ZIndex"
+           data-element-locked="@item.IsLocked.ToString().ToLowerInvariant()" data-persisted="true"
+           transform="@transform" tabindex="@(isEditor ? "0" : null)" role="@(isEditor ? "button" : null)"
+           aria-label="@(isEditor ? $"Elemento arquitectónico {item.Label ?? item.Kind}" : null)">
+            @if (item.Kind == "Rectangle")
+            {
+                <rect width="@item.Width.ToString(CultureInfo.InvariantCulture)" height="@item.Height.ToString(CultureInfo.InvariantCulture)"
+                      rx="@item.CornerRadius.ToString(CultureInfo.InvariantCulture)" class="architecture-stroke-@item.StrokeToken.ToLowerInvariant() architecture-fill-@item.FillToken.ToLowerInvariant()"
+                      stroke-width="@item.StrokeWidth.ToString(CultureInfo.InvariantCulture)" />
+            }
+            else if (item.Kind == "Polyline")
+            {
+                <polyline points="@points" class="architecture-stroke-@item.StrokeToken.ToLowerInvariant() architecture-fill-@item.FillToken.ToLowerInvariant() @(item.IsDashed ? "is-dashed" : "")"
+                          stroke-width="@item.StrokeWidth.ToString(CultureInfo.InvariantCulture)" />
+            }
+            else
+            {
+                <text><tspan x="0" y="18" class="architecture-fill-@item.FillToken.ToLowerInvariant()">@item.Label</tspan></text>
+            }
+        </g>
+    }
+    </g>
+}
+</g>

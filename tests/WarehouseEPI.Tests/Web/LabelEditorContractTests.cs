@@ -39,6 +39,9 @@ public sealed class LabelEditorContractTests
         Assert.Contains("data-label-copy", page, StringComparison.Ordinal);
         Assert.Contains("break-after: page", style, StringComparison.Ordinal);
         Assert.Contains("--label-width", style, StringComparison.Ordinal);
+        Assert.Contains("width: var(--label-width); max-width: 100%", style, StringComparison.Ordinal);
+        Assert.Contains("width: var(--label-width); max-width: none; height: var(--label-height)", style, StringComparison.Ordinal);
+        Assert.DoesNotContain("calc(var(--label-width) * 10)", style, StringComparison.Ordinal);
     }
 
     private static string Read(params string[] parts)

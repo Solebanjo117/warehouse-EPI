@@ -9,5 +9,6 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <NuGetAuditMode>all</NuGetAuditMode>
     <NuGetAuditLevel>high</NuGetAuditLevel>
+    <DefaultItemExcludesInProjectFolder>$(DefaultItemExcludesInProjectFolder);artifacts\**</DefaultItemExcludesInProjectFolder>
   </PropertyGroup>
 </Project>

@@ -19,7 +19,8 @@ public sealed class IndexModel(
     internal IndexModel(WarehouseDbContext dbContext) : this(
         dbContext,
         new WarehouseMapService(dbContext),
-        new WipReportService(dbContext, new WarehouseClock(new WarehouseSettingsService(dbContext)))) { }
+        new WipReportService(dbContext, new WarehouseClock(new WarehouseSettingsService(dbContext))))
+    { }
     private const int PageSize = 25;
     private static readonly short[] KeypadOrder = [7, 8, 9, 4, 5, 6, 1, 2, 3];
 
@@ -33,7 +34,7 @@ public sealed class IndexModel(
     public string Kind { get; private set; } = "all";
     public string RackFilter { get; private set; } = "all";
     public string ViewMode { get; private set; } = "map";
-    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0);
+    public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], false);
     public IReadOnlyDictionary<Guid, IReadOnlyList<WipIssueRow>> RecentWipIssues { get; private set; }
         = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
     public IReadOnlySet<Guid> MapMatches { get; private set; } = new HashSet<Guid>();

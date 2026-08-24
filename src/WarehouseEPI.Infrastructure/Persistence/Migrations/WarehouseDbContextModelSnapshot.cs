@@ -1995,6 +1995,99 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapArchitecturalElement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("FillToken")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("fill_token");
+
+                    b.Property<string>("GeometryJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("geometry_json");
+
+                    b.Property<bool>("IsDashed")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_dashed");
+
+                    b.Property<bool>("IsLocked")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_locked");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("label");
+
+                    b.Property<Guid>("LayerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("layer_id");
+
+                    b.Property<short>("LayoutId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("layout_id");
+
+                    b.Property<string>("StrokeToken")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("stroke_token");
+
+                    b.Property<decimal>("StrokeWidth")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("stroke_width");
+
+                    b.Property<int>("ZIndex")
+                        .HasColumnType("integer")
+                        .HasColumnName("z_index");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayerId");
+
+                    b.HasIndex("LayoutId", "LayerId", "ZIndex");
+
+                    b.ToTable("warehouse_map_architectural_elements", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_architectural_kind", "kind IN ('RECTANGLE', 'POLYLINE', 'TEXT')");
+
+                            t.HasCheckConstraint("ck_warehouse_map_architectural_style", "stroke_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND fill_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND stroke_width >= 0 AND stroke_width <= 12");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapArchitecturalElement", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayer", "Layer")
+                        .WithMany("ArchitecturalElements")
+                        .HasForeignKey("LayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
+                        .WithMany("ArchitecturalElements")
+                        .HasForeignKey("LayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Layer");
+
+                    b.Navigation("Layout");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapElement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2075,6 +2168,61 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_warehouse_map_element_identity", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND location_id IS NULL) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND location_id IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsLocked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_locked");
+
+                    b.Property<short>("LayoutId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("layout_id");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("name");
+
+                    b.Property<short>("SortOrder")
+                        .HasColumnType("smallint")
+                        .HasColumnName("sort_order");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LayoutId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("warehouse_map_layers", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_layer_code", "code IN ('STRUCTURE', 'AISLES', 'ZONES', 'TEXT', 'DIMENSIONS', 'OPERATIONS')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
+                        .WithMany("Layers")
+                        .HasForeignKey("LayoutId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Layout");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
@@ -2957,7 +3105,16 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
                 {
+                    b.Navigation("ArchitecturalElements");
+
                     b.Navigation("Elements");
+
+                    b.Navigation("Layers");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
+                {
+                    b.Navigation("ArchitecturalElements");
                 });
 #pragma warning restore 612, 618
         }

@@ -27,6 +27,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductLotDateChange> ProductLotDateChanges => Set<ProductLotDateChange>();
     public DbSet<WarehouseMapLayout> WarehouseMapLayouts => Set<WarehouseMapLayout>();
     public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
+    public DbSet<WarehouseMapLayer> WarehouseMapLayers => Set<WarehouseMapLayer>();
+    public DbSet<WarehouseMapArchitecturalElement> WarehouseMapArchitecturalElements => Set<WarehouseMapArchitecturalElement>();
     public DbSet<WarehouseMapRevision> WarehouseMapRevisions => Set<WarehouseMapRevision>();
     public DbSet<CycleCountCampaign> CycleCountCampaigns => Set<CycleCountCampaign>();
     public DbSet<CycleCountLocation> CycleCountLocations => Set<CycleCountLocation>();
@@ -659,6 +661,56 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         element.HasIndex(item => item.LocationId).IsUnique().HasFilter("kind = 'AREA'");
         element.HasOne(item => item.Layout).WithMany(item => item.Elements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
         element.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
+
+        var layer = modelBuilder.Entity<WarehouseMapLayer>();
+        layer.ToTable("warehouse_map_layers", table =>
+            table.HasCheckConstraint("ck_warehouse_map_layer_code", "code IN ('STRUCTURE', 'AISLES', 'ZONES', 'TEXT', 'DIMENSIONS', 'OPERATIONS')"));
+        layer.HasKey(item => item.Id);
+        layer.Property(item => item.Id).HasColumnName("id");
+        layer.Property(item => item.LayoutId).HasColumnName("layout_id");
+        layer.Property(item => item.Code).HasColumnName("code").HasMaxLength(16).HasConversion(
+            value => value == WarehouseMapLayerCode.Structure ? "STRUCTURE" :
+                value == WarehouseMapLayerCode.Aisles ? "AISLES" :
+                value == WarehouseMapLayerCode.Zones ? "ZONES" :
+                value == WarehouseMapLayerCode.Text ? "TEXT" :
+                value == WarehouseMapLayerCode.Dimensions ? "DIMENSIONS" : "OPERATIONS",
+            value => value == "STRUCTURE" ? WarehouseMapLayerCode.Structure :
+                value == "AISLES" ? WarehouseMapLayerCode.Aisles :
+                value == "ZONES" ? WarehouseMapLayerCode.Zones :
+                value == "TEXT" ? WarehouseMapLayerCode.Text :
+                value == "DIMENSIONS" ? WarehouseMapLayerCode.Dimensions : WarehouseMapLayerCode.Operations);
+        layer.Property(item => item.Name).HasColumnName("name").HasMaxLength(40).IsRequired();
+        layer.Property(item => item.SortOrder).HasColumnName("sort_order");
+        layer.Property(item => item.IsLocked).HasColumnName("is_locked").HasDefaultValue(true);
+        layer.HasIndex(item => new { item.LayoutId, item.Code }).IsUnique();
+        layer.HasOne(item => item.Layout).WithMany(item => item.Layers).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
+
+        var architectural = modelBuilder.Entity<WarehouseMapArchitecturalElement>();
+        architectural.ToTable("warehouse_map_architectural_elements", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_architectural_kind", "kind IN ('RECTANGLE', 'POLYLINE', 'TEXT')");
+            table.HasCheckConstraint("ck_warehouse_map_architectural_style", "stroke_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND fill_token IN ('NONE', 'SECONDARY', 'PRIMARY', 'INFO', 'WARNING', 'SUCCESS') AND stroke_width >= 0 AND stroke_width <= 12");
+        });
+        architectural.HasKey(item => item.Id);
+        architectural.Property(item => item.Id).HasColumnName("id");
+        architectural.Property(item => item.LayoutId).HasColumnName("layout_id");
+        architectural.Property(item => item.LayerId).HasColumnName("layer_id");
+        architectural.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(12).HasConversion(
+            value => value == WarehouseMapArchitecturalElementKind.Rectangle ? "RECTANGLE" :
+                value == WarehouseMapArchitecturalElementKind.Polyline ? "POLYLINE" : "TEXT",
+            value => value == "RECTANGLE" ? WarehouseMapArchitecturalElementKind.Rectangle :
+                value == "POLYLINE" ? WarehouseMapArchitecturalElementKind.Polyline : WarehouseMapArchitecturalElementKind.Text);
+        architectural.Property(item => item.Label).HasColumnName("label").HasMaxLength(120);
+        architectural.Property(item => item.GeometryJson).HasColumnName("geometry_json").HasColumnType("jsonb").IsRequired();
+        architectural.Property(item => item.StrokeToken).HasColumnName("stroke_token").HasMaxLength(16).IsRequired();
+        architectural.Property(item => item.FillToken).HasColumnName("fill_token").HasMaxLength(16).IsRequired();
+        architectural.Property(item => item.StrokeWidth).HasColumnName("stroke_width").HasPrecision(5, 2);
+        architectural.Property(item => item.IsDashed).HasColumnName("is_dashed");
+        architectural.Property(item => item.ZIndex).HasColumnName("z_index");
+        architectural.Property(item => item.IsLocked).HasColumnName("is_locked");
+        architectural.HasIndex(item => new { item.LayoutId, item.LayerId, item.ZIndex });
+        architectural.HasOne(item => item.Layout).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
+        architectural.HasOne(item => item.Layer).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayerId).OnDelete(DeleteBehavior.Restrict);
 
         var revision = modelBuilder.Entity<WarehouseMapRevision>();
         revision.ToTable("warehouse_map_revisions");

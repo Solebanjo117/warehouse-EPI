@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -30,6 +31,22 @@ public sealed class LocationCatalogTests
 
         Assert.False(layout!.FindProperty(nameof(WarehouseMapLayout.Version))!.IsConcurrencyToken);
         Assert.Null(layout.FindProperty(nameof(WarehouseMapLayout.RowVersion)));
+    }
+
+    [Fact]
+    public async Task Warehouse_map_architecture_model_is_independent_from_locations()
+    {
+        await using var fixture = new Fixture();
+        var architectural = fixture.Db.Model.FindEntityType(typeof(WarehouseMapArchitecturalElement));
+        var layer = fixture.Db.Model.FindEntityType(typeof(WarehouseMapLayer));
+
+        Assert.NotNull(architectural);
+        Assert.NotNull(layer);
+        Assert.Null(architectural!.FindNavigation("Location"));
+        Assert.NotNull(architectural.FindProperty(nameof(WarehouseMapArchitecturalElement.GeometryJson)));
+        Assert.Contains(architectural.GetForeignKeys(), foreignKey => foreignKey.PrincipalEntityType.ClrType == typeof(WarehouseMapLayer));
+        Assert.Contains(layer!.GetIndexes(), index => index.IsUnique
+            && index.Properties.Select(property => property.Name).SequenceEqual([nameof(WarehouseMapLayer.LayoutId), nameof(WarehouseMapLayer.Code)]));
     }
 
     [Fact]
@@ -149,6 +166,12 @@ public sealed class LocationCatalogTests
         var map = await new WarehouseMapService(fixture.Db).GetAsync(true);
         Assert.False(map.IsInitialized);
         Assert.Empty(fixture.Db.WarehouseMapElements);
+        Assert.True(map.UsesLegacyArchitecture);
+        Assert.Equal(6, map.Layers.Count);
+        Assert.Equal(17, map.Architecture.Count);
+        Assert.Contains(map.Architecture, item => item.Label == "KPA / Breakroom");
+        Assert.Contains(map.Architecture, item => item.Label == "Packing / Producción");
+        Assert.Equal(6, map.Architecture.Count(item => item.Kind == "Polyline"));
         var first = map.Elements.Single(item => item.Label == "A-1");
         var second = map.Elements.Single(item => item.Label == "A-2");
         Assert.True(second.X < first.X);
@@ -168,11 +191,221 @@ public sealed class LocationCatalogTests
         var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System); var operation = Guid.NewGuid();
         Assert.Equal(WarehouseMapSaveStatus.InvalidPin, (await service.InitializeAsync(operation, user.Id, "9999", null)).Status);
         var result = await service.InitializeAsync(operation, user.Id, "1234", "Plano inicial");
-        Assert.Equal(WarehouseMapSaveStatus.Success, result.Status);
+        Assert.True(result.Status == WarehouseMapSaveStatus.Success,
+            $"Estado {result.Status}: {string.Join(" | ", result.ValidationErrors)}");
         Assert.Equal(1, result.Version);
         Assert.Single(fixture.Db.WarehouseMapRevisions);
         Assert.NotEmpty(fixture.Db.WarehouseMapElements);
+        Assert.Equal(6, await fixture.Db.WarehouseMapLayers.CountAsync());
+        Assert.Equal(17, await fixture.Db.WarehouseMapArchitecturalElements.CountAsync());
+        Assert.False((await fixture.Db.WarehouseMapLayers.SingleAsync(item => item.Code == WarehouseMapLayerCode.Operations)).IsLocked);
+        Assert.All(await fixture.Db.WarehouseMapLayers.Where(item => item.Code != WarehouseMapLayerCode.Operations).ToListAsync(), item => Assert.True(item.IsLocked));
         Assert.Equal(WarehouseMapSaveStatus.Success, (await service.InitializeAsync(operation, user.Id, "1234", "Plano inicial")).Status);
+    }
+
+    [Fact]
+    public async Task Warehouse_map_first_legacy_architecture_save_is_audited_without_changing_operational_data()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        fixture.Db.AddRange(role, user, Rack("A", 1, 1));
+        await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+
+        var operationalBefore = await fixture.Db.WarehouseMapElements.AsNoTracking()
+            .Select(item => new { item.Id, item.RowCode, item.RackNumber, item.LocationId, item.X, item.Y, item.Width, item.Height })
+            .OrderBy(item => item.Id).ToArrayAsync();
+        fixture.Db.WarehouseMapArchitecturalElements.RemoveRange(await fixture.Db.WarehouseMapArchitecturalElements.ToListAsync());
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.WarehouseMapLayers.RemoveRange(await fixture.Db.WarehouseMapLayers.ToListAsync());
+        await fixture.Db.SaveChangesAsync();
+        fixture.Db.ChangeTracker.Clear();
+
+        var legacy = await service.GetAsync(true);
+        Assert.True(legacy.UsesLegacyArchitecture);
+        var layers = LayerStates(legacy).Select(item => item.Code == "STRUCTURE" ? item with { IsLocked = false } : item).ToArray();
+        var architecture = ArchitectureGeometry(legacy);
+        architecture[0] = architecture[0] with { X = architecture[0].X + 1 };
+        var geometry = legacy.Elements.Concat(legacy.Unplaced).Select(item =>
+            new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible)).ToArray();
+
+        var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", "Conservar fondo heredado",
+            geometry, layers, architecture));
+
+        Assert.True(result.Status == WarehouseMapSaveStatus.Success,
+            $"Estado {result.Status}: {string.Join(" | ", result.ValidationErrors)}");
+        Assert.Equal(6, await fixture.Db.WarehouseMapLayers.CountAsync());
+        Assert.Equal(17, await fixture.Db.WarehouseMapArchitecturalElements.CountAsync());
+        Assert.False((await service.GetAsync(true)).UsesLegacyArchitecture);
+        var operationalAfter = await fixture.Db.WarehouseMapElements.AsNoTracking()
+            .Select(item => new { item.Id, item.RowCode, item.RackNumber, item.LocationId, item.X, item.Y, item.Width, item.Height })
+            .OrderBy(item => item.Id).ToArrayAsync();
+        Assert.Equal(operationalBefore, operationalAfter);
+        var revision = await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync();
+        using var changes = JsonDocument.Parse(revision.ChangesJson);
+        Assert.Equal(3, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.True(changes.RootElement.TryGetProperty("Operational", out _));
+        Assert.True(changes.RootElement.TryGetProperty("Layers", out _));
+        Assert.True(changes.RootElement.TryGetProperty("Architecture", out _));
+    }
+
+    [Fact]
+    public async Task Warehouse_map_rejects_missing_or_invalid_architecture_without_a_revision()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        fixture.Db.AddRange(role, user, Rack("A", 1, 1));
+        await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+        fixture.Db.ChangeTracker.Clear();
+        var map = await service.GetAsync(true);
+        var geometry = map.Elements.Concat(map.Unplaced).Select(item =>
+            new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible)).ToArray();
+
+        var missing = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            LayerStates(map), ArchitectureGeometry(map).Skip(1).ToArray()));
+        Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, missing.Status);
+
+        var invalidArchitecture = ArchitectureGeometry(map);
+        invalidArchitecture[0] = invalidArchitecture[0] with { X = 1599, Width = 10 };
+        var invalid = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            LayerStates(map), invalidArchitecture));
+        Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, invalid.Status);
+
+        var omittedPersisted = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            LayerStates(map), ArchitectureGeometry(map).SkipLast(1).ToArray()));
+        Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, omittedPersisted.Status);
+        Assert.Contains(omittedPersisted.ValidationErrors,
+            error => error.Contains("No se pueden eliminar", StringComparison.Ordinal));
+        Assert.Single(await fixture.Db.WarehouseMapRevisions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Warehouse_map_adds_and_edits_architecture_without_changing_operational_elements()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        fixture.Db.AddRange(role, user, Rack("A", 1, 1));
+        await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success,
+            (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+        fixture.Db.ChangeTracker.Clear();
+
+        var map = await service.GetAsync(true);
+        var operationalBefore = await fixture.Db.WarehouseMapElements.AsNoTracking()
+            .Select(item => new { item.Id, item.LocationId, item.X, item.Y, item.Width, item.Height })
+            .OrderBy(item => item.Id).ToArrayAsync();
+        var layers = LayerStates(map).Select(item => item.Code == "ZONES" ? item with { IsLocked = false } : item).ToArray();
+        var addedId = Guid.NewGuid();
+        var architecture = ArchitectureGeometry(map).Append(new WarehouseMapArchitectureItem(
+            addedId, "ZONES", "Rectangle", "Zona nueva", 500, 300, 180, 90, 0, 4, [],
+            "WARNING", "WARNING", 2, false, 900, false)).ToArray();
+        var geometry = map.Elements.Concat(map.Unplaced).Select(item =>
+            new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation,
+                item.ZIndex, item.IsVisible)).ToArray();
+        var operationId = Guid.NewGuid();
+
+        var result = await service.SaveAsync(new(operationId, user.Id, "1234", "Agregar zona",
+            geometry, layers, architecture));
+        var repeated = await service.SaveAsync(new(operationId, user.Id, "1234", "Agregar zona",
+            geometry, layers, architecture));
+
+        Assert.True(result.Status == WarehouseMapSaveStatus.Success,
+            $"Estado {result.Status}: {string.Join(" | ", result.ValidationErrors)}");
+        Assert.Equal(result.Version, repeated.Version);
+        var added = await fixture.Db.WarehouseMapArchitecturalElements.SingleAsync(item => item.Id == addedId);
+        Assert.Equal("WARNING", added.FillToken);
+        Assert.Equal(WarehouseMapArchitecturalElementKind.Rectangle, added.Kind);
+        Assert.Equal(18, await fixture.Db.WarehouseMapArchitecturalElements.CountAsync());
+        fixture.Db.ChangeTracker.Clear();
+        var savedMap = await service.GetAsync(true);
+        var editedArchitecture = ArchitectureGeometry(savedMap);
+        var addedIndex = Array.FindIndex(editedArchitecture, item => item.Id == addedId);
+        editedArchitecture[addedIndex] = editedArchitecture[addedIndex] with
+        {
+            Label = "Zona editada",
+            Width = 200,
+            FillToken = "PRIMARY"
+        };
+        var edited = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", "Editar zona",
+            geometry, LayerStates(savedMap), editedArchitecture));
+        Assert.Equal(WarehouseMapSaveStatus.Success, edited.Status);
+        fixture.Db.ChangeTracker.Clear();
+        added = await fixture.Db.WarehouseMapArchitecturalElements.SingleAsync(item => item.Id == addedId);
+        Assert.Equal("Zona editada", added.Label);
+        Assert.Equal("PRIMARY", added.FillToken);
+        Assert.Contains("\"width\":200", added.GeometryJson, StringComparison.OrdinalIgnoreCase);
+        var operationalAfter = await fixture.Db.WarehouseMapElements.AsNoTracking()
+            .Select(item => new { item.Id, item.LocationId, item.X, item.Y, item.Width, item.Height })
+            .OrderBy(item => item.Id).ToArrayAsync();
+        Assert.Equal(operationalBefore, operationalAfter);
+        var revision = await fixture.Db.WarehouseMapRevisions.SingleAsync(item => item.OperationId == operationId);
+        using var changes = JsonDocument.Parse(revision.ChangesJson);
+        Assert.Equal(3, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(addedId, changes.RootElement.GetProperty("Architecture").GetProperty("Added")[0].GetGuid());
+    }
+
+    [Fact]
+    public async Task Warehouse_map_rejects_new_architecture_on_locked_layer_or_with_invalid_definition()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        fixture.Db.AddRange(role, user, Rack("A", 1, 1));
+        await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success,
+            (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+        fixture.Db.ChangeTracker.Clear();
+        var map = await service.GetAsync(true);
+        var geometry = map.Elements.Concat(map.Unplaced).Select(item =>
+            new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation,
+                item.ZIndex, item.IsVisible)).ToArray();
+        var invalid = new WarehouseMapArchitectureItem(Guid.NewGuid(), "ZONES", "Text",
+            new string('X', 121), 10, 10, 100, 24, 0, 0, [],
+            "HEX-FF0000", "NONE", 20, false, 1, false);
+
+        var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            LayerStates(map), ArchitectureGeometry(map).Append(invalid).ToArray()));
+
+        Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, result.Status);
+        Assert.Contains(result.ValidationErrors, error => error.Contains("compatible", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.ValidationErrors, error => error.Contains("estilo", StringComparison.OrdinalIgnoreCase));
+
+        var tooManyPoints = new WarehouseMapArchitectureItem(Guid.NewGuid(), "STRUCTURE", "Polyline", null,
+            10, 10, 100, 100, 0, 0,
+            Enumerable.Range(0, 65).Select(index => new WarehouseMapPoint(index, index)).ToArray(),
+            "SECONDARY", "NONE", 2, false, 1, false);
+        var unlockedStructure = LayerStates(map)
+            .Select(item => item.Code == "STRUCTURE" ? item with { IsLocked = false } : item).ToArray();
+        var excessive = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            unlockedStructure, ArchitectureGeometry(map).Append(tooManyPoints).ToArray()));
+        Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, excessive.Status);
+
+        var duplicate = ArchitectureGeometry(map).Append(ArchitectureGeometry(map)[0]).ToArray();
+        var duplicated = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            LayerStates(map), duplicate));
+        Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, duplicated.Status);
+        Assert.Single(await fixture.Db.WarehouseMapRevisions.ToListAsync());
+        Assert.Equal(17, await fixture.Db.WarehouseMapArchitecturalElements.CountAsync());
     }
 
     [Fact]
@@ -217,7 +450,8 @@ public sealed class LocationCatalogTests
         var geometry = map.Elements.Select(item => new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible))
             .Append(new WarehouseMapGeometry(Guid.NewGuid(), 10, 10, 20, 20, 0, 99, true)).ToArray();
 
-        var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry));
+        var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
+            LayerStates(map), ArchitectureGeometry(map)));
         Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, result.Status);
         Assert.Single(await fixture.Db.WarehouseMapRevisions.ToListAsync());
     }
@@ -239,7 +473,8 @@ public sealed class LocationCatalogTests
         var map = await service.GetAsync(true);
         var geometry = map.Elements.Select(item => new WarehouseMapGeometry(item.Id, item.X + 1, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible)).ToArray();
 
-        var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", "Ajuste", geometry));
+        var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", "Ajuste", geometry,
+            LayerStates(map), ArchitectureGeometry(map)));
 
         Assert.Equal(WarehouseMapSaveStatus.Success, result.Status);
         Assert.Equal(map.Version + 1, result.Version);
@@ -449,6 +684,14 @@ public sealed class LocationCatalogTests
         RackNumber = rack,
         PalletNumber = pallet
     };
+
+    private static WarehouseMapLayerState[] LayerStates(WarehouseMapView map) =>
+        map.Layers.Select(item => new WarehouseMapLayerState(item.Code, item.IsLocked)).ToArray();
+
+    private static WarehouseMapArchitectureItem[] ArchitectureGeometry(WarehouseMapView map) =>
+        map.Architecture.Select(item => new WarehouseMapArchitectureItem(item.Id, item.LayerCode, item.Kind,
+            item.Label, item.X, item.Y, item.Width, item.Height, item.Rotation, item.CornerRadius, item.Points,
+            item.StrokeToken, item.FillToken, item.StrokeWidth, item.IsDashed, item.ZIndex, item.IsLocked)).ToArray();
 
     private sealed class Fixture : IAsyncDisposable
     {

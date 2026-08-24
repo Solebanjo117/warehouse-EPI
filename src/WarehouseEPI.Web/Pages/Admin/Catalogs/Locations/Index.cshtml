@@ -41,7 +41,7 @@
         <div class="warehouse-map-viewport" data-map-viewport tabindex="0" aria-label="Croquis interactivo del almacén">
             <svg class="warehouse-map" viewBox="0 0 1600 900" role="img" aria-labelledby="warehouse-map-title">
                 <title id="warehouse-map-title">Croquis del almacén Warehouse EPI</title>
-                <image href="/images/warehouse-floor-base.svg" x="0" y="0" width="1600" height="900" aria-hidden="true"/>
+                <partial name="_WarehouseMapArchitecture" model="Model.Map.Architecture" />
                 <g data-map-layer>
                 @foreach(var element in Model.Map.Elements.OrderBy(item=>item.ZIndex))
                 {

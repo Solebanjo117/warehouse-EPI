@@ -19,7 +19,7 @@
 .label-preview-section { margin-top: 1.5rem; }
 .label-preview-toolbar { align-items: center; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .9rem; background: var(--bs-body-bg); }
 .label-print-pages { display: grid; justify-items: center; gap: 1.25rem; }
-.label-dynamic { position: relative; width: min(100%, calc(var(--label-width) * 10)); aspect-ratio: calc(var(--label-width) / var(--label-height)); overflow: hidden; box-sizing: border-box; border: 1px solid #111; background: #fff; color: #000; }
+.label-dynamic { position: relative; width: var(--label-width); max-width: 100%; aspect-ratio: calc(var(--label-width) / var(--label-height)); overflow: hidden; box-sizing: border-box; border: 1px solid #111; background: #fff; color: #000; }
 .label-element { position: absolute; display: flex; overflow: hidden; box-sizing: border-box; align-items: center; line-height: 1.05; white-space: pre-wrap; overflow-wrap: anywhere; transform-origin: center; }
 .label-element[style*="text-align:center"] { justify-content: center; }
 .label-element[style*="text-align:right"] { justify-content: flex-end; }
@@ -74,7 +74,7 @@
   .label-print-pages { display: block !important; width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
   .label-6x4 { width: 6in; height: 4in; aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; padding: .14in; print-color-adjust: exact; }
   .label-6x4:last-child { break-after: auto; page-break-after: auto; }
-  .label-dynamic { width: var(--label-width); height: var(--label-height); aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; print-color-adjust: exact; }
+  .label-dynamic { width: var(--label-width); max-width: none; height: var(--label-height); aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; print-color-adjust: exact; }
   .label-dynamic:last-child { break-after: auto; page-break-after: auto; }
   .label-field-name { font-size: 9pt; }
   .label-identity { grid-template-columns: .75in minmax(0, 1fr); }

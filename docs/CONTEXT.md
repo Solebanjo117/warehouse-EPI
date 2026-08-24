@@ -12,8 +12,8 @@ y conversiones, descartada por decisión del negocio. Las fases 10.1 a 10.3
 están completadas; 10.4 a 10.6 están implementadas; la Release `0.10.7` está
 activa como servicio Windows y 10.8 continúa pospuesta. La fase 11 tiene sus
 principales pantallas implementadas, pero todavía requiere validación física,
-mantiene trabajo parcial en 11.6 y 11.7, y deja planificada en 11.9 la
-ampliación del croquis a un editor arquitectónico ligero. WIP está implementado
+mantiene trabajo parcial en 11.6 y 11.7, e implementa 11.9.1 y 11.9.2 del
+editor arquitectónico ligero con migraciones y validación física pendientes. WIP está implementado
 y su migración está aplicada, aunque aún no forma parte de una Release publicada
 ni se ha validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están
 completadas;
@@ -877,7 +877,7 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   Falta validar físicamente geometría, orientación, zoom, interacción táctil y
   temas Claro/Oscuro en laptop y tablets reales.
 
-#### Fase 11.9: editor arquitectónico ligero del croquis — propuesta
+#### Fase 11.9: editor arquitectónico ligero del croquis — en implementación
 
 El objetivo es permitir que un ADMIN mantenga delimitaciones físicas del
 almacén con una experiencia semejante a un editor básico de planos, sin
@@ -892,43 +892,61 @@ lotes o asignaciones. Los racks y áreas operativas seguirán procediendo del
 catálogo y las adiciones continuarán entrando por **Sin colocar**. Todas las
 revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
 
-##### Fase 11.9.1: modelo arquitectónico, capas y compatibilidad — propuesta
+##### Fase 11.9.1: modelo arquitectónico, capas y compatibilidad — implementada; migración y validación visual/física pendientes
 
-- Convertir el fondo físico actualmente fijo en primitivas persistentes del
-  plano: línea/polilínea para muros, rectángulo o polígono para zonas, puertas,
-  pasillos, textos y medidas. Estas primitivas no serán ubicaciones ni tendrán
-  relaciones con inventario.
-- Incorporar capas independientes para estructura, pasillos, zonas, textos,
-  medidas y ubicaciones operativas. Cada capa podrá mostrarse, ocultarse y
-  bloquearse sin eliminar sus elementos.
-- Mantener compatibilidad con el croquis existente: la migración inicial debe
-  reproducir su contorno y pasillos actuales, conservar la geometría de racks y
-  permitir volver a consultar revisiones anteriores.
-- Extender el contrato de revisión y su validación de servidor para aceptar
-  únicamente tipos, coordenadas, estilos y límites conocidos. El navegador no
-  será la autoridad de permisos ni de integridad.
-- Criterio de cierre: abrir el plano existente sin cambios visuales relevantes,
-  editar una primitiva arquitectónica, guardar una sola nueva versión auditada
-  y comprobar que ubicaciones, asignaciones e inventario permanecen idénticos.
+- `WarehouseMapLayer` separa Estructura, Pasillos, Zonas, Textos, Medidas y
+  Ubicaciones operativas. El bloqueo forma parte de la revisión; mostrar u
+  ocultar es una preferencia local del editor y nunca cambia la consulta.
+- `WarehouseMapArchitecturalElement` persiste rectángulos, polilíneas y textos
+  mediante geometría JSONB validada, estilos semánticos y orden. No tiene
+  relación con `Location`, asignaciones o inventario y 11.9.1 no expone altas,
+  bajas, estilos, dibujo, vértices ni redimensionado arquitectónico.
+- Sin datos persistidos, el servicio reproduce con IDs estables los 17
+  elementos del SVG público completo: perímetro, seis divisiones, cuatro zonas
+  y seis textos. Consulta y editor usan un solo renderizador Razor; el archivo
+  `warehouse-floor-base.svg` permanece sin cambios como respaldo.
+- El primer guardado válido con NIP ADMIN persiste ese fondo y seis capas dentro
+  de la misma transacción que la geometría operativa. La versión aumenta una
+  vez, la idempotencia incluye las tres colecciones y la auditoría JSON usa
+  esquema 2 con antes/después de operación, capas y arquitectura. Revisiones
+  anteriores permanecen intactas.
+- El editor permite desbloquear una capa y desplazar sus primitivas, incluso por
+  teclado, pero impide mezclar arquitectura y ubicaciones en una selección. Las
+  funciones existentes de racks y **Sin colocar** conservan su contrato.
+- La migración `20260824183000_AddWarehouseMapArchitecture` crea únicamente
+  `warehouse_map_layers` y `warehouse_map_architectural_elements`; está generada
+  pero **no aplicada** a la base operativa. Build Release pasó sin advertencias,
+  Las pruebas focales y la prueba PostgreSQL aislada del croquis aprobaron. La
+  validación visual en navegador y prueba física en laptop/tablet continúan
+  pendientes.
 
-##### Fase 11.9.2: dibujo y edición básica de plano — propuesta
+##### Fase 11.9.2: dibujo y edición básica de plano — implementada; migración y validación visual/física pendientes
 
-- Añadir herramientas de seleccionar, desplazar el lienzo, dibujar muro,
-  rectángulo, polígono, puerta, pasillo, zona y texto. Escape cancelará la
-  herramienta activa y el editor conservará navegación por teclado y foco
-  visible.
-- Incorporar cuadrícula SVG configurable, ajuste magnético a cuadrícula,
-  extremos, centros y guías, junto con zoom, encajar plano y coordenadas
-  visibles. La cuadrícula se renderizará como patrón y no como miles de nodos.
-- Añadir un panel de propiedades para posición, dimensiones, rotación, nombre,
-  color semántico, grosor y tipo de línea. Los valores numéricos permitirán
-  ajustes exactos además de arrastre táctil.
-- Integrar las nuevas acciones con selección múltiple y deshacer/rehacer. El
-  guardado seguirá siendo explícito; no se escribirá al servidor en cada
-  movimiento del puntero.
-- Criterio de cierre: un ADMIN puede reproducir un perímetro sencillo con
-  muros, puertas, pasillos y zonas usando ratón, tacto o valores numéricos, y
-  puede cancelar o deshacer cada operación antes de guardar.
+- El editor ADMIN incorpora Seleccionar, Desplazar, Muro, Rectángulo, Polígono,
+  Puerta, Pasillo, Zona y Texto como presets de `Rectangle`, `Polyline` y
+  `Text`; no se añadieron tipos persistidos ni dependencias de Internet.
+- El payload arquitectónico contiene definición, geometría y estilo completos.
+  Admite IDs nuevos generados con Web Crypto, pero exige conservar todos los
+  IDs persistidos y rechaza cambios de tipo, capa, orden o bloqueo individual.
+  Solo un objeto aún no guardado puede descartarse.
+- Rectángulos se dibujan por arrastre y las polilíneas por puntos con
+  Finalizar/Enter/doble clic, Cancelar/Escape y vértices editables. El panel de
+  propiedades ofrece posición, tamaño contextual, rotación ortogonal, texto,
+  trazo, relleno, grosor y línea discontinua; selección múltiple arquitectónica
+  conserva movimiento y estilos comunes sin mezclarse con ubicaciones.
+- La cuadrícula usa un único `<pattern>` de 10, 25 o 50 unidades. Visibilidad y
+  ajuste se guardan solo en `localStorage`; snapping prioriza extremos, centros
+  y guías, Alt lo suspende. Zoom 25–400 %, encajar, rueda, pan, coordenadas y
+  gesto de pinza no forman parte del POST.
+- El servicio valida hasta 500 objetos, 64 puntos, estilos semánticos, capas
+  desbloqueadas y límites transformados de `1600 × 900`. La auditoría usa
+  esquema 3 con antes/después completos y altas; la versión aumenta una vez y
+  la idempotencia incluye la definición completa.
+- `20260824210000_ExpandWarehouseMapArchitectureStyles` solo amplía la
+  restricción de estilos de las tablas arquitectónicas y no está aplicada a la
+  base operativa. Build Release, `node --check`, 46 pruebas focales y la prueba
+  PostgreSQL aislada aprobaron. No hubo navegador activo; validación visual y
+  prueba física en laptop/tablet permanecen pendientes.
 
 ##### Fase 11.9.3: productividad, escala y validaciones — propuesta
 
@@ -1496,21 +1514,29 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
 - La migración `DynamicLabelTemplates` crea `label_templates`,
   `label_template_versions`, `label_assets`, referencias de recursos y eventos
   administrativos, y precarga únicamente `LBL-6X4-ZEBRA` versión 1 publicada.
-  **La migración está generada en el repositorio pero no debe aplicarse
-  automáticamente**; antes de despliegue requiere respaldo, revisión del SQL y
-  ejecución autorizada.
+  El usuario confirmó el 24 de agosto de 2026 que ya ejecutó las migraciones;
+  queda pendiente registrar la auditoría del esquema aplicado y su respaldo.
+- La migración de datos `SeedRemaining4x6ExcelTemplates`, generada pero **no
+  aplicada automáticamente**, incorpora como versión 1 publicada
+  `LBL-4X6-STANDARD`, `LBL-3X1-COMPACT`, `LBL-6X4-PARTIAL`,
+  `LBL-6X4-SPOUTED`, `LBL-6X4-BERM`, `LBL-6X4-RAINCAP`,
+  `LBL-6X4-CUSTOM-SPOUT`, `LBL-6X4-MOBILE` y `LBL-4X45-RECEIVING`. Es una
+  migración solo de datos: no crea tablas ni altera inventario. Los campos
+  especiales son opcionales; aceptan captura en computadora y muestran una
+  línea para escritura manual cuando quedan vacíos.
 - Los dos códigos —SKU/ITEM y cantidad— se generan localmente como Code 128 SVG
   mediante `ZXing.Net` 0.16.11. La impresión usa HTML/CSS del navegador y no
   depende de Excel, fuentes de barras, servicios externos ni Internet.
 - No se persisten generaciones, folios, responsables ni motivos de impresión;
   reimprimir exige capturar nuevamente los datos actuales. Generar o imprimir no
   crea ni actualiza movimientos, saldos, lotes, pallets o asignaciones.
-- Compilación, validación de JavaScript y pruebas focales cubren el renderer, el
-  esquema, Code 128 y el flujo HTTP. Siguen pendientes la revisión visual en
-  laptop/tablet y temas Claro/Oscuro/Sistema, y la validación física de los
-  cuatro tamaños, DPI, márgenes, orientación y lectura HID en la Zebra real. No
-  considerar esta fase publicada en una Release hasta aplicar la migración por
-  el proceso autorizado y completar esas validaciones.
+- Compilación y pruebas focales cubren el catálogo de diez plantillas, renderer,
+  esquema, Code 128, migración PostgreSQL y flujo HTTP. El usuario confirmó el
+  24 de agosto de 2026 que la etiqueta Zebra vigente se lee con el escáner.
+  Siguen pendientes la comparación visual y física de los nueve formatos
+  migrados en laptop/tablet e impresoras reales: temas, textos largos, los
+  cuatro tamaños, DPI, márgenes, orientación y lectura HID. No considerar esos
+  nueve formatos validados físicamente hasta completar las comprobaciones.
 
 ## 13. Surtimiento WIP (implementado y migrado; pendiente de Release y validación física)
 
@@ -1580,8 +1606,9 @@ Release 0.10.7 está activa como servicio Windows y 10.8 continúa pospuesta.
 `Quality` es obligatorio en `main`. La fase 11 tiene sus principales pantallas
 implementadas, con trabajo parcial en 11.6 y 11.7 y validación física pendiente.
 La migración del croquis 11.8 figura como no aplicada y debe verificarse contra
-la base antes de cambiar ese estado. La fase 11.9 documenta la ampliación
-propuesta a un editor arquitectónico ligero y todavía no está implementada. Las
+la base antes de cambiar ese estado. Las fases 11.9.1 y 11.9.2 del editor
+arquitectónico ligero están implementadas en código, con sus migraciones sin
+aplicar y validación visual/física pendiente; 11.9.3 y 11.9.4 siguen propuestas. Las
 fases 13.1 y 13.2 están completadas y
 13.3, 13.4 y 13.5 están implementadas, con la migración de 13.5 sin aplicar y
 validación física LAN/tablet/lector/impresora pendiente; el siguiente bloque

@@ -75,6 +75,81 @@ public sealed class WarehouseMapEditorContractTests
     }
 
     [Fact]
+    public void Query_and_editor_share_the_persisted_architecture_renderer()
+    {
+        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var editor = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+        var renderer = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "_WarehouseMapArchitecture.cshtml"));
+        var fallback = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "images", "warehouse-floor-base.svg"));
+
+        Assert.Contains("_WarehouseMapArchitecture", query, StringComparison.Ordinal);
+        Assert.Contains("_WarehouseMapArchitecture.cshtml", editor, StringComparison.Ordinal);
+        Assert.Contains("data-architecture-element", renderer, StringComparison.Ordinal);
+        Assert.Contains("data-architecture-layer", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("<image href=\"/images/warehouse-floor-base.svg\"", query, StringComparison.Ordinal);
+        Assert.Contains("KPA / Breakroom", fallback, StringComparison.Ordinal);
+        Assert.Contains("Packing / Producción", fallback, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Editor_serializes_architecture_and_persisted_locks_without_publishing_layer_visibility()
+    {
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+
+        Assert.Contains("data-editor-architecture", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-layer-state", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-layer-visible", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-layer-lock", page, StringComparison.Ordinal);
+        Assert.Contains("warehouseEpi.mapEditor.layers.v1", script, StringComparison.Ordinal);
+        Assert.Contains("CornerRadius: item.radius", script, StringComparison.Ordinal);
+        Assert.Contains("Code: item.code, IsLocked: item.locked", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsVisible: layerIsVisible", script, StringComparison.Ordinal);
+        Assert.Contains("isArchitecture(current) !== isArchitecture(element)", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-editor-draw", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-editor-delete", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Editor_exposes_basic_architectural_drawing_properties_grid_snapping_and_zoom()
+    {
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+
+        foreach (var tool in new[] { "select", "pan", "wall", "rectangle", "polygon", "door", "aisle", "zone", "text" })
+            Assert.Contains($"data-editor-tool=\"{tool}\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-finish", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-cancel", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-discard-new", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-grid-pattern", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-properties", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-zoom-in", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-fit", page, StringComparison.Ordinal);
+        Assert.Contains("crypto.randomUUID", script, StringComparison.Ordinal);
+        Assert.Contains("normalizePolyline", script, StringComparison.Ordinal);
+        Assert.Contains("data-editor-vertex", script, StringComparison.Ordinal);
+        Assert.Contains("event.altKey", script, StringComparison.Ordinal);
+        Assert.Contains("kind: \"pinch\"", script, StringComparison.Ordinal);
+        Assert.Contains("warehouseEpi.mapEditor.workspace.v2", script, StringComparison.Ordinal);
+        Assert.Contains("item.dataset.persisted !== \"true\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("fetch(", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Phase_1192_migration_only_expands_architectural_style_tokens()
+    {
+        var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260824210000_ExpandWarehouseMapArchitectureStyles.cs"));
+
+        Assert.Contains("ck_warehouse_map_architectural_style", migration, StringComparison.Ordinal);
+        Assert.Contains("PRIMARY", migration, StringComparison.Ordinal);
+        Assert.Contains("WARNING", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("locations", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Map_service_only_persists_catalog_backed_new_elements_when_saving()
     {
         var service = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Locations", "WarehouseMapService.cs"));
@@ -84,6 +159,20 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("catalogById", service, StringComparison.Ordinal);
         Assert.Contains("El croquis contiene elementos que no existen en el catálogo actual.", service, StringComparison.Ordinal);
         Assert.Contains("layout.Elements.Add(element)", service, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Architecture_migration_only_adds_its_own_tables()
+    {
+        var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260824183000_AddWarehouseMapArchitecture.cs"));
+
+        Assert.Contains("warehouse_map_layers", migration, StringComparison.Ordinal);
+        Assert.Contains("warehouse_map_architectural_elements", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("AlterTable", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("AlterColumn", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("DropTable(name: \"warehouse_map_elements\")", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("locations\"", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
     }
 
     [Fact]
