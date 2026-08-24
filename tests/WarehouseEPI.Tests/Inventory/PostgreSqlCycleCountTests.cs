@@ -1,13 +1,61 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
 namespace WarehouseEPI.Tests.Inventory;
 
 [Collection(PostgreSqlInventoryCollection.CollectionName)]
 public sealed class PostgreSqlCycleCountTests(PostgreSqlInventoryFixture fixture)
 {
+    [Fact]
+    public async Task Create_page_groups_physical_locations_and_preserves_selection_after_error()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        var rowCode = ((char)('A' + Convert.ToInt32(suffix[..2], 16) % 26)).ToString();
+        var rackNumber = (short)(100 + Convert.ToInt32(suffix[..4], 16) % 30000);
+        await using var db = fixture.CreateDbContext();
+        var top = new Location { Code = $"{rowCode}-{rackNumber}-7", Kind = LocationKind.Rack, RowCode = rowCode, RackNumber = rackNumber, PalletNumber = 7 };
+        var bottom = new Location { Code = $"{rowCode}-{rackNumber}-1", Kind = LocationKind.Rack, RowCode = rowCode, RackNumber = rackNumber, PalletNumber = 1 };
+        var area = new Location { Code = $"PG-AREA-{suffix}", Kind = LocationKind.Area };
+        var wip = new Location { Code = $"PG-WIP-{suffix}", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
+        db.Locations.AddRange(top, bottom, area, wip);
+        await db.SaveChangesAsync();
+        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+        var movements = new InventoryMovementService(db, pins, TimeProvider.System);
+        var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, TimeProvider.System);
+        var page = new CreateModel(db, service);
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        var row = Assert.Single(page.RowGroups, item => item.RowCode == rowCode);
+        var rack = Assert.Single(row.Racks, item => item.RackNumber == rackNumber);
+        Assert.Equal([top.Id, bottom.Id], rack.Locations.Where(item => item.Id == top.Id || item.Id == bottom.Id).Select(item => item.Id));
+        Assert.Contains(page.AreaLocations, item => item.Id == area.Id);
+        Assert.DoesNotContain(page.Locations, item => item.Id == wip.Id);
+
+        var operationId = Guid.NewGuid();
+        page.Input = new()
+        {
+            OperationId = operationId,
+            Title = "Selección conservada",
+            Notes = "Dividir entre operadores",
+            LocationIds = [top.Id],
+            Pin = "00000000"
+        };
+        var result = await page.OnPostAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(operationId, page.Input.OperationId);
+        Assert.Equal("Selección conservada", page.Input.Title);
+        Assert.Equal("Dividir entre operadores", page.Input.Notes);
+        Assert.Equal([top.Id], page.Input.LocationIds);
+        Assert.Empty(page.Input.Pin);
+        Assert.NotNull(page.Error);
+    }
+
     [Fact]
     public async Task Cycle_count_constraints_versions_and_atomic_approval_work_on_postgresql()
     {

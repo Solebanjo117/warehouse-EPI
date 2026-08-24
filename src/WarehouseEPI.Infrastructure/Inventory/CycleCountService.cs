@@ -309,7 +309,9 @@ public sealed class CycleCountService(
             .Include(item => item.Locations).ThenInclude(item => item.Attempts).SingleOrDefaultAsync(item => item.Id == campaignId, cancellationToken);
         return item is null ? null : new(item.Id, Folio(item.Number), item.Title, item.Notes, item.Status, item.CreatedAt, item.CreatedByUser.FullName,
             item.Locations.OrderBy(location => location.SortOrder).Select(location => new CycleCountLocationItem(location.Id, location.LocationId, location.Location.Code, location.Location.Description,
-                location.Location.RowCode, location.Location.RackNumber, location.Status, location.Attempts.Count, location.AdjustmentMovementId)).ToArray());
+                location.Location.RowCode, location.Location.RackNumber, location.Status, location.Attempts.Count, location.AdjustmentMovementId,
+                location.Attempts.Where(attempt => attempt.Status == CycleCountAttemptStatus.Counting).OrderByDescending(attempt => attempt.AttemptNumber)
+                    .Select(attempt => (Guid?)attempt.Id).FirstOrDefault())).ToArray());
     }
 
     public async Task<CycleCountAttemptView?> GetAttemptAsync(Guid attemptId, bool includeExpected, CancellationToken cancellationToken = default)

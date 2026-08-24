@@ -17,6 +17,9 @@ public sealed class CycleCountServiceTests
         await fixture.EnterAsync(product.Id, location.Id, 5m);
         var (campaignId, countLocationId, attemptId) = await fixture.CreateReleasedAttemptAsync(location.Id);
 
+        var activeCampaign = await fixture.CycleCounts.GetCampaignAsync(campaignId);
+        Assert.Equal(attemptId, Assert.Single(activeCampaign!.Locations).ActiveAttemptId);
+
         var blind = await fixture.CycleCounts.GetAttemptAsync(attemptId, false);
         Assert.Null(Assert.Single(blind!.Entries).ExpectedQuantity);
         var submitted = await fixture.CycleCounts.SubmitAsync(new(attemptId, Guid.NewGuid(), fixture.Pin, [new(product.Id, 5m)]));
@@ -25,6 +28,7 @@ public sealed class CycleCountServiceTests
         var campaign = await fixture.CycleCounts.GetCampaignAsync(campaignId);
         Assert.Equal(CycleCountCampaignStatus.Completed, campaign!.Status);
         Assert.Equal(CycleCountLocationStatus.Completed, Assert.Single(campaign.Locations).Status);
+        Assert.Null(Assert.Single(campaign.Locations).ActiveAttemptId);
         Assert.Single(await fixture.Db.InventoryMovements.ToListAsync());
         Assert.Equal(countLocationId, submitted.LocationId);
     }
@@ -93,16 +97,19 @@ public sealed class CycleCountServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var location = await fixture.AddLocationAsync("C-1-1");
+        var otherLocation = await fixture.AddLocationAsync("C-2-1");
         var operationId = Guid.NewGuid();
         var first = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Primera", null, [location.Id], OperationId: operationId));
         var repeated = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Primera", null, [location.Id], OperationId: operationId));
         var overlapping = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Segunda", null, [location.Id], OperationId: Guid.NewGuid()));
+        var simultaneous = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Segunda ubicación", null, [otherLocation.Id], OperationId: Guid.NewGuid()));
         var wip = await fixture.AddLocationAsync("WIP-COUNT", LocationOperationalRole.Wip);
         var invalid = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "WIP", null, [wip.Id], OperationId: Guid.NewGuid()));
 
         Assert.Equal(CycleCountStatus.Success, first.Status);
         Assert.Equal(first.CampaignId, repeated.CampaignId);
         Assert.Equal(CycleCountStatus.ValidationFailed, overlapping.Status);
+        Assert.Equal(CycleCountStatus.Success, simultaneous.Status);
         Assert.Equal(CycleCountStatus.ValidationFailed, invalid.Status);
     }
 

@@ -4,11 +4,66 @@
 @{
     ViewData["Title"] = "Conteos cíclicos";
 }
-<div class="inventory-analytics">
-    <header class="inventory-page-header analytics-header"><div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Conteos cíclicos</h1><p class="text-muted mb-0">Captura ciega por ubicación y autorización trazable de diferencias.</p></div><a asp-page="Create" class="btn btn-primary">Nueva campaña</a></header>
-    <form method="get" class="analytics-filter-card analytics-filter-form"><div><label class="form-label" for="cycle-search">Folio o título</label><input id="cycle-search" name="search" value="@Model.Search" class="form-control" /></div><div><label class="form-label" for="cycle-status">Estado</label><select id="cycle-status" name="status" class="form-select"><option value="">Todos</option>@foreach (var status in Enum.GetValues<CycleCountCampaignStatus>()) { <option value="@status" selected="@(Model.Status == status)">@status</option> }</select></div><div><label class="form-label" for="cycle-from">Desde</label><input id="cycle-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div><div><label class="form-label" for="cycle-to">Hasta</label><input id="cycle-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div><div class="analytics-filter-actions"><button class="btn btn-outline-primary">Filtrar</button></div></form>
-    <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Folio</th><th>Campaña</th><th>Estado</th><th>Progreso</th><th>En revisión</th><th>Creada</th><th></th></tr></thead><tbody>
-    @if (Model.Campaigns.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay campañas de conteo.</td></tr> }
-    @foreach (var item in Model.Campaigns) { <tr><td class="fw-semibold">@item.Folio</td><td>@(item.Title ?? "Sin título")</td><td><span class="badge text-bg-secondary">@item.Status</span></td><td>@item.CompletedLocationCount / @item.LocationCount ubicaciones</td><td>@item.DifferenceLocationCount</td><td><time datetime="@item.CreatedAt.ToString("O")">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</time></td><td class="text-end"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Abrir</a></td></tr> }
-    </tbody></table></div>
+
+<div class="inventory-analytics cycle-count-workspace">
+    <header class="inventory-page-header analytics-header">
+        <div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Conteos cíclicos</h1><p class="text-muted mb-0">Organiza conteos ciegos por ubicación y revisa las diferencias sin detener el almacén.</p></div>
+        <a asp-page="Create" class="btn btn-primary cycle-primary-action">Nueva campaña</a>
+    </header>
+
+    <nav class="cycle-status-filters" aria-label="Filtrar campañas por estado">
+        <a asp-page="Index" asp-route-search="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" class="@(Model.Status is null ? "active" : null)" aria-current="@(Model.Status is null ? "page" : null)">Todas</a>
+        @foreach (var status in Enum.GetValues<CycleCountCampaignStatus>())
+        {
+            <a asp-page="Index" asp-route-status="@status" asp-route-search="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" class="@(Model.Status == status ? "active" : null)" aria-current="@(Model.Status == status ? "page" : null)">@CycleCountPresentation.CampaignStatusLabel(status)</a>
+        }
+    </nav>
+
+    <form method="get" class="analytics-filter-card analytics-filter-form">
+        <div><label class="form-label" for="cycle-search">Folio o título</label><input id="cycle-search" name="search" value="@Model.Search" class="form-control" placeholder="Ej. CC-000021 o Fila A" /></div>
+        <div><label class="form-label" for="cycle-status">Estado</label><select id="cycle-status" name="status" class="form-select"><option value="">Todos</option>@foreach (var status in Enum.GetValues<CycleCountCampaignStatus>()) { <option value="@status" selected="@(Model.Status == status)">@CycleCountPresentation.CampaignStatusLabel(status)</option> }</select></div>
+        <div><label class="form-label" for="cycle-from">Desde</label><input id="cycle-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div>
+        <div><label class="form-label" for="cycle-to">Hasta</label><input id="cycle-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div>
+        <div class="analytics-filter-actions"><button class="btn btn-outline-primary">Aplicar filtros</button></div>
+    </form>
+
+    @if (Model.Campaigns.Count == 0)
+    {
+        <div class="cycle-empty"><strong>No hay campañas con estos filtros.</strong><span>Cambia los filtros o crea una campaña para preparar el siguiente conteo.</span><a asp-page="Create" class="btn btn-primary mt-2">Nueva campaña</a></div>
+    }
+    else
+    {
+        <div class="table-responsive analytics-table cycle-campaign-table d-none d-lg-block">
+            <table class="table align-middle mb-0">
+                <thead><tr><th>Campaña</th><th>Estado</th><th>Progreso</th><th>Revisión</th><th>Creada</th><th><span class="visually-hidden">Acción</span></th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.Campaigns)
+                {
+                    var progress = item.LocationCount == 0 ? 0 : (int)Math.Round(item.CompletedLocationCount * 100d / item.LocationCount);
+                    <tr>
+                        <td><strong>@item.Folio</strong><small class="d-block text-body-secondary">@(item.Title ?? "Sin título")</small></td>
+                        <td><span class="badge @CycleCountPresentation.CampaignStatusClass(item.Status)">@CycleCountPresentation.CampaignStatusLabel(item.Status)</span></td>
+                        <td><div class="cycle-inline-progress"><div class="progress" role="progressbar" aria-label="Progreso de @item.Folio" aria-valuenow="@progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:@progress%"></div></div><small>@item.CompletedLocationCount de @item.LocationCount</small></div></td>
+                        <td>@if (item.DifferenceLocationCount > 0) { <span class="cycle-review-count">@item.DifferenceLocationCount por revisar</span> } else { <span class="text-body-secondary">Sin diferencias</span> }</td>
+                        <td><time datetime="@item.CreatedAt.ToString("O")">@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</time></td>
+                        <td class="text-end"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Abrir campaña</a></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="cycle-campaign-cards d-lg-none">
+            @foreach (var item in Model.Campaigns)
+            {
+                var progress = item.LocationCount == 0 ? 0 : (int)Math.Round(item.CompletedLocationCount * 100d / item.LocationCount);
+                <article class="cycle-campaign-card">
+                    <header><div><span class="eyebrow">@item.Folio</span><h2 class="h5 mb-0">@(item.Title ?? "Sin título")</h2></div><span class="badge @CycleCountPresentation.CampaignStatusClass(item.Status)">@CycleCountPresentation.CampaignStatusLabel(item.Status)</span></header>
+                    <div class="progress" role="progressbar" aria-label="Progreso de @item.Folio" aria-valuenow="@progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:@progress%"></div></div>
+                    <dl><div><dt>Completadas</dt><dd>@item.CompletedLocationCount / @item.LocationCount</dd></div><div><dt>En revisión</dt><dd>@item.DifferenceLocationCount</dd></div><div><dt>Creada</dt><dd><time datetime="@item.CreatedAt.ToString("O")">@item.CreatedAt.ToString("dd/MM/yyyy")</time></dd></div></dl>
+                    <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary w-100">Abrir campaña</a>
+                </article>
+            }
+        </div>
+    }
 </div>

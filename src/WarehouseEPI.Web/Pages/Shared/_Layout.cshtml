@@ -17,6 +17,7 @@
     <script src="~/js/theme-init.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @await RenderSectionAsync("Styles", required: false)
 </head>
 <body class="app-body">
     <svg class="app-icon-sprite" aria-hidden="true">
@@ -30,6 +31,9 @@
         <symbol id="icon-movements" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14M8 4 5 7l3 3m8-1 3 3-3 3m-8-1-3 3 3 3" /></symbol>
         <symbol id="icon-lots" viewBox="0 0 24 24"><path d="M4 6h16v14H4zM8 3h8v3M8 11h8m-8 4h5" /></symbol>
         <symbol id="icon-products" viewBox="0 0 24 24"><path d="m3 9 9-6 9 6-9 6zM3 9v8l9 4 9-4V9" /></symbol>
+        <symbol id="icon-label" viewBox="0 0 24 24"><path d="M4 5h12l4 4v10H4zM16 5v4h4M7 12h10M7 15h7" /></symbol>
+        <symbol id="icon-product-types" viewBox="0 0 24 24"><path d="M4 5h7v6H4zm9 0h7v6h-7zM4 13h7v6H4zm9 0h7v6h-7z" /></symbol>
+        <symbol id="icon-product-classes" viewBox="0 0 24 24"><path d="M4 5h6v5H4zm10 0h6v5h-6zM4 14h6v5H4zm10 0h6v5h-6zM10 7.5h4M7 10v4m10-4v4" /></symbol>
         <symbol id="icon-location" viewBox="0 0 24 24"><path d="M12 21s7-6 7-12a7 7 0 1 0-14 0c0 6 7 12 7 12zm0-9a3 3 0 1 0 0-6 3 3 0 0 0 0 6" /></symbol>
         <symbol id="icon-units" viewBox="0 0 24 24"><path d="M4 6h16v12H4zM8 6v4m4-4v2m4-2v4" /></symbol>
         <symbol id="icon-users" viewBox="0 0 24 24"><path d="M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8m7-1a3 3 0 1 0 0-6M2 21v-3a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v3m0-8h1a5 5 0 0 1 5 5v3" /></symbol>
@@ -93,6 +97,19 @@
             </div>
 
             <div class="app-nav-group">
+                <div class="app-nav-heading">Etiquetas</div>
+                <a class="app-nav-link @(IsSection("/Operations/Labels") ? "active" : null)" asp-page="/Operations/Labels/Index" aria-current="@(IsSection("/Operations/Labels") ? "page" : null)" title="Generar etiquetas desde formatos publicados">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Generar etiquetas</span>
+                </a>
+                @if (isAdmin)
+                {
+                    <a class="app-nav-link @(IsSection("/Admin/Labels") ? "active" : null)" asp-page="/Admin/Labels/Templates/Index" aria-current="@(IsSection("/Admin/Labels") ? "page" : null)" title="Diseñar y publicar formatos">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Diseñar formatos</span>
+                    </a>
+                }
+            </div>
+
+            <div class="app-nav-group">
                 <div class="app-nav-heading">Inventario</div>
                 <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
@@ -114,9 +131,6 @@
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Movements") ? "active" : null)" asp-page="/Admin/Inventory/Movements/Index" aria-current="@(IsSection("/Admin/Inventory/Movements") ? "page" : null)" title="Movimientos">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Movimientos</span>
                     </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Reports/Movements") ? "active" : null)" asp-page="/Admin/Reports/Movements/Index" aria-current="@(IsSection("/Admin/Reports/Movements") ? "page" : null)" title="Reporte analítico">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte analítico</span>
-                    </a>
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Lots") ? "active" : null)" asp-page="/Admin/Inventory/Lots/Index" aria-current="@(IsSection("/Admin/Inventory/Lots") ? "page" : null)" title="Lotes">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-lots" /></svg><span>Lotes</span>
                     </a>
@@ -129,6 +143,12 @@
                     <div class="app-nav-heading">Catálogos</div>
                     <a class="app-nav-link @(IsSection("/Admin/Catalogs/Products") ? "active" : null)" asp-page="/Admin/Catalogs/Products/Index" aria-current="@(IsSection("/Admin/Catalogs/Products") ? "page" : null)" title="Productos">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-products" /></svg><span>Productos</span>
+                    </a>
+                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductTypes") ? "active" : null)" asp-page="/Admin/Catalogs/ProductTypes/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductTypes") ? "page" : null)" title="Tipos de producto">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-product-types" /></svg><span>Tipos de producto</span>
+                    </a>
+                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductClasses") ? "active" : null)" asp-page="/Admin/Catalogs/ProductClasses/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductClasses") ? "page" : null)" title="Clases de producto">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-product-classes" /></svg><span>Clases de producto</span>
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Catalogs/Locations") ? "active" : null)" asp-page="/Admin/Catalogs/Locations/Index" aria-current="@(IsSection("/Admin/Catalogs/Locations") ? "page" : null)" title="Ubicaciones">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>

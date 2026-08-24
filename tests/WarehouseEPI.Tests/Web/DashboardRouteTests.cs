@@ -84,7 +84,9 @@ public sealed class DashboardRouteTests
         Assert.Contains("/js/daily-dashboard.js", page, StringComparison.Ordinal);
         Assert.Contains("User.IsInRole(\"ADMIN\")", page, StringComparison.Ordinal);
         Assert.Contains("if (isAdmin)", page, StringComparison.Ordinal);
-        Assert.Contains("/Admin/Reports/Movements/Index", page, StringComparison.Ordinal);
+        Assert.Contains("/Admin/Inventory/Movements/Index", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-view=\"effective\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Admin/Reports/Movements/Index", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-view=\"exceptions\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-exception=\"negative\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-exception=\"minimum\"", page, StringComparison.Ordinal);

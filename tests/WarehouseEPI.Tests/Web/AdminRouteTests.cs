@@ -91,6 +91,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var login = await client.GetAsync("/Admin/Login");
         var users = await client.GetAsync("/Admin/Users");
         var products = await client.GetAsync("/Admin/Catalogs/Products");
+        var productTypes = await client.GetAsync("/Admin/Catalogs/ProductTypes");
+        var productClasses = await client.GetAsync("/Admin/Catalogs/ProductClasses");
         var productImport = await client.GetAsync("/Admin/Catalogs/Products/Import");
         var locations = await client.GetAsync("/Admin/Catalogs/Locations");
         var locationGeneration = await client.GetAsync("/Admin/Catalogs/Locations/Generate");
@@ -108,6 +110,10 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Equal("/Admin/Login", users.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, products.StatusCode);
         Assert.Equal("/Admin/Login", products.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, productTypes.StatusCode);
+        Assert.Equal("/Admin/Login", productTypes.Headers.Location?.AbsolutePath);
+        Assert.Equal(HttpStatusCode.Redirect, productClasses.StatusCode);
+        Assert.Equal("/Admin/Login", productClasses.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, productImport.StatusCode);
         Assert.Equal("/Admin/Login", productImport.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, locations.StatusCode);
@@ -174,7 +180,22 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
 
         var products = await client.GetAsync("/Admin/Catalogs/Products");
         Assert.Equal(HttpStatusCode.OK, products.StatusCode);
-        Assert.Contains("Crear producto", await products.Content.ReadAsStringAsync());
+        var productsHtml = await products.Content.ReadAsStringAsync();
+        Assert.Contains("Crear producto", productsHtml);
+        Assert.Contains("href=\"/Admin/Catalogs/ProductTypes\"", productsHtml);
+        Assert.Contains("href=\"/Admin/Catalogs/ProductClasses\"", productsHtml);
+
+        var productTypes = await client.GetAsync("/Admin/Catalogs/ProductTypes");
+        var productTypesHtml = await productTypes.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, productTypes.StatusCode);
+        Assert.Contains("Tipos registrados", productTypesHtml);
+        Assert.Contains("aria-current=\"page\"", productTypesHtml);
+
+        var productClasses = await client.GetAsync("/Admin/Catalogs/ProductClasses");
+        var productClassesHtml = await productClasses.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, productClasses.StatusCode);
+        Assert.Contains("Clases registradas", productClassesHtml);
+        Assert.Contains("aria-current=\"page\"", productClassesHtml);
 
         var createPage = await client.GetAsync("/Admin/Catalogs/Products/Create");
         var createHtml = await createPage.Content.ReadAsStringAsync();

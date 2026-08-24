@@ -274,6 +274,93 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
             movement.Lines.Any(line => line.ProductId == seed.ProductId)).ToListAsync());
     }
 
+    [Fact]
+    public async Task Inventory_keeps_admin_consultation_actions_out_of_the_public_view()
+    {
+        const string adminPin = "5299";
+        var seed = await SeedAsync(
+            "WEB-INVENTORY-ACTIONS",
+            "WEB-INVENTORY-ACTIONS-AREA",
+            "4299",
+            createAdmin: true,
+            adminPin: adminPin);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            db.ProductLocationAssignments.Add(new ProductLocationAssignment
+            {
+                ProductId = seed.ProductId,
+                LocationId = seed.LocationId
+            });
+            await db.SaveChangesAsync();
+        }
+
+        using var client = CreateClient();
+        var publicHtml = await client.GetStringAsync($"/Inventory?productId={seed.ProductId}");
+        Assert.Contains("Asignado · saldo cero", publicHtml, StringComparison.Ordinal);
+        Assert.Contains("Saldo sin asignación", publicHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Admin/Catalogs/Products/Details", publicHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Admin/Catalogs/Products/Edit", publicHtml, StringComparison.Ordinal);
+
+        var loginToken = await GetTokenAsync(client, "/Admin/Login");
+        var login = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Input.Pin"] = adminPin,
+            ["__RequestVerificationToken"] = loginToken
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, login.StatusCode);
+
+        var adminHtml = await client.GetStringAsync($"/Inventory?productId={seed.ProductId}");
+        Assert.Contains($"/Admin/Catalogs/Products/Details/{seed.ProductId}", adminHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Movimientos", adminHtml, StringComparison.Ordinal);
+        Assert.Contains("Croquis", adminHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Admin/Catalogs/Products/Edit", adminHtml, StringComparison.Ordinal);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationDb = verificationScope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        Assert.Empty(await verificationDb.InventoryMovements.Where(movement =>
+            movement.Lines.Any(line => line.ProductId == seed.ProductId)).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Inventory_opens_the_page_containing_an_alert_highlight_only_on_initial_navigation()
+    {
+        var seed = await SeedAsync("WEB-HIGHLIGHT-PRODUCT", "WEB-HIGHLIGHT-00", "4298");
+        Guid highlightedLocationId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            var locations = Enumerable.Range(1, 29)
+                .Select(number => new Location { Code = $"WEB-HIGHLIGHT-{number:00}", Kind = LocationKind.Rack })
+                .ToArray();
+            db.AddRange(locations);
+            db.ProductLocationAssignments.Add(new ProductLocationAssignment
+            {
+                ProductId = seed.ProductId,
+                LocationId = seed.LocationId
+            });
+            db.ProductLocationAssignments.AddRange(locations.Select(location => new ProductLocationAssignment
+            {
+                ProductId = seed.ProductId,
+                Location = location
+            }));
+            await db.SaveChangesAsync();
+            highlightedLocationId = locations[^1].Id;
+        }
+
+        using var client = CreateClient();
+        var initialHtml = await client.GetStringAsync(
+            $"/Inventory?productId={seed.ProductId}&highlightLocationId={highlightedLocationId}");
+        Assert.Contains("WEB-HIGHLIGHT-29", initialHtml, StringComparison.Ordinal);
+        Assert.Contains("2 de 2", initialHtml, StringComparison.Ordinal);
+        Assert.Contains("data-inventory-highlighted=\"true\"", initialHtml, StringComparison.Ordinal);
+
+        var explicitPageHtml = await client.GetStringAsync(
+            $"/Inventory?productId={seed.ProductId}&highlightLocationId={highlightedLocationId}&pageNumber=1");
+        Assert.DoesNotContain("WEB-HIGHLIGHT-29", explicitPageHtml, StringComparison.Ordinal);
+        Assert.Contains("1 de 2", explicitPageHtml, StringComparison.Ordinal);
+    }
+
     private HttpClient CreateClient() => factory.CreateClient(new WebApplicationFactoryClientOptions
     {
         AllowAutoRedirect = false,
@@ -325,7 +412,8 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         string? barcode = null,
         string? secondLocationCode = null,
         bool assignOtherProduct = false,
-        bool createAdmin = false)
+        bool createAdmin = false,
+        string adminPin = "5204")
     {
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
@@ -369,7 +457,7 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
                 PinLookup = string.Empty,
                 PinHash = string.Empty
             };
-            Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(admin, "5204"));
+            Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(admin, adminPin));
             db.Add(admin);
         }
 

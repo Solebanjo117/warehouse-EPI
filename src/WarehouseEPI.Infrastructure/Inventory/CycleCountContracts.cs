@@ -55,7 +55,7 @@ public sealed record CycleCountCampaignListItem(
 public sealed record CycleCountLocationItem(
     Guid Id, Guid LocationId, string LocationCode, string? LocationDescription,
     string? RowCode, short? RackNumber, CycleCountLocationStatus Status, int AttemptCount,
-    Guid? AdjustmentMovementId);
+    Guid? AdjustmentMovementId, Guid? ActiveAttemptId);
 
 public sealed record CycleCountEntryItem(
     Guid ProductId, string Sku, string? Description, string UnitCode, bool AllowsDecimals,

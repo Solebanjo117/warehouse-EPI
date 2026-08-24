@@ -33,6 +33,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<CycleCountAttempt> CycleCountAttempts => Set<CycleCountAttempt>();
     public DbSet<CycleCountEntry> CycleCountEntries => Set<CycleCountEntry>();
     public DbSet<CycleCountAction> CycleCountActions => Set<CycleCountAction>();
+    public DbSet<LabelTemplate> LabelTemplates => Set<LabelTemplate>();
+    public DbSet<LabelTemplateVersion> LabelTemplateVersions => Set<LabelTemplateVersion>();
+    public DbSet<LabelAsset> LabelAssets => Set<LabelAsset>();
+    public DbSet<LabelTemplateVersionAsset> LabelTemplateVersionAssets => Set<LabelTemplateVersionAsset>();
+    public DbSet<LabelTemplateEvent> LabelTemplateEvents => Set<LabelTemplateEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -58,6 +63,100 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureProductLotDateChange(modelBuilder);
         ConfigureWarehouseMap(modelBuilder);
         ConfigureCycleCounts(modelBuilder);
+        ConfigureLabels(modelBuilder);
+    }
+
+    private static void ConfigureLabels(ModelBuilder modelBuilder)
+    {
+        var template = modelBuilder.Entity<LabelTemplate>();
+        template.ToTable("label_templates", table => table.HasCheckConstraint("ck_label_templates_code", "code = upper(btrim(code)) AND code ~ '^[A-Z0-9][A-Z0-9-]{2,59}$'"));
+        template.HasKey(item => item.Id);
+        template.Property(item => item.Id).HasColumnName("id");
+        template.Property(item => item.Code).HasColumnName("code").HasMaxLength(60).IsRequired();
+        template.Property(item => item.CurrentPublishedVersionId).HasColumnName("current_published_version_id");
+        template.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        template.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        template.HasIndex(item => item.Code).IsUnique();
+
+        var version = modelBuilder.Entity<LabelTemplateVersion>();
+        version.ToTable("label_template_versions", table =>
+        {
+            table.HasCheckConstraint("ck_label_template_versions_number", "version > 0");
+            table.HasCheckConstraint("ck_label_template_versions_status", "status IN ('DRAFT','IN_VALIDATION','PUBLISHED','RETIRED')");
+            table.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P')");
+        });
+        version.HasKey(item => item.Id);
+        version.Property(item => item.Id).HasColumnName("id");
+        version.Property(item => item.TemplateId).HasColumnName("template_id");
+        version.Property(item => item.Version).HasColumnName("version");
+        version.Property(item => item.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+        version.Property(item => item.SizePreset).HasColumnName("size_preset").HasMaxLength(12)
+            .HasConversion(value => LabelSizeToDatabase(value), value => LabelSizeFromDatabase(value));
+        version.Property(item => item.Status).HasColumnName("status").HasMaxLength(20).HasConversion(
+            value => value == LabelTemplateStatus.InValidation ? "IN_VALIDATION" : value.ToString().ToUpperInvariant(),
+            value => value == "IN_VALIDATION" ? LabelTemplateStatus.InValidation : Enum.Parse<LabelTemplateStatus>(value, true));
+        version.Property(item => item.DesignJson).HasColumnName("design_json").HasColumnType("jsonb").IsRequired();
+        version.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        version.Property(item => item.PublishedByUserId).HasColumnName("published_by_user_id");
+        version.Property(item => item.RetiredByUserId).HasColumnName("retired_by_user_id");
+        version.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        version.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        version.Property(item => item.PublishedAt).HasColumnName("published_at");
+        version.Property(item => item.RetiredAt).HasColumnName("retired_at");
+        version.Property(item => item.RowVersion).IsRowVersion().HasColumnName("xmin");
+        version.HasIndex(item => new { item.TemplateId, item.Version }).IsUnique();
+        version.HasIndex(item => item.TemplateId).IsUnique().HasFilter("status IN ('DRAFT','IN_VALIDATION')");
+        version.HasOne(item => item.Template).WithMany(item => item.Versions).HasForeignKey(item => item.TemplateId).OnDelete(DeleteBehavior.Restrict);
+        version.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        version.HasOne(item => item.PublishedByUser).WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
+        version.HasOne(item => item.RetiredByUser).WithMany().HasForeignKey(item => item.RetiredByUserId).OnDelete(DeleteBehavior.Restrict);
+        template.HasOne(item => item.CurrentPublishedVersion).WithMany().HasForeignKey(item => item.CurrentPublishedVersionId).OnDelete(DeleteBehavior.Restrict);
+
+        var asset = modelBuilder.Entity<LabelAsset>();
+        asset.ToTable("label_assets", table =>
+        {
+            table.HasCheckConstraint("ck_label_assets_size", "octet_length(content) BETWEEN 1 AND 1048576");
+            table.HasCheckConstraint("ck_label_assets_dimensions", "width BETWEEN 1 AND 4096 AND height BETWEEN 1 AND 4096");
+            table.HasCheckConstraint("ck_label_assets_type", "content_type IN ('image/png','image/jpeg')");
+        });
+        asset.HasKey(item => item.Id);
+        asset.Property(item => item.Id).HasColumnName("id");
+        asset.Property(item => item.Name).HasColumnName("name").HasMaxLength(120).IsRequired();
+        asset.Property(item => item.ContentType).HasColumnName("content_type").HasMaxLength(20).IsRequired();
+        asset.Property(item => item.Content).HasColumnName("content").IsRequired();
+        asset.Property(item => item.Sha256).HasColumnName("sha256").HasMaxLength(64).IsFixedLength().IsRequired();
+        asset.Property(item => item.Width).HasColumnName("width");
+        asset.Property(item => item.Height).HasColumnName("height");
+        asset.Property(item => item.IsArchived).HasColumnName("is_archived");
+        asset.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        asset.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        asset.HasIndex(item => item.Sha256).IsUnique();
+        asset.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var versionAsset = modelBuilder.Entity<LabelTemplateVersionAsset>();
+        versionAsset.ToTable("label_template_version_assets");
+        versionAsset.HasKey(item => new { item.TemplateVersionId, item.AssetId });
+        versionAsset.Property(item => item.TemplateVersionId).HasColumnName("template_version_id");
+        versionAsset.Property(item => item.AssetId).HasColumnName("asset_id");
+        versionAsset.HasOne(item => item.TemplateVersion).WithMany(item => item.Assets).HasForeignKey(item => item.TemplateVersionId).OnDelete(DeleteBehavior.Cascade);
+        versionAsset.HasOne(item => item.Asset).WithMany(item => item.Versions).HasForeignKey(item => item.AssetId).OnDelete(DeleteBehavior.Restrict);
+
+        var auditEvent = modelBuilder.Entity<LabelTemplateEvent>();
+        auditEvent.ToTable("label_template_events");
+        auditEvent.HasKey(item => item.Id);
+        auditEvent.Property(item => item.Id).HasColumnName("id");
+        auditEvent.Property(item => item.TemplateId).HasColumnName("template_id");
+        auditEvent.Property(item => item.TemplateVersionId).HasColumnName("template_version_id");
+        auditEvent.Property(item => item.Type).HasColumnName("type").HasMaxLength(30).HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<LabelTemplateEventType>(value, true));
+        auditEvent.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        auditEvent.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        auditEvent.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500);
+        auditEvent.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        auditEvent.HasIndex(item => new { item.TemplateId, item.RecordedAt });
+        auditEvent.HasOne(item => item.Template).WithMany(item => item.Events).HasForeignKey(item => item.TemplateId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.TemplateVersion).WithMany(item => item.Events).HasForeignKey(item => item.TemplateVersionId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureRole(ModelBuilder modelBuilder)
@@ -768,11 +867,19 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction &&
+            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or LabelTemplateEvent &&
                 entry.State is EntityState.Modified or EntityState.Deleted);
 
         if (changedHistory)
             throw new InvalidOperationException("Los movimientos confirmados y su historial son inmutables.");
+
+        var changedPublishedTemplate = ChangeTracker.Entries<LabelTemplateVersion>().Any(entry =>
+            (entry.State is EntityState.Modified or EntityState.Deleted) &&
+            (entry.OriginalValues.GetValue<LabelTemplateStatus>(nameof(LabelTemplateVersion.Status)) is LabelTemplateStatus.Published or LabelTemplateStatus.Retired) &&
+            !(entry.State == EntityState.Modified && entry.Properties.All(property =>
+                !property.IsModified || property.Metadata.Name is nameof(LabelTemplateVersion.Status) or nameof(LabelTemplateVersion.RetiredAt) or nameof(LabelTemplateVersion.RetiredByUserId))));
+        if (changedPublishedTemplate)
+            throw new InvalidOperationException("Las versiones publicadas de etiquetas son inmutables.");
     }
 
     private static string MovementTypeToDatabase(InventoryMovementType value) => value switch
@@ -782,6 +889,22 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementType.Transfer => "TRANSFER",
         InventoryMovementType.Adjustment => "ADJUSTMENT",
         _ => throw new InvalidOperationException("Tipo de movimiento no soportado.")
+    };
+
+    private static string LabelSizeToDatabase(LabelSizePreset value) => value switch
+    {
+        LabelSizePreset.SixByFourLandscape => "6X4_L",
+        LabelSizePreset.FourBySixPortrait => "4X6_P",
+        LabelSizePreset.ThreeByOneLandscape => "3X1_L",
+        _ => "4X45_P"
+    };
+
+    private static LabelSizePreset LabelSizeFromDatabase(string value) => value switch
+    {
+        "6X4_L" => LabelSizePreset.SixByFourLandscape,
+        "4X6_P" => LabelSizePreset.FourBySixPortrait,
+        "3X1_L" => LabelSizePreset.ThreeByOneLandscape,
+        _ => LabelSizePreset.FourByFourPointFivePortrait
     };
 
     private static InventoryMovementType MovementTypeFromDatabase(string value) => value switch

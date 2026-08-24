@@ -26,7 +26,7 @@
             <div class="d-flex flex-wrap align-items-center gap-2"><h1 class="h2 mb-0">@typeName</h1><span class="badge text-bg-primary">Confirmado</span>@if (correction is not null) { <span class="badge text-bg-warning">Relacionado con corrección</span> }</div>
             <p class="text-body-secondary mb-0">@Model.OccurredAt.ToString("dd/MM/yyyy HH:mm") · @Model.Movement.ResponsibleName</p>
         </div>
-        <a asp-page="Index" class="btn btn-outline-secondary">Volver al historial</a>
+        <a href="@Model.ReturnUrl" class="btn btn-outline-secondary">Volver a movimientos</a>
     </header>
 
     <section class="movement-detail-meta" aria-label="Datos de auditoría">
@@ -42,7 +42,7 @@
         <section class="movement-correction-panel" aria-labelledby="correction-title">
             <div><span class="inventory-eyebrow">Auditoría</span><h2 id="correction-title" class="h5 mb-1">Cadena de corrección</h2><p class="mb-0">@correction.Reason</p></div>
             <div class="movement-correction-people"><span>Solicitó<strong>@correction.RequestedBy</strong></span><span>Autorizó<strong>@correction.AuthorizedBy</strong></span></div>
-            <nav class="d-flex flex-wrap gap-2" aria-label="Movimientos relacionados"><a asp-page="Details" asp-route-id="@correction.OriginalMovementId" class="btn btn-sm btn-outline-secondary">Original</a><a asp-page="Details" asp-route-id="@correction.ReversalMovementId" class="btn btn-sm btn-outline-secondary">Reverso</a>@if (correction.ReplacementMovementId is Guid replacement) { <a asp-page="Details" asp-route-id="@replacement" class="btn btn-sm btn-outline-secondary">Reemplazo</a> }</nav>
+            <nav class="d-flex flex-wrap gap-2" aria-label="Movimientos relacionados"><a asp-page="Details" asp-route-id="@correction.OriginalMovementId" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">Original</a><a asp-page="Details" asp-route-id="@correction.ReversalMovementId" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">Reverso</a>@if (correction.ReplacementMovementId is Guid replacement) { <a asp-page="Details" asp-route-id="@replacement" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">Reemplazo</a> }</nav>
         </section>
     }
 
@@ -58,5 +58,5 @@
     </section>
 
     @if (Model.Movement.Notes is not null) { <section class="movement-notes"><span class="inventory-eyebrow">Observaciones / motivo</span><p class="mb-0">@Model.Movement.Notes</p></section> }
-    @if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null) { <footer class="movement-detail-actions"><a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id">Corregir movimiento</a></footer> }
+    @if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null) { <footer class="movement-detail-actions"><a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">Corregir movimiento</a></footer> }
 </main>

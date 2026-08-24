@@ -1,0 +1,77 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Labels.Templates.EditModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Labels
+@{
+    ViewData["Title"] = $"{Model.Version.Code} v{Model.Version.Version}";
+    var size = LabelSizeRegistry.Get(Model.Input.Size);
+}
+@section Styles { <link rel="stylesheet" href="~/css/label-editor.css" asp-append-version="true" /> }
+
+<div class="label-editor-shell" data-label-editor data-editable="@Model.Editable.ToString().ToLowerInvariant()" data-width="@size.WidthMils" data-height="@size.HeightMils">
+    <header class="label-editor-header">
+        <div><a asp-page="Index" class="small">← Formatos</a><h1 class="h4 mb-0">@Model.Version.Code · v@Model.Version.Version</h1><span class="badge text-bg-secondary">@Model.Version.Status</span></div>
+        <div class="d-flex flex-wrap gap-2">
+            @if (TempData["StatusMessage"] is string message) { <span class="text-success align-self-center">@message</span> }
+            @if (Model.Version.Status == LabelTemplateStatus.Draft) { <button form="editor-form" asp-page-handler="Submit" class="btn btn-outline-primary">Enviar a validación</button> }
+            @if (Model.Version.Status == LabelTemplateStatus.InValidation) { <button form="editor-form" asp-page-handler="Return" class="btn btn-outline-secondary">Volver a borrador</button><button form="editor-form" asp-page-handler="Publish" class="btn btn-success">Publicar</button> }
+            @if (Model.Editable) { <button form="editor-form" asp-page-handler="Save" class="btn btn-primary">Guardar</button> }
+        </div>
+    </header>
+    <div asp-validation-summary="All" class="alert alert-danger mx-3 mt-3 mb-0" role="alert"></div>
+    @if (Model.Version.Errors.Count > 0 || Model.Version.Warnings.Count > 0)
+    {
+        <div class="alert alert-warning mx-3 mt-3 mb-0"><strong>Diagnóstico del servidor</strong><ul class="mb-0">@foreach (var warning in Model.Version.Warnings) { <li>@warning</li> } @foreach (var error in Model.Version.Errors) { <li class="text-danger">@error</li> }</ul></div>
+    }
+
+    <form method="post" id="editor-form" class="label-editor-layout">
+        <input asp-for="Input.VersionId" type="hidden" /><input asp-for="Input.RowVersion" type="hidden" />
+        <textarea asp-for="Input.DesignJson" class="visually-hidden" data-design-json></textarea>
+        <aside class="label-toolbox" aria-label="Herramientas de diseño">
+            <label class="form-label">Nombre</label><input asp-for="Input.Name" class="form-control mb-3" readonly="@(!Model.Editable)" />
+            <label class="form-label">Tamaño registrado</label><select asp-for="Input.Size" class="form-select mb-3" disabled="@(!Model.Editable)">@foreach (var item in Model.Sizes) { <option value="@item.Preset" data-width="@item.WidthMils" data-height="@item.HeightMils">@item.Name</option> }</select>
+            @if (!Model.Editable) { <input asp-for="Input.Size" type="hidden" /> }
+            <div class="label-tool-grid">
+                <button type="button" class="btn btn-outline-secondary" data-add="text">Texto</button><button type="button" class="btn btn-outline-secondary" data-add="field">Campo</button>
+                <button type="button" class="btn btn-outline-secondary" data-add="code128">Code 128</button><button type="button" class="btn btn-outline-secondary" data-add="line">Línea</button>
+                <button type="button" class="btn btn-outline-secondary" data-add="rectangle">Rectángulo</button><button type="button" class="btn btn-outline-secondary" data-add="image">Imagen</button>
+            </div>
+            <hr />
+            <div class="btn-group w-100 mb-2"><button type="button" class="btn btn-outline-secondary" data-command="undo" title="Ctrl+Z">Deshacer</button><button type="button" class="btn btn-outline-secondary" data-command="redo" title="Ctrl+Y">Rehacer</button></div>
+            <div class="btn-group w-100 mb-2"><button type="button" class="btn btn-outline-secondary" data-command="front">Adelantar</button><button type="button" class="btn btn-outline-secondary" data-command="back">Atrás</button></div>
+            <div class="label-tool-grid"><button type="button" class="btn btn-outline-secondary" data-command="align-left">Alinear izq.</button><button type="button" class="btn btn-outline-secondary" data-command="align-top">Alinear arriba</button><button type="button" class="btn btn-outline-secondary" data-command="distribute-x">Distribuir H</button><button type="button" class="btn btn-outline-secondary" data-command="distribute-y">Distribuir V</button></div>
+            <hr />
+            <label class="form-check"><input class="form-check-input" type="checkbox" data-snap checked /> <span class="form-check-label">Ajuste magnético</span></label>
+            <label class="form-check"><input class="form-check-input" type="checkbox" data-grid checked /> <span class="form-check-label">Cuadrícula y guías</span></label>
+            <div class="btn-group w-100 mt-2"><button type="button" class="btn btn-outline-secondary" data-command="zoom-out">−</button><button type="button" class="btn btn-outline-secondary" data-command="fit">Encajar</button><button type="button" class="btn btn-outline-secondary" data-command="zoom-in">+</button></div>
+        </aside>
+
+        <main class="label-stage-wrap" tabindex="0" aria-label="Lienzo de etiqueta. Use flechas para mover la selección.">
+            <div class="label-stage" data-stage><svg data-canvas role="img" aria-label="Diseño de la etiqueta"></svg></div>
+            <div class="label-editor-hint">Shift+clic selecciona varios · Flechas mueven · Delete elimina · Ctrl+D duplica · Escape deselecciona</div>
+        </main>
+
+        <aside class="label-properties" aria-label="Propiedades">
+            <h2 class="h6">Elemento seleccionado</h2><div data-no-selection class="text-body-secondary small">Selecciona un objeto en el lienzo.</div>
+            <fieldset data-properties disabled>
+                <div class="row g-2"><div class="col-6"><label>X</label><input class="form-control" type="number" data-prop="x" /></div><div class="col-6"><label>Y</label><input class="form-control" type="number" data-prop="y" /></div><div class="col-6"><label>Ancho</label><input class="form-control" type="number" data-prop="width" /></div><div class="col-6"><label>Alto</label><input class="form-control" type="number" data-prop="height" /></div><div class="col-6"><label>Rotación</label><input class="form-control" type="number" min="-180" max="180" data-prop="rotation" /></div><div class="col-6"><label>Capa</label><input class="form-control" type="number" min="0" max="1000" data-prop="zIndex" /></div></div>
+                <label class="mt-2">Texto</label><textarea class="form-control" rows="2" data-prop="text"></textarea>
+                <label class="mt-2">Campo</label><select class="form-select" data-prop="binding"><option value="">Sin binding</option><optgroup label="Catálogo"><option value="product.sku">SKU</option><option value="product.description">Descripción</option><option value="product.unit">Unidad</option><option value="product.externalReference">Referencia externa</option></optgroup><optgroup label="Operación"><option value="input.quantity">Cantidad</option><option value="input.manufacturingDate">Fecha MFG</option><option value="input.isRepack">Repack</option></optgroup></select>
+                <label class="mt-2">Imagen local</label><select class="form-select" data-prop="assetId"><option value="">Seleccionar…</option>@foreach (var asset in Model.Assets.Where(item => !item.IsArchived)) { <option value="@asset.Id">@asset.Name (@asset.Width×@asset.Height)</option> }</select>
+                <div class="row g-2 mt-1"><div class="col-6"><label>Fuente</label><select class="form-select" data-prop="fontFamily"><option>Arial</option><option>Helvetica</option><option>Times New Roman</option><option>Courier New</option></select></div><div class="col-6"><label>Tamaño</label><input class="form-control" type="number" min="5" max="144" data-prop="fontSize" /></div><div class="col-6"><label>Color</label><input class="form-control form-control-color" type="color" data-prop="color" /></div><div class="col-6"><label>Fondo</label><input class="form-control form-control-color" type="color" data-prop="backgroundColor" /></div></div>
+                <div class="row g-2 mt-1"><div class="col-7"><label>Alineación</label><select class="form-select" data-prop="align"><option value="left">Izquierda</option><option value="center">Centro</option><option value="right">Derecha</option></select></div><div class="col-5"><label>Borde</label><input class="form-control" type="number" min="0" max="20" data-prop="borderWidth" /></div></div>
+                <label class="form-check mt-2"><input class="form-check-input" type="checkbox" data-prop="bold" /><span class="form-check-label">Negrita</span></label>
+                <label class="form-check"><input class="form-check-input" type="checkbox" data-prop="blankLine" /><span class="form-check-label">Línea cuando esté vacío</span></label>
+                <button type="button" class="btn btn-outline-danger w-100 mt-3" data-command="delete">Eliminar selección</button>
+            </fieldset>
+            <hr />
+            <h2 class="h6">Campos personalizados</h2>
+            <div data-fields></div><button type="button" class="btn btn-sm btn-outline-primary w-100" data-add-field>Agregar campo</button>
+            <div class="alert alert-warning small mt-3 d-none" data-client-warnings role="status"></div>
+            <label class="form-check mt-3"><input asp-for="Input.AcknowledgeWarnings" class="form-check-input" /><span class="form-check-label">Revisé y acepto las advertencias</span></label>
+            <a asp-page="../Assets/Index" class="btn btn-link px-0">Administrar imágenes</a>
+        </aside>
+    </form>
+</div>
+
+@section Scripts { <script src="~/js/label-template-editor.js" asp-append-version="true"></script> }

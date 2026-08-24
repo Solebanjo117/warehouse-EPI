@@ -274,6 +274,52 @@ public sealed class ReportExportServiceTests
     }
 
     [Fact]
+    public async Task Movement_audit_exports_preserve_status_native_types_metadata_and_formula_defense()
+    {
+        await using var db = CreateDbContext();
+        var service = new ReportExportService(new WarehouseSettingsService(db));
+        var occurredAt = new DateTimeOffset(2026, 8, 21, 14, 30, 0, TimeSpan.Zero);
+        var row = new InventoryMovementTraceRow(
+            Guid.NewGuid(), Guid.NewGuid(), InventoryMovementType.Adjustment,
+            InventoryMovementPurpose.CycleCountAdjustment, "Original corregido", occurredAt,
+            "America/Matamoros", "=Auditora", "+Referencia", "@Notas", "-SKU-AUDIT",
+            "Producto, especial", "EA", -3.5m, null, null, "AREA-1", "RACK-1", "LOT-1",
+            new DateOnly(2026, 8, 20), "Strict", 5m, -8.5m, -3.5m);
+        var filter = new InventoryHistoryFilter(
+            occurredAt.AddDays(-1), occurredAt.AddDays(1), InventoryMovementType.Adjustment,
+            "folio", null, null, Guid.NewGuid(), InventoryHistoryCorrectionState.CorrectedOriginal,
+            InventoryMovementPurpose.CycleCountAdjustment, "SKU", "RACK");
+
+        var xlsx = await service.ExportMovementAuditToExcelAsync([row], filter);
+        using (var workbook = new XLWorkbook(new MemoryStream(xlsx)))
+        {
+            var sheet = workbook.Worksheet("Auditoría");
+            var data = sheet.Row(6);
+            Assert.False(data.Cell(7).HasFormula);
+            Assert.False(data.Cell(10).HasFormula);
+            Assert.Equal(XLDataType.DateTime, data.Cell(6).DataType);
+            Assert.Equal(XLDataType.Number, data.Cell(13).DataType);
+            Assert.Equal(XLDataType.DateTime, data.Cell(19).DataType);
+            Assert.Equal(XLDataType.Number, data.Cell(21).DataType);
+            Assert.Equal(XLDataType.Number, data.Cell(22).DataType);
+            Assert.Equal(XLDataType.Number, data.Cell(23).DataType);
+            Assert.Contains("estado=CorrectedOriginal", sheet.Cell(3, 1).GetString());
+            Assert.Contains("producto=SKU", sheet.Cell(3, 1).GetString());
+        }
+
+        var csv = await service.ExportMovementAuditToCsvAsync([row], filter);
+        Assert.Equal([0xEF, 0xBB, 0xBF], csv[..3]);
+        var content = Encoding.UTF8.GetString(csv[3..]);
+        Assert.Contains("\"'=Auditora\"", content);
+        Assert.Contains("\"'+Referencia\"", content);
+        Assert.Contains("\"'@Notas\"", content);
+        Assert.Contains("\"'-SKU-AUDIT\"", content);
+        Assert.Contains(",-3.5000,", content);
+        Assert.Contains(",5.0000,-8.5000,-3.5000,", content);
+        Assert.Contains("estado=CorrectedOriginal", content);
+    }
+
+    [Fact]
     public void SanitizeText_neutralizes_formula_prefixes_on_strings()
     {
         Assert.Equal(string.Empty, ReportExportService.SanitizeText(null));
