@@ -38,6 +38,9 @@ $settings = [ordered]@{
     Branding = [ordered]@{
         StorageDirectory = 'C:\ProgramData\WarehouseEPI\Branding'
     }
+    WarehouseMap = [ordered]@{
+        ReferenceStorageDirectory = 'C:\ProgramData\WarehouseEPI\WarehouseMapReferences'
+    }
 }
 
 $directory = Split-Path -Parent $resolvedConfiguration

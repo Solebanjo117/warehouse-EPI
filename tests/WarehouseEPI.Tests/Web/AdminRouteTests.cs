@@ -184,6 +184,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("Crear producto", productsHtml);
         Assert.Contains("href=\"/Admin/Catalogs/ProductTypes\"", productsHtml);
         Assert.Contains("href=\"/Admin/Catalogs/ProductClasses\"", productsHtml);
+        Assert.Contains("placeholder=\"SKU, descripción, referencia o ubicación\"", productsHtml);
+        Assert.DoesNotContain("código(s)", productsHtml, StringComparison.OrdinalIgnoreCase);
 
         var productTypes = await client.GetAsync("/Admin/Catalogs/ProductTypes");
         var productTypesHtml = await productTypes.Content.ReadAsStringAsync();
@@ -209,6 +211,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("href=\"/Admin/Catalogs/Products\"", createHtml);
         Assert.Contains("name=\"Input.Sku\"", createHtml);
         Assert.Contains("name=\"Input.BaseUnitId\"", createHtml);
+        Assert.DoesNotContain("Códigos de barras", createHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("BarcodeInput", createHtml, StringComparison.Ordinal);
 
         var invalidCreateResponse = await client.PostAsync(
             "/Admin/Catalogs/Products/Create",
@@ -251,9 +255,18 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("Guardar cambios", editHtml);
         Assert.Contains("Ver ficha", editHtml);
         Assert.Contains("Ubicaciones asignadas", editHtml);
-        Assert.Contains("Códigos de barras", editHtml);
-        Assert.Contains("handler=AddBarcode", editHtml);
+        Assert.DoesNotContain("Códigos de barras", editHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("BarcodeInput", editHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=AddBarcode", editHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ToggleBarcode", editHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=SetPrimary", editHtml, StringComparison.Ordinal);
         Assert.Contains($"href=\"/Admin/Catalogs/Products/Details/{savedProduct.Id}\"", editHtml);
+
+        var detailsPage = await client.GetAsync($"/Admin/Catalogs/Products/Details/{savedProduct.Id}");
+        var detailsHtml = await detailsPage.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, detailsPage.StatusCode);
+        Assert.Contains("Lotes internos", detailsHtml);
+        Assert.DoesNotContain("Códigos de barras", detailsHtml, StringComparison.OrdinalIgnoreCase);
 
         var editResponse = await client.PostAsync(
             $"/Admin/Catalogs/Products/Edit/{savedProduct.Id}",

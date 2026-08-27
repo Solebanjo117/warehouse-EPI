@@ -28,7 +28,7 @@ public sealed class IndexModel(
     public IReadOnlyList<RackLayout> LayoutRacks { get; private set; } = [];
     public IReadOnlyList<LocationRow> LayoutAreas { get; private set; } = [];
     public IReadOnlyList<string> Rows { get; private set; } = [];
-    public LocationSummary Summary { get; private set; } = new(0, 0, 0, 0, 0);
+    public LocationSummary Summary { get; private set; } = new(0, 0, 0, 0, 0, 0);
     public string? Search { get; private set; }
     public string Status { get; private set; } = "active";
     public string Kind { get; private set; } = "all";
@@ -51,7 +51,7 @@ public sealed class IndexModel(
         string rackFilter = "all", CancellationToken cancellationToken = default)
     {
         Search = search?.Trim();
-        Status = status is "all" or "inactive" or "blocked" ? status : "active";
+        Status = status is "all" or "inactive" or "blocked" or "retired" ? status : "active";
         Kind = kind is "rack" or "area" ? kind : "all";
         ViewMode = viewMode == "layout" ? "racks" : viewMode is "table" or "racks" ? viewMode : "map";
         RackFilter = rackFilter is "occupied" or "empty" or "issues" ? rackFilter : "all";
@@ -63,16 +63,17 @@ public sealed class IndexModel(
             .Select(location => location.RowCode!).Distinct().OrderBy(value => value)
             .ToListAsync(cancellationToken);
         Summary = new(
-            await dbContext.Locations.CountAsync(location => location.IsActive && !location.IsBlocked, cancellationToken),
-            await dbContext.Locations.CountAsync(location => location.IsActive && location.IsBlocked, cancellationToken),
-            await dbContext.Locations.CountAsync(location => !location.IsActive, cancellationToken),
-            await dbContext.Locations.CountAsync(location => location.Kind == LocationKind.Rack, cancellationToken),
-            await dbContext.Locations.CountAsync(location => location.Kind == LocationKind.Area, cancellationToken));
+            await dbContext.Locations.CountAsync(location => location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked, cancellationToken),
+            await dbContext.Locations.CountAsync(location => location.IsPhysicallyPresent && location.IsActive && location.IsBlocked, cancellationToken),
+            await dbContext.Locations.CountAsync(location => location.IsPhysicallyPresent && !location.IsActive, cancellationToken),
+            await dbContext.Locations.CountAsync(location => !location.IsPhysicallyPresent, cancellationToken),
+            await dbContext.Locations.CountAsync(location => location.IsPhysicallyPresent && location.Kind == LocationKind.Rack, cancellationToken),
+            await dbContext.Locations.CountAsync(location => location.IsPhysicallyPresent && location.Kind == LocationKind.Area, cancellationToken));
 
         var query = ApplyFilters(dbContext.Locations.AsNoTracking(), ViewMode == "racks");
         if (ViewMode == "map")
         {
-            Map = await mapService.GetAsync(true, cancellationToken);
+            Map = await mapService.GetAsync(true, includeReferences: false, cancellationToken);
             var recentWipIssues = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
             foreach (var wipAreaId in Map.Elements.Where(element => element.IsWip)
                          .Select(element => element.LocationId)
@@ -143,6 +144,7 @@ public sealed class IndexModel(
     {
         var location = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
         if (location is null) return NotFound();
+        if (!location.IsPhysicallyPresent) { Error = "Una posición retirada solo puede restaurarse desde Editar rack."; return RedirectToPage(); }
         location.IsActive = !location.IsActive;
         location.IsBlocked = false;
         location.BlockReason = null;
@@ -156,6 +158,7 @@ public sealed class IndexModel(
     {
         var location = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
         if (location is null) return NotFound();
+        if (!location.IsPhysicallyPresent) { Error = "No se puede bloquear una posición retirada."; return RedirectToPage(); }
         var normalizedReason = reason?.Trim();
         if (!location.IsActive) Error = "No se puede bloquear una ubicación inactiva.";
         else if (string.IsNullOrWhiteSpace(normalizedReason) || normalizedReason.Length > 200)
@@ -175,6 +178,7 @@ public sealed class IndexModel(
     {
         var location = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == id, cancellationToken);
         if (location is null) return NotFound();
+        if (!location.IsPhysicallyPresent) { Error = "Una posición retirada solo puede restaurarse desde Editar rack."; return RedirectToPage(); }
         location.IsBlocked = false;
         location.BlockReason = null;
         location.UpdatedAt = DateTimeOffset.UtcNow;
@@ -185,12 +189,14 @@ public sealed class IndexModel(
 
     private IQueryable<Location> ApplyFilters(IQueryable<Location> query, bool forceRack = false)
     {
+        if (ViewMode is "map" or "racks") query = query.Where(location => location.IsPhysicallyPresent);
         query = Status switch
         {
-            "inactive" => query.Where(location => !location.IsActive),
-            "blocked" => query.Where(location => location.IsActive && location.IsBlocked),
+            "retired" => query.Where(location => !location.IsPhysicallyPresent),
+            "inactive" => query.Where(location => location.IsPhysicallyPresent && !location.IsActive),
+            "blocked" => query.Where(location => location.IsPhysicallyPresent && location.IsActive && location.IsBlocked),
             "all" => query,
-            _ => query.Where(location => location.IsActive && !location.IsBlocked)
+            _ => query.Where(location => location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked)
         };
         if (forceRack || Kind == "rack") query = query.Where(location => location.Kind == LocationKind.Rack);
         else if (Kind == "area") query = query.Where(location => location.Kind == LocationKind.Area);
@@ -220,7 +226,7 @@ public sealed class IndexModel(
         var locations = await query.Select(location => new LocationBaseRow(
             location.Id, location.Code, location.Kind, location.RowCode, location.RackNumber,
             location.PalletNumber, location.Description, location.IsBlocked, location.BlockReason,
-            location.IsActive)).ToListAsync(cancellationToken);
+            location.IsActive, location.IsPhysicallyPresent)).ToListAsync(cancellationToken);
         var ids = locations.Select(location => location.Id).ToArray();
         var assignments = ids.Length == 0
             ? []
@@ -249,20 +255,22 @@ public sealed class IndexModel(
             var skus = byLocation.GetValueOrDefault(location.Id) ?? [];
             return new LocationRow(location.Id, location.Code, location.Kind, location.RowCode,
                 location.RackNumber, location.PalletNumber, location.Description, location.IsBlocked,
-                location.BlockReason, location.IsActive, skus.Take(3).ToArray(), skus.Length,
+                location.BlockReason, location.IsActive, location.IsPhysicallyPresent,
+                skus.Take(3).ToArray(), skus.Length,
                 balanceLookup.GetValueOrDefault(location.Id) ?? []);
         }).ToArray();
     }
 
     private sealed record LocationBaseRow(Guid Id, string Code, LocationKind Kind, string? RowCode,
         short? RackNumber, short? PalletNumber, string? Description, bool IsBlocked,
-        string? BlockReason, bool IsActive);
+        string? BlockReason, bool IsActive, bool IsPhysicallyPresent);
     private sealed record AssignmentRow(Guid LocationId, Guid ProductId, string Sku);
     private sealed record BalanceSource(Guid LocationId, Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity);
     public sealed record LocationBalance(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, bool IsAssigned);
     public sealed record LocationRow(Guid Id, string Code, LocationKind Kind, string? RowCode,
         short? RackNumber, short? PalletNumber, string? Description, bool IsBlocked,
-        string? BlockReason, bool IsActive, IReadOnlyList<string> Skus, int ProductCount, IReadOnlyList<LocationBalance> Balances)
+        string? BlockReason, bool IsActive, bool IsPhysicallyPresent,
+        IReadOnlyList<string> Skus, int ProductCount, IReadOnlyList<LocationBalance> Balances)
     {
         public bool HasInventory => Balances.Count > 0;
         public bool HasNegative => Balances.Any(balance => balance.Quantity < 0);
@@ -278,5 +286,5 @@ public sealed class IndexModel(
         public int IssueCount => Existing.Count(position => position.HasIssue);
         public string RackState => Existing.Any(position => position.HasNegative) ? "negative" : Existing.Any(position => !position.IsActive) ? "inactive" : Existing.Any(position => position.IsBlocked) ? "blocked" : Existing.Any(position => position.HasInventory) ? "occupied" : "empty";
     }
-    public sealed record LocationSummary(int Available, int Blocked, int Inactive, int Racks, int Areas);
+    public sealed record LocationSummary(int Available, int Blocked, int Inactive, int Retired, int Racks, int Areas);
 }

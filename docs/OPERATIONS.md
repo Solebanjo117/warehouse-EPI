@@ -136,6 +136,14 @@ Cuando estén activas, la primera tarea crea un respaldo custom diario a las
 en una base temporal y después la elimina. Nunca apuntes una restauración a
 `warehouseEPI` sin un procedimiento de recuperación aprobado.
 
+Desde la fase 11.9.4 cada `warehouseEPI-<fecha>.dump` se acompaña de
+`warehouseEPI-<fecha>-references.zip`. El ZIP contiene los fondos del croquis y
+un manifiesto SHA-256; ambos archivos forman una sola unidad de recuperación.
+No copies, retengas ni restaures uno sin el otro cuando la base tenga registros
+en `warehouse_map_reference_images`. Los originales permanecen en
+`C:\ProgramData\WarehouseEPI\WarehouseMapReferences`, fuera de las Releases y
+con acceso restringido a Administradores, SYSTEM y el servicio.
+
 Para validar manualmente el flujo aislado:
 
 ```powershell

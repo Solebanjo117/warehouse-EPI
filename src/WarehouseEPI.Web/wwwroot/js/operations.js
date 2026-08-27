@@ -467,9 +467,14 @@
 
     const focusNextRequired = () => {
       if (entryWorkstation) {
-        const next = guidedKinds.find(kind => kind === "quantity"
-          ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
-          : kind === "notes" ? !notesInput?.value.trim() : !selected[kind]);
+        const next = visibleGuidedKinds().find(kind => kind === "exit-mode"
+          ? !selectedExitMode()
+          : kind === "quantity" ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
+            : kind === "notes" ? !notesInput?.value.trim() : !selected[kind]);
+        if (next === "exit-mode") {
+          (exitModePicker?.querySelector("input:checked") || exitModePicker?.querySelector("input"))?.focus();
+          return;
+        }
         if (next === "quantity") { quantityInput.focus(); quantityInput.select(); return; }
         if (next === "notes") { notesInput?.focus(); return; }
         if (next) {
@@ -868,16 +873,16 @@
     }
 
     operationShell.querySelectorAll("[data-lookup-field]").forEach(setupLookup);
-    exitModePicker?.querySelectorAll("input").forEach(control => {
-      control.addEventListener("change", () => {
-        const destinationStep = operationShell.querySelector("[data-wip-destination-step]");
-        const isWip = isWipExit();
-        destinationStep?.classList.toggle("d-none", !isWip);
-        if (!isWip && lookups.destination) clearSelection("destination");
-        refreshEntryState();
-        focusNextRequired();
-      });
-    });
+    const refreshExitMode = () => {
+      const destinationStep = operationShell.querySelector("[data-wip-destination-step]");
+      const isWip = isWipExit();
+      destinationStep?.classList.toggle("d-none", !isWip);
+      if (!isWip && lookups.destination) clearSelection("destination");
+      editingEntryStep = undefined;
+      refreshEntryState();
+      focusNextRequired();
+    };
+    exitModePicker?.addEventListener("change", refreshExitMode);
     for (const kind of Object.keys(lookups)) {
       if (!selected[kind]) continue;
       if (kind === "product") void loadProductLocations();
@@ -909,6 +914,10 @@
           const kind = button.dataset.editStep;
           editingEntryStep = kind;
           refreshEntryState();
+          if (kind === "exit-mode") {
+            (exitModePicker?.querySelector("input:checked") || exitModePicker?.querySelector("input"))?.focus();
+            return;
+          }
           const target = kind === "quantity" ? quantityInput : kind === "notes" ? notesInput : lookups[kind]?.input;
           target?.focus();
           target?.select();

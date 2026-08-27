@@ -34,7 +34,7 @@
     const common = { x: element.x, y: element.y, width: element.width, height: element.height };
     if (element.type === "line") group.append(svg("line", { x1: element.x, y1: element.y + element.height / 2, x2: element.x + element.width, y2: element.y + element.height / 2, stroke: element.color, "stroke-width": Math.max(4, element.borderWidth * 8) }));
     else if (element.type === "rectangle") group.append(svg("rect", { ...common, fill: element.backgroundColor, stroke: element.color, "stroke-width": element.borderWidth * 8 }));
-    else if (element.type === "image" && element.assetId) group.append(svg("image", { ...common, href: `/Labels/Assets/${element.assetId}`, preserveAspectRatio: "xMidYMid meet" }));
+    else if (element.type === "image" && (element.assetId || element.builtInAssetKey)) group.append(svg("image", { ...common, href: element.builtInAssetKey === "extra-packaging-logo" ? "/images/labels/extra-packaging-logo.svg" : `/Labels/Assets/${element.assetId}`, preserveAspectRatio: "xMidYMid meet" }));
     else if (element.type === "code128") {
       group.append(svg("rect", { ...common, fill: "#fff", stroke: "#ddd", "stroke-width": 5 }));
       const bars = 38; for (let i=0;i<bars;i+=2) group.append(svg("rect", { x: element.x + 80 + i * (element.width-160)/bars, y: element.y + 30, width: (1+(i%4))*(element.width-160)/bars/2, height: element.height-100, fill: "#000" }));
@@ -84,11 +84,11 @@
 
   function showProperties() {
     const item=selectedItems()[0]; propertyBox.disabled=!editable || !item; noSelection.classList.toggle("d-none",!!item);
-    root.querySelectorAll("[data-prop]").forEach(input => { if (!item) { if (input.type!=="checkbox") input.value=""; return; } const value=item[input.dataset.prop]; if (input.type==="checkbox") input.checked=!!value; else input.value=value ?? ""; });
+    root.querySelectorAll("[data-prop]").forEach(input => { if (!item) { if (input.type!=="checkbox") input.value=""; return; } const value=input.dataset.prop === "assetId" && item.builtInAssetKey ? `builtin:${item.builtInAssetKey}` : item[input.dataset.prop]; if (input.type==="checkbox") input.checked=!!value; else input.value=value ?? ""; });
   }
-  root.querySelectorAll("[data-prop]").forEach(input => input.addEventListener("change", () => { const items=selectedItems(); if (!editable || items.length===0) return; const before=snapshot(), key=input.dataset.prop; items.forEach(item => { item[key]=input.type==="checkbox" ? input.checked : input.type==="number" ? normalize(input.value) : input.value || null; clamp(item); }); commit(before); render(); }));
+  root.querySelectorAll("[data-prop]").forEach(input => input.addEventListener("change", () => { const items=selectedItems(); if (!editable || items.length===0) return; const before=snapshot(), key=input.dataset.prop; items.forEach(item => { if(key==="assetId"&&input.value.startsWith("builtin:")){item.assetId=null;item.builtInAssetKey=input.value.slice(8);}else{item[key]=input.type==="checkbox" ? input.checked : input.type==="number" ? normalize(input.value) : input.value || null;if(key==="assetId")item.builtInAssetKey=null;} clamp(item); }); commit(before); render(); }));
 
-  function newElement(type) { return { id:guid(), type, x:300, y:300, width:type==="line"?1200:1500, height:type==="line"?40:400, rotation:0, zIndex:Math.max(0,...documentModel.elements.map(e=>e.zIndex||0))+1, text:type==="text"?"Nuevo texto":null, binding:type==="field"||type==="code128"?"product.sku":null, assetId:type==="image"?(root.querySelector("[data-prop='assetId'] option[value]:not([value=''])")?.value||null):null, fontFamily:"Arial", fontSize:18, bold:false, color:"#000000", backgroundColor:"#FFFFFF", borderWidth:1, align:"left", blankLine:false }; }
+  function newElement(type) { const asset=root.querySelector("[data-prop='assetId'] option[value]:not([value=''])")?.value||null; return { id:guid(), type, x:300, y:300, width:type==="line"?1200:1500, height:type==="line"?40:400, rotation:0, zIndex:Math.max(0,...documentModel.elements.map(e=>e.zIndex||0))+1, text:type==="text"?"Nuevo texto":null, binding:type==="field"||type==="code128"?"product.sku":null, assetId:type==="image"&&asset&&!asset.startsWith("builtin:")?asset:null, builtInAssetKey:type==="image"&&asset?.startsWith("builtin:")?asset.slice(8):null, fontFamily:"Arial", fontSize:18, bold:false, color:"#000000", backgroundColor:"#FFFFFF", borderWidth:1, align:"left", blankLine:false }; }
   root.querySelectorAll("[data-add]").forEach(button => button.addEventListener("click", () => { if(!editable)return; const before=snapshot(), item=newElement(button.dataset.add); documentModel.elements.push(item); selected=new Set([item.id]); commit(before); render(); }));
 
   function command(name) {

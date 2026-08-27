@@ -28,6 +28,7 @@ public sealed class IndexModel(
     public string ExceptionView { get; private set; } = "negative";
     public string Period { get; private set; } = "90";
     public string Status { get; private set; } = "active";
+    public StagnantCategory? StagnantCategoryFilter { get; private set; }
     public string? Search { get; private set; }
     public short? UnitId { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
@@ -48,11 +49,12 @@ public sealed class IndexModel(
         string? status,
         string? search,
         short? unitId,
+        string? stagnantCategory = null,
         int pageNumber = 1,
         bool refresh = false,
         CancellationToken cancellationToken = default)
     {
-        Normalize(view, exception, period, status, search, unitId);
+        Normalize(view, exception, period, status, search, unitId, stagnantCategory);
         await LoadDisplayTimeZoneAsync(cancellationToken);
 
         if (View == "occupancy")
@@ -210,7 +212,8 @@ public sealed class IndexModel(
             Search,
             UnitId,
             Math.Max(1, pageNumber),
-            PageSize);
+            PageSize,
+            StagnantCategoryFilter);
     }
 
     private void Normalize(
@@ -219,7 +222,8 @@ public sealed class IndexModel(
         string? period,
         string? status,
         string? search,
-        short? unitId)
+        short? unitId,
+        string? stagnantCategory = null)
     {
         View = view switch
         {
@@ -232,6 +236,9 @@ public sealed class IndexModel(
         Status = status is "inactive" or "all" ? status : "active";
         Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
         UnitId = unitId;
+        StagnantCategoryFilter = string.Equals(stagnantCategory, "90plus", StringComparison.OrdinalIgnoreCase)
+            ? WarehouseEPI.Infrastructure.Reporting.StagnantCategory.Days90Plus
+            : null;
     }
 
     private async Task LoadUnitOptionsAsync(CancellationToken cancellationToken)
@@ -265,7 +272,7 @@ public sealed class IndexModel(
     }
 
     private static string CacheKey(string view, InventoryAnalyticsFilter filter, string period) =>
-        $"reporting:inventory-analytics:{view}:{period}:{filter.ProductStatus}:{filter.Search}:{filter.UnitId}:{filter.PageNumber}";
+        $"reporting:inventory-analytics:{view}:{period}:{filter.ProductStatus}:{filter.Search}:{filter.UnitId}:{filter.StagnantCategory}:{filter.PageNumber}";
 
     private BadRequestObjectResult ExportLimit(int totalRows, int maximumRows) => BadRequest(
         $"La exportación contiene {totalRows:N0} productos y supera el límite de {maximumRows:N0}. Aplica filtros más específicos.");

@@ -25,7 +25,8 @@ public sealed class BusinessModel(
             BusinessName = settings.BusinessName,
             WarehouseName = settings.WarehouseName,
             WarehouseCode = settings.WarehouseCode,
-            TimeZoneId = settings.TimeZoneId
+            TimeZoneId = settings.TimeZoneId,
+            WipReminderDays = settings.WipReminderDays
         };
         ViewData["LogoUrl"] = settings.LogoFileName is null ? null : $"/branding/logo?v={settings.LogoHash}";
     }
@@ -57,6 +58,7 @@ public sealed class BusinessModel(
         settings.WarehouseName = Input.WarehouseName;
         settings.WarehouseCode = Input.WarehouseCode;
         settings.TimeZoneId = Input.TimeZoneId;
+        settings.WipReminderDays = Input.WipReminderDays;
         settings.UpdatedAt = DateTimeOffset.UtcNow;
         settings.UpdatedByUserId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         if (uploaded is not null)
@@ -92,6 +94,7 @@ public sealed class BusinessModel(
         [Required, StringLength(120)] public string WarehouseName { get; set; } = string.Empty;
         [Required, StringLength(30), RegularExpression("^[A-Z0-9][A-Z0-9-]*$")] public string WarehouseCode { get; set; } = string.Empty;
         [Required, StringLength(100)] public string TimeZoneId { get; set; } = string.Empty;
+        [Range(1, 365)] public int WipReminderDays { get; set; } = 7;
         [DataType(DataType.Upload)] public IFormFile? Logo { get; set; }
         public bool RemoveLogo { get; set; }
     }

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Labels;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
@@ -42,6 +43,9 @@ public sealed class IndexModel(
     public InventoryHistoryCorrectionState State { get; private set; }
     public int PageNumber { get; private set; } = 1;
     public string TimeZoneId { get; private set; } = "UTC";
+
+    public bool CanGeneratePalletPlate(EffectiveMovementRowDto item) =>
+        PalletLicensePlateService.IsEligible(item.MovementType, item.Purpose, item.LineCount);
 
     public async Task OnGetAsync(
         string? view, string? search, string? sku, string? locationCode,

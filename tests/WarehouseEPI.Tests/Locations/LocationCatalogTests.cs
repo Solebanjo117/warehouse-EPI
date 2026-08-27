@@ -47,6 +47,12 @@ public sealed class LocationCatalogTests
         Assert.Contains(architectural.GetForeignKeys(), foreignKey => foreignKey.PrincipalEntityType.ClrType == typeof(WarehouseMapLayer));
         Assert.Contains(layer!.GetIndexes(), index => index.IsUnique
             && index.Properties.Select(property => property.Name).SequenceEqual([nameof(WarehouseMapLayer.LayoutId), nameof(WarehouseMapLayer.Code)]));
+        var reference = fixture.Db.Model.FindEntityType(typeof(WarehouseMapReferenceImage));
+        Assert.NotNull(reference);
+        Assert.Null(reference!.FindNavigation("Location"));
+        Assert.Contains(reference.GetIndexes(), index => index.IsUnique
+            && index.Properties.Select(property => property.Name).SequenceEqual([
+                nameof(WarehouseMapReferenceImage.LayoutId), nameof(WarehouseMapReferenceImage.IsArchived)]));
     }
 
     [Fact]
@@ -248,7 +254,7 @@ public sealed class LocationCatalogTests
         Assert.Equal(operationalBefore, operationalAfter);
         var revision = await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync();
         using var changes = JsonDocument.Parse(revision.ChangesJson);
-        Assert.Equal(4, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.True(changes.RootElement.TryGetProperty("Operational", out _));
         Assert.True(changes.RootElement.TryGetProperty("Layers", out _));
         Assert.True(changes.RootElement.TryGetProperty("Architecture", out _));
@@ -356,7 +362,7 @@ public sealed class LocationCatalogTests
         Assert.Equal(operationalBefore, operationalAfter);
         var revision = await fixture.Db.WarehouseMapRevisions.SingleAsync(item => item.OperationId == operationId);
         using var changes = JsonDocument.Parse(revision.ChangesJson);
-        Assert.Equal(4, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.Equal(addedId, changes.RootElement.GetProperty("Architecture").GetProperty("Added")[0].GetGuid());
     }
 
@@ -478,9 +484,9 @@ public sealed class LocationCatalogTests
             (await fixture.Db.WarehouseMapLayouts.AsNoTracking().SingleAsync()).MeasurementSystem);
         var revision = await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync();
         using var changes = JsonDocument.Parse(revision.ChangesJson);
-        Assert.Equal(4, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.Equal(2, changes.RootElement.GetProperty("Architecture").GetProperty("Archived").GetArrayLength());
-        Assert.Contains(await service.GetRevisionsAsync(), item => item.SchemaVersion == 4
+        Assert.Contains(await service.GetRevisionsAsync(), item => item.SchemaVersion == 5
             && item.Summary.Contains("2 archivados", StringComparison.Ordinal));
     }
 
@@ -759,6 +765,205 @@ public sealed class LocationCatalogTests
         Assert.Equal(12m, balance.Quantity);
         Assert.True(balance.IsAssigned);
     }
+
+    [Fact]
+    public async Task Location_detail_exposes_the_current_and_neighbor_inventory_states_without_n_plus_one_data_loss()
+    {
+        await using var fixture = new Fixture();
+        var each = new Unit { Id = 1, Code = "EA", Name = "Each" };
+        var kilograms = new Unit { Id = 2, Code = "KG", Name = "Kilograms" };
+        var currentProduct = new Product { Sku = "CURRENT-ZERO", BaseUnit = each };
+        var primaryProduct = new Product { Sku = "A-PRIMARY", BaseUnit = each };
+        var secondaryProduct = new Product { Sku = "B-SECONDARY", BaseUnit = each };
+        var negativeProduct = new Product { Sku = "NEGATIVE", BaseUnit = kilograms };
+        var zeroProduct = new Product { Sku = "ZERO-NET", BaseUnit = each };
+        var unassignedProduct = new Product { Sku = "UNASSIGNED", BaseUnit = each };
+        var blockedProduct = new Product { Sku = "BLOCKED-STOCK", BaseUnit = each };
+        var current = Rack("N", 2, 6);
+        var positive = Rack("N", 2, 7);
+        var negative = Rack("N", 2, 8);
+        var assignedZero = Rack("N", 2, 4);
+        var unassigned = Rack("N", 2, 5);
+        var blocked = Rack("N", 2, 1); blocked.IsBlocked = true; blocked.BlockReason = "Conteo";
+        var inactive = Rack("N", 2, 2); inactive.IsActive = false;
+        var empty = Rack("N", 2, 3);
+        fixture.Db.AddRange(each, kilograms, currentProduct, primaryProduct, secondaryProduct,
+            negativeProduct, zeroProduct, unassignedProduct, blockedProduct, current, positive,
+            negative, assignedZero, unassigned, blocked, inactive, empty);
+        fixture.Db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = primaryProduct, Location = positive, Quantity = 2m },
+            new InventoryBalance { Product = primaryProduct, Location = positive, Quantity = 3m },
+            new InventoryBalance { Product = secondaryProduct, Location = positive, Quantity = 1m },
+            new InventoryBalance { Product = negativeProduct, Location = negative, Quantity = -2.5m },
+            new InventoryBalance { Product = zeroProduct, Location = assignedZero, Quantity = 5m },
+            new InventoryBalance { Product = zeroProduct, Location = assignedZero, Quantity = -5m },
+            new InventoryBalance { Product = unassignedProduct, Location = unassigned, Quantity = 4m },
+            new InventoryBalance { Product = blockedProduct, Location = blocked, Quantity = 6m });
+        fixture.Db.ProductLocationAssignments.AddRange(
+            new ProductLocationAssignment { Product = currentProduct, Location = current },
+            new ProductLocationAssignment { Product = primaryProduct, Location = positive },
+            new ProductLocationAssignment { Product = secondaryProduct, Location = positive },
+            new ProductLocationAssignment { Product = zeroProduct, Location = assignedZero });
+        await fixture.Db.SaveChangesAsync();
+
+        var page = new DetailsModel(fixture.Db, new ProductLocationAssignmentService(fixture.Db));
+        var result = await page.OnGetAsync(current.Id, null, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(8, page.Neighbors.Count);
+        Assert.DoesNotContain(page.Neighbors, item => item.PalletNumber == 9);
+        var currentRow = Assert.Single(page.Neighbors, item => item.IsCurrent);
+        Assert.Equal("Asignado sin saldo", currentRow.InventoryState);
+        Assert.Equal("CURRENT-ZERO", currentRow.PrimaryAssignedSku);
+        Assert.Equal(1, page.ActiveAssignmentCount);
+        Assert.Equal(0, page.BalanceProductCount);
+
+        var positiveRow = Assert.Single(page.Neighbors, item => item.Id == positive.Id);
+        Assert.Equal("Con saldo", positiveRow.InventoryState);
+        Assert.Equal("A-PRIMARY", positiveRow.PrimaryBalance!.Sku);
+        Assert.Equal(5m, positiveRow.PrimaryBalance.Quantity);
+        Assert.Equal(1, positiveRow.AdditionalProductCount);
+        Assert.Equal(2, positiveRow.AssignmentCount);
+        Assert.Equal("Saldo negativo", Assert.Single(page.Neighbors, item => item.Id == negative.Id).InventoryState);
+        Assert.Equal("Asignado sin saldo", Assert.Single(page.Neighbors, item => item.Id == assignedZero.Id).InventoryState);
+        Assert.Equal("Saldo sin asignación", Assert.Single(page.Neighbors, item => item.Id == unassigned.Id).InventoryState);
+        var blockedRow = Assert.Single(page.Neighbors, item => item.Id == blocked.Id);
+        Assert.True(blockedRow.IsBlocked);
+        Assert.NotNull(blockedRow.PrimaryBalance);
+        Assert.Equal("Inactiva", Assert.Single(page.Neighbors, item => item.Id == inactive.Id).OperationalState);
+        Assert.Equal("Sin producto", Assert.Single(page.Neighbors, item => item.Id == empty.Id).InventoryState);
+    }
+
+    [Fact]
+    public async Task Warehouse_map_reference_is_audited_archived_and_never_published()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234"); fixture.Db.AddRange(role, user, Rack("A", 1, 1)); await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+        fixture.Db.ChangeTracker.Clear();
+        var map = await service.GetAsync(true);
+        var geometry = map.Elements.Concat(map.Unplaced).Select(ToMapGeometry).ToArray();
+        var referenceId = Guid.NewGuid();
+        var reference = new WarehouseMapReferenceImageState(referenceId, "plano.png", $"{new string('a', 64)}.png",
+            "image/png", new string('a', 64), 800, 400, 50, 50, 400, 200, 0, .35m, true, false,
+            0, 0, 1, 0, 40);
+        var command = new WarehouseMapSaveCommand(Guid.NewGuid(), user.Id, "1234", "Agregar fondo", geometry,
+            LayerStates(map), ArchitectureGeometry(map), 10m, "IMPERIAL", [reference]);
+
+        var review = await service.ReviewAsync(command);
+        Assert.Empty(review.Errors);
+        Assert.Equal(1, review.Summary.ReferenceAdded);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        Assert.Single(await fixture.Db.WarehouseMapReferenceImages.ToListAsync());
+
+        fixture.Db.ChangeTracker.Clear(); map = await service.GetAsync(true);
+        var archivedReference = reference with { IsLocked = false, IsArchived = true };
+        var archive = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", "Archivar fondo",
+            geometry, LayerStates(map), ArchitectureGeometry(map), 10m, "IMPERIAL", [archivedReference]));
+        Assert.Equal(WarehouseMapSaveStatus.Success, archive.Status);
+        Assert.Null((await service.GetAsync(false)).ActiveReference);
+        Assert.Single((await service.GetAsync(true)).ArchivedReferences!);
+        using var changes = JsonDocument.Parse((await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync()).ChangesJson);
+        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(1, changes.RootElement.GetProperty("References").GetProperty("Archived").GetArrayLength());
+    }
+
+    [Fact]
+    public async Task Warehouse_map_review_accepts_500_architectural_objects_and_rejects_501()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Stress Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234"); fixture.Db.AddRange(role, user, Rack("A", 1, 1)); await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+        fixture.Db.ChangeTracker.Clear();
+        var map = await service.GetAsync(true);
+        var layers = LayerStates(map).Select(item => item.Code == "ZONES" ? item with { IsLocked = false } : item).ToArray();
+        var additions = Enumerable.Range(0, 500 - map.Architecture.Count).Select(index =>
+            new WarehouseMapArchitectureItem(Guid.NewGuid(), "ZONES", "Rectangle", $"Carga {index + 1}",
+                1 + index % 80 * 19, 1 + index / 80 * 19, 10, 10, 0, 0, [], "SECONDARY", "NONE", 1,
+                false, 2000 + index, false)).ToArray();
+        var architecture = ArchitectureGeometry(map).Concat(additions).ToArray();
+        var command = new WarehouseMapSaveCommand(Guid.NewGuid(), user.Id, "1234", "Límite 500",
+            map.Elements.Concat(map.Unplaced).Select(ToMapGeometry).ToArray(), layers, architecture);
+
+        Assert.Empty((await service.ReviewAsync(command)).Errors);
+        var excessive = architecture.Append(additions[0] with { Id = Guid.NewGuid(), Label = "Objeto 501" }).ToArray();
+        Assert.NotEmpty((await service.ReviewAsync(command with { OperationId = Guid.NewGuid(), Architecture = excessive })).Errors);
+    }
+
+    [Fact]
+    public async Task Rack_correction_retires_reversibly_and_preserves_rows_and_audit()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        var original = Enumerable.Range(1, 9).Select(number => Rack("Q", 2, (short)number)).ToArray();
+        fixture.Db.AddRange(role, user);
+        fixture.Db.Locations.AddRange(original);
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var operationId = Guid.NewGuid();
+        var command = new LocationRackEditCommand(operationId, user.Id, "Q", 2,
+            [1, 2, 3, 4, 5, 6], "El rack físico solo tiene seis posiciones", "1234");
+
+        Assert.Empty((await service.ReviewAsync(command)).Errors);
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
+
+        var rows = await fixture.Db.Locations.Where(item => item.RowCode == "Q" && item.RackNumber == 2)
+            .OrderBy(item => item.PalletNumber).ToArrayAsync();
+        Assert.Equal(9, rows.Length);
+        Assert.All(rows.Take(6), item => Assert.True(item.IsPhysicallyPresent));
+        Assert.All(rows.Skip(6), item => { Assert.False(item.IsPhysicallyPresent); Assert.False(item.IsActive); });
+        Assert.Single(await fixture.Db.LocationRackRevisions.ToListAsync());
+        Assert.Null(await new LocationLookupService(fixture.Db).FindByCodeAsync("Q-2-9"));
+
+        var restore = command with { OperationId = Guid.NewGuid(), PresentPallets = [1, 2, 3, 4, 5, 6, 9], Reason = "Se confirmó físicamente la posición nueve" };
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(restore)).Status);
+        var restored = await fixture.Db.Locations.SingleAsync(item => item.Code == "Q-2-9");
+        Assert.Equal(original[8].Id, restored.Id);
+        Assert.True(restored.IsPhysicallyPresent);
+        Assert.True(restored.IsActive);
+    }
+
+    [Fact]
+    public async Task Rack_correction_blocks_retirement_with_balance_or_active_assignment()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        var unit = new Unit { Code = "EA", Name = "Each" };
+        var product = new Product { Sku = "RACK-PROTECTED", BaseUnit = unit };
+        var one = Rack("P", 1, 1); var two = Rack("P", 1, 2);
+        fixture.Db.AddRange(role, user, product, one, two,
+            new InventoryBalance { Product = product, Location = one, Quantity = -1 },
+            new ProductLocationAssignment { Product = product, Location = two });
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var review = await service.ReviewAsync(new(Guid.NewGuid(), user.Id, "P", 1, [1], "Retirar la posición dos", null));
+
+        Assert.Contains(review.Errors, error => error.Contains("P-1-2") && error.Contains("asignaciones"));
+        var balanceReview = await service.ReviewAsync(new(Guid.NewGuid(), user.Id, "P", 1, [2], "Retirar la posición uno", null));
+        Assert.Contains(balanceReview.Errors, error => error.Contains("P-1-1") && error.Contains("saldo"));
+    }
+
+    private static WarehouseMapGeometry ToMapGeometry(WarehouseMapElementView item) =>
+        new(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible);
 
     private static Location Rack(string row, short rack, short pallet) => new()
     {

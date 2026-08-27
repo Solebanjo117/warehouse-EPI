@@ -16,6 +16,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<Product> Products => Set<Product>();
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<Location> Locations => Set<Location>();
+    public DbSet<LocationRackRevision> LocationRackRevisions => Set<LocationRackRevision>();
     public DbSet<ProductLocationAssignment> ProductLocationAssignments => Set<ProductLocationAssignment>();
     public DbSet<ProductLot> ProductLots => Set<ProductLot>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
@@ -29,6 +30,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
     public DbSet<WarehouseMapLayer> WarehouseMapLayers => Set<WarehouseMapLayer>();
     public DbSet<WarehouseMapArchitecturalElement> WarehouseMapArchitecturalElements => Set<WarehouseMapArchitecturalElement>();
+    public DbSet<WarehouseMapReferenceImage> WarehouseMapReferenceImages => Set<WarehouseMapReferenceImage>();
     public DbSet<WarehouseMapRevision> WarehouseMapRevisions => Set<WarehouseMapRevision>();
     public DbSet<CycleCountCampaign> CycleCountCampaigns => Set<CycleCountCampaign>();
     public DbSet<CycleCountLocation> CycleCountLocations => Set<CycleCountLocation>();
@@ -54,6 +56,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureProduct(modelBuilder);
         ConfigureProductBarcode(modelBuilder);
         ConfigureLocation(modelBuilder);
+        ConfigureLocationRackRevision(modelBuilder);
         ConfigureProductLocationAssignment(modelBuilder);
         ConfigureProductLot(modelBuilder);
         ConfigureInventoryMovement(modelBuilder);
@@ -71,10 +74,17 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private static void ConfigureLabels(ModelBuilder modelBuilder)
     {
         var template = modelBuilder.Entity<LabelTemplate>();
-        template.ToTable("label_templates", table => table.HasCheckConstraint("ck_label_templates_code", "code = upper(btrim(code)) AND code ~ '^[A-Z0-9][A-Z0-9-]{2,59}$'"));
+        template.ToTable("label_templates", table =>
+        {
+            table.HasCheckConstraint("ck_label_templates_code", "code = upper(btrim(code)) AND code ~ '^[A-Z0-9][A-Z0-9-]{2,59}$'");
+            table.HasCheckConstraint("ck_label_templates_kind", "kind IN ('PRODUCT_LABEL','PALLET_LICENSE_PLATE')");
+        });
         template.HasKey(item => item.Id);
         template.Property(item => item.Id).HasColumnName("id");
         template.Property(item => item.Code).HasColumnName("code").HasMaxLength(60).IsRequired();
+        template.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(30).HasDefaultValue(LabelTemplateKind.ProductLabel)
+            .HasConversion(value => value == LabelTemplateKind.PalletLicensePlate ? "PALLET_LICENSE_PLATE" : "PRODUCT_LABEL",
+                value => value == "PALLET_LICENSE_PLATE" ? LabelTemplateKind.PalletLicensePlate : LabelTemplateKind.ProductLabel);
         template.Property(item => item.CurrentPublishedVersionId).HasColumnName("current_published_version_id");
         template.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         template.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
@@ -85,7 +95,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         {
             table.HasCheckConstraint("ck_label_template_versions_number", "version > 0");
             table.HasCheckConstraint("ck_label_template_versions_status", "status IN ('DRAFT','IN_VALIDATION','PUBLISHED','RETIRED')");
-            table.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P')");
+            table.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P','11X85_L')");
         });
         version.HasKey(item => item.Id);
         version.Property(item => item.Id).HasColumnName("id");
@@ -214,14 +224,18 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private static void ConfigureBusinessSettings(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<BusinessSettings>();
-        entity.ToTable("business_settings", table =>
-            table.HasCheckConstraint("ck_business_settings_singleton", "id = 1"));
         entity.HasKey(settings => settings.Id);
         entity.Property(settings => settings.Id).HasColumnName("id").ValueGeneratedNever();
         entity.Property(settings => settings.BusinessName).HasColumnName("business_name").HasMaxLength(160).IsRequired();
         entity.Property(settings => settings.WarehouseName).HasColumnName("warehouse_name").HasMaxLength(120).IsRequired();
         entity.Property(settings => settings.WarehouseCode).HasColumnName("warehouse_code").HasMaxLength(30).IsRequired();
         entity.Property(settings => settings.TimeZoneId).HasColumnName("time_zone_id").HasMaxLength(100).IsRequired();
+        entity.Property(settings => settings.WipReminderDays).HasColumnName("wip_reminder_days").HasDefaultValue(7);
+        entity.ToTable("business_settings", table =>
+        {
+            table.HasCheckConstraint("ck_business_settings_singleton", "id = 1");
+            table.HasCheckConstraint("ck_business_settings_wip_reminder_days", "wip_reminder_days BETWEEN 1 AND 365");
+        });
         entity.Property(settings => settings.LogoFileName).HasColumnName("logo_file_name").HasMaxLength(100);
         entity.Property(settings => settings.LogoContentType).HasColumnName("logo_content_type").HasMaxLength(30);
         entity.Property(settings => settings.LogoHash).HasColumnName("logo_hash").HasMaxLength(64);
@@ -404,6 +418,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(location => location.IsBlocked).HasColumnName("is_blocked").HasDefaultValue(false);
         entity.Property(location => location.BlockReason).HasColumnName("block_reason").HasMaxLength(200);
         entity.Property(location => location.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+        entity.Property(location => location.IsPhysicallyPresent).HasColumnName("is_physically_present").HasDefaultValue(true);
         entity.Property(location => location.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(location => location.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         entity.Ignore(location => location.IsOperational);
@@ -413,6 +428,33 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.HasIndex(location => location.Code).IsUnique();
         entity.HasIndex(location => new { location.RowCode, location.RackNumber, location.PalletNumber })
             .IsUnique().HasFilter("kind = 'RACK'");
+    }
+
+    private static void ConfigureLocationRackRevision(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<LocationRackRevision>();
+        entity.ToTable("location_rack_revisions", table =>
+        {
+            table.HasCheckConstraint("ck_location_rack_revisions_row", "row_code ~ '^[A-Z]$'");
+            table.HasCheckConstraint("ck_location_rack_revisions_rack", "rack_number > 0");
+            table.HasCheckConstraint("ck_location_rack_revisions_reason", "reason = btrim(reason) AND reason <> ''");
+        });
+        entity.HasKey(item => item.Id);
+        entity.Property(item => item.Id).HasColumnName("id");
+        entity.Property(item => item.OperationId).HasColumnName("operation_id");
+        entity.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        entity.Property(item => item.RowCode).HasColumnName("row_code").HasMaxLength(1).IsRequired();
+        entity.Property(item => item.RackNumber).HasColumnName("rack_number");
+        entity.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+        entity.Property(item => item.BeforeJson).HasColumnName("before_json").HasColumnType("jsonb").IsRequired();
+        entity.Property(item => item.AfterJson).HasColumnName("after_json").HasColumnType("jsonb").IsRequired();
+        entity.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        entity.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        entity.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        entity.HasIndex(item => item.OperationId).IsUnique();
+        entity.HasIndex(item => new { item.RowCode, item.RackNumber, item.RecordedAt });
+        entity.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureProductLocationAssignment(ModelBuilder modelBuilder)
@@ -726,6 +768,42 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         architectural.HasOne(item => item.Layout).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Cascade);
         architectural.HasOne(item => item.Layer).WithMany(item => item.ArchitecturalElements).HasForeignKey(item => item.LayerId).OnDelete(DeleteBehavior.Restrict);
 
+        var reference = modelBuilder.Entity<WarehouseMapReferenceImage>();
+        reference.ToTable("warehouse_map_reference_images", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_reference_file", "content_type IN ('image/png', 'image/jpeg', 'image/webp') AND pixel_width BETWEEN 1 AND 4096 AND pixel_height BETWEEN 1 AND 4096");
+            table.HasCheckConstraint("ck_warehouse_map_reference_geometry", "x >= 0 AND y >= 0 AND width > 0 AND height > 0 AND rotation IN (0, 90, 180, 270) AND opacity BETWEEN 0.05 AND 1");
+            table.HasCheckConstraint("ck_warehouse_map_reference_calibration", "(calibration_a_x IS NULL AND calibration_a_y IS NULL AND calibration_b_x IS NULL AND calibration_b_y IS NULL AND calibration_distance_inches IS NULL) OR (calibration_a_x BETWEEN 0 AND 1 AND calibration_a_y BETWEEN 0 AND 1 AND calibration_b_x BETWEEN 0 AND 1 AND calibration_b_y BETWEEN 0 AND 1 AND calibration_distance_inches > 0)");
+        });
+        reference.HasKey(item => item.Id);
+        reference.Property(item => item.Id).HasColumnName("id");
+        reference.Property(item => item.LayoutId).HasColumnName("layout_id");
+        reference.Property(item => item.OriginalFileName).HasColumnName("original_file_name").HasMaxLength(160).IsRequired();
+        reference.Property(item => item.StoredFileName).HasColumnName("stored_file_name").HasMaxLength(80).IsRequired();
+        reference.Property(item => item.ContentType).HasColumnName("content_type").HasMaxLength(20).IsRequired();
+        reference.Property(item => item.Sha256).HasColumnName("sha256").HasMaxLength(64).IsFixedLength().IsRequired();
+        reference.Property(item => item.PixelWidth).HasColumnName("pixel_width");
+        reference.Property(item => item.PixelHeight).HasColumnName("pixel_height");
+        reference.Property(item => item.X).HasColumnName("x").HasPrecision(9, 3);
+        reference.Property(item => item.Y).HasColumnName("y").HasPrecision(9, 3);
+        reference.Property(item => item.Width).HasColumnName("width").HasPrecision(9, 3);
+        reference.Property(item => item.Height).HasColumnName("height").HasPrecision(9, 3);
+        reference.Property(item => item.Rotation).HasColumnName("rotation");
+        reference.Property(item => item.Opacity).HasColumnName("opacity").HasPrecision(4, 3).HasDefaultValue(0.35m);
+        reference.Property(item => item.IsLocked).HasColumnName("is_locked").HasDefaultValue(true);
+        reference.Property(item => item.IsArchived).HasColumnName("is_archived").HasDefaultValue(false);
+        reference.Property(item => item.CalibrationAX).HasColumnName("calibration_a_x").HasPrecision(8, 6);
+        reference.Property(item => item.CalibrationAY).HasColumnName("calibration_a_y").HasPrecision(8, 6);
+        reference.Property(item => item.CalibrationBX).HasColumnName("calibration_b_x").HasPrecision(8, 6);
+        reference.Property(item => item.CalibrationBY).HasColumnName("calibration_b_y").HasPrecision(8, 6);
+        reference.Property(item => item.CalibrationDistanceInches).HasColumnName("calibration_distance_inches").HasPrecision(12, 4);
+        reference.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        reference.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        reference.HasIndex(item => new { item.LayoutId, item.IsArchived }).IsUnique().HasFilter("is_archived = false");
+        reference.HasIndex(item => new { item.LayoutId, item.Sha256 }).IsUnique();
+        reference.HasOne(item => item.Layout).WithMany(item => item.ReferenceImages).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Restrict);
+        reference.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+
         var revision = modelBuilder.Entity<WarehouseMapRevision>();
         revision.ToTable("warehouse_map_revisions");
         revision.HasKey(item => item.Id);
@@ -962,7 +1040,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         LabelSizePreset.SixByFourLandscape => "6X4_L",
         LabelSizePreset.FourBySixPortrait => "4X6_P",
         LabelSizePreset.ThreeByOneLandscape => "3X1_L",
-        _ => "4X45_P"
+        LabelSizePreset.FourByFourPointFivePortrait => "4X45_P",
+        LabelSizePreset.ElevenByEightPointFiveLandscape => "11X85_L",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
 
     private static LabelSizePreset LabelSizeFromDatabase(string value) => value switch
@@ -970,7 +1050,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "6X4_L" => LabelSizePreset.SixByFourLandscape,
         "4X6_P" => LabelSizePreset.FourBySixPortrait,
         "3X1_L" => LabelSizePreset.ThreeByOneLandscape,
-        _ => LabelSizePreset.FourByFourPointFivePortrait
+        "4X45_P" => LabelSizePreset.FourByFourPointFivePortrait,
+        "11X85_L" => LabelSizePreset.ElevenByEightPointFiveLandscape,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
     };
 
     private static InventoryMovementType MovementTypeFromDatabase(string value) => value switch

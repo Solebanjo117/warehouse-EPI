@@ -10,7 +10,9 @@ public sealed record WipReportFilter(
     DateTimeOffset? To,
     string? Search = null,
     Guid? WipAreaId = null,
-    Guid? ResponsibleUserId = null);
+    Guid? ResponsibleUserId = null,
+    DateTimeOffset? AgedBefore = null,
+    bool RequireNoEffectiveReturn = false);
 
 public sealed record WipIssueRow(
     Guid MovementId,
@@ -185,7 +187,7 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
                 group.Where(item => item.Type == WipDispositionType.WarehouseReturn).Sum(item => item.Quantity),
                 group.Where(item => item.Type == WipDispositionType.SupplierReturn).Sum(item => item.Quantity)));
 
-        return issueRows.Select(row =>
+        var rows = issueRows.Select(row =>
         {
             totalsByLine.TryGetValue(row.MovementLineId, out var totals);
             return new WipIssueRow(
@@ -205,7 +207,12 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
                 row.Responsible,
                 row.Reference,
                 row.Notes);
-        }).ToArray();
+        });
+        if (filter.AgedBefore is not null)
+            rows = rows.Where(row => row.OccurredAt <= filter.AgedBefore);
+        if (filter.RequireNoEffectiveReturn)
+            rows = rows.Where(row => row.WarehouseReturned == 0m && row.SupplierReturned == 0m);
+        return rows.ToArray();
     }
 
     private IQueryable<WipIssueBaseRow> Query(WipReportFilter filter, Guid? movementLineId)

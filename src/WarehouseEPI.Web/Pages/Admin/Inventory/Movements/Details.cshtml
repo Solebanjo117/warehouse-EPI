@@ -58,5 +58,5 @@
     </section>
 
     @if (Model.Movement.Notes is not null) { <section class="movement-notes"><span class="inventory-eyebrow">Observaciones / motivo</span><p class="mb-0">@Model.Movement.Notes</p></section> }
-    @if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null) { <footer class="movement-detail-actions"><a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">Corregir movimiento</a></footer> }
+    @if (Model.CanGeneratePalletPlate || (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null)) { <footer class="movement-detail-actions d-flex flex-wrap gap-2">@if (Model.CanGeneratePalletPlate) { <a class="btn btn-primary" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Movement.Id">Generar placa</a> }@if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null) { <a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">Corregir movimiento</a> }</footer> }
 </main>

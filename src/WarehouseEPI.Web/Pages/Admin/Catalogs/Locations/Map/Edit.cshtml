@@ -73,6 +73,7 @@
         </div>
         <button type="button" class="btn btn-outline-danger" data-editor-archive disabled>Archivar</button>
         <span class="editor-selection-count" data-editor-selection-count>Sin selección</span>
+        <span class="small text-body-secondary" data-editor-selection-help aria-live="polite">Selecciona ubicaciones o marca una capa como Editable para seleccionar su arquitectura.</span>
         <span class="editor-reference" data-editor-reference hidden></span>
         <span class="ms-auto">Versión @Model.Map.Version</span>
     </div>
@@ -92,6 +93,21 @@
                             <path d="M 25 0 L 0 0 0 25" class="editor-grid-line" />
                         </pattern>
                     </defs>
+                    @if (Model.Map.ActiveReference is { } reference)
+                    {
+                        var referenceUrl = Model.Input.ReferenceUploadToken is { } token
+                            ? Url.Page(null, "ReferencePreview", new { token })
+                            : Url.Page(null, "Reference", new { id = reference.Id });
+                        <g class="editor-reference-image" data-editor-reference-image="@reference.Id"
+                           data-x="@reference.X.ToString(CultureInfo.InvariantCulture)" data-y="@reference.Y.ToString(CultureInfo.InvariantCulture)"
+                           data-width="@reference.Width.ToString(CultureInfo.InvariantCulture)" data-height="@reference.Height.ToString(CultureInfo.InvariantCulture)"
+                           data-rotation="@reference.Rotation" data-opacity="@reference.Opacity.ToString(CultureInfo.InvariantCulture)"
+                           data-locked="@reference.IsLocked.ToString().ToLowerInvariant()" tabindex="0" role="button"
+                           aria-label="Fondo de referencia @reference.OriginalFileName">
+                            <image href="@referenceUrl" width="@reference.Width.ToString(CultureInfo.InvariantCulture)"
+                                   height="@reference.Height.ToString(CultureInfo.InvariantCulture)" preserveAspectRatio="none" />
+                        </g>
+                    }
                     <rect class="editor-grid" width="1600" height="900" fill="url(#warehouse-map-editor-grid)" data-editor-grid />
                     <partial name="/Pages/Admin/Catalogs/Locations/_WarehouseMapArchitecture.cshtml" model="Model.Map.Architecture" />
                     <g data-editor-layer data-architecture-layer="OPERATIONS">
@@ -121,7 +137,7 @@
                 <span class="ms-auto">Coordenadas: <output data-editor-coordinates>—</output></span>
             </div>
         </div>
-        <aside class="col-xl-3">
+        <aside class="col-xl-3 map-editor-inspector" aria-label="Opciones del editor">
             <div class="card card-body mb-3" data-editor-properties>
                 <h2 class="h5">Propiedades</h2>
                 <p class="small text-body-secondary" data-editor-properties-empty>Selecciona un elemento arquitectónico editable.</p>
@@ -146,17 +162,57 @@
                     </div>
                 </div>
             </div>
-            <div class="card card-body mb-3">
-                <h2 class="h5">Cuadrícula y ajuste</h2>
+            <details class="card mb-3 map-editor-inspector-section">
+                <summary class="map-editor-inspector-summary"><span>Fondo de referencia</span></summary>
+                <div class="map-editor-inspector-body">
+                <p class="small text-body-secondary">Se conserva fuera de la base de datos y solo aparece en este editor. Archivar no elimina el archivo ni su auditoría.</p>
+                <form method="post" enctype="multipart/form-data" asp-page-handler="UploadReference" data-reference-upload-form>
+                    <fieldset disabled="@(!Model.Map.IsInitialized ? "disabled" : null)">
+                        <label class="form-label" for="map-reference-file">PNG, JPEG o WebP (máx. 2 MiB y 4096 × 4096)</label>
+                        <input id="map-reference-file" class="form-control mb-2" type="file" name="referenceImage" accept="image/png,image/jpeg,image/webp" data-reference-file />
+                        <button type="submit" class="btn btn-outline-primary w-100" data-reference-upload>Preparar fondo</button>
+                    </fieldset>
+                </form>
+                @if (!Model.Map.IsInitialized) { <p class="small text-body-secondary mt-2 mb-0">Confirma primero el croquis inicial.</p> }
+                <p class="small text-body-secondary mt-2 mb-0" data-reference-status aria-live="polite">Selecciona una imagen o edita el fondo activo.</p>
+                <div class="mt-3" data-reference-controls @(Model.Map.ActiveReference is null ? "hidden" : null)>
+                    <label class="form-check mb-2"><input class="form-check-input" type="checkbox" checked data-reference-visible /> <span class="form-check-label">Mostrar en el editor</span></label>
+                    <label class="form-label" for="map-reference-opacity">Opacidad</label>
+                    <input id="map-reference-opacity" class="form-range" type="range" min="0.05" max="1" step="0.05" value="@(Model.Map.ActiveReference?.Opacity.ToString(CultureInfo.InvariantCulture) ?? "0.35")" data-reference-opacity />
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-secondary" data-reference-lock>@(Model.Map.ActiveReference?.IsLocked == false ? "Bloquear fondo" : "Desbloquear fondo")</button>
+                        <button type="button" class="btn btn-outline-secondary" data-reference-rotate>Girar 90°</button>
+                        <button type="button" class="btn btn-outline-secondary" data-reference-fit>Encajar al lienzo</button>
+                        <button type="button" class="btn btn-outline-primary" data-reference-calibrate>Calibrar sobre fondo</button>
+                        <button type="button" class="btn btn-outline-secondary" data-reference-unlink-calibration>Desvincular calibración</button>
+                        <button type="button" class="btn btn-outline-danger" data-reference-archive>Archivar fondo</button>
+                    </div>
+                </div>
+                <div class="mt-3" data-reference-archived-list>
+                    <h3 class="h6">Fondos archivados</h3>
+                    <div data-reference-archived-items>
+                    @foreach (var archivedReference in Model.Map.ArchivedReferences ?? [])
+                    {
+                        <button type="button" class="btn btn-outline-secondary w-100 text-start mb-2" data-reference-restore="@archivedReference.Id">Restaurar @archivedReference.OriginalFileName</button>
+                    }
+                    </div>
+                </div>
+                </div>
+            </details>
+            <details class="card mb-3 map-editor-inspector-section">
+                <summary class="map-editor-inspector-summary"><span>Cuadrícula y ajuste</span></summary>
+                <div class="map-editor-inspector-body">
                 <div class="row g-2 align-items-end">
                     <div class="col-6"><label class="form-label" for="map-grid-size">Separación</label><select id="map-grid-size" class="form-select" data-editor-grid-size><option>10</option><option selected>25</option><option>50</option></select></div>
                     <div class="col-6"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" checked data-editor-grid-visible /> <span class="form-check-label">Mostrar</span></label></div>
                     <div class="col-12"><label class="form-check"><input class="form-check-input" type="checkbox" checked data-editor-snap /> <span class="form-check-label">Ajustar a extremos, centros, guías y cuadrícula</span></label></div>
                 </div>
                 <p class="small text-body-secondary mt-2 mb-0">Mantén Alt para mover sin ajuste.</p>
-            </div>
-            <div class="card card-body mb-3">
-                <h2 class="h5">Escala y unidades</h2>
+                </div>
+            </details>
+            <details class="card mb-3 map-editor-inspector-section">
+                <summary class="map-editor-inspector-summary"><span>Escala y unidades</span></summary>
+                <div class="map-editor-inspector-body">
                 <label class="form-label" for="map-measurement-system">Presentación publicada</label>
                 <select id="map-measurement-system" class="form-select mb-2" data-editor-measurement>
                     <option value="IMPERIAL" selected="@(Model.Map.MeasurementSystem == "IMPERIAL" ? "selected" : null)">Pulgadas / yardas</option>
@@ -168,9 +224,11 @@
                     <div class="col-5"><label class="form-label" for="map-calibration-unit">Unidad</label><select id="map-calibration-unit" class="form-select" data-editor-calibration-unit><option value="IN">in</option><option value="YD">yd</option><option value="CM">cm</option><option value="M">m</option></select></div>
                 </div>
                 <p class="small text-body-secondary mt-2 mb-0">Elige Calibrar y marca dos puntos. Cambiar unidades no cambia la geometría.</p>
-            </div>
-            <div class="card card-body mb-3">
-                <h2 class="h5">Capas</h2>
+                </div>
+            </details>
+            <details class="card mb-3 map-editor-inspector-section">
+                <summary class="map-editor-inspector-summary"><span>Capas</span></summary>
+                <div class="map-editor-inspector-body">
                 <p class="small text-body-secondary">Mostrar u ocultar solo cambia este editor. Bloquear se guarda en la revisión.</p>
                 <div class="map-layer-list">
                 @foreach (var layer in Model.Map.Layers.OrderBy(item => item.SortOrder))
@@ -187,9 +245,11 @@
                     </div>
                 }
                 </div>
-            </div>
-            <div class="card card-body mb-3">
-                <h2 class="h5">Arquitectura archivada</h2>
+                </div>
+            </details>
+            <details class="card mb-3 map-editor-inspector-section">
+                <summary class="map-editor-inspector-summary"><span>Arquitectura archivada</span></summary>
+                <div class="map-editor-inspector-body">
                 <p class="small text-body-secondary">El archivado es reversible y no elimina filas ni auditoría.</p>
                 <div class="map-unplaced-list" data-editor-archived-list>
                 @foreach (var item in Model.Map.ArchivedArchitecture)
@@ -198,9 +258,11 @@
                 }
                 @if (Model.Map.ArchivedArchitecture.Count == 0) { <span class="text-body-secondary" data-editor-archived-empty>No hay elementos archivados.</span> }
                 </div>
-            </div>
-            <div class="card card-body mb-3">
-                <h2 class="h5">Sin colocar / ocultos</h2>
+                </div>
+            </details>
+            <details class="card mb-3 map-editor-inspector-section">
+                <summary class="map-editor-inspector-summary"><span>Sin colocar / ocultos</span></summary>
+                <div class="map-editor-inspector-body">
                 <div class="map-unplaced-list">
                 @foreach (var item in Model.Map.Unplaced)
                 {
@@ -208,7 +270,8 @@
                 }
                 @if (Model.Map.Unplaced.Count == 0) { <span class="text-body-secondary">Todos los elementos están colocados.</span> }
                 </div>
-            </div>
+                </div>
+            </details>
             <div class="card card-body">
                 <h2 class="h5">Confirmar cambios</h2>
                 <form method="post" data-map-save-form>
@@ -216,11 +279,18 @@
                     <input asp-for="Input.GeometryJson" type="hidden" data-editor-geometry />
                     <input asp-for="Input.ArchitectureJson" type="hidden" data-editor-architecture />
                     <input asp-for="Input.LayerStateJson" type="hidden" data-editor-layer-state />
+                    <input asp-for="Input.ReferenceImageJson" type="hidden" data-editor-reference-state />
+                    <input asp-for="Input.ReferenceUploadToken" type="hidden" data-editor-reference-token />
                     <input asp-for="Input.ScaleUnitsPerInch" type="hidden" data-editor-scale />
                     <input asp-for="Input.MeasurementSystem" type="hidden" data-editor-measurement-field />
                     <div class="mb-3"><label asp-for="Input.Reason" class="form-label">Motivo (opcional)</label><textarea asp-for="Input.Reason" class="form-control" maxlength="500"></textarea></div>
                     @if (Model.Map.IsInitialized)
                     {
+                        <div class="mb-3">
+                            <label asp-for="Input.Pin" class="form-label">NIP ADMIN</label>
+                            <input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric" autocomplete="off" required data-editor-review-pin aria-describedby="map-review-pin-help" />
+                            <div id="map-review-pin-help" class="form-text">Confirma la revisión con el NIP de un ADMIN activo. El NIP no se guarda en el plano.</div>
+                        </div>
                         <button type="button" class="btn btn-primary w-100" data-editor-review-button>Revisar cambios</button>
                         <div class="modal fade" tabindex="-1" aria-labelledby="map-review-title" data-editor-review-modal>
                             <div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">
@@ -230,7 +300,6 @@
                                     <div data-editor-review-content hidden>
                                         <dl class="row small" data-editor-review-summary></dl>
                                         <div class="alert alert-warning" data-editor-review-warnings hidden><strong>Advertencias editoriales</strong><ul class="mb-0 mt-2"></ul><label class="form-check mt-3"><input class="form-check-input" type="checkbox" data-editor-warning-ack /> <span class="form-check-label">Reconozco estas advertencias y deseo continuar.</span></label></div>
-                                        <div class="mb-3"><label asp-for="Input.Pin" class="form-label">NIP ADMIN</label><input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric" autocomplete="off" data-editor-review-pin /></div>
                                     </div>
                                 </div>
                                 <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Volver al plano</button><button asp-page-handler="Save" class="btn btn-primary" disabled data-editor-save-reviewed>Guardar revisión</button></div>
@@ -255,4 +324,7 @@
     <section class="card mt-4"><div class="card-body"><h2 class="h4">Historial de revisiones</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Versión</th><th>Fecha</th><th>Solicitó / autorizó</th><th>Motivo y detalle</th></tr></thead><tbody>@foreach (var item in Model.Revisions) { <tr><td>@item.PreviousVersion → @item.NewVersion</td><td>@item.RecordedAt.ToString("yyyy-MM-dd HH:mm")</td><td>@item.RequestedBy / @item.AuthorizedBy</td><td><span>@(item.Reason ?? "Sin motivo")</span><details class="mt-2"><summary>Ver cambios auditados</summary><p class="small mt-2 mb-0">Esquema @item.SchemaVersion. @item.Summary</p></details></td></tr> }</tbody></table></div></div></section>
 }
 
-@section Scripts { <script src="~/js/warehouse-map.js" asp-append-version="true"></script> }
+@section Scripts {
+    <script src="~/js/warehouse-map.js" asp-append-version="true"></script>
+    <script src="~/js/warehouse-map-reference.js" asp-append-version="true"></script>
+}

@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
-using WarehouseEPI.Infrastructure.Locations;
+using WarehouseEPI.Infrastructure.Catalogs;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
 namespace WarehouseEPI.Tests.Catalogs;
@@ -117,33 +118,81 @@ public sealed class ProductCatalogTests
     }
 
     [Fact]
-    public async Task Setting_a_new_primary_barcode_clears_the_previous_one()
+    public async Task Product_search_by_historical_barcode_remains_available()
     {
         await using var db = CreateContext(); await db.Database.EnsureCreatedAsync();
-        var product = new Product { Sku = "SKU-001", BaseUnitId = 1 }; db.Products.Add(product); await db.SaveChangesAsync();
-        var page = CreateEditModel(db);
-        page.BarcodeInput = new EditModel.BarcodeInputModel { Barcode = "CODE-1", IsPrimary = true };
-        await page.OnPostAddBarcodeAsync(product.Id, page.BarcodeInput, CancellationToken.None);
-        page.BarcodeInput = new EditModel.BarcodeInputModel { Barcode = "CODE-2", IsPrimary = true };
-        await page.OnPostAddBarcodeAsync(product.Id, page.BarcodeInput, CancellationToken.None);
+        var product = new Product { Sku = "SKU-001", BaseUnitId = 1 };
+        product.Barcodes.Add(new ProductBarcode { Barcode = "LEGACY-CODE-128", IsPrimary = true });
+        db.Products.Add(product);
+        await db.SaveChangesAsync();
 
-        Assert.Equal(2, await db.ProductBarcodes.CountAsync());
-        Assert.Equal("CODE-2", (await db.ProductBarcodes.SingleAsync(x => x.IsPrimary)).Barcode);
+        var matches = await ProductPageSupport.ApplySearch(db.Products, " legacy-code-128 ").ToListAsync();
+        var catalogPage = await new ProductCatalogQueryService(db, new WarehouseSettingsService(db))
+            .SearchAsync(new ProductCatalogFilter(" legacy-code-128 "), 1, 25);
+
+        Assert.Collection(matches, match => Assert.Equal(product.Id, match.Id));
+        Assert.Collection(catalogPage.Items, match => Assert.Equal(product.Id, match.Id));
     }
 
     [Fact]
-    public async Task Barcode_reserved_by_another_product_is_rejected()
+    public async Task Product_catalog_quick_filters_keep_search_scoped_summary_independent()
     {
-        await using var db = CreateContext(); await db.Database.EnsureCreatedAsync();
-        var first = new Product { Sku = "SKU-001", BaseUnitId = 1 };
-        var second = new Product { Sku = "SKU-002", BaseUnitId = 1 };
-        db.Products.AddRange(first, second); db.ProductBarcodes.Add(new ProductBarcode { Product = first, Barcode = "RESERVED" }); await db.SaveChangesAsync();
-        var page = CreateEditModel(db); page.BarcodeInput = new EditModel.BarcodeInputModel { Barcode = " RESERVED " };
+        await using var db = CreateContext();
+        await db.Database.EnsureCreatedAsync();
+        var location = new Location { Code = "METRIC-AREA", Kind = LocationKind.Area };
+        var positive = new Product { Sku = "METRIC-POSITIVE", BaseUnitId = 1, MinimumStock = 3m };
+        var negative = new Product { Sku = "METRIC-NEGATIVE", BaseUnitId = 1 };
+        var empty = new Product { Sku = "METRIC-EMPTY", BaseUnitId = 1, MinimumStock = 1m };
+        var inactive = new Product { Sku = "METRIC-INACTIVE", BaseUnitId = 1, IsActive = false };
+        db.AddRange(location, positive, negative, empty, inactive);
+        db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = positive, Location = location, Quantity = 5m },
+            new InventoryBalance { Product = negative, Location = location, Quantity = -2m },
+            new InventoryBalance { Product = inactive, Location = location, Quantity = 7m });
+        db.ProductLocationAssignments.AddRange(
+            new ProductLocationAssignment { Product = positive, Location = location },
+            new ProductLocationAssignment { Product = empty, Location = location });
+        await db.SaveChangesAsync();
+        var service = new ProductCatalogQueryService(db, new WarehouseSettingsService(db));
 
-        await page.OnPostAddBarcodeAsync(second.Id, page.BarcodeInput, CancellationToken.None);
+        var inactivePage = await service.SearchAsync(new("METRIC", "inactive"), 1, 25);
+        var balancePage = await service.SearchAsync(new("METRIC", "active", "balance"), 1, 25);
+        var negativePage = await service.SearchAsync(new("METRIC", "active", "negative"), 1, 25);
+        var minimumPage = await service.SearchAsync(new("METRIC", "active", "minimum"), 1, 25);
+        var unassignedPage = await service.SearchAsync(new("METRIC", "active", "all", "unassigned"), 1, 25);
 
-        Assert.Contains("otro producto", page.TempData["Error"]?.ToString());
-        Assert.Single(await db.ProductBarcodes.ToListAsync());
+        var expectedSummary = new ProductCatalogSummary(3, 1, 2, 1, 2, 1);
+        Assert.Equal(expectedSummary, inactivePage.Summary);
+        Assert.Equal(expectedSummary, balancePage.Summary);
+        Assert.Equal(expectedSummary, negativePage.Summary);
+        Assert.Equal(expectedSummary, minimumPage.Summary);
+        Assert.Equal(expectedSummary, unassignedPage.Summary);
+        Assert.Collection(inactivePage.Items, item => Assert.Equal("METRIC-INACTIVE", item.Sku));
+        Assert.Equal(["METRIC-NEGATIVE", "METRIC-POSITIVE"], balancePage.Items.Select(item => item.Sku));
+        Assert.Collection(negativePage.Items, item => Assert.Equal("METRIC-NEGATIVE", item.Sku));
+        Assert.Equal(["METRIC-EMPTY", "METRIC-NEGATIVE"], minimumPage.Items.Select(item => item.Sku));
+        Assert.Collection(unassignedPage.Items, item => Assert.Equal("METRIC-NEGATIVE", item.Sku));
+    }
+
+    [Fact]
+    public async Task Product_catalog_clamps_an_out_of_range_page_to_the_last_page()
+    {
+        await using var db = CreateContext();
+        await db.Database.EnsureCreatedAsync();
+        db.Products.AddRange(Enumerable.Range(1, 30).Select(number => new Product
+        {
+            Sku = $"PAGE-{number:00}",
+            BaseUnitId = 1
+        }));
+        await db.SaveChangesAsync();
+
+        var page = await new ProductCatalogQueryService(db, new WarehouseSettingsService(db))
+            .SearchAsync(new ProductCatalogFilter("PAGE"), 99, 25);
+
+        Assert.Equal(30, page.TotalCount);
+        Assert.Equal(5, page.Items.Count);
+        Assert.Equal("PAGE-26", page.Items[0].Sku);
+        Assert.Equal("PAGE-30", page.Items[^1].Sku);
     }
 
     [Fact]
@@ -177,13 +226,6 @@ public sealed class ProductCatalogTests
 
     private static WarehouseDbContext CreateContext() => new(new DbContextOptionsBuilder<WarehouseDbContext>()
         .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
-
-    private static EditModel CreateEditModel(WarehouseDbContext db)
-    {
-        var page = new EditModel(db, new ProductLocationAssignmentService(db));
-        page.TempData = new TempDataDictionary(new DefaultHttpContext(), new MemoryTempDataProvider());
-        return page;
-    }
 
     private sealed class MemoryTempDataProvider : ITempDataProvider
     {

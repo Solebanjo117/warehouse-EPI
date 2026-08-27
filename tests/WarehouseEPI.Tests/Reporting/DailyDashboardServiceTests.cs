@@ -46,6 +46,28 @@ public sealed class DailyDashboardServiceTests
         Assert.Equal(3, snapshot.Metrics.EffectiveMovementsToday);
         Assert.Equal(1, snapshot.Metrics.EffectiveAdjustmentsToday);
         Assert.Contains(snapshot.Metrics.RecentActivityTrend, point => point.TotalEffectiveOperations == 0);
+        Assert.NotNull(snapshot.Comparison);
+        Assert.Equal(new MetricComparisonDto(3, 1, 2, 200m, MetricComparisonState.Increased), snapshot.Comparison.TodayOperations);
+        Assert.Equal(MetricComparisonState.New, snapshot.Comparison.SevenDayOperations.State);
+    }
+
+    [Fact]
+    public async Task Comparison_includes_previous_only_drivers_and_orders_their_negative_delta()
+    {
+        await using var db = CreateDbContext();
+        var user = User();
+        var oldProduct = Product("DASH-OLD");
+        var currentProduct = Product("DASH-CURRENT");
+        db.AddRange(user, oldProduct, currentProduct);
+        AddMovement(db, user, oldProduct, InventoryMovementType.Exit, NowUtc.AddDays(-8), 1m);
+        AddMovement(db, user, currentProduct, InventoryMovementType.Entry, NowUtc.AddDays(-1), 1m);
+        await db.SaveChangesAsync();
+
+        var comparison = Assert.IsType<OperationalComparisonDto>((await Service(db).GetSnapshotAsync(NowUtc)).Comparison);
+
+        Assert.Contains(comparison.Products, item => item.Code == "DASH-OLD" && item.Current == 0 && item.Previous == 1 && item.Delta == -1);
+        Assert.Contains(comparison.Products, item => item.Code == "DASH-CURRENT" && item.Current == 1 && item.Previous == 0 && item.Delta == 1);
+        Assert.Equal("DASH-CURRENT", comparison.Products[0].Code);
     }
 
     [Fact]

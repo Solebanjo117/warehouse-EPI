@@ -50,7 +50,7 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
     }
 
     public bool Uses(string binding) => Design?.Elements.Any(item => item.Binding == binding) == true;
-    private async Task LoadTemplatesAsync(CancellationToken token) => Templates = await templates.GetPublishedAsync(token);
+    private async Task LoadTemplatesAsync(CancellationToken token) => Templates = await templates.GetPublishedAsync(token: token);
     private void ApplyDefaults() { if (Design is null) return; foreach (var field in Design.Fields) if (!Input.Values.ContainsKey(field.Key) && field.DefaultValue is not null) Input.Values[field.Key] = field.DefaultValue; }
     public sealed class InputModel { public Guid TemplateVersionId { get; set; } public Guid ProductId { get; set; } [Range(1, 100)] public int Copies { get; set; } = 1; public Dictionary<string, string> Values { get; set; } = new(StringComparer.Ordinal); }
 }

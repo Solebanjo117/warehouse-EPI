@@ -13,12 +13,13 @@ public sealed class Location
     public bool IsBlocked { get; set; }
     public string? BlockReason { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsPhysicallyPresent { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<ProductLocationAssignment> ProductAssignments { get; set; } = [];
 
-    public bool IsOperational => IsActive && !IsBlocked;
+    public bool IsOperational => IsPhysicallyPresent && IsActive && !IsBlocked;
     public bool TracksInventory => OperationalRole != LocationOperationalRole.Wip;
     public short? LevelNumber => PalletNumber is null ? null : (short)((PalletNumber.Value - 1) / 3 + 1);
     public short? HorizontalPosition => PalletNumber is null ? null : (short)((PalletNumber.Value - 1) % 3 + 1);

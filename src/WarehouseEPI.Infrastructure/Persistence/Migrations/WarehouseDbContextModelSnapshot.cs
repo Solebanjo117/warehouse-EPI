@@ -55,6 +55,12 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)")
                         .HasColumnName("time_zone_id");
 
+                    b.Property<int>("WipReminderDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("wip_reminder_days")
+                        .HasDefaultValue(7);
+
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -84,6 +90,7 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("business_settings", null, t =>
                         {
                             t.HasCheckConstraint("ck_business_settings_singleton", "id = 1");
+                            t.HasCheckConstraint("ck_business_settings_wip_reminder_days", "wip_reminder_days BETWEEN 1 AND 365");
                         });
                 });
 
@@ -841,6 +848,13 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(60)")
                         .HasColumnName("code");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("kind")
+                        .HasDefaultValue("PRODUCT_LABEL");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -867,6 +881,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("label_templates", null, t =>
                         {
                             t.HasCheckConstraint("ck_label_templates_code", "code = upper(btrim(code)) AND code ~ '^[A-Z0-9][A-Z0-9-]{2,59}$'");
+
+                            t.HasCheckConstraint("ck_label_templates_kind", "kind IN ('PRODUCT_LABEL','PALLET_LICENSE_PLATE')");
                         });
                 });
 
@@ -1018,7 +1034,7 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("ck_label_template_versions_number", "version > 0");
 
-                            t.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P')");
+                            t.HasCheckConstraint("ck_label_template_versions_size", "size_preset IN ('6X4_L','4X6_P','3X1_L','4X45_P','11X85_L')");
 
                             t.HasCheckConstraint("ck_label_template_versions_status", "status IN ('DRAFT','IN_VALIDATION','PUBLISHED','RETIRED')");
                         });
@@ -1081,6 +1097,12 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_blocked");
+
+                    b.Property<bool>("IsPhysicallyPresent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_physically_present");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -2084,6 +2106,32 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LocationRackRevision", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uuid").HasColumnName("id");
+                    b.Property<string>("AfterJson").IsRequired().HasColumnType("jsonb").HasColumnName("after_json");
+                    b.Property<Guid>("AuthorizedByUserId").HasColumnType("uuid").HasColumnName("authorized_by_user_id");
+                    b.Property<string>("BeforeJson").IsRequired().HasColumnType("jsonb").HasColumnName("before_json");
+                    b.Property<Guid>("OperationId").HasColumnType("uuid").HasColumnName("operation_id");
+                    b.Property<short>("RackNumber").HasColumnType("smallint").HasColumnName("rack_number");
+                    b.Property<DateTimeOffset>("RecordedAt").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasColumnName("recorded_at");
+                    b.Property<string>("Reason").IsRequired().HasMaxLength(500).HasColumnType("character varying(500)").HasColumnName("reason");
+                    b.Property<string>("RequestFingerprint").IsRequired().IsFixedLength().HasMaxLength(64).HasColumnType("character(64)").HasColumnName("request_fingerprint");
+                    b.Property<Guid>("RequestedByUserId").HasColumnType("uuid").HasColumnName("requested_by_user_id");
+                    b.Property<string>("RowCode").IsRequired().HasMaxLength(1).HasColumnType("character varying(1)").HasColumnName("row_code");
+                    b.HasKey("Id");
+                    b.HasIndex("AuthorizedByUserId");
+                    b.HasIndex("OperationId").IsUnique();
+                    b.HasIndex("RequestedByUserId");
+                    b.HasIndex("RowCode", "RackNumber", "RecordedAt");
+                    b.ToTable("location_rack_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_location_rack_revisions_rack", "rack_number > 0");
+                            t.HasCheckConstraint("ck_location_rack_revisions_reason", "reason = btrim(reason) AND reason <> ''");
+                            t.HasCheckConstraint("ck_location_rack_revisions_row", "row_code ~ '^[A-Z]$'");
+                        });
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapArchitecturalElement", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayer", "Layer")
@@ -2238,6 +2286,67 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Layout");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapReferenceImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal?>("CalibrationAX").HasPrecision(8, 6).HasColumnType("numeric(8,6)").HasColumnName("calibration_a_x");
+                    b.Property<decimal?>("CalibrationAY").HasPrecision(8, 6).HasColumnType("numeric(8,6)").HasColumnName("calibration_a_y");
+                    b.Property<decimal?>("CalibrationBX").HasPrecision(8, 6).HasColumnType("numeric(8,6)").HasColumnName("calibration_b_x");
+                    b.Property<decimal?>("CalibrationBY").HasPrecision(8, 6).HasColumnType("numeric(8,6)").HasColumnName("calibration_b_y");
+                    b.Property<decimal?>("CalibrationDistanceInches").HasPrecision(12, 4).HasColumnType("numeric(12,4)").HasColumnName("calibration_distance_inches");
+                    b.Property<string>("ContentType").IsRequired().HasMaxLength(20).HasColumnType("character varying(20)").HasColumnName("content_type");
+                    b.Property<DateTimeOffset>("CreatedAt").ValueGeneratedOnAdd().HasColumnType("timestamp with time zone").HasDefaultValueSql("now()").HasColumnName("created_at");
+                    b.Property<Guid>("CreatedByUserId").HasColumnType("uuid").HasColumnName("created_by_user_id");
+                    b.Property<decimal>("Height").HasPrecision(9, 3).HasColumnType("numeric(9,3)").HasColumnName("height");
+                    b.Property<bool>("IsArchived").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(false).HasColumnName("is_archived");
+                    b.Property<bool>("IsLocked").ValueGeneratedOnAdd().HasColumnType("boolean").HasDefaultValue(true).HasColumnName("is_locked");
+                    b.Property<short>("LayoutId").HasColumnType("smallint").HasColumnName("layout_id");
+                    b.Property<decimal>("Opacity").ValueGeneratedOnAdd().HasPrecision(4, 3).HasColumnType("numeric(4,3)").HasDefaultValue(0.35m).HasColumnName("opacity");
+                    b.Property<string>("OriginalFileName").IsRequired().HasMaxLength(160).HasColumnType("character varying(160)").HasColumnName("original_file_name");
+                    b.Property<int>("PixelHeight").HasColumnType("integer").HasColumnName("pixel_height");
+                    b.Property<int>("PixelWidth").HasColumnType("integer").HasColumnName("pixel_width");
+                    b.Property<short>("Rotation").HasColumnType("smallint").HasColumnName("rotation");
+                    b.Property<string>("Sha256").IsRequired().IsFixedLength().HasMaxLength(64).HasColumnType("character(64)").HasColumnName("sha256");
+                    b.Property<string>("StoredFileName").IsRequired().HasMaxLength(80).HasColumnType("character varying(80)").HasColumnName("stored_file_name");
+                    b.Property<decimal>("Width").HasPrecision(9, 3).HasColumnType("numeric(9,3)").HasColumnName("width");
+                    b.Property<decimal>("X").HasPrecision(9, 3).HasColumnType("numeric(9,3)").HasColumnName("x");
+                    b.Property<decimal>("Y").HasPrecision(9, 3).HasColumnType("numeric(9,3)").HasColumnName("y");
+
+                    b.HasKey("Id");
+                    b.HasIndex("CreatedByUserId");
+                    b.HasIndex("LayoutId", "IsArchived").IsUnique().HasFilter("is_archived = false");
+                    b.HasIndex("LayoutId", "Sha256").IsUnique();
+
+                    b.ToTable("warehouse_map_reference_images", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_reference_calibration", "(calibration_a_x IS NULL AND calibration_a_y IS NULL AND calibration_b_x IS NULL AND calibration_b_y IS NULL AND calibration_distance_inches IS NULL) OR (calibration_a_x BETWEEN 0 AND 1 AND calibration_a_y BETWEEN 0 AND 1 AND calibration_b_x BETWEEN 0 AND 1 AND calibration_b_y BETWEEN 0 AND 1 AND calibration_distance_inches > 0)");
+                            t.HasCheckConstraint("ck_warehouse_map_reference_file", "content_type IN ('image/png', 'image/jpeg', 'image/webp') AND pixel_width BETWEEN 1 AND 4096 AND pixel_height BETWEEN 1 AND 4096");
+                            t.HasCheckConstraint("ck_warehouse_map_reference_geometry", "x >= 0 AND y >= 0 AND width > 0 AND height > 0 AND rotation IN (0, 90, 180, 270) AND opacity BETWEEN 0.05 AND 1");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.LocationRackRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+                    b.Navigation("RequestedByUser");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
@@ -2988,6 +3097,24 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Location");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapReferenceImage", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
+                        .WithMany("ReferenceImages")
+                        .HasForeignKey("LayoutId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                    b.Navigation("Layout");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.User", "UpdatedByUser")
@@ -3142,6 +3269,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Elements");
 
                     b.Navigation("Layers");
+
+                    b.Navigation("ReferenceImages");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>

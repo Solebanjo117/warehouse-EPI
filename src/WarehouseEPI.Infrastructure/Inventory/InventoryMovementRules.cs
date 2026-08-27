@@ -115,6 +115,8 @@ internal static class InventoryMovementRules
         {
             if (!locations.TryGetValue(id, out var location))
                 errors.Add("Una ubicación indicada no existe.");
+            else if (!location.IsPhysicallyPresent)
+                errors.Add($"La ubicación {location.Code} fue retirada físicamente.");
             else if (!location.IsActive)
                 errors.Add($"La ubicación {location.Code} está inactiva.");
             else if (location.IsBlocked)

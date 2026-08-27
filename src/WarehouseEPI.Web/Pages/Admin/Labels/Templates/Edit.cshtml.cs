@@ -12,6 +12,7 @@ public sealed class EditModel(LabelTemplateService templates, LabelAssetService 
     public LabelVersionEditor Version { get; private set; } = null!;
     public IReadOnlyList<LabelAssetView> Assets { get; private set; } = [];
     public IReadOnlyList<LabelSizeDefinition> Sizes => LabelSizeRegistry.All;
+    public IReadOnlyList<(string Group, string Value, string Label)> Bindings => LabelDesignSerializer.BindingOptions(Version.Kind);
     public bool Editable => Version.Status is LabelTemplateStatus.Draft or LabelTemplateStatus.InValidation;
 
     [BindProperty] public InputModel Input { get; set; } = new();

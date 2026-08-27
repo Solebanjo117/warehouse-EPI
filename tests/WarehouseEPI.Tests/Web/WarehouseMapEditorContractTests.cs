@@ -51,12 +51,32 @@ public sealed class WarehouseMapEditorContractTests
 
         Assert.Contains("const sortSelectedRow", script, StringComparison.Ordinal);
         Assert.Contains("items.length < 2", script, StringComparison.Ordinal);
-        Assert.Contains("element.dataset.rowCode !== rowCode", script, StringComparison.Ordinal);
-        Assert.Contains("element.dataset.visible !== \"true\"", script, StringComparison.Ordinal);
+        Assert.Contains("item.dataset.rowCode === rowCode", script, StringComparison.Ordinal);
+        Assert.Contains("item.dataset.visible === \"true\"", script, StringComparison.Ordinal);
         Assert.Contains("dataset.rackNumber", script, StringComparison.Ordinal);
+        Assert.Contains("!layerIsLocked(\"OPERATIONS\")", script, StringComparison.Ordinal);
+        Assert.Contains("[data-editor-sort-row]\").disabled = !capabilities.sortRow", script, StringComparison.Ordinal);
+        Assert.Contains("selectionCapabilities(items).sortRow", script, StringComparison.Ordinal);
         Assert.Contains("data-editor-sort-row", page, StringComparison.Ordinal);
         Assert.Contains("data-row-code", page, StringComparison.Ordinal);
         Assert.Contains("data-rack-number", page, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Editor_explains_contextual_actions_and_toggles_element_lock_label()
+    {
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+
+        Assert.Contains("const selectionCapabilities", script, StringComparison.Ordinal);
+        Assert.Contains("data-editor-selection-help", page, StringComparison.Ordinal);
+        Assert.Contains("data-editor-selection-help", script, StringComparison.Ordinal);
+        Assert.Contains("aria-live=\"polite\"", page, StringComparison.Ordinal);
+        Assert.Contains("lockButton.textContent = capabilities.unlock ? \"Desbloquear\" : \"Bloquear\"", script, StringComparison.Ordinal);
+        Assert.Contains("group: sameLayer", script, StringComparison.Ordinal);
+        Assert.Contains("ungroup: sameGroup", script, StringComparison.Ordinal);
+        Assert.Contains("elementLock: architectureLayersEditable", script, StringComparison.Ordinal);
+        Assert.Contains("order: sameLayer", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -91,6 +111,9 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("_WarehouseMapArchitecture.cshtml", editor, StringComparison.Ordinal);
         Assert.Contains("data-architecture-element", renderer, StringComparison.Ordinal);
         Assert.Contains("data-architecture-layer", renderer, StringComparison.Ordinal);
+        Assert.Contains("<tspan x=\"0\" y=\"18\"", renderer, StringComparison.Ordinal);
+        Assert.Contains("architecture-stroke-@item.StrokeToken", renderer, StringComparison.Ordinal);
+        Assert.Contains("architecture-fill-@item.FillToken", renderer, StringComparison.Ordinal);
         Assert.DoesNotContain("<image href=\"/images/warehouse-floor-base.svg\"", query, StringComparison.Ordinal);
         Assert.Contains("KPA / Breakroom", fallback, StringComparison.Ordinal);
         Assert.Contains("Packing / Producción", fallback, StringComparison.Ordinal);
@@ -170,6 +193,12 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("formatDistance", script, StringComparison.Ordinal);
         Assert.Contains("updateDimensionLabels", script, StringComparison.Ordinal);
         Assert.Contains("archiveArchitecture", script, StringComparison.Ordinal);
+        Assert.Contains("data-editor-review-pin", page, StringComparison.Ordinal);
+        Assert.True(page.IndexOf("data-editor-review-pin", StringComparison.Ordinal) < page.IndexOf("data-editor-review-button", StringComparison.Ordinal));
+        Assert.Contains("payload.delete(reviewPin.name)", script, StringComparison.Ordinal);
+        Assert.Contains("map-editor-inspector", page, StringComparison.Ordinal);
+        Assert.Equal(6, System.Text.RegularExpressions.Regex.Count(page, "map-editor-inspector-section"));
+        Assert.Contains("max-height:calc(100dvh - 2rem)", File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css")), StringComparison.Ordinal);
         Assert.Contains("OnPostReviewAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("ReviewAsync", pageModel, StringComparison.Ordinal);
     }
@@ -187,6 +216,45 @@ public sealed class WarehouseMapEditorContractTests
         Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("locations\"", migration, StringComparison.Ordinal);
         Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Phase_1194_adds_private_reference_storage_and_keeps_query_bundle_lightweight()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var queryModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
+        var editorScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var referenceScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-reference.js"));
+        var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260825093000_AddWarehouseMapReferenceImages.cs"));
+
+        foreach (var contract in new[] { "data-reference-upload-form", "data-reference-opacity", "data-reference-lock", "data-reference-calibrate", "data-reference-archive", "data-editor-reference-state" })
+            Assert.Contains(contract, page, StringComparison.Ordinal);
+        Assert.Contains("warehouse-map-reference.js", page, StringComparison.Ordinal);
+        Assert.Contains("warehouse-map-query.js", query, StringComparison.Ordinal);
+        Assert.DoesNotContain("warehouse-map.js", query, StringComparison.Ordinal);
+        Assert.Contains("includeReferences: false", queryModel, StringComparison.Ordinal);
+        Assert.Contains("requestAnimationFrame(applyTransformFrame)", editorScript, StringComparison.Ordinal);
+        Assert.Contains("selectedElements().forEach(renderElement)", editorScript, StringComparison.Ordinal);
+        Assert.Contains("warehouseEpi.mapEditor.referenceVisible.v1", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("CalibrationDistanceInches", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("warehouse_map_reference_images", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Query_map_zoom_expands_a_scrollable_canvas_without_changing_the_viewbox()
+    {
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js"));
+
+        Assert.Contains(".warehouse-map-shell .warehouse-map-viewport{height:34rem;min-height:0;overflow:auto", styles, StringComparison.Ordinal);
+        Assert.Contains("touch-action:pan-x pan-y", styles, StringComparison.Ordinal);
+        Assert.Contains("const MAX_ZOOM = 4", script, StringComparison.Ordinal);
+        Assert.Contains("svg.style.setProperty(\"--warehouse-map-query-zoom\"", script, StringComparison.Ordinal);
+        Assert.Contains("viewport.scrollLeft = 0", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("setAttribute(\"viewBox\"", script, StringComparison.Ordinal);
     }
 
     [Fact]

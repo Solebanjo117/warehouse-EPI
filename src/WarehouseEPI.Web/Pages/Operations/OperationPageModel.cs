@@ -22,6 +22,7 @@ public abstract class OperationPageModel(
     public InventoryBalanceSnapshot? DestinationBalance { get; private set; }
     public InventoryBalanceSnapshot? LocationBalance { get; private set; }
     public IReadOnlyList<SharedLocationConflict> SharingConflicts { get; private set; } = [];
+    public string? PrefillWarning { get; private set; }
     public bool NeedsSharingApproval => SharingConflicts.Count > 0;
 
     public abstract InventoryMovementType MovementType { get; }
@@ -30,9 +31,43 @@ public abstract class OperationPageModel(
     public abstract string PageTitle { get; }
     public abstract string PageHelp { get; }
 
-    public virtual void OnGet()
+    public async Task OnGetAsync(Guid? productId, Guid? sourceLocationId,
+        Guid? destinationLocationId, Guid? locationId, string? mode,
+        CancellationToken cancellationToken)
     {
         Input.OperationId = Guid.NewGuid();
+        if (this is ExitModel)
+            Input.ExitMode = mode?.ToLowerInvariant() switch
+            {
+                "general" => ExitMode.General,
+                "wip" => ExitMode.Wip,
+                _ => null
+            };
+
+        Input.ProductId = productId;
+        Input.SourceLocationId = sourceLocationId;
+        Input.DestinationLocationId = destinationLocationId;
+        Input.LocationId = locationId;
+        await LoadSelectionAsync(cancellationToken);
+
+        var invalidFields = ModelState.Where(item => item.Value?.Errors.Count > 0)
+            .Select(item => item.Key).ToArray();
+        if (invalidFields.Length == 0)
+        {
+            if (MovementType == InventoryMovementType.Adjustment && LocationBalance is not null)
+                Input.ExpectedBalanceVersion = LocationBalance.Version;
+            return;
+        }
+
+        foreach (var field in invalidFields)
+        {
+            if (field.EndsWith(nameof(Input.ProductId), StringComparison.Ordinal)) Input.ProductId = null;
+            if (field.EndsWith(nameof(Input.SourceLocationId), StringComparison.Ordinal)) Input.SourceLocationId = null;
+            if (field.EndsWith(nameof(Input.DestinationLocationId), StringComparison.Ordinal)) Input.DestinationLocationId = null;
+            if (field.EndsWith(nameof(Input.LocationId), StringComparison.Ordinal)) Input.LocationId = null;
+        }
+        ModelState.Clear();
+        PrefillWarning = "Parte de la precarga ya no está disponible o no es compatible; vuelve a seleccionarla.";
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)

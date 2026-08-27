@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Editar producto";
     var activeLocationCount = Model.LocationAssignments.Count(item => item.IsActive);
-    var activeBarcodeCount = Model.Barcodes.Count(item => item.IsActive);
 }
 
 <div class="product-editor-workspace">
@@ -146,82 +145,6 @@
         </div>
     </section>
 
-    <section class="card product-editor-module" aria-labelledby="product-barcodes-heading">
-        <div class="card-body p-3 p-md-4">
-            <div class="product-editor-module-header">
-                <div>
-                    <span class="product-editor-step">Identificación</span>
-                    <h2 id="product-barcodes-heading" class="h4 mb-1">Códigos de barras</h2>
-                    <p class="text-body-secondary mb-0">Administra los códigos que identifican este producto durante la operación.</p>
-                </div>
-                <span class="product-editor-count">@activeBarcodeCount @(activeBarcodeCount == 1 ? "activo" : "activos")</span>
-            </div>
-
-            <form method="post" asp-page-handler="AddBarcode" asp-route-id="@Model.Input.Id" class="product-editor-inline-form">
-                <div class="product-editor-inline-form-heading">
-                    <h3 class="h6 mb-1">Agregar código</h3>
-                    <p class="text-body-secondary mb-0">El código principal será la referencia preferida del producto.</p>
-                </div>
-                <div>
-                    <label asp-for="BarcodeInput.Barcode" class="form-label fw-semibold">Código</label>
-                    <input asp-for="BarcodeInput.Barcode" class="form-control form-control-lg" autocomplete="off" />
-                </div>
-                <div>
-                    <label asp-for="BarcodeInput.Format" class="form-label fw-semibold">Formato</label>
-                    <select asp-for="BarcodeInput.Format" asp-items="Model.BarcodeFormats" class="form-select form-select-lg"></select>
-                </div>
-                <div class="product-editor-primary-check">
-                    <div class="form-check">
-                        <input asp-for="BarcodeInput.IsPrimary" class="form-check-input" />
-                        <label asp-for="BarcodeInput.IsPrimary" class="form-check-label">Marcar como principal</label>
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-lg">Agregar código</button>
-            </form>
-
-            <div class="product-editor-subsection">
-                <h3 class="h6 mb-2">Códigos registrados</h3>
-                @if (Model.Barcodes.Count == 0)
-                {
-                    <div class="product-editor-empty">Este producto todavía no tiene códigos de barras.</div>
-                }
-                else
-                {
-                    <ul class="product-editor-list" aria-label="Códigos de barras registrados">
-                        @foreach (var item in Model.Barcodes)
-                        {
-                            <li class="product-editor-list-row @(!item.IsActive ? "is-inactive" : null)">
-                                <div class="product-editor-list-main product-editor-barcode-value">
-                                    <strong>@item.Barcode</strong>
-                                    <span class="text-body-secondary">@item.Format</span>
-                                </div>
-                                <div class="product-editor-list-status">
-                                    @if (item.IsPrimary)
-                                    {
-                                        <span class="badge text-bg-primary">Principal</span>
-                                    }
-                                    <span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">@(item.IsActive ? "Activo" : "Inactivo")</span>
-                                </div>
-                                <div class="product-editor-list-actions">
-                                    @if (item.IsActive && !item.IsPrimary)
-                                    {
-                                        <form method="post" asp-page-handler="SetPrimary" asp-route-id="@Model.Input.Id">
-                                            <input type="hidden" name="barcodeId" value="@item.Id" />
-                                            <button type="submit" class="btn btn-outline-primary">Hacer principal</button>
-                                        </form>
-                                    }
-                                    <form method="post" asp-page-handler="ToggleBarcode" asp-route-id="@Model.Input.Id">
-                                        <input type="hidden" name="barcodeId" value="@item.Id" />
-                                        <button type="submit" class="btn btn-outline-secondary">@(item.IsActive ? "Desactivar" : "Reactivar")</button>
-                                    </form>
-                                </div>
-                            </li>
-                        }
-                    </ul>
-                }
-            </div>
-        </div>
-    </section>
 </div>
 
 @section Scripts {

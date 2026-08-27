@@ -108,4 +108,49 @@ public sealed class LabelDesignTests
         Assert.NotNull(invalid.Error);
         Assert.Single(await db.LabelAssets.ToListAsync());
     }
+
+    [Fact]
+    public void Pallet_license_plate_is_letter_safe_and_encodes_only_the_sku()
+    {
+        var preset = PalletLicensePlatePresetCatalog.Initial;
+        var validation = LabelDesignSerializer.Validate(preset.Design, preset.Size, LabelTemplateKind.PalletLicensePlate);
+        var template = new LabelTemplate { Code = preset.Code, Kind = LabelTemplateKind.PalletLicensePlate };
+        var version = new LabelTemplateVersion { Template = template, Version = 1, Name = preset.Name, SizePreset = preset.Size, Status = LabelTemplateStatus.Published, DesignJson = LabelDesignSerializer.Serialize(preset.Design) };
+        var entryId = Guid.Parse("12345678-1234-1234-1234-123456789abc");
+        var values = new Dictionary<string, string> { ["weight"] = "1,250 LB" };
+        var system = new Dictionary<string, string>
+        {
+            ["plate.identifier"] = $"PLT-{entryId:N}".ToUpperInvariant(), ["entry.reference"] = "PO-42",
+            ["entry.occurredDate"] = "08/26/2026", ["entry.responsible"] = "Juan", ["entry.destination"] = "A-1-8",
+            ["entry.quantity"] = "25", ["entry.unit"] = "EA"
+        };
+
+        var result = new LabelDocumentService(new BarcodeRenderingService()).Render(version,
+            new OperationalProductResult(Guid.NewGuid(), "PALLET-SKU-01", "Descripción", null, "EA", false, true), values, 2, system);
+
+        Assert.Empty(validation.Errors);
+        Assert.Empty(result.Errors);
+        Assert.Equal(LabelSizePreset.ElevenByEightPointFiveLandscape, result.Document!.Size.Preset);
+        Assert.Equal(2, result.Document.Copies);
+        Assert.Single(result.Document.Elements, item => item.Barcode is not null);
+        Assert.Contains(result.Document.Elements, item => item.Barcode?.Payload == "PALLET-SKU-01");
+        Assert.Contains(result.Document.Elements, item => item.ImageUrl == LabelBuiltInAssets.ExtraPackagingLogoUrl);
+        Assert.Contains(result.Document.Elements, item => item.Text == $"PLT-{entryId:N}".ToUpperInvariant());
+    }
+
+    [Theory]
+    [InlineData(InventoryMovementType.Entry, InventoryMovementPurpose.Standard, 1, false, true)]
+    [InlineData(InventoryMovementType.Entry, InventoryMovementPurpose.Standard, 1, true, false)]
+    [InlineData(InventoryMovementType.Entry, InventoryMovementPurpose.WipWarehouseReturn, 1, false, false)]
+    [InlineData(InventoryMovementType.Entry, InventoryMovementPurpose.Standard, 2, false, false)]
+    [InlineData(InventoryMovementType.Exit, InventoryMovementPurpose.Standard, 1, false, false)]
+    public void Pallet_license_plate_eligibility_accepts_only_current_standard_single_line_entries(
+        InventoryMovementType type,
+        InventoryMovementPurpose purpose,
+        int lineCount,
+        bool isOriginalOrReversal,
+        bool expected)
+    {
+        Assert.Equal(expected, PalletLicensePlateService.IsEligible(type, purpose, lineCount, isOriginalOrReversal));
+    }
 }
