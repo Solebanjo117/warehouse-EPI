@@ -9,6 +9,7 @@ public sealed class BusinessSettings
     public required string WarehouseName { get; set; }
     public required string WarehouseCode { get; set; }
     public required string TimeZoneId { get; set; }
+    public int WipReminderDays { get; set; } = 7;
     public string? LogoFileName { get; set; }
     public string? LogoContentType { get; set; }
     public string? LogoHash { get; set; }

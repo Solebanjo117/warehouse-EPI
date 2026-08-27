@@ -28,6 +28,10 @@
         <input asp-for="Input.ExpectedBalanceVersion" type="hidden" data-balance-version />
 
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        @if (Model.PrefillWarning is not null)
+        {
+            <div class="alert alert-warning" role="status">@Model.PrefillWarning</div>
+        }
         <div class="alert alert-info d-none" role="status" aria-live="polite" data-operation-feedback></div>
 
         @if (Model.NeedsSharingApproval)

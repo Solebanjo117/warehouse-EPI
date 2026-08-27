@@ -1,13 +1,15 @@
 namespace WarehouseEPI.Core.Entities;
 
 public enum LabelTemplateStatus { Draft, InValidation, Published, Retired }
-public enum LabelSizePreset { SixByFourLandscape, FourBySixPortrait, ThreeByOneLandscape, FourByFourPointFivePortrait }
+public enum LabelTemplateKind { ProductLabel, PalletLicensePlate }
+public enum LabelSizePreset { SixByFourLandscape, FourBySixPortrait, ThreeByOneLandscape, FourByFourPointFivePortrait, ElevenByEightPointFiveLandscape }
 public enum LabelTemplateEventType { Created, Submitted, ReturnedToDraft, Published, Duplicated, Retired }
 
 public sealed class LabelTemplate
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string Code { get; set; }
+    public LabelTemplateKind Kind { get; set; } = LabelTemplateKind.ProductLabel;
     public Guid? CurrentPublishedVersionId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }

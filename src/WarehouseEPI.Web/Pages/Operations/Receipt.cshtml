@@ -28,6 +28,8 @@
         _ => "/Index"
     }};
     var newMode = Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue ? "wip" : null;
+    var canGeneratePalletPlate = Model.Receipt.Type == InventoryMovementType.Entry &&
+        (Model.Receipt.Correction is null || Model.Receipt.Correction.ReplacementMovementId == Model.Receipt.MovementId);
 }
 
 <div class="receipt-shell">
@@ -113,6 +115,10 @@
     @if (Model.Receipt.Notes is not null)
     {
         <section class="operation-card"><strong>Observaciones / motivo</strong><p class="mb-0 mt-1">@Model.Receipt.Notes</p></section>
+    }
+    @if (canGeneratePalletPlate)
+    {
+        <div class="operation-actions"><a class="btn btn-outline-primary btn-lg" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Receipt.MovementId">Generar placa de pallet</a></div>
     }
 
     <div class="operation-actions">

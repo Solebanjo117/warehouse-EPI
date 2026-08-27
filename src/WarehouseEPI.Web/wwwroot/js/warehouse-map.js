@@ -44,6 +44,8 @@
   const layerStateField = editor.querySelector("[data-editor-layer-state]");
   const scaleField = editor.querySelector("[data-editor-scale]");
   const measurementField = editor.querySelector("[data-editor-measurement-field]");
+  const referenceStateField = editor.querySelector("[data-editor-reference-state]");
+  const referenceTokenField = editor.querySelector("[data-editor-reference-token]");
   const selectionLayer = editor.querySelector("[data-editor-selection]");
   const guidesLayer = editor.querySelector("[data-editor-guides]");
   const layerButtons = [...editor.querySelectorAll("[data-editor-layer-lock]")];
@@ -108,7 +110,7 @@
   }));
   const itemSnapshot = () => [...activeItemSnapshot(), ...archivedItems.map((item) => ({ ...item }))];
   const layerSnapshot = () => layerButtons.map((button) => ({ code: button.dataset.editorLayerLock, locked: button.getAttribute("aria-pressed") === "true", visible: layerIsVisible(button.dataset.editorLayerLock) }));
-  const snapshot = () => ({ items: itemSnapshot(), layers: layerSnapshot(), scale: scaleField?.value || "", measurementSystem: measurementField?.value || "IMPERIAL" });
+  const snapshot = () => ({ items: itemSnapshot(), layers: layerSnapshot(), scale: scaleField?.value || "", measurementSystem: measurementField?.value || "IMPERIAL", references: referenceStateField?.value || "[]", referenceToken: referenceTokenField?.value || "" });
   const pushUndo = (state = snapshot()) => {
     undo.push(state); if (undo.length > 50) undo.shift(); redo = [];
     editor.querySelector("[data-editor-undo]").disabled = false; editor.querySelector("[data-editor-redo]").disabled = true;
@@ -205,19 +207,74 @@
     const vertexPanel = editor.querySelector("[data-property-vertex]"); vertexPanel.hidden = !single || kind !== "Polyline" || activeVertex === null;
     if (!vertexPanel.hidden) { const values = globalPoints(item)[activeVertex]; editor.querySelector("[data-vertex-property='x']").value = values.x; editor.querySelector("[data-vertex-property='y']").value = values.y; }
   };
-  const updateSelection = () => {
-    selectionLayer.replaceChildren(); elements.forEach((element) => element.classList.toggle("is-selected", selected.has(element))); const items = selectedElements(); const architectureMode = items.some(isArchitecture);
-    editor.querySelector("[data-editor-selection-count]").textContent = items.length ? `${items.length} seleccionado${items.length === 1 ? "" : "s"}${architectureMode ? " de arquitectura" : ""}` : "Sin selección";
-    ["rotate", "mirror", "hide"].forEach((action) => { const button = editor.querySelector(`[data-editor-${action}]`); if (button) button.disabled = items.length === 0 || architectureMode; }); editor.querySelector("[data-editor-align-menu]").disabled = architectureMode || items.length < 2; editor.querySelector("[data-editor-distribute-menu]").disabled = items.length < 3 || items.some(elementIsLocked); editor.querySelector("[data-editor-size-menu]").disabled = architectureMode || items.length < 2;
-    const architectureOnly = architectureMode && items.length === architectureSelection().length;
+  const selectionCapabilities = (items = selectedElements()) => {
+    const completeSelection = items.length === selected.size;
+    const architectureItems = items.filter(isArchitecture);
+    const operationalItems = items.filter((item) => !isArchitecture(item));
+    const architectureOnly = completeSelection && items.length > 0 && architectureItems.length === items.length;
+    const operationalOnly = completeSelection && items.length > 0 && operationalItems.length === items.length;
+    const selectionLocked = items.some(elementIsLocked);
     const sameLayer = architectureOnly && new Set(items.map(layerCode)).size === 1;
-    const sameGroup = architectureOnly && items[0]?.dataset.groupId && items.every((item) => item.dataset.groupId === items[0].dataset.groupId);
-    editor.querySelector("[data-editor-duplicate]").disabled = !architectureOnly || items.some(elementIsLocked);
-    editor.querySelector("[data-editor-group]").disabled = !sameLayer || items.length < 2 || items.some((item) => item.dataset.groupId || elementIsLocked(item));
-    editor.querySelector("[data-editor-ungroup]").disabled = !sameGroup || items.some(elementIsLocked);
-    editor.querySelector("[data-editor-element-lock]").disabled = !architectureOnly || items.some((item) => layerIsLocked(layerCode(item)));
-    editor.querySelector("[data-editor-order-menu]").disabled = !sameLayer || items.some(elementIsLocked);
-    editor.querySelector("[data-editor-archive]").disabled = !architectureOnly || items.some((item) => item.dataset.persisted !== "true" || elementIsLocked(item));
+    const groupId = architectureOnly ? items[0]?.dataset.groupId : "";
+    const sameGroup = Boolean(groupId) && items.every((item) => item.dataset.groupId === groupId);
+    const rowCode = operationalOnly ? items[0]?.dataset.rowCode : "";
+    const sortRow = operationalOnly && items.length >= 2 && !layerIsLocked("OPERATIONS") && Boolean(rowCode)
+      && items.every((item) => item.dataset.visible === "true" && item.dataset.rowCode === rowCode
+        && Boolean(item.dataset.rackNumber) && Number.isFinite(Number(item.dataset.rackNumber)));
+    const allArchitectureLocked = architectureOnly && items.every((item) => item.dataset.elementLocked === "true");
+    const architectureLayersEditable = architectureOnly && items.every((item) => !layerIsLocked(layerCode(item)));
+    return {
+      architectureOnly,
+      operationalOnly,
+      selectionLocked,
+      sameLayer,
+      sameGroup,
+      sortRow,
+      rotate: operationalOnly && !selectionLocked,
+      align: operationalOnly && items.length >= 2 && !selectionLocked,
+      distribute: completeSelection && items.length >= 3 && !selectionLocked,
+      equalSize: operationalOnly && items.length >= 2 && !selectionLocked,
+      duplicate: architectureOnly && !selectionLocked,
+      group: sameLayer && items.length >= 2 && items.every((item) => !item.dataset.groupId) && !selectionLocked,
+      ungroup: sameGroup && !selectionLocked,
+      elementLock: architectureLayersEditable,
+      unlock: architectureLayersEditable && allArchitectureLocked,
+      order: sameLayer && !selectionLocked,
+      archive: architectureOnly && items.every((item) => item.dataset.persisted === "true") && !selectionLocked
+    };
+  };
+  const selectionHelp = (items, capabilities) => {
+    if (!items.length) return "Selecciona ubicaciones o marca una capa como Editable para seleccionar su arquitectura.";
+    if (capabilities.operationalOnly) {
+      if (capabilities.sortRow) return `Puedes ordenar los racks seleccionados por número dentro de la fila ${items[0].dataset.rowCode}.`;
+      if (items.length < 2) return "Selecciona al menos dos racks visibles de la misma fila para usar Ordenar fila.";
+      return "Ordenar fila requiere racks visibles, editables y pertenecientes a una sola fila.";
+    }
+    if (!capabilities.architectureOnly) return "No mezcles ubicaciones operativas y arquitectura en una misma selección.";
+    if (!items.every((item) => !layerIsLocked(layerCode(item)))) return "Marca la capa como Editable para modificar la arquitectura seleccionada.";
+    if (capabilities.unlock) return "Elementos bloqueados: usa Desbloquear para volver a editarlos.";
+    if (capabilities.selectionLocked) return "La selección incluye elementos bloqueados; puedes bloquearlos todos o seleccionar solo elementos editables.";
+    if (capabilities.sameGroup) return "Grupo seleccionado: puedes desagruparlo, duplicarlo, ordenarlo o bloquearlo.";
+    if (items.length === 1) return "Puedes duplicar, ordenar o bloquear. Selecciona dos elementos de la misma capa para agrupar.";
+    if (!capabilities.sameLayer) return "Agrupar y Orden requieren elementos arquitectónicos de una sola capa.";
+    if (!capabilities.group) return "Agrupar requiere elementos editables que todavía no pertenezcan a un grupo.";
+    return "Puedes agrupar, duplicar, ordenar o bloquear los elementos seleccionados.";
+  };
+  const updateSelection = (repaintElements = true) => {
+    selectionLayer.replaceChildren(); if (repaintElements) elements.forEach((element) => element.classList.toggle("is-selected", selected.has(element))); const items = selectedElements(); const architectureMode = items.some(isArchitecture); const capabilities = selectionCapabilities(items);
+    editor.querySelector("[data-editor-selection-count]").textContent = items.length ? `${items.length} seleccionado${items.length === 1 ? "" : "s"}${architectureMode ? " de arquitectura" : ""}` : "Sin selección";
+    ["rotate", "mirror", "hide"].forEach((action) => { const button = editor.querySelector(`[data-editor-${action}]`); if (button) button.disabled = !capabilities.rotate; });
+    editor.querySelector("[data-editor-align-menu]").disabled = !capabilities.align;
+    editor.querySelector("[data-editor-distribute-menu]").disabled = !capabilities.distribute;
+    editor.querySelector("[data-editor-sort-row]").disabled = !capabilities.sortRow;
+    editor.querySelector("[data-editor-size-menu]").disabled = !capabilities.equalSize;
+    editor.querySelector("[data-editor-duplicate]").disabled = !capabilities.duplicate;
+    editor.querySelector("[data-editor-group]").disabled = !capabilities.group;
+    editor.querySelector("[data-editor-ungroup]").disabled = !capabilities.ungroup;
+    const lockButton = editor.querySelector("[data-editor-element-lock]"); lockButton.disabled = !capabilities.elementLock; lockButton.textContent = capabilities.unlock ? "Desbloquear" : "Bloquear";
+    editor.querySelector("[data-editor-order-menu]").disabled = !capabilities.order;
+    editor.querySelector("[data-editor-archive]").disabled = !capabilities.archive;
+    editor.querySelector("[data-editor-selection-help]").textContent = selectionHelp(items, capabilities);
     if (!items.length) { activeVertex = null; updateProperties(); return; }
     const box = bounds(items); const outline = document.createElementNS(ns, "rect"); outline.setAttribute("class", "editor-group-outline"); outline.setAttribute("x", box.left); outline.setAttribute("y", box.top); outline.setAttribute("width", box.right - box.left); outline.setAttribute("height", box.bottom - box.top); selectionLayer.append(outline);
     if (!architectureMode) { const handle = document.createElementNS(ns, "rect"); handle.setAttribute("class", "editor-group-resize-handle"); handle.setAttribute("data-editor-group-resize", "true"); handle.setAttribute("x", box.right - 10); handle.setAttribute("y", box.bottom - 10); handle.setAttribute("width", 14); handle.setAttribute("height", 14); selectionLayer.append(handle); }
@@ -238,14 +295,14 @@
   const restore = (state) => {
     const architectureState = state.items.filter((item) => item.architecture && !item.isArchived); const architectureIds = new Set(architectureState.map((item) => item.id)); architectureElements.filter((item) => !architectureIds.has(elementId(item))).forEach(removeArchitectureElement); archivedItems = state.items.filter((item) => item.architecture && item.isArchived).map((item) => ({ ...item }));
     state.items.filter((item) => !item.isArchived).forEach((item) => { let element = elements.find((value) => elementId(value) === item.id && isArchitecture(value) === item.architecture); if (!element && item.architecture) element = createArchitectureElement({ ...item, points: parsePoints(item.points), radius: item.radius }); if (!element) return; Object.assign(element.dataset, { layerCode: item.layerCode, kind: item.kind, label: item.label, x: item.x, y: item.y, width: item.width, height: item.height, rotation: item.rotation, radius: item.radius, points: item.points, strokeToken: item.strokeToken, fillToken: item.fillToken, strokeWidth: item.strokeWidth, dashed: String(item.isDashed), z: item.zIndex, elementLocked: String(item.isLocked), groupId: item.groupId || "", archived: "false", visible: String(item.isVisible), persisted: String(item.persisted) }); });
-    if (scaleField) scaleField.value = state.scale || ""; if (measurementField) measurementField.value = state.measurementSystem || "IMPERIAL"; const measurement = editor.querySelector("[data-editor-measurement]"); if (measurement) measurement.value = measurementField.value; updateScaleStatus(); renderArchivedList();
+    if (scaleField) scaleField.value = state.scale || ""; if (measurementField) measurementField.value = state.measurementSystem || "IMPERIAL"; if (referenceStateField && state.references !== undefined) referenceStateField.value = state.references; if (referenceTokenField && state.referenceToken !== undefined) referenceTokenField.value = state.referenceToken; editor.dispatchEvent(new CustomEvent("warehouse-map:restore-references", { detail: { references: state.references, token: state.referenceToken } })); const measurement = editor.querySelector("[data-editor-measurement]"); if (measurement) measurement.value = measurementField.value; updateScaleStatus(); renderArchivedList();
     state.layers.forEach((item) => { setLayerLocked(item.code, item.locked); const input = editor.querySelector(`[data-editor-layer-visible="${CSS.escape(item.code)}"]`); if (input) input.checked = item.visible; applyLayerVisibility(item.code, item.visible); }); selected.clear(); activeElement = null; activeVertex = null; persistVisibility(); renderAll();
   };
   const undoAction = () => { if (!undo.length) return; redo.push(snapshot()); restore(undo.pop()); editor.querySelector("[data-editor-redo]").disabled = false; editor.querySelector("[data-editor-undo]").disabled = undo.length === 0; };
   const redoAction = () => { if (!redo.length) return; undo.push(snapshot()); restore(redo.pop()); editor.querySelector("[data-editor-undo]").disabled = false; editor.querySelector("[data-editor-redo]").disabled = redo.length === 0; };
   const clearSelection = () => { selected.clear(); activeElement = null; activeVertex = null; updateSelection(); };
-  const setSelection = (items, active = items[0] || null) => { selected.clear(); items.forEach((item) => selected.add(item)); activeElement = active; activeVertex = null; updateSelection(); };
-  const toggleSelection = (element) => { const current = selectedElements()[0]; if (current && isArchitecture(current) !== isArchitecture(element)) selected.clear(); if (selected.has(element)) selected.delete(element); else selected.add(element); activeElement = element; activeVertex = null; updateSelection(); };
+  const setSelection = (items, active = items[0] || null) => { selected.clear(); items.forEach((item) => selected.add(item)); activeElement = active; activeVertex = null; if (items.length) editor.dispatchEvent(new CustomEvent("warehouse-map:clear-reference-selection")); updateSelection(); };
+  const toggleSelection = (element) => { const current = selectedElements()[0]; if (current && isArchitecture(current) !== isArchitecture(element)) selected.clear(); if (selected.has(element)) selected.delete(element); else selected.add(element); activeElement = element; activeVertex = null; editor.dispatchEvent(new CustomEvent("warehouse-map:clear-reference-selection")); updateSelection(); };
   const beginTransform = (event, kind) => { interaction = { pointer: event.pointerId, kind, start: point(event), before: snapshot(), box: bounds(), items: selectedElements() }; svg.setPointerCapture(event.pointerId); };
   const snapMove = (rawDx, rawDy, event) => {
     const box = interaction.box; const moving = interaction.items; if (!preferences.snap || event.altKey) return { dx: rawDx, dy: rawDy }; const values = anchors(moving); const rect = svg.getBoundingClientRect(); const tolerance = 8 * viewBox.width / Math.max(rect.width, 1);
@@ -331,6 +388,21 @@
     svg.setPointerCapture(event.pointerId);
   });
   svg.addEventListener("dblclick", (event) => { if (interaction?.kind === "drawPolyline") { event.preventDefault(); if (interaction.committed.length > 1) interaction.committed.pop(); finishPolyline(); } });
+  let pendingTransformEvent = null;
+  let transformFrame = 0;
+  const applyTransformFrame = () => {
+    transformFrame = 0; const event = pendingTransformEvent; pendingTransformEvent = null;
+    if (!event || !interaction) return;
+    if (interaction.kind === "move") moveGroup(event); else if (interaction.kind === "resize") resizeGroup(event); else if (interaction.kind === "architectureResize") resizeArchitecture(event); else if (interaction.kind === "vertex") moveVertex(event); else return;
+    selectedElements().forEach(renderElement); updateSelection(false);
+  };
+  const queueTransformFrame = (event) => {
+    pendingTransformEvent = { clientX: event.clientX, clientY: event.clientY, altKey: event.altKey, pointerId: event.pointerId };
+    if (!transformFrame) transformFrame = requestAnimationFrame(applyTransformFrame);
+  };
+  const flushTransformFrame = () => {
+    if (!pendingTransformEvent) return; if (transformFrame) cancelAnimationFrame(transformFrame); transformFrame = 0; applyTransformFrame();
+  };
   svg.addEventListener("pointermove", (event) => {
     editor.querySelector("[data-editor-coordinates]").textContent = `${Math.round(point(event).x)}, ${Math.round(point(event).y)}`; if (pointers.has(event.pointerId)) pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (interaction?.kind === "pinch" && pointers.size >= 2) { const values = [...pointers.values()]; const distance = Math.hypot(values[1].x - values[0].x, values[1].y - values[0].y); const factor = Math.max(.25, Math.min(4, canvas.width / interaction.box.width * distance / interaction.distance)); const centerX = interaction.box.x + interaction.box.width / 2; const centerY = interaction.box.y + interaction.box.height / 2; viewBox.width = canvas.width / factor; viewBox.height = canvas.height / factor; viewBox.x = centerX - viewBox.width / 2; viewBox.y = centerY - viewBox.height / 2; applyViewBox(); return; }
@@ -339,10 +411,10 @@
     if (interaction.kind === "pan") { const rect = svg.getBoundingClientRect(); viewBox.x = interaction.box.x - (event.clientX - interaction.clientX) * interaction.box.width / rect.width; viewBox.y = interaction.box.y - (event.clientY - interaction.clientY) * interaction.box.height / rect.height; applyViewBox(); return; }
     if (interaction.kind === "drawRectangle") { const value = snapPoint(point(event), event); const x = Math.min(interaction.start.x, value.x); const y = Math.min(interaction.start.y, value.y); Object.assign(interaction.element.dataset, { x, y, width: Math.max(1, Math.abs(value.x - interaction.start.x)), height: Math.max(1, Math.abs(value.y - interaction.start.y)) }); showGuides(value.guideX, value.guideY); renderElement(interaction.element); return; }
     if (interaction.kind === "marquee") { const current = point(event); const left = Math.min(interaction.start.x, current.x); const top = Math.min(interaction.start.y, current.y); const width = Math.abs(interaction.start.x - current.x); const height = Math.abs(interaction.start.y - current.y); let marquee = selectionLayer.querySelector(".editor-marquee"); if (!marquee) { marquee = document.createElementNS(ns, "rect"); marquee.setAttribute("class", "editor-marquee"); selectionLayer.append(marquee); } marquee.setAttribute("x", left); marquee.setAttribute("y", top); marquee.setAttribute("width", width); marquee.setAttribute("height", height); interaction.changed = width > 2 || height > 2; return; }
-    if (interaction.kind === "move") moveGroup(event); else if (interaction.kind === "resize") resizeGroup(event); else if (interaction.kind === "architectureResize") resizeArchitecture(event); else if (interaction.kind === "vertex") moveVertex(event); renderAll();
+    queueTransformFrame(event);
   });
   const endPointer = (event) => {
-    pointers.delete(event.pointerId); if (!interaction) return; if (interaction.kind === "pinch") { if (pointers.size < 2) interaction = null; return; } if (interaction.pointer !== event.pointerId) return;
+    pointers.delete(event.pointerId); if (!interaction) return; flushTransformFrame(); if (interaction.kind === "pinch") { if (pointers.size < 2) interaction = null; return; } if (interaction.pointer !== event.pointerId) return;
     if (interaction.kind === "drawRectangle") { const valid = number(interaction.element, "width") >= 4 && number(interaction.element, "height") >= 4; if (valid) { pushUndo(interaction.before); setSelection([interaction.element]); status("Elemento nuevo listo para guardar."); } else restore(interaction.before); editor.querySelector("[data-editor-cancel]").hidden = true; interaction = null; clearGuides(); renderAll(); return; }
     if (interaction.kind === "marquee") {
       const marquee = selectionLayer.querySelector(".editor-marquee");
@@ -378,7 +450,7 @@
   const distribute = (axis) => organize(3, (items) => distributedCenters(items, axis).forEach(({ element, center }) => { const size = number(element, axis === "x" ? "width" : "height"); element.dataset[axis] = String(center - size / 2); }), true);
   const fitSize = (element, width, height) => ({ width: Math.min(canvas.width, width), height: Math.min(canvas.height, height), x: Math.min(number(element, "x"), canvas.width - Math.min(canvas.width, width)), y: Math.min(number(element, "y"), canvas.height - Math.min(canvas.height, height)) });
   const equalSize = (mode) => organize(2, (items) => { const reference = activeElement || items[0]; items.filter((item) => item !== reference).forEach((item) => { const fitted = fitSize(item, mode === "height" ? number(item, "width") : number(reference, "width"), mode === "width" ? number(item, "height") : number(reference, "height")); Object.assign(item.dataset, { x: fitted.x, y: fitted.y }); if (mode !== "height") item.dataset.width = fitted.width; if (mode !== "width") item.dataset.height = fitted.height; }); });
-  const sortSelectedRow = () => { const items = operationalSelection(); const rowCode = items[0]?.dataset.rowCode; if (items.length < 2 || items.length !== selected.size || !rowCode || items.some((element) => element.dataset.visible !== "true" || element.dataset.rowCode !== rowCode || !element.dataset.rackNumber || !Number.isFinite(Number(element.dataset.rackNumber)))) return; pushUndo(); const slots = [...items].sort((a, b) => number(a, "x") - number(b, "x")).map((item) => number(item, "x")); [...items].sort((a, b) => Number(a.dataset.rackNumber) - Number(b.dataset.rackNumber)).forEach((item, index) => { item.dataset.x = String(slots[index]); }); renderAll(); };
+  const sortSelectedRow = () => { const items = operationalSelection(); if (!selectionCapabilities(items).sortRow) return; pushUndo(); const slots = [...items].sort((a, b) => number(a, "x") - number(b, "x")).map((item) => number(item, "x")); [...items].sort((a, b) => Number(a.dataset.rackNumber) - Number(b.dataset.rackNumber)).forEach((item, index) => { item.dataset.x = String(slots[index]); }); renderAll(); };
   let internalClipboard = [];
   const copyArchitecture = () => { const items = architectureSelection(); if (!items.length || items.length !== selected.size) return; internalClipboard = items.map((item) => activeItemSnapshot().find((value) => value.id === elementId(item))); status(`${items.length} elemento${items.length === 1 ? "" : "s"} copiado${items.length === 1 ? "" : "s"} dentro del editor.`); };
   const pasteArchitecture = () => {
@@ -405,8 +477,9 @@
   const updateReviewedSave = () => { if (saveReviewed) saveReviewed.disabled = !reviewPin?.value.trim() || (reviewHasWarnings && !warningAck?.checked); };
   reviewPin?.addEventListener("input", updateReviewedSave); warningAck?.addEventListener("change", updateReviewedSave);
   reviewButton?.addEventListener("click", async () => {
-    updateFields(); reviewHasWarnings = false; if (reviewPin) reviewPin.value = ""; if (warningAck) warningAck.checked = false; updateReviewedSave(); const modal = bootstrap.Modal.getOrCreateInstance(reviewModalElement); modal.show(); const statusOutput = editor.querySelector("[data-editor-review-status]"); const content = editor.querySelector("[data-editor-review-content]"); const warningBox = editor.querySelector("[data-editor-review-warnings]"); statusOutput.hidden = false; statusOutput.textContent = "Validando el plano en el servidor…"; content.hidden = true;
-    try { const form = editor.querySelector("[data-map-save-form]"); const response = await fetch(`${form.action}?handler=Review`, { method: "POST", body: new FormData(form), headers: { "X-Requested-With": "XMLHttpRequest" } }); const data = await response.json(); if (!response.ok || data.errors?.length) { statusOutput.textContent = (data.errors || ["No fue posible revisar el plano."]).join(" "); return; } const summary = data.summary; const summaryList = editor.querySelector("[data-editor-review-summary]"); const rows = [["Ubicaciones modificadas", summary.operationalModified], ["Capas modificadas", summary.layerLocksChanged], ["Arquitectura nueva", summary.added], ["Arquitectura modificada", summary.modified], ["Archivados", summary.archived], ["Restaurados", summary.restored], ["Escala", summary.scaleChanged ? "Cambiará" : "Sin cambio"], ["Unidades", summary.measurementSystemChanged ? "Cambiarán" : "Sin cambio"]]; summaryList.replaceChildren(...rows.flatMap(([label, value]) => { const term = document.createElement("dt"); term.className = "col-7"; term.textContent = label; const detail = document.createElement("dd"); detail.className = "col-5"; detail.textContent = String(value); return [term, detail]; })); const warnings = data.warnings || []; reviewHasWarnings = warnings.length > 0; warningBox.hidden = !reviewHasWarnings; const list = warningBox.querySelector("ul"); list.replaceChildren(...warnings.map((warning) => { const item = document.createElement("li"); item.textContent = `${warning.message} Elementos: ${warning.elementIds.join(", ")}.`; return item; })); statusOutput.hidden = true; content.hidden = false; updateReviewedSave(); reviewPin?.focus(); } catch { statusOutput.textContent = "No se pudo completar la revisión. Conservamos el borrador; inténtalo nuevamente."; }
+    if (!reviewPin?.value.trim()) { status("Introduce el NIP ADMIN antes de revisar los cambios."); reviewPin?.focus(); return; }
+    updateFields(); reviewHasWarnings = false; if (warningAck) warningAck.checked = false; updateReviewedSave(); const modal = bootstrap.Modal.getOrCreateInstance(reviewModalElement); modal.show(); const statusOutput = editor.querySelector("[data-editor-review-status]"); const content = editor.querySelector("[data-editor-review-content]"); const warningBox = editor.querySelector("[data-editor-review-warnings]"); statusOutput.hidden = false; statusOutput.textContent = "Validando el plano en el servidor…"; content.hidden = true;
+    try { const form = editor.querySelector("[data-map-save-form]"); const payload = new FormData(form); payload.delete(reviewPin.name); const response = await fetch(`${form.action}?handler=Review`, { method: "POST", body: payload, headers: { "X-Requested-With": "XMLHttpRequest" } }); const data = await response.json(); if (!response.ok || data.errors?.length) { statusOutput.textContent = (data.errors || ["No fue posible revisar el plano."]).join(" "); return; } const summary = data.summary; const summaryList = editor.querySelector("[data-editor-review-summary]"); const rows = [["Ubicaciones modificadas", summary.operationalModified], ["Capas modificadas", summary.layerLocksChanged], ["Arquitectura nueva", summary.added], ["Arquitectura modificada", summary.modified], ["Archivados", summary.archived], ["Restaurados", summary.restored], ["Fondos nuevos", summary.referenceAdded || 0], ["Fondos modificados", summary.referenceModified || 0], ["Fondos archivados", summary.referenceArchived || 0], ["Fondos restaurados", summary.referenceRestored || 0], ["Escala", summary.scaleChanged ? "Cambiará" : "Sin cambio"], ["Unidades", summary.measurementSystemChanged ? "Cambiarán" : "Sin cambio"]]; summaryList.replaceChildren(...rows.flatMap(([label, value]) => { const term = document.createElement("dt"); term.className = "col-7"; term.textContent = label; const detail = document.createElement("dd"); detail.className = "col-5"; detail.textContent = String(value); return [term, detail]; })); const warnings = data.warnings || []; reviewHasWarnings = warnings.length > 0; warningBox.hidden = !reviewHasWarnings; const list = warningBox.querySelector("ul"); list.replaceChildren(...warnings.map((warning) => { const item = document.createElement("li"); item.textContent = `${warning.message} Elementos: ${warning.elementIds.join(", ")}.`; return item; })); statusOutput.hidden = true; content.hidden = false; updateReviewedSave(); if (reviewHasWarnings) warningAck?.focus(); else saveReviewed?.focus(); } catch { statusOutput.textContent = "No se pudo completar la revisión. Conservamos el borrador; inténtalo nuevamente."; }
   });
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space" && !event.target.matches("input, textarea, select")) { spaceHeld = true; event.preventDefault(); } if (event.target.matches("input, textarea, select")) return; const modifier = event.ctrlKey || event.metaKey;
@@ -415,5 +488,8 @@
     if (!selected.size || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) return; event.preventDefault(); pushUndo(); const step = event.shiftKey ? 10 : 1; const box = bounds(); const dx = event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0; const dy = event.key === "ArrowUp" ? -step : event.key === "ArrowDown" ? step : 0; const offsetX = Math.max(-box.left, Math.min(canvas.width - box.right, dx)); const offsetY = Math.max(-box.top, Math.min(canvas.height - box.bottom, dy)); selectedElements().forEach((item) => { item.dataset.x = String(number(item, "x") + offsetX); item.dataset.y = String(number(item, "y") + offsetY); }); renderAll();
   });
   window.addEventListener("keyup", (event) => { if (event.code === "Space") spaceHeld = false; }); editor.querySelector("[data-map-save-form]")?.addEventListener("submit", (event) => { updateFields(); const button = event.submitter; if (button) { button.disabled = true; button.textContent = "Guardando…"; } });
+  editor.addEventListener("warehouse-map:scale-changed", () => { updateScaleStatus(); updateDimensionLabels(); renderAll(); });
+  editor.addEventListener("warehouse-map:push-undo", () => pushUndo());
+  editor.addEventListener("warehouse-map:clear-selection", clearSelection);
   restoreVisibility(); applyWorkspacePreferences(); layerButtons.forEach((button) => setLayerLocked(button.dataset.editorLayerLock, button.getAttribute("aria-pressed") === "true")); if (measurementField) editor.querySelector("[data-editor-measurement]").value = measurementField.value || "IMPERIAL"; updateScaleStatus(); renderArchivedList(); applyViewBox(); renderAll();
 })();

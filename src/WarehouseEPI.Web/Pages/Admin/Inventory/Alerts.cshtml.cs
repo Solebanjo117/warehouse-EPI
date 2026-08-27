@@ -1,40 +1,48 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using WarehouseEPI.Infrastructure.Inventory;
-using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Infrastructure.Reporting;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class AlertsModel(InventoryQueryService inventory, WarehouseClock warehouseClock) : PageModel
+public sealed class AlertsModel(OperationalAlertService alerts) : PageModel
 {
     private const int PageSize = 25;
-
     public string View { get; private set; } = "negative";
     public string? Search { get; private set; }
-    public int PageNumber { get; private set; } = 1;
-    public int TotalPages { get; private set; } = 1;
-    public InventoryAlertSummary Summary { get; private set; } = new(0, 0, 0);
-    public InventoryAlertPage<NegativeInventoryAlert> NegativeAlerts { get; private set; } = new([], 0);
-    public InventoryAlertPage<MinimumStockInventoryAlert> MinimumAlerts { get; private set; } = new([], 0);
-    public DateTimeOffset UpdatedAt { get; private set; }
+    public string? Attention { get; private set; }
+    public OperationalAlertSnapshotDto Snapshot { get; private set; } = new(OperationalAlertAudience.Admin,
+        DateTimeOffset.MinValue, DateTimeOffset.MinValue, 0, 0, 0, 0, []);
+    public OperationalAlertPageDto AlertPage { get; private set; } = new([], 0, 1, PageSize);
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(AlertPage.TotalCount / (double)PageSize));
 
-    public async Task OnGetAsync(string? view, string? search, int pageNumber = 1, CancellationToken token = default)
+    public async Task OnGetAsync(string? view, string? search, string? attention, int pageNumber = 1,
+        CancellationToken cancellationToken = default)
     {
-        View = view == "minimum" ? "minimum" : "negative";
-        Search = search?.Trim();
-        Summary = await inventory.GetAlertSummaryAsync(token);
-        UpdatedAt = await warehouseClock.ConvertAsync(DateTimeOffset.UtcNow, token);
-        if (View == "minimum")
-        {
-            MinimumAlerts = await inventory.GetBelowMinimumAlertPageAsync(Search, pageNumber, PageSize, token);
-            TotalPages = Math.Max(1, (int)Math.Ceiling(MinimumAlerts.TotalCount / (double)PageSize));
-        }
-        else
-        {
-            NegativeAlerts = await inventory.GetNegativeAlertPageAsync(Search, pageNumber, PageSize, token);
-            TotalPages = Math.Max(1, (int)Math.Ceiling(NegativeAlerts.TotalCount / (double)PageSize));
-        }
-        PageNumber = Math.Clamp(Math.Max(1, pageNumber), 1, TotalPages);
+        View = NormalizeView(view);
+        Search = string.IsNullOrWhiteSpace(search) ? null : search.Trim();
+        Attention = string.IsNullOrWhiteSpace(attention) ? null : attention.Trim().ToLowerInvariant();
+        Snapshot = await alerts.GetSnapshotAsync(OperationalAlertAudience.Admin, cancellationToken);
+        AlertPage = await alerts.GetPageAsync(Category(View, Attention), Search, pageNumber, PageSize, cancellationToken);
     }
+
+    public int Count(OperationalAlertCategory category) => Snapshot.Items.FirstOrDefault(x => x.Category == category)?.Count ?? 0;
+
+    private static string NormalizeView(string? value) => value?.ToLowerInvariant() switch
+    {
+        "minimum" or "unassigned" or "restricted" or "stagnant" or "cycle" or "wip" => value.ToLowerInvariant(),
+        _ => "negative"
+    };
+
+    private static OperationalAlertCategory Category(string view, string? attention) => view switch
+    {
+        "minimum" => OperationalAlertCategory.BelowMinimum,
+        "unassigned" => OperationalAlertCategory.UnassignedBalance,
+        "restricted" => OperationalAlertCategory.RestrictedInventory,
+        "stagnant" => OperationalAlertCategory.StagnantInventory,
+        "cycle" when attention == "stale" => OperationalAlertCategory.CycleCountStale,
+        "cycle" => OperationalAlertCategory.CycleCountPending,
+        "wip" => OperationalAlertCategory.AgedWip,
+        _ => OperationalAlertCategory.NegativeInventory
+    };
 }

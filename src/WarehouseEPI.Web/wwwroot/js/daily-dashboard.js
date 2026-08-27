@@ -30,6 +30,45 @@
     const element = dashboard.querySelector(`[data-dashboard-metric="${name}"]`);
     if (element) element.textContent = format(value);
   };
+  const comparisonLabel = (item) => {
+    if (number(item?.state) === 1) return "Nuevo";
+    if (number(item?.state) === 0) return "Sin actividad";
+    const delta = number(item?.delta);
+    return `${delta > 0 ? "+" : ""}${delta} · ${number(item?.percentChange).toLocaleString("es-MX", { maximumFractionDigits: 1 })}%`;
+  };
+  const renderComparison = (snapshot) => {
+    const comparison = snapshot?.comparison;
+    if (!comparison) return;
+    ["todayOperations", "todayAdjustments", "sevenDayOperations", "sevenDayDistinctSkus"].forEach((name) => {
+      const value = dashboard.querySelector(`[data-dashboard-comparison="${name}"]`);
+      const label = dashboard.querySelector(`[data-dashboard-comparison-label="${name}"]`);
+      if (value) value.textContent = format(comparison[name]?.current);
+      if (label) label.textContent = comparisonLabel(comparison[name]);
+    });
+    const driverGroups = { product: comparison.products, row: comparison.rows, location: comparison.locations };
+    Object.entries(driverGroups).forEach(([kind, drivers]) => {
+      const list = dashboard.querySelector(`[data-dashboard-drivers="${kind}"]`);
+      if (!list || !Array.isArray(drivers)) return;
+      list.replaceChildren();
+      drivers.forEach((driver) => {
+        const item = document.createElement("li");
+        const link = document.createElement("a");
+        if (dashboard.dataset.isAdmin === "true") {
+          const target = new URL("/Admin/Inventory/Movements", window.location.origin);
+          target.searchParams.set("view", "effective");
+          const warehouseDate = new Date(`${snapshot.warehouseDate}T12:00:00`);
+          const from = new Date(warehouseDate); from.setDate(from.getDate() - 13);
+          target.searchParams.set("from", from.toISOString().slice(0, 10)); target.searchParams.set("to", snapshot.warehouseDate);
+          target.searchParams.set(kind === "product" ? "sku" : "locationCode", driver.code);
+          link.href = target.toString();
+        } else link.href = driver.targetUrl;
+        const code = document.createElement("strong"); code.textContent = driver.code;
+        const value = document.createElement("span"); const delta = number(driver.delta); value.textContent = `${format(driver.current)} operación(es) · ${delta > 0 ? "+" : ""}${delta}`;
+        link.append(code, value); item.append(link); list.append(item);
+      });
+      if (!drivers.length) { const emptyItem = document.createElement("li"); emptyItem.className = "text-body-secondary"; emptyItem.textContent = "Sin actividad en el período."; list.append(emptyItem); }
+    });
+  };
   const visiblePoints = () => currentPoints.slice(-selectedRange);
   const detail = (point) => {
     if (!point) return;
@@ -241,6 +280,7 @@
     updateMetric("negativePositionsCount", metrics.negativePositionsCount);
     updateMetric("lowStockProductsCount", metrics.lowStockProductsCount);
     updateMetric("effectiveAdjustmentsToday", metrics.effectiveAdjustmentsToday);
+    renderComparison(snapshot);
     selectedIndex = Math.min(selectedIndex, visiblePoints().length - 1);
     refreshChart("none");
     if (status) { status.classList.remove("is-stale"); status.replaceChildren(document.createTextNode("Datos generados: ")); const time = document.createElement("time"); time.dateTime = snapshot.generatedAtLocal; time.textContent = timestamp(snapshot.generatedAtLocal); status.appendChild(time); }

@@ -32,7 +32,7 @@ public sealed class ProductLocationAssignmentService(WarehouseDbContext dbContex
         var location = await dbContext.Locations.SingleOrDefaultAsync(
             candidate => candidate.Id == locationId, cancellationToken);
         if (location is null) return ProductLocationAssignmentResult.LocationNotFound;
-        if (!location.IsActive) return ProductLocationAssignmentResult.LocationInactive;
+        if (!location.IsPhysicallyPresent || !location.IsActive) return ProductLocationAssignmentResult.LocationInactive;
         if (location.IsBlocked) return ProductLocationAssignmentResult.LocationBlocked;
         if (!location.TracksInventory) return ProductLocationAssignmentResult.LocationDoesNotTrackInventory;
 

@@ -184,8 +184,11 @@ function Grant-WarehouseEpiServiceResources([string]$ReleasePath) {
     $logsPath = Resolve-WarehouseEpiChildPath $configuration.Observability.LogDirectory $script:WarehouseEpiRoot
     $brandingDirectory = if ($null -ne $configuration.PSObject.Properties['Branding'] -and -not [string]::IsNullOrWhiteSpace($configuration.Branding.StorageDirectory)) { $configuration.Branding.StorageDirectory } else { 'C:\ProgramData\WarehouseEPI\Branding' }
     $brandingPath = Resolve-WarehouseEpiChildPath $brandingDirectory $script:WarehouseEpiRoot
+    $referenceDirectory = if ($null -ne $configuration.PSObject.Properties['WarehouseMap'] -and -not [string]::IsNullOrWhiteSpace($configuration.WarehouseMap.ReferenceStorageDirectory)) { $configuration.WarehouseMap.ReferenceStorageDirectory } else { 'C:\ProgramData\WarehouseEPI\WarehouseMapReferences' }
+    $referencePath = Resolve-WarehouseEpiChildPath $referenceDirectory $script:WarehouseEpiRoot
     if (-not (Test-Path -LiteralPath $brandingPath -PathType Container)) { New-Item -ItemType Directory -Force -Path $brandingPath | Out-Null }
-    foreach ($directory in @($keysPath, $logsPath, $brandingPath)) {
+    if (-not (Test-Path -LiteralPath $referencePath -PathType Container)) { New-Item -ItemType Directory -Force -Path $referencePath | Out-Null }
+    foreach ($directory in @($keysPath, $logsPath, $brandingPath, $referencePath)) {
         if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Falta un directorio requerido por el servicio.' }
         & icacls $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${script:WarehouseEpiServiceIdentity}:(OI)(CI)M" | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'No fue posible proteger un directorio del servicio.' }
@@ -206,6 +209,8 @@ function Assert-WarehouseEpiValidatedBackup(
     $resolved = Resolve-WarehouseEpiChildPath $BackupDirectory $script:WarehouseEpiRoot
     $latest = Get-ChildItem -LiteralPath $resolved -Filter 'warehouseEPI-*.dump' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
     if ($null -eq $latest) { throw 'Se requiere al menos un respaldo 10.6 antes de instalar o actualizar.' }
+    $referenceBackup = Join-Path $resolved ($latest.BaseName + '-references.zip')
+    if (-not (Test-Path -LiteralPath $referenceBackup -PathType Leaf)) { throw 'El respaldo más reciente no incluye el ZIP pareado de fondos del croquis.' }
     & $PgRestorePath --list $latest.FullName 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'El respaldo 10.6 más reciente no es válido.' }
 }

@@ -1,5 +1,7 @@
 namespace WarehouseEPI.Tests.Web;
 
+using WarehouseEPI.Web.Pages.Operations;
+
 public sealed class WipExitFlowContractTests
 {
     [Fact]
@@ -9,12 +11,34 @@ public sealed class WipExitFlowContractTests
         var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js"));
 
         Assert.Contains("Input.ExitMode", page, StringComparison.Ordinal);
+        Assert.Contains("data-edit-step=\"exit-mode\"", page, StringComparison.Ordinal);
         Assert.Contains("Surtir WIP", page, StringComparison.Ordinal);
         Assert.Contains("Rack WIP — no controla saldo", page, StringComparison.Ordinal);
         Assert.Contains("data-wip-destination-step", page, StringComparison.Ordinal);
         Assert.Contains("WipLocations", script, StringComparison.Ordinal);
         Assert.Contains("clearSelection(\"destination\")", script, StringComparison.Ordinal);
         Assert.Contains("item.tracksInventory === false", script, StringComparison.Ordinal);
+        Assert.Contains("kind === \"exit-mode\"", script, StringComparison.Ordinal);
+        Assert.Contains("exitModePicker?.querySelector(\"input:checked\")", script, StringComparison.Ordinal);
+        Assert.Contains("const refreshExitMode", script, StringComparison.Ordinal);
+        Assert.Contains("exitModePicker?.addEventListener(\"change\", refreshExitMode)", script, StringComparison.Ordinal);
+        Assert.Contains("visibleGuidedKinds().find(kind => kind === \"exit-mode\"", script, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("invalid", null)]
+    [InlineData("general", ExitMode.General)]
+    [InlineData("GENERAL", ExitMode.General)]
+    [InlineData("wip", ExitMode.Wip)]
+    [InlineData("WIP", ExitMode.Wip)]
+    public async Task Exit_only_prefills_an_explicit_valid_mode(string? mode, ExitMode? expected)
+    {
+        var pageModel = new ExitModel(null!, null!, null!);
+
+        await pageModel.OnGetAsync(null, null, null, null, mode, CancellationToken.None);
+
+        Assert.Equal(expected, pageModel.Input.ExitMode);
     }
 
     [Fact]

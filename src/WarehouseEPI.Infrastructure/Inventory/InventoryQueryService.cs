@@ -129,7 +129,7 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         Guid productId,
         CancellationToken cancellationToken = default) =>
         await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.ProductId == productId)
+            .Where(balance => balance.ProductId == productId && balance.Location.IsPhysicallyPresent)
             .OrderBy(balance => balance.Location.Code)
             .Select(ToBalanceView())
             .ToListAsync(cancellationToken);
@@ -138,7 +138,7 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         Guid locationId,
         CancellationToken cancellationToken = default) =>
         await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.LocationId == locationId)
+            .Where(balance => balance.LocationId == locationId && balance.Location.IsPhysicallyPresent)
             .OrderBy(balance => balance.Product.Sku)
             .Select(ToBalanceView())
             .ToListAsync(cancellationToken);
@@ -148,11 +148,13 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         CancellationToken cancellationToken = default)
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
-            .Where(assignment => assignment.ProductId == productId && assignment.IsActive)
+            .Where(assignment => assignment.ProductId == productId && assignment.IsActive &&
+                assignment.Location.IsPhysicallyPresent)
             .Select(ToPositionFromAssignment())
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.ProductId == productId && balance.Quantity != 0)
+            .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
+                balance.Location.IsPhysicallyPresent)
             .Select(ToPositionFromBalance())
             .ToListAsync(cancellationToken);
 
@@ -164,11 +166,13 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         CancellationToken cancellationToken = default)
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
-            .Where(assignment => assignment.LocationId == locationId && assignment.IsActive)
+            .Where(assignment => assignment.LocationId == locationId && assignment.IsActive &&
+                assignment.Location.IsPhysicallyPresent)
             .Select(ToPositionFromAssignment())
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.LocationId == locationId && balance.Quantity != 0)
+            .Where(balance => balance.LocationId == locationId && balance.Quantity != 0 &&
+                balance.Location.IsPhysicallyPresent)
             .Select(ToPositionFromBalance())
             .ToListAsync(cancellationToken);
 

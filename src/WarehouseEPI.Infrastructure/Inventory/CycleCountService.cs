@@ -30,7 +30,7 @@ public sealed class CycleCountService(
         var notes = Normalize(command.Notes, 500);
         var locations = await ResolveLocationsAsync(command, cancellationToken);
         if (locations.Count == 0) return new(CycleCountStatus.ValidationFailed, Errors: ["Selecciona al menos una ubicación física disponible."]);
-        if (locations.Any(item => !item.IsActive || item.IsBlocked || !item.TracksInventory))
+        if (locations.Any(item => !item.IsPhysicallyPresent || !item.IsActive || item.IsBlocked || !item.TracksInventory))
             return new(CycleCountStatus.ValidationFailed, Errors: ["Las ubicaciones deben estar activas, no bloqueadas y controlar inventario."]);
 
         var locationIds = locations.Select(item => item.Id).ToArray();
@@ -285,12 +285,15 @@ public sealed class CycleCountService(
         int pageSize,
         DateTimeOffset? createdFromUtc = null,
         DateTimeOffset? createdToUtc = null,
+        IReadOnlyCollection<CycleCountLocationStatus>? attentionStatuses = null,
         CancellationToken cancellationToken = default)
     {
         var query = dbContext.CycleCountCampaigns.AsNoTracking().Include(item => item.Locations).AsQueryable();
         if (status is not null) query = query.Where(item => item.Status == status);
         if (createdFromUtc is not null) query = query.Where(item => item.CreatedAt >= createdFromUtc);
         if (createdToUtc is not null) query = query.Where(item => item.CreatedAt < createdToUtc);
+        if (attentionStatuses is { Count: > 0 })
+            query = query.Where(item => item.Locations.Any(location => attentionStatuses.Contains(location.Status)));
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();

@@ -161,7 +161,8 @@ public sealed record InventoryAnalyticsFilter(
     string? Search = null,
     short? UnitId = null,
     int PageNumber = 1,
-    int PageSize = 25);
+    int PageSize = 25,
+    StagnantCategory? StagnantCategory = null);
 
 /// <summary>Página genérica de resultados analíticos de inventario.</summary>
 public sealed record InventoryAnalyticsPage<T>(
@@ -196,4 +197,61 @@ public sealed record DailyDashboardMetricsDto(
 public sealed record DailyDashboardSnapshotDto(
     DateOnly WarehouseDate,
     DateTimeOffset GeneratedAtLocal,
-    DailyDashboardMetricsDto Metrics);
+    DailyDashboardMetricsDto Metrics,
+    OperationalComparisonDto? Comparison = null);
+
+public enum OperationalAlertAudience { Public, Admin }
+public enum OperationalAlertSeverity { Critical, Warning, Information }
+public enum OperationalAlertCategory
+{
+    NegativeInventory, BelowMinimum, UnassignedBalance, RestrictedInventory,
+    StagnantInventory, CycleCountStale, CycleCountPending, AgedWip
+}
+
+public sealed record OperationalAlertItemDto(
+    OperationalAlertCategory Category,
+    OperationalAlertSeverity Severity,
+    int Count,
+    string Title,
+    string Description,
+    string TargetUrl);
+
+public sealed record OperationalAlertSnapshotDto(
+    OperationalAlertAudience Audience,
+    DateTimeOffset GeneratedAtUtc,
+    DateTimeOffset GeneratedAtLocal,
+    int CriticalCount,
+    int WarningCount,
+    int InformationCount,
+    int TotalVisible,
+    IReadOnlyList<OperationalAlertItemDto> Items);
+
+public sealed record OperationalAlertDetailRowDto(
+    OperationalAlertCategory Category,
+    OperationalAlertSeverity Severity,
+    string PrimaryText,
+    string SecondaryText,
+    string? ValueText,
+    string TargetUrl,
+    Guid? ProductId = null,
+    Guid? LocationId = null,
+    DateTimeOffset? OccurredAt = null);
+
+public sealed record OperationalAlertPageDto(
+    IReadOnlyList<OperationalAlertDetailRowDto> Items,
+    int TotalCount,
+    int PageNumber,
+    int PageSize);
+
+public enum MetricComparisonState { NoActivity, New, Increased, Decreased, Unchanged }
+public sealed record MetricComparisonDto(int Current, int Previous, int Delta, decimal? PercentChange, MetricComparisonState State);
+public sealed record OperationalDriverDto(string Code, string? Description, int Current, int Previous, int Delta, string TargetUrl);
+public sealed record OperationalComparisonDto(
+    MetricComparisonDto TodayOperations,
+    MetricComparisonDto TodayAdjustments,
+    MetricComparisonDto SevenDayOperations,
+    MetricComparisonDto SevenDayAdjustments,
+    MetricComparisonDto SevenDayDistinctSkus,
+    IReadOnlyList<OperationalDriverDto> Products,
+    IReadOnlyList<OperationalDriverDto> Rows,
+    IReadOnlyList<OperationalDriverDto> Locations);

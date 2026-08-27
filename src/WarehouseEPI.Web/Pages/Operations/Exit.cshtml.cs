@@ -16,11 +16,4 @@ public sealed class ExitModel(
     public override string PageTitle => "Salida";
     public override string PageHelp => "Elige salida general o surtimiento a producción antes de capturar.";
 
-    public override void OnGet()
-    {
-        base.OnGet();
-        if (Request.Query.TryGetValue("mode", out var mode) &&
-            string.Equals(mode.ToString(), "wip", StringComparison.OrdinalIgnoreCase))
-            Input.ExitMode = ExitMode.Wip;
-    }
 }

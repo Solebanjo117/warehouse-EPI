@@ -52,6 +52,22 @@ public sealed class UnifiedMovementRouteTests
         Assert.Contains("Url.IsLocalUrl(returnUrl)", correctModel, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Current_entry_movements_expose_a_pallet_plate_action_without_adding_it_to_audit_rows()
+    {
+        var index = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Index.cshtml");
+        var indexModel = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Index.cshtml.cs");
+        var detail = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Details.cshtml");
+        var detailModel = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Details.cshtml.cs");
+
+        Assert.Contains("CanGeneratePalletPlate(item)", index, StringComparison.Ordinal);
+        Assert.Equal(1, Count(index, "asp-page=\"/Operations/PalletLabels/Index\""));
+        Assert.Contains("PalletLicensePlateService.IsEligible", indexModel, StringComparison.Ordinal);
+        Assert.Contains("CanGeneratePalletPlate", detail, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Operations/PalletLabels/Index\"", detail, StringComparison.Ordinal);
+        Assert.Contains("PalletLicensePlateService.IsEligible", detailModel, StringComparison.Ordinal);
+    }
+
     private static int Count(string value, string search)
     {
         var count = 0;

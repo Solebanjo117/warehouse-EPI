@@ -9,9 +9,9 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Infrastructure.Labels;
 
-public sealed record LabelTemplateChoice(Guid TemplateId, Guid VersionId, string Code, string Name, int Version, LabelSizePreset SizePreset);
-public sealed record LabelTemplateAdminRow(Guid TemplateId, string Code, Guid VersionId, string Name, int Version, LabelTemplateStatus Status, bool IsCurrent, DateTimeOffset UpdatedAt);
-public sealed record LabelVersionEditor(Guid TemplateId, string Code, Guid VersionId, string Name, int Version, LabelSizePreset SizePreset, LabelTemplateStatus Status, string DesignJson, uint RowVersion, bool IsCurrent, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
+public sealed record LabelTemplateChoice(Guid TemplateId, Guid VersionId, string Code, string Name, int Version, LabelSizePreset SizePreset, LabelTemplateKind Kind);
+public sealed record LabelTemplateAdminRow(Guid TemplateId, string Code, Guid VersionId, string Name, int Version, LabelTemplateStatus Status, bool IsCurrent, DateTimeOffset UpdatedAt, LabelTemplateKind Kind);
+public sealed record LabelVersionEditor(Guid TemplateId, string Code, Guid VersionId, string Name, int Version, LabelSizePreset SizePreset, LabelTemplateStatus Status, string DesignJson, uint RowVersion, bool IsCurrent, LabelTemplateKind Kind, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
 public enum LabelTemplateMutationStatus { Success, NotFound, Unauthorized, Invalid, Conflict, InvalidPin }
 public sealed record LabelTemplateMutationResult(LabelTemplateMutationStatus Status, Guid? VersionId = null, IReadOnlyList<string>? Errors = null);
 public sealed record LabelAssetView(Guid Id, string Name, string ContentType, int Width, int Height, bool IsArchived, DateTimeOffset CreatedAt);
@@ -19,22 +19,22 @@ public sealed record LabelAssetContent(byte[] Content, string ContentType, strin
 
 public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService pins, TimeProvider timeProvider)
 {
-    public async Task<IReadOnlyList<LabelTemplateChoice>> GetPublishedAsync(CancellationToken token = default) =>
-        await db.LabelTemplates.AsNoTracking().Where(item => item.CurrentPublishedVersionId != null)
+    public async Task<IReadOnlyList<LabelTemplateChoice>> GetPublishedAsync(LabelTemplateKind kind = LabelTemplateKind.ProductLabel, CancellationToken token = default) =>
+        await db.LabelTemplates.AsNoTracking().Where(item => item.CurrentPublishedVersionId != null && item.Kind == kind)
             .OrderBy(item => item.CurrentPublishedVersion!.Name)
             .Select(item => new LabelTemplateChoice(item.Id, item.CurrentPublishedVersionId!.Value, item.Code,
-                item.CurrentPublishedVersion!.Name, item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset))
+                item.CurrentPublishedVersion!.Name, item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset, item.Kind))
             .ToListAsync(token);
 
-    public async Task<LabelTemplateChoice?> GetPublishedAsync(Guid versionId, CancellationToken token = default) =>
-        await db.LabelTemplates.AsNoTracking().Where(item => item.CurrentPublishedVersionId == versionId)
+    public async Task<LabelTemplateChoice?> GetPublishedAsync(Guid versionId, LabelTemplateKind kind = LabelTemplateKind.ProductLabel, CancellationToken token = default) =>
+        await db.LabelTemplates.AsNoTracking().Where(item => item.CurrentPublishedVersionId == versionId && item.Kind == kind)
             .Select(item => new LabelTemplateChoice(item.Id, versionId, item.Code, item.CurrentPublishedVersion!.Name,
-                item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset)).SingleOrDefaultAsync(token);
+                item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset, item.Kind)).SingleOrDefaultAsync(token);
 
-    public async Task<LabelTemplateChoice?> GetPublishedByCodeAsync(string code, CancellationToken token = default) =>
-        await db.LabelTemplates.AsNoTracking().Where(item => item.Code == code && item.CurrentPublishedVersionId != null)
+    public async Task<LabelTemplateChoice?> GetPublishedByCodeAsync(string code, LabelTemplateKind kind = LabelTemplateKind.ProductLabel, CancellationToken token = default) =>
+        await db.LabelTemplates.AsNoTracking().Where(item => item.Code == code && item.CurrentPublishedVersionId != null && item.Kind == kind)
             .Select(item => new LabelTemplateChoice(item.Id, item.CurrentPublishedVersionId!.Value, item.Code,
-                item.CurrentPublishedVersion!.Name, item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset)).SingleOrDefaultAsync(token);
+                item.CurrentPublishedVersion!.Name, item.CurrentPublishedVersion.Version, item.CurrentPublishedVersion.SizePreset, item.Kind)).SingleOrDefaultAsync(token);
 
     public async Task<LabelTemplateVersion?> GetPublishedEntityAsync(Guid versionId, CancellationToken token = default) =>
         await db.LabelTemplateVersions.AsNoTracking().Include(item => item.Template)
@@ -44,16 +44,16 @@ public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService p
         await db.LabelTemplateVersions.AsNoTracking()
             .OrderBy(item => item.Template.Code).ThenByDescending(item => item.Version)
             .Select(item => new LabelTemplateAdminRow(item.TemplateId, item.Template.Code,
-            item.Id, item.Name, item.Version, item.Status, item.Template.CurrentPublishedVersionId == item.Id, item.UpdatedAt))
+            item.Id, item.Name, item.Version, item.Status, item.Template.CurrentPublishedVersionId == item.Id, item.UpdatedAt, item.Template.Kind))
             .ToListAsync(token);
 
     public async Task<LabelVersionEditor?> GetEditorAsync(Guid versionId, CancellationToken token = default)
     {
         var row = await db.LabelTemplateVersions.AsNoTracking().Where(item => item.Id == versionId)
-            .Select(item => new { item.TemplateId, item.Template.Code, item.Id, item.Name, item.Version, item.SizePreset, item.Status, item.DesignJson, item.RowVersion, IsCurrent = item.Template.CurrentPublishedVersionId == item.Id }).SingleOrDefaultAsync(token);
+            .Select(item => new { item.TemplateId, item.Template.Code, item.Template.Kind, item.Id, item.Name, item.Version, item.SizePreset, item.Status, item.DesignJson, item.RowVersion, IsCurrent = item.Template.CurrentPublishedVersionId == item.Id }).SingleOrDefaultAsync(token);
         if (row is null) return null;
-        var validation = LabelDesignSerializer.Validate(LabelDesignSerializer.Deserialize(row.DesignJson), row.SizePreset);
-        return new(row.TemplateId, row.Code, row.Id, row.Name, row.Version, row.SizePreset, row.Status, row.DesignJson, row.RowVersion, row.IsCurrent, validation.Errors, validation.Warnings);
+        var validation = LabelDesignSerializer.Validate(LabelDesignSerializer.Deserialize(row.DesignJson), row.SizePreset, row.Kind);
+        return new(row.TemplateId, row.Code, row.Id, row.Name, row.Version, row.SizePreset, row.Status, row.DesignJson, row.RowVersion, row.IsCurrent, row.Kind, validation.Errors, validation.Warnings);
     }
 
     public async Task<LabelTemplateMutationResult> CreateAsync(Guid userId, string code, string name, LabelSizePreset size, CancellationToken token = default)
@@ -73,14 +73,14 @@ public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService p
 
     public async Task<LabelTemplateMutationResult> SaveAsync(Guid userId, Guid versionId, string name, LabelSizePreset size, string designJson, uint expectedRowVersion, bool acknowledgeWarnings, CancellationToken token = default)
     {
-        var version = await db.LabelTemplateVersions.Include(item => item.Assets).SingleOrDefaultAsync(item => item.Id == versionId, token);
+        var version = await db.LabelTemplateVersions.Include(item => item.Template).Include(item => item.Assets).SingleOrDefaultAsync(item => item.Id == versionId, token);
         if (version is null) return new(LabelTemplateMutationStatus.NotFound);
         if (version.Status is not (LabelTemplateStatus.Draft or LabelTemplateStatus.InValidation)) return new(LabelTemplateMutationStatus.Invalid, Errors: ["La versión publicada o retirada no puede modificarse."]);
         if (version.RowVersion != expectedRowVersion) return new(LabelTemplateMutationStatus.Conflict, Errors: ["La plantilla cambió mientras estaba abierta. Recarga antes de guardar."]);
         name = name.Trim();
         if (name.Length is < 1 or > 120) return new(LabelTemplateMutationStatus.Invalid, Errors: ["El nombre debe contener entre 1 y 120 caracteres."]);
         var document = LabelDesignSerializer.Deserialize(designJson);
-        var validation = LabelDesignSerializer.Validate(document, size);
+        var validation = LabelDesignSerializer.Validate(document, size, version.Template.Kind);
         if (!validation.IsValid) return new(LabelTemplateMutationStatus.Invalid, Errors: validation.Errors);
         if (version.Status == LabelTemplateStatus.InValidation && validation.Warnings.Count > 0 && !acknowledgeWarnings)
             return new(LabelTemplateMutationStatus.Invalid, Errors: ["Confirma las advertencias antes de guardar una versión en validación."]);
@@ -98,7 +98,7 @@ public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService p
         var version = await db.LabelTemplateVersions.Include(item => item.Template).SingleOrDefaultAsync(item => item.Id == versionId, token);
         if (version is null) return new(LabelTemplateMutationStatus.NotFound);
         if (version.Status != LabelTemplateStatus.Draft) return new(LabelTemplateMutationStatus.Invalid, Errors: ["Solo un borrador puede enviarse a validación."]);
-        var validation = LabelDesignSerializer.Validate(LabelDesignSerializer.Deserialize(version.DesignJson), version.SizePreset);
+        var validation = LabelDesignSerializer.Validate(LabelDesignSerializer.Deserialize(version.DesignJson), version.SizePreset, version.Template.Kind);
         if (!validation.IsValid || (validation.Warnings.Count > 0 && !acknowledgeWarnings)) return new(LabelTemplateMutationStatus.Invalid, Errors: validation.Errors.Concat(validation.Warnings.Count > 0 && !acknowledgeWarnings ? ["Confirma las advertencias para continuar."] : []).ToArray());
         version.Status = LabelTemplateStatus.InValidation; version.UpdatedAt = timeProvider.GetUtcNow();
         db.Add(Event(version.Template, version, LabelTemplateEventType.Submitted, userId, version.UpdatedAt));
@@ -120,7 +120,7 @@ public sealed class LabelTemplateService(WarehouseDbContext db, UserPinService p
         var version = await db.LabelTemplateVersions.Include(item => item.Template).SingleOrDefaultAsync(item => item.Id == versionId, token);
         if (version is null) return new(LabelTemplateMutationStatus.NotFound);
         if (version.Status != LabelTemplateStatus.InValidation) return new(LabelTemplateMutationStatus.Invalid, Errors: ["La versión debe estar en validación."]);
-        var validation = LabelDesignSerializer.Validate(LabelDesignSerializer.Deserialize(version.DesignJson), version.SizePreset);
+        var validation = LabelDesignSerializer.Validate(LabelDesignSerializer.Deserialize(version.DesignJson), version.SizePreset, version.Template.Kind);
         if (!validation.IsValid || (validation.Warnings.Count > 0 && !acknowledgeWarnings)) return new(LabelTemplateMutationStatus.Invalid, Errors: validation.Errors.Concat(validation.Warnings.Count > 0 && !acknowledgeWarnings ? ["Confirma las advertencias antes de publicar."] : []).ToArray());
         var now = timeProvider.GetUtcNow(); version.Status = LabelTemplateStatus.Published; version.PublishedByUserId = userId; version.PublishedAt = now; version.UpdatedAt = now;
         version.Template.CurrentPublishedVersionId = version.Id; version.Template.UpdatedAt = now;
@@ -224,13 +224,13 @@ public sealed record LabelGenerationResult(LabelRenderDocument? Document, IReadO
 
 public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
 {
-    public LabelGenerationResult Render(LabelTemplateVersion version, OperationalProductResult product, IReadOnlyDictionary<string, string> submitted, int copies)
+    public LabelGenerationResult Render(LabelTemplateVersion version, OperationalProductResult product, IReadOnlyDictionary<string, string> submitted, int copies, IReadOnlyDictionary<string, string>? systemValues = null)
     {
         var errors = new List<string>(); if (copies is < 1 or > 100) errors.Add("Las copias deben estar entre 1 y 100.");
-        var design = LabelDesignSerializer.Deserialize(version.DesignJson); var validation = LabelDesignSerializer.Validate(design, version.SizePreset); errors.AddRange(validation.Errors);
+        var design = LabelDesignSerializer.Deserialize(version.DesignJson); var validation = LabelDesignSerializer.Validate(design, version.SizePreset, version.Template.Kind); errors.AddRange(validation.Errors);
         if (design is null) return new(null, errors);
         var fields = design.Fields.ToDictionary(item => item.Key, StringComparer.Ordinal); var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var key in submitted.Keys) if (!fields.ContainsKey(key) && key is not ("input.quantity" or "input.manufacturingDate" or "input.isRepack")) errors.Add($"El campo '{key}' no pertenece a la plantilla.");
+        foreach (var key in submitted.Keys) if (!fields.ContainsKey(key) && !LabelDesignSerializer.IsSystemBinding(version.Template.Kind, key)) errors.Add($"El campo '{key}' no pertenece a la plantilla.");
         foreach (var field in design.Fields)
         {
             var value = submitted.GetValueOrDefault(field.Key)?.Trim() ?? field.DefaultValue?.Trim() ?? string.Empty;
@@ -267,6 +267,7 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
             "product.externalReference" => product.ExternalReference ?? string.Empty, "input.quantity" => barcode ? quantityText : $"{quantityText} {product.UnitCode}".Trim(),
             "input.manufacturingDate" => DateOnly.Parse(dateText, CultureInfo.InvariantCulture).ToString("MM/dd/yyyy", CultureInfo.InvariantCulture),
             "input.isRepack" => submitted.GetValueOrDefault("input.isRepack") == "true" ? "YES" : "NO",
+            _ when binding is not null && systemValues is not null && systemValues.TryGetValue(binding, out var systemValue) => systemValue,
             _ => normalized.GetValueOrDefault(binding ?? string.Empty) ?? string.Empty
         };
         var rendered = new List<LabelRenderedElement>();
@@ -274,7 +275,8 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
         {
             BarcodeSvg? barcode = null; string? text = element.Type == LabelElementType.Text ? element.Text : element.Type == LabelElementType.Field ? Value(element.Binding) : null;
             if (element.Type == LabelElementType.Code128) { try { barcode = barcodes.RenderCode128Svg(Value(element.Binding, true), new(Math.Clamp(element.Width, 120, 2400), Math.Clamp(element.Height, 32, 800))); } catch (ArgumentException) { return new(null, [$"El valor de {element.Binding} no puede codificarse como Code 128."]); } }
-            rendered.Add(new(element, text, barcode, element.AssetId is null ? null : $"/Labels/Assets/{element.AssetId}"));
+            var imageUrl = element.BuiltInAssetKey == "extra-packaging-logo" ? LabelBuiltInAssets.ExtraPackagingLogoUrl : element.AssetId is null ? null : $"/Labels/Assets/{element.AssetId}";
+            rendered.Add(new(element, text, barcode, imageUrl));
         }
         return new(new(version.Template.Code, version.Name, version.Version, LabelSizeRegistry.Get(version.SizePreset), copies, rendered), []);
     }

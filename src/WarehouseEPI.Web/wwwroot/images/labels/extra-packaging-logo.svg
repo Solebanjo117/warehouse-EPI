@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="404" height="66" viewBox="0 0 404 66" role="img" aria-label="Extra Packaging, LLC">
+  <rect width="404" height="66" fill="white"/>
+  <text x="8" y="47" font-family="Arial, Helvetica, sans-serif" font-size="39" font-weight="700" fill="#00683f" letter-spacing="2">EXTRA</text>
+  <path d="M48 5 L78 48" stroke="#edb72d" stroke-width="4"/>
+  <text x="165" y="47" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700" fill="#00683f" letter-spacing="2">PACKAGING, LLC</text>
+  <path d="M8 55 H396" stroke="#edb72d" stroke-width="3"/>
+</svg>

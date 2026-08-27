@@ -1,6 +1,6 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 24 de agosto de 2026.
+Actualizado: 25 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
@@ -12,14 +12,14 @@ y conversiones, descartada por decisión del negocio. Las fases 10.1 a 10.3
 están completadas; 10.4 a 10.6 están implementadas; la Release `0.10.7` está
 activa como servicio Windows y 10.8 continúa pospuesta. La fase 11 tiene sus
 principales pantallas implementadas, pero todavía requiere validación física,
-mantiene trabajo parcial en 11.6 y 11.7, e implementa 11.9.1 a 11.9.3 del
+mantiene trabajo parcial en 11.6 y 11.7, e implementa 11.9.1 a 11.9.4 del
 editor arquitectónico ligero. Las migraciones 11.9.1/11.9.2 están aplicadas;
-11.9.3 mantiene migración y validación visual/física pendientes. WIP está implementado
+11.9.3 y 11.9.4 mantienen migración y validación visual/física pendientes. WIP está implementado
 y su migración está aplicada, aunque aún no forma parte de una Release publicada
 ni se ha validado en tablet/cámara. Las fases 13.1 y 13.2 de reportes están
 completadas;
-13.3, 13.4 y 13.5 están implementadas y automatizadas, con validación física
-LAN/tablet/lector/impresora pendiente. El siguiente bloque planificado es 13.6. La protección
+13.3, 13.4, 13.5 y 13.6 están implementadas y automatizadas, con migraciones
+de 13.5/13.6, Release y validación física LAN/tablet/lector/impresora pendientes. La protección
 de `main` exige el check `Quality`.
 
 ## 1. Objetivo
@@ -837,12 +837,37 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   movimientos recientes, con enlaces administrativos de consulta. Crear y
   guardar redirigen a la ficha con confirmación; Edit permanece compatible.
 - No se modificaron entidades, saldos, movimientos, lotes ni PostgreSQL. La
-  importación conserva su contrato y ahora pagina 25 filas por vista. Quedan
-  por integrar en esta fase el lector/cámara del listado, filtros visuales de
-  unidad/tipo/clase y la modernización visual completa de edición/importación.
+  importación conserva su contrato y ahora pagina 25 filas por vista.
 - Build Release sin advertencias y las pruebas de catálogo pasaron. Falta
   validar físicamente filtros, tablet, temas, HID y cámara; las pruebas web
   siguen afectadas por los HTTP 400/antiforgery preexistentes.
+
+##### Mejora de UI del listado — implementada; validación visual/física pendiente
+
+- El listado expone por fin los filtros de unidad base, tipo y clase que el
+  handler y `ProductCatalogQueryService` ya aceptaban. Van dentro de un
+  `<details>` plegable sin JavaScript que se abre solo cuando alguno está
+  activo, para no estorbar en tablet.
+- Azulejos KPI, paginación y chips arrastran ahora los siete filtros mediante
+  un único helper `RouteValues`; antes se perdían al navegar. Los chips de
+  filtros activos son enlaces GET que quitan un solo filtro, más un
+  **Limpiar todo**; el chip de estado por omisión permanece informativo.
+- Un solo helper de badges unifica tabla y tarjeta —la tarjeta no mostraba
+  **Activo**—, la paginación pasa a numerada con Primera/Última al estilo de
+  Ubicaciones, el estado vacío distingue catálogo vacío de filtros sin
+  coincidencias, y la tarjeta completa abre la Ficha en tablet.
+- Cambio exclusivamente de presentación: no se tocaron entidades, migraciones,
+  `ProductCatalogQueryService`, la firma de `OnGetAsync`, el tamaño de página
+  ni ningún POST. Sin JavaScript, CDN ni archivos CSS nuevos; todo el CSS nuevo
+  usa variables Bootstrap y respeta Claro/Oscuro y los objetivos de 44 px.
+- Build Release en 0 advertencias/0 errores; 17 pruebas dirigidas de catálogo y
+  contratos pasan. La suite completa queda en 305/345 y sus 40 fallas siguen
+  siendo la línea base preexistente (21 HTTP 400 del host `WebApplicationFactory`
+  y 19 de fixtures PostgreSQL); no aumentaron. Falta comprobar en navegador los
+  anchos <900, 900-1199 y >=1200 en Claro/Oscuro y validar en tablet física.
+- Siguen pendientes en 11.7 el lector/cámara del listado y la modernización
+  visual de Crear/Editar e Importación, que quedaron deliberadamente fuera de
+  esta entrega de presentación.
 
 #### Fase 11.8: Ubicaciones y croquis interactivo — implementada; validación física pendiente
 
@@ -854,6 +879,13 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   saldos por producto, y enlaza ficha, Existencias y Movimientos. La ficha de
   ubicación incorpora saldos, asignaciones históricas, vecinos y movimientos
   recientes; la tabla usa 25 registros y tarjetas en tablet vertical.
+- La ficha de ubicación consulta en bloque las nueve posiciones del mismo rack
+  e identifica la posición actual dentro de la cuadrícula 3x3. Cada pallet
+  muestra estado operativo, saldo real agrupado por producto/unidad, primer SKU,
+  cantidad y productos adicionales; distingue saldo negativo, saldo sin
+  asignación, asignación sin saldo, posición vacía e inexistente sin depender
+  solo del color. El resumen superior separa productos con saldo de asignaciones
+  activas. No cambia entidades, migraciones, permisos, POST ni inventario.
 - `/Admin/Catalogs/Locations/Map/Edit` permite seleccionar varios elementos por
   recuadro, Ctrl/Cmd o modo táctil, moverlos, dimensionarlos como grupo,
   girarlos, ocultarlos e invertirlos horizontalmente. Incluye alinear a bordes
@@ -875,8 +907,12 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Build Release, formato dirigido y 29 pruebas dirigidas de
   ubicaciones/inventario pasan. La suite completa queda en 139/158: las 19
   fallas restantes son los HTTP 400/antiforgery preexistentes y no aumentaron.
+  La mejora posterior de la ficha aprobó 44/44 pruebas focales de Ubicaciones y
+  contratos web, además de un build Release aislado con 0 advertencias y 0
+  errores. No había una pestaña autorizada disponible para validarla visualmente.
   Falta validar físicamente geometría, orientación, zoom, interacción táctil y
-  temas Claro/Oscuro en laptop y tablets reales.
+  temas Claro/Oscuro en laptop y tablets reales; también queda pendiente revisar
+  la nueva ficha en los anchos `<900`, `900–1199` y `>=1200`.
 
 #### Fase 11.9: editor arquitectónico ligero del croquis — en implementación
 
@@ -906,6 +942,10 @@ revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
   elementos del SVG público completo: perímetro, seis divisiones, cuatro zonas
   y seis textos. Consulta y editor usan un solo renderizador Razor; el archivo
   `warehouse-floor-base.svg` permanece sin cambios como respaldo.
+- El renderizador compartido aplica trazo y relleno al contenido del elemento
+  SVG `<text>` tanto en consulta como en edición. Esto evita que las etiquetas
+  arquitectónicas con relleno `NONE` o color definido por trazo desaparezcan
+  del croquis de consulta aunque sean visibles dentro del editor.
 - El primer guardado válido con NIP ADMIN persiste ese fondo y seis capas dentro
   de la misma transacción que la geometría operativa. La versión aumenta una
   vez, la idempotencia incluye las tres colecciones y la auditoría JSON usa
@@ -982,32 +1022,87 @@ revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
   Ubicaciones y la validación visual Claro/Oscuro/responsive no pudieron
   comprobarse sin cambiar el estado operativo; la prueba física continúa pendiente.
 
-##### Fase 11.9.4: rendimiento, fondo de referencia y validación física — propuesta
+##### Fase 11.9.4: rendimiento, fondo de referencia y validación física — implementada; migración y validación visual/física pendientes
 
-- Optimizar movimiento y redimensionado mediante `requestAnimationFrame`,
-  limitar recálculos a elementos o capas afectados y evitar observadores o
-  efectos globales. La consulta normal del croquis no cargará el código del
-  editor.
-- Diseñar para un plano habitual de 100 a 300 objetos y comprobar de forma
-  dirigida un caso de 500 objetos. Si el volumen real supera ese rango, medir
-  antes de incorporar virtualización u otra complejidad.
-- Permitir opcionalmente una imagen raster local comprimida como fondo de
-  referencia, con opacidad, bloqueo y calibración. El formato, tamaño máximo,
-  almacenamiento y retención deberán definirse antes de implementarlo; no se
-  incrustarán fotografías grandes directamente en cada revisión JSON.
-- Verificar en navegador los temas Claro/Oscuro/Sistema, teclado, foco, zoom,
-  selección, textos largos y recuperación ante error. Mantener pendiente la
-  validación física hasta probar ratón en laptop y gesto/tacto en tablet Android
-  horizontal y vertical con un plano de tamaño real.
-- Criterio de cierre: edición fluida en el hardware objetivo, guardado y recarga
-  sin pérdida geométrica, consulta liviana y evidencia separada de pruebas
-  automatizadas, navegador y dispositivos físicos.
+- Movimiento, redimensionado y vértices agrupan eventos con
+  `requestAnimationFrame` y renderizan los elementos seleccionados durante la
+  interacción. La consulta carga `warehouse-map-query.js`; el código completo
+  del editor y el módulo del fondo solo se descargan en la ruta ADMIN.
+- El editor admite un fondo raster PNG, JPEG o WebP de hasta 2 MiB y
+  `4096 × 4096`, con opacidad, visibilidad local, bloqueo, giro, ajuste al lienzo,
+  movimiento y redimensionado proporcional. El fondo nunca se muestra en la
+  consulta publicada ni se incrusta en JSON o PostgreSQL.
+- Los archivos se validan por firma y dimensiones, se nombran por SHA-256 y se
+  almacenan fuera de la Release en
+  `C:\ProgramData\WarehouseEPI\WarehouseMapReferences` con ACL del servicio.
+  La base persiste solo metadatos, geometría, bloqueo, archivado y calibración.
+- Reemplazar un fondo archiva el anterior; restaurar es reversible y no existe
+  eliminación física desde el editor. Todo fondo persistido debe continuar una
+  vez en el POST. Revisión, idempotencia, versión y auditoría esquema 5 incluyen
+  altas, cambios, archivados, restauraciones y calibración.
+- La calibración puede marcar dos puntos normalizados sobre la imagen y conserva
+  la escala canónica en unidades SVG por pulgada. Mover o girar el fondo no cambia
+  la escala; redimensionarlo la recalcula. Imperial continúa predeterminado y el
+  cambio de presentación métrica no modifica geometría ni inventario.
+- `20260825093000_AddWarehouseMapReferenceImages` crea únicamente la tabla de
+  referencias, restricciones, índices y FKs; el snapshot coincide con el modelo.
+  No se aplicó a `warehouseEPI` ni se publicó una Release.
+- El respaldo diario genera un ZIP pareado con manifiesto SHA-256 para los fondos,
+  y la validación semanal exige y comprueba ese archivo cuando la base restaurada
+  contiene referencias. Los scripts de Release crean/protegen el directorio.
+- Las capturas reales del editor mostraron que el panel derecho abierto alargaba
+  innecesariamente toda la página. El lateral ahora es fijo y tiene desplazamiento
+  propio en escritorio; Fondo, Cuadrícula, Escala, Capas, Arquitectura archivada y
+  Sin colocar son secciones plegables. En tablet/móvil se conserva el flujo vertical.
+  Las capturas corresponden al estado anterior; falta validar visualmente el ajuste
+  después de cargar estos archivos en la aplicación activa.
+- Build Release sin advertencias, sintaxis JavaScript/PowerShell, 58 pruebas
+  focales y 2 pruebas PostgreSQL aisladas aprobaron; estas últimas cubren
+  migración/reversión y reemplazo transaccional del fondo sin alterar elementos
+  operativos. La validación de servidor cubre el límite exacto de 500 objetos y
+  rechaza 501; esto no sustituye medir fluidez en hardware. La comprobación
+  visual Claro/Oscuro/responsive y la validación
+  física con ratón y tablet Android siguen pendientes; no se atribuye fluidez al
+  hardware real hasta medirla con un plano de 100–300 objetos y estrés de 500.
 
 Quedan fuera de 11.9 la importación o exportación DWG/DXF, curvas Bézier,
 bibliotecas CAD completas, colaboración simultánea en tiempo real, cálculo
 estructural, rutas automáticas de evacuación y reglas legales no confirmadas.
 Importar PDF o intercambiar formatos técnicos se evaluará después de validar el
 editor SVG y demostrar una necesidad operativa concreta.
+
+##### Acciones operativas desde el croquis y corrección reversible de racks — implementada; migración sin aplicar y validación visual/física pendiente
+
+- El croquis ADMIN ofrece **Nueva operación** para Entrada, Salida general,
+  Transferencia y Ajuste desde cada pallet; **Operar** junto a un producto agrega
+  también su `ProductId`. WIP expone únicamente **Surtir a este WIP**. Los GET
+  precargan producto y ubicación mediante los servicios operativos, generan un
+  `OperationId` nuevo y vuelven a consultar la versión del saldo para Ajuste;
+  cantidad, destino pendiente, motivo, aprobaciones y NIP continúan manuales.
+- `/Admin/Catalogs/Locations/Rack/Edit` permite a ADMIN corregir la combinación
+  física `7-8-9 / 4-5-6 / 1-2-3` sin cambiar fila, rack o códigos. El flujo es
+  revisar, motivo, NIP ADMIN y guardar. Una posición con saldo neto distinto de
+  cero o asignación activa queda protegida.
+- Retirar establece `IsPhysicallyPresent = false` e `IsActive = false`; no borra
+  la ubicación, movimientos, lotes, balances ni asignaciones históricas.
+  Restaurar reutiliza el mismo ID y código; una posición nunca creada recibe una
+  fila nueva. La tabla administrativa conserva filtro y estado **Retirada**.
+- `LocationRackRevision` registra UUID idempotente, huella, rack, responsables,
+  motivo y estados JSON antes/después. La corrección usa transacción serializable
+  y bloqueo de las filas del rack; no aumenta la versión ni la auditoría del
+  croquis arquitectónico.
+- Las posiciones retiradas se excluyen del croquis publicado, cuadrículas físicas,
+  búsquedas/precargas operativas, movimientos, conteos cíclicos y consulta pública
+  de inventario. Permanecen accesibles por ID y desde la tabla ADMIN para consultar
+  estado e historial.
+- `20260825163000_AddLocationRackPhysicalPresence` agrega únicamente la bandera,
+  la tabla de revisiones, FKs, restricciones e índices. No se aplicó a
+  `warehouseEPI` ni se publicó una Release. En `warehouse_epi_test` la reversión,
+  reaplicación y corrección `1–9 → 1–6` aprobaron preservando el número de
+  ubicaciones y movimientos.
+- Build Release aislado, comparación modelo/snapshot, 81 pruebas focales y una
+  prueba PostgreSQL aislada aprobaron. No se ejecutó validación visual en navegador
+  Claro/Oscuro/responsive ni prueba física en tableta; ambas siguen pendientes.
 
 ### Fase 12: etiquetas, trazabilidad de proceso y piloto conectado
 
@@ -1079,20 +1174,33 @@ pendientes.
   Importar/exportar formatos externos se evaluará después de validar el editor
   y las impresoras reales.
 
-#### Fase 12.2: placa de pallet al recibir — propuesta; contrato pendiente
+#### Fase 12.2: `PLT-LICENSE-PLATE` — implementada en código; migración y validación física pendientes
 
-- Permitir preparar o generar una placa al recibir desde Empaque o desde un
-  proveedor, tomando el producto del catálogo y la cantidad/unidad de la
-  recepción confirmada. La placa debe incluir un identificador único legible y
-  escaneable, producto, descripción, cantidad, unidad, fecha, origen y
-  responsable.
-- Generar o reimprimir una placa no modifica inventario por sí mismo ni debe
-  duplicar una Entrada. La relación con el movimiento confirmado debe ser
-  auditable e idempotente.
-- Antes de implementar, decidir si el identificador representa una entidad
-  pallet rastreable —con contenido, división, combinación y ubicación— o solo
-  una etiqueta documental ligada a una recepción. No introducir inventario por
-  pallet hasta confirmar esa decisión.
+- `/Operations/PalletLabels` busca una Entrada confirmada por UUID o por el
+  folio determinista `PLT-{MovementId:N}`. Desde el comprobante de una Entrada
+  vigente y el listado ADMIN de **Movimientos** aparece **Generar placa**; el
+  listado solo lo ofrece para Entradas vigentes estándar de una línea. No se
+  aceptan movimientos de otro tipo, reversos ni originales corregidos; una
+  Entrada de reemplazo usa su propio folio.
+- La plantilla publicada inicial `PLT-LICENSE-PLATE` mide Carta horizontal
+  `11 × 8.5` pulgadas, conserva el logotipo local de Extra Packaging, SKU/Code
+  128, descripción, destino, referencia, cantidad, unidad, fecha y responsable.
+  El peso es texto libre opcional de hasta 40 caracteres; Received se deriva de
+  la Entrada y Counted/Removed quedan como líneas manuales. No se captura origen
+  Empaque/Proveedor en esta entrega.
+- La placa es documental: no crea una entidad pallet, no persiste impresiones,
+  peso ni historial, y no modifica saldos, movimientos, lotes, ubicaciones o
+  asignaciones. Reabrirla usa datos de la Entrada, catálogo y plantilla vigente;
+  por ello no constituye reimpresión histórica exacta.
+- `LabelTemplateKind` separa etiquetas de producto de placas de pallet. El
+  generador común solo ofrece las primeras; ADMIN puede ver/versionar la placa.
+  El motor admite el recurso integrado controlado `extra-packaging-logo`, nunca
+  URLs, rutas ni markup configurables.
+- La migración `20260826110000_PalletLicensePlateLabels` agrega el tipo de
+  plantilla, el tamaño `11X85_L` y siembra la versión 1 publicada con GUIDs y
+  evento deterministas. No se aplicó a `warehouseEPI` ni se publicó una Release.
+  Falta revisar SQL, autorizar/aplicar la migración y validar Carta horizontal,
+  escala 100 %, márgenes, logotipo, SKU largo y lectura HID en la impresora real.
 
 #### Fase 12.3: ruta de producción de Corte a Bodega — propuesta; alcance pendiente
 
@@ -1281,6 +1389,56 @@ pendientes.
   completa queda en 218/237. Las mismas 19 fallas HTTP 400/antiforgery del host
   `WebApplicationFactory` permanecen como línea base preexistente. El siguiente
   bloque es 13.6, alertas operativas.
+
+#### Fase 13.6: alertas operativas, notificaciones y análisis contextual — implementada en código; despliegue pendiente
+
+- `OperationalAlertService` calcula snapshots de solo lectura con `AsNoTracking`,
+  movimientos efectivos, `WarehouseClock`, hora controlada por `TimeProvider`,
+  orden estable y páginas de 25 filtradas/paginadas en PostgreSQL. La audiencia
+  pública contiene solamente negativos y mínimos; ADMIN añade saldos sin
+  asignación, inventario restringido, estancamiento de 90 días, conteos
+  obsoletos/pendientes y recordatorios WIP sin devolución efectiva.
+- `GET /Reports/Notifications?handler=Snapshot` deriva la audiencia de la
+  identidad, usa caché de 30 segundos separada por audiencia, permite refresco
+  selectivo y devuelve `Cache-Control: no-store` y `Vary: Cookie`. No existen
+  entidades, POST, leído/reconocido/asignado/cerrado ni mutación operacional.
+- El layout ofrece dos disparadores para un solo `offcanvas`: campana móvil bajo
+  900 px y campana del sidebar en escritorio/rail, badge `99+`, cero oculto y
+  navegación autorizada. `operational-notifications.js` consulta al cargar sin
+  anunciar, repite cada 60 segundos, pausa en pestaña oculta, evita solicitudes
+  simultáneas, conserva el último snapshot ante error y anuncia por `aria-live`
+  únicamente aumentos posteriores. No usa `innerHTML`, sonido, toast,
+  `localStorage`, SignalR, CDN ni canales externos.
+- `/Admin/Inventory/Alerts` conserva `AdminOnly` y ofrece las vistas `negative`,
+  `minimum`, `unassigned`, `restricted`, `stagnant`, `cycle` y `wip`, búsqueda,
+  estados vacíos, paginación y enlaces a ficha de producto/ubicación, croquis,
+  consulta pública, conteos, WIP y movimientos efectivos filtrados. El croquis
+  abre el elemento y posición de `highlightLocationId`; si no está dibujada se
+  conserva el acceso a la ficha.
+- `BusinessSettings.WipReminderDays` queda en 7 por defecto, validado entre 1 y
+  365 en ADMIN, servicio de configuración, modelo EF y migración
+  `20260825190000_Phase136OperationalAlerts`. La migración declara explícitamente
+  su identidad EF, agrega el `CHECK` y tiene script de bajada probado. Debe
+  aplicarse después de `20260821120408_Phase135CycleCounts`.
+- El tablero compara hoy/ayer y siete días contra los siete anteriores para
+  operaciones, ajustes y SKUs distintos. Incluye hasta cinco variaciones de
+  productos, filas y ubicaciones, contando operaciones efectivas distintas,
+  mostrando `Nuevo`/`Sin actividad`, incluyendo caídas a cero y enlazando ADMIN
+  a movimientos efectivos; se etiqueta como variación de actividad, no
+  causalidad ni rotación. El polling también actualiza estas comparaciones.
+- Verificación de código al 25 de agosto de 2026: compilación Release aislada en
+  0 advertencias/0 errores; 38 pruebas Reporting sin PostgreSQL, 60 pruebas
+  Inventory/Web dirigidas y 2 pruebas PostgreSQL específicas de 13.6 pasan;
+  sintaxis de los tres JavaScript modificados y `git diff --check` pasan. La
+  ejecución amplia combinada queda en 158/197 por la línea base HTTP 400/
+  antiforgery y por fixtures PostgreSQL concurrentes que reinician la misma
+  `warehouse_epi_test`; las pruebas PostgreSQL 13.6 pasan aisladas.
+- Estado operacional honesto: la migración se aplicó sólo a la base efímera de
+  pruebas. No se aplicaron 13.5/13.6 a producción, no se publicó ni activó una
+  Release, no se inició/detuvo el servicio y no se realizó validación visual en
+  navegador LAN ni en tablet/dispositivo físico. Antes de producción se debe
+  revisar SQL, respaldar, validar restauración, autorizar y aplicar primero 13.5,
+  luego 13.6, publicar la Release y ejecutar la aceptación LAN/tablet.
 
 ### Fase 14: PWA y operación sin conexión
 

@@ -199,6 +199,13 @@ public sealed class InventoryAnalyticsService(
              allExitLines
                     .Where(line => line.ProductId == product.Id)
                     .Max(line => (DateTimeOffset?)line.Movement.OccurredAt) < staleBeforeUtc));
+        if (filter.StagnantCategory == StagnantCategory.Days90Plus)
+        {
+            var ninetyDaysBeforeUtc = ToUtcStart(warehouseDate.AddDays(-89), timeZone);
+            products = products.Where(product =>
+                allExitLines.Where(line => line.ProductId == product.Id).Max(line => (DateTimeOffset?)line.Movement.OccurredAt) == null ||
+                allExitLines.Where(line => line.ProductId == product.Id).Max(line => (DateTimeOffset?)line.Movement.OccurredAt) < ninetyDaysBeforeUtc);
+        }
         return new(products, warehouseDate, timeZone);
     }
 

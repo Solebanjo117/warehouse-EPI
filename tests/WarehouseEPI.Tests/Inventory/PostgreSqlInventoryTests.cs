@@ -55,10 +55,37 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(18, await db.WarehouseMapArchitecturalElements.CountAsync());
         Assert.Equal(geometry.Length, await db.WarehouseMapElements.CountAsync());
         Assert.Equal(12m, (await db.WarehouseMapLayouts.AsNoTracking().SingleAsync()).ScaleUnitsPerInch);
+
+        db.ChangeTracker.Clear();
+        map = await maps.GetAsync(true);
+        geometry = map.Elements.Concat(map.Unplaced).Select(item => new WarehouseMapGeometry(item.Id, item.X,
+            item.Y, item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible)).ToArray();
+        architecture = map.Architecture.Concat(map.ArchivedArchitecture).Select(item => new WarehouseMapArchitectureItem(
+            item.Id, item.LayerCode, item.Kind, item.Label, item.X, item.Y, item.Width, item.Height, item.Rotation,
+            item.CornerRadius, item.Points, item.StrokeToken, item.FillToken, item.StrokeWidth, item.IsDashed,
+            item.ZIndex, item.IsLocked, item.GroupId, item.IsArchived)).ToArray();
+        var firstReference = ReferenceState('a');
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin,
+            "Fondo 1", geometry, map.Layers.Select(item => new WarehouseMapLayerState(item.Code, item.IsLocked)).ToArray(),
+            architecture, 12m, "IMPERIAL", [firstReference]))).Status);
+        var secondReference = ReferenceState('b');
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await maps.SaveAsync(new(Guid.NewGuid(), admin.Id, admin.Pin,
+            "Reemplazar fondo", geometry, map.Layers.Select(item => new WarehouseMapLayerState(item.Code, item.IsLocked)).ToArray(),
+            architecture, 12m, "IMPERIAL", [firstReference with { IsLocked = false, IsArchived = true }, secondReference]))).Status);
+        Assert.Equal(2, await db.WarehouseMapReferenceImages.CountAsync());
+        Assert.Single(await db.WarehouseMapReferenceImages.Where(item => !item.IsArchived).ToListAsync());
+        Assert.Equal(geometry.Length, await db.WarehouseMapElements.CountAsync());
+    }
+
+    private static WarehouseMapReferenceImageState ReferenceState(char hashCharacter)
+    {
+        var hash = new string(hashCharacter, 64);
+        return new(Guid.NewGuid(), $"plano-{hashCharacter}.png", $"{hash}.png", "image/png", hash, 800, 400,
+            50, 50, 400, 200, 0, .35m, true, false, null, null, null, null, null);
     }
 
     [Fact]
-    public async Task Phase_1193_migration_reverts_and_reapplies_without_touching_operational_rows()
+    public async Task Phase_1194_migration_reverts_and_reapplies_without_touching_operational_rows()
     {
         await using var db = fixture.CreateDbContext();
         db.Locations.Add(new Location { Code = "PG-MIGRATION-MAP", Kind = LocationKind.Area });
@@ -71,6 +98,8 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
 
         await migrator.MigrateAsync("20260824233000_AddWarehouseMapProductivityScale");
         Assert.Equal(locationCount, await db.Locations.CountAsync());
+        await migrator.MigrateAsync("20260825093000_AddWarehouseMapReferenceImages");
+        Assert.Equal(locationCount, await db.Locations.CountAsync());
         var columns = await db.Database.SqlQueryRaw<string>("""
             SELECT column_name::text AS "Value"
             FROM information_schema.columns
@@ -80,6 +109,43 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
             ORDER BY column_name
             """).ToArrayAsync();
         Assert.Equal(["measurement_system", "scale_units_per_inch"], columns);
+        Assert.True(await db.Database.SqlQueryRaw<bool>("SELECT to_regclass('public.warehouse_map_reference_images') IS NOT NULL AS \"Value\"").SingleAsync());
+    }
+
+    [Fact]
+    public async Task Rack_physical_presence_migration_and_save_preserve_operational_rows()
+    {
+        await using var db = fixture.CreateDbContext();
+        db.Locations.AddRange(Enumerable.Range(1, 9).Select(number => new Location
+        {
+            Code = $"Y-8-{number}",
+            Kind = LocationKind.Rack,
+            RowCode = "Y",
+            RackNumber = 8,
+            PalletNumber = (short)number
+        }));
+        await db.SaveChangesAsync();
+        var locationCount = await db.Locations.CountAsync();
+        var movementCount = await db.InventoryMovements.CountAsync();
+        var migrator = db.GetService<IMigrator>();
+
+        await migrator.MigrateAsync("20260825093000_AddWarehouseMapReferenceImages");
+        Assert.Equal(locationCount, await db.Database.SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM locations").SingleAsync());
+        Assert.Equal(movementCount, await db.Database.SqlQueryRaw<int>("SELECT count(*)::int AS \"Value\" FROM inventory_movements").SingleAsync());
+        await migrator.MigrateAsync("20260825163000_AddLocationRackPhysicalPresence");
+        Assert.Equal(locationCount, await db.Locations.CountAsync());
+
+        var admin = await fixture.AddAdminAsync("Administrador de rack físico", "3198");
+        var service = new LocationRackAdministrationService(db,
+            new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
+        var result = await service.SaveAsync(new(Guid.NewGuid(), admin.Id, "Y", 8,
+            [1, 2, 3, 4, 5, 6], "Corrección PostgreSQL aislada", admin.Pin));
+
+        Assert.Equal(LocationRackSaveStatus.Success, result.Status);
+        Assert.Equal(9, await db.Locations.CountAsync(item => item.RowCode == "Y" && item.RackNumber == 8));
+        Assert.Equal(3, await db.Locations.CountAsync(item => item.RowCode == "Y" && item.RackNumber == 8 && !item.IsPhysicallyPresent));
+        Assert.Equal(movementCount, await db.InventoryMovements.CountAsync());
+        Assert.Single(await db.LocationRackRevisions.Where(item => item.RowCode == "Y" && item.RackNumber == 8).ToListAsync());
     }
 
     [Fact]

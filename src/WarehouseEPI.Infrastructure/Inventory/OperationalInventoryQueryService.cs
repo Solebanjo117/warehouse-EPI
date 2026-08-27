@@ -243,7 +243,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
             .Where(assignment => assignment.ProductId == productId && assignment.IsActive &&
                 assignment.Product.IsActive && assignment.Product.BaseUnit.IsActive &&
-                assignment.Location.IsActive && !assignment.Location.IsBlocked)
+                assignment.Location.IsPhysicallyPresent && assignment.Location.IsActive && !assignment.Location.IsBlocked)
             .Select(assignment => new OperationalProductLocationResult(
                 assignment.LocationId,
                 assignment.Location.Code,
@@ -256,7 +256,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
                 balance.Product.IsActive && balance.Product.BaseUnit.IsActive &&
-                balance.Location.IsActive && !balance.Location.IsBlocked)
+                balance.Location.IsPhysicallyPresent && balance.Location.IsActive && !balance.Location.IsBlocked)
             .Select(balance => new OperationalProductLocationResult(
                 balance.LocationId,
                 balance.Location.Code,
@@ -276,7 +276,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
             .Where(assignment => assignment.LocationId == locationId && assignment.IsActive &&
-                assignment.Location.IsActive && !assignment.Location.IsBlocked &&
+                assignment.Location.IsPhysicallyPresent && assignment.Location.IsActive && !assignment.Location.IsBlocked &&
                 assignment.Product.IsActive && assignment.Product.BaseUnit.IsActive)
             .Select(assignment => new OperationalLocationProductResult(
                 assignment.ProductId,
@@ -291,7 +291,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.LocationId == locationId && balance.Quantity != 0 &&
-                balance.Location.IsActive && !balance.Location.IsBlocked &&
+                balance.Location.IsPhysicallyPresent && balance.Location.IsActive && !balance.Location.IsBlocked &&
                 balance.Product.IsActive && balance.Product.BaseUnit.IsActive)
             .Select(balance => new OperationalLocationProductResult(
                 balance.ProductId,
@@ -364,7 +364,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     private IQueryable<Location> LocationQuery(bool operationalOnly)
     {
-        var query = dbContext.Locations.AsNoTracking();
+        var query = dbContext.Locations.AsNoTracking().Where(location => location.IsPhysicallyPresent);
         return operationalOnly ? query.Where(location => location.IsActive && !location.IsBlocked) : query;
     }
 

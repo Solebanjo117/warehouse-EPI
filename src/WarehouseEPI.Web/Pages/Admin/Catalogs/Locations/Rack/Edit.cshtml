@@ -1,0 +1,99 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack.EditModel
+@{
+    ViewData["Title"] = $"Editar rack {Model.Rack.RowCode}-{Model.Rack.RackNumber}";
+    var keypad = new short[] { 7, 8, 9, 4, 5, 6, 1, 2, 3 };
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div>
+        <a asp-page="../Index" asp-route-viewMode="racks" class="small text-decoration-none">← Volver a racks</a>
+        <h1 class="h2 mt-2 mb-1">Editar rack @Model.Rack.RowCode-@Model.Rack.RackNumber</h1>
+        <p class="text-body-secondary mb-0">Indica cuáles pallets existen físicamente. No cambia la fila ni el número del rack.</p>
+    </div>
+</div>
+
+@if (Model.Message is not null)
+{
+    <div class="alert alert-success">@Model.Message</div>
+}
+@if (Model.ReviewErrors.Count > 0)
+{
+    <div class="alert alert-danger" role="alert"><strong>No se puede continuar.</strong><ul class="mb-0 mt-2">@foreach (var error in Model.ReviewErrors) { <li>@error</li> }</ul></div>
+}
+
+<form method="post" class="rack-physical-editor">
+    <input asp-for="Input.OperationId" type="hidden" />
+    <input asp-for="Input.RowCode" type="hidden" />
+    <input asp-for="Input.RackNumber" type="hidden" />
+    <div class="rack-editor-workspace">
+        <div class="rack-editor-main">
+            <section class="card">
+                <div class="card-body">
+                    <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                        <div><h2 class="h4 mb-1">Posiciones físicas</h2><p class="text-body-secondary mb-0">Seleccionada = existe. Sin seleccionar = retirada o no creada.</p></div>
+                        <span class="badge text-bg-light border">Distribución 7-8-9 / 4-5-6 / 1-2-3</span>
+                    </div>
+                    <div class="rack-physical-keypad">
+                    @foreach (var pallet in keypad)
+                    {
+                        var position = Model.Rack.Positions.Single(item => item.PalletNumber == pallet);
+                        var blocked = position.IsPhysicallyPresent && (position.HasBalance || position.HasActiveAssignments);
+                        <label class="rack-physical-position @(position.IsPhysicallyPresent ? "present" : "absent") @(blocked ? "protected" : "")">
+                            <input class="form-check-input" type="checkbox" name="Input.PresentPallets" value="@pallet"
+                                   checked="@(Model.Input.PresentPallets.Contains(pallet) ? "checked" : null)"
+                                   disabled="@(blocked ? "disabled" : null)" />
+                            @if (blocked) { <input type="hidden" name="Input.PresentPallets" value="@pallet" /> }
+                            <strong>@pallet</strong><span>@position.Code</span>
+                            <small>@if (position.IsPhysicallyPresent) { <text>Existe</text> } else if (position.Exists) { <text>Retirada</text> } else { <text>No creada</text> }</small>
+                            @if (position.HasBalance) { <span class="badge text-bg-warning">Con saldo</span> }
+                            @if (position.HasActiveAssignments) { <span class="badge text-bg-info">Con asignación</span> }
+                        </label>
+                    }
+                    </div>
+                    <p class="small text-body-secondary mt-3 mb-0">Una posición con saldo o asignación activa queda protegida. Retirar no elimina su fila ni su historial.</p>
+                </div>
+            </section>
+
+            <section class="card mt-3">
+                <div class="card-body">
+                    <label asp-for="Input.Reason" class="form-label">Motivo de la corrección</label>
+                    <textarea asp-for="Input.Reason" class="form-control" rows="3" maxlength="500" required placeholder="Ej. El rack físico solo tiene pallets 1 a 6"></textarea>
+                    <button type="submit" asp-page-handler="Review" class="btn btn-outline-primary mt-3">Revisar cambios</button>
+                </div>
+            </section>
+        </div>
+
+        @if (Model.ReviewSummary is not null)
+        {
+            <aside class="rack-editor-review" aria-labelledby="rack-review-title">
+                <section class="card">
+                    <div class="card-body">
+                        <h2 id="rack-review-title" class="h4">Revisión previa</h2>
+                        <dl class="row mb-3">
+                            <dt class="col-sm-4">Nuevas</dt><dd class="col-sm-8">@(Model.ReviewSummary.Added.Count == 0 ? "Ninguna" : string.Join(", ", Model.ReviewSummary.Added))</dd>
+                            <dt class="col-sm-4">Restauradas</dt><dd class="col-sm-8">@(Model.ReviewSummary.Restored.Count == 0 ? "Ninguna" : string.Join(", ", Model.ReviewSummary.Restored))</dd>
+                            <dt class="col-sm-4">Retiradas</dt><dd class="col-sm-8">@(Model.ReviewSummary.Retired.Count == 0 ? "Ninguna" : string.Join(", ", Model.ReviewSummary.Retired))</dd>
+                        </dl>
+                        @if (Model.IsReviewed)
+                        {
+                            <div class="alert alert-warning"><strong>No es eliminación física de datos.</strong> Las filas y su auditoría permanecerán consultables.</div>
+                            <label asp-for="Input.Pin" class="form-label">NIP ADMIN</label>
+                            <input asp-for="Input.Pin" value="" class="form-control" type="password" inputmode="numeric" autocomplete="off" required />
+                            <button type="submit" asp-page-handler="Save" class="btn btn-primary mt-3">Guardar configuración</button>
+                        }
+                        else
+                        {
+                            <p class="text-body-secondary mb-0">Corrige los errores y vuelve a revisar antes de guardar.</p>
+                        }
+                    </div>
+                </section>
+            </aside>
+        }
+    </div>
+</form>
+
+@if (Model.Rack.Revisions.Count > 0)
+{
+    <section class="card mt-4"><div class="card-body"><h2 class="h4">Historial de correcciones</h2><div class="table-responsive"><table class="table align-middle"><thead><tr><th>Fecha</th><th>Solicitó / autorizó</th><th>Motivo</th></tr></thead><tbody>@foreach (var revision in Model.Rack.Revisions) { <tr><td>@revision.RecordedAt.ToString("yyyy-MM-dd HH:mm")</td><td>@revision.RequestedBy / @revision.AuthorizedBy</td><td>@revision.Reason</td></tr> }</tbody></table></div></div></section>
+}

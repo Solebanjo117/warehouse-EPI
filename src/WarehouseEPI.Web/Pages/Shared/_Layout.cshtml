@@ -42,6 +42,7 @@
         <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
         <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
         <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5m3-4 4-4-4-4m4 4H9" /></symbol>
+        <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6" /></symbol>
     </svg>
 
     <header class="app-topbar">
@@ -54,6 +55,9 @@
             <span>@business.BusinessName</span>
         </a>
         <span class="app-topbar-page">@ViewData["Title"]</span>
+        <button class="notification-trigger notification-trigger-mobile" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="Abrir alertas operativas">
+            <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
+        </button>
     </header>
 
     <div class="app-backdrop" data-nav-dismiss aria-hidden="true"></div>
@@ -66,6 +70,9 @@
             <button class="app-collapse-button" type="button" data-nav-collapse aria-expanded="true" title="Contraer menú">
                 <svg class="app-icon" aria-hidden="true"><use href="#icon-chevron" /></svg>
                 <span class="visually-hidden">Contraer menú</span>
+            </button>
+            <button class="notification-trigger notification-trigger-desktop" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="Abrir alertas operativas">
+                <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
             </button>
         </div>
 
@@ -100,6 +107,9 @@
                 <div class="app-nav-heading">Etiquetas</div>
                 <a class="app-nav-link @(IsSection("/Operations/Labels") ? "active" : null)" asp-page="/Operations/Labels/Index" aria-current="@(IsSection("/Operations/Labels") ? "page" : null)" title="Generar etiquetas desde formatos publicados">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Generar etiquetas</span>
+                </a>
+                <a class="app-nav-link @(IsSection("/Operations/PalletLabels") ? "active" : null)" asp-page="/Operations/PalletLabels/Index" aria-current="@(IsSection("/Operations/PalletLabels") ? "page" : null)" title="Generar placas documentales desde Entradas confirmadas">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Placas de pallet</span>
                 </a>
                 @if (isAdmin)
                 {
@@ -204,11 +214,17 @@
         <footer class="app-footer">&copy; 2026 Warehouse EPI</footer>
     </div>
 
+    <aside class="offcanvas offcanvas-end operational-notifications" tabindex="-1" id="operational-notifications" aria-labelledby="operational-notifications-title" data-notifications data-snapshot-url="@Url.Page("/Reports/Notifications/Index", "Snapshot")" data-all-url="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">
+        <div class="offcanvas-header"><div><span class="eyebrow">Operación LAN</span><h2 class="offcanvas-title h5" id="operational-notifications-title">Alertas operativas</h2></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar alertas"></button></div>
+        <div class="offcanvas-body"><div class="notification-summary" data-notification-summary><span>Consultando condiciones actuales…</span></div><div class="notification-list" data-notification-list></div><div class="notification-empty" data-notification-empty hidden><strong>Sin alertas activas.</strong><span>No hay condiciones visibles que requieran atención.</span></div><div class="notification-actions"><button type="button" class="btn btn-outline-primary" data-notification-refresh>Actualizar</button><a class="btn btn-primary" href="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">Ver todas</a></div><p class="visually-hidden" aria-live="polite" data-notification-live></p></div>
+    </aside>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/operations.js" asp-append-version="true"></script>
+    <script src="~/js/operational-notifications.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

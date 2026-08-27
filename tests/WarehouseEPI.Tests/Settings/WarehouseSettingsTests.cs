@@ -16,6 +16,7 @@ public sealed class WarehouseSettingsTests
         Assert.Equal("EPI", settings.BusinessName);
         Assert.Equal("Almacén principal", settings.WarehouseName);
         Assert.Equal("America/Matamoros", settings.TimeZoneId);
+        Assert.Equal(7, settings.WipReminderDays);
     }
 
     [Fact]

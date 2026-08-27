@@ -5,6 +5,7 @@
     var isAdmin = User.IsInRole("ADMIN");
     var page = Model.View == "activity" ? Model.Activity.PageNumber : Model.Stagnant.PageNumber;
     var totalPages = Model.View == "activity" ? Model.Activity.TotalPages : Model.Stagnant.TotalPages;
+    var stagnantCategory = Model.StagnantCategoryFilter is null ? null : "90plus";
 }
 
 <div class="inventory-analytics">
@@ -120,8 +121,10 @@
     else
     {
         <p class="text-muted">@(Model.View == "activity" ? "Mide frecuencia y volumen de salidas efectivas por SKU; no es una tasa contra inventario promedio." : "Identifica existencia positiva sin salida durante 30 días o más para conteo, reasignación o disposición.")</p>
+        @if (stagnantCategory is not null) { <div class="alert alert-warning">Mostrando productos con 90 días o más sin salida efectiva, incluidos los que nunca han salido. <a asp-route-view="stagnant" class="alert-link">Quitar filtro</a></div> }
         <form method="get" class="analytics-filter-card analytics-filter-form">
             <input type="hidden" name="view" value="@Model.View" />
+            @if (stagnantCategory is not null) { <input type="hidden" name="stagnantCategory" value="@stagnantCategory" /> }
             <div><label for="analytics-search" class="form-label">Producto</label><input id="analytics-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción, referencia o código" /></div>
             <div><label for="analytics-status" class="form-label">Estado</label><select id="analytics-status" name="status" class="form-select"><option value="active">Activos</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option><option value="all" selected="@(Model.Status == "all")">Todos</option></select></div>
             <div><label for="analytics-unit" class="form-label">Unidad</label><select id="analytics-unit" name="unitId" class="form-select"><option value="">Todas</option>@foreach (var unit in Model.UnitOptions) { <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option> }</select></div>
@@ -151,6 +154,6 @@
             </tbody></table></div>
         }
 
-        @if (totalPages > 1) { <nav aria-label="Paginación analítica"><ul class="pagination justify-content-center"><li class="page-item @(page <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-pageNumber="@(page - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@(page) de @totalPages</span></li><li class="page-item @(page >= totalPages ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-pageNumber="@(page + 1)">Siguiente</a></li></ul></nav> }
+        @if (totalPages > 1) { <nav aria-label="Paginación analítica"><ul class="pagination justify-content-center"><li class="page-item @(page <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory" asp-route-pageNumber="@(page - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@(page) de @totalPages</span></li><li class="page-item @(page >= totalPages ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory" asp-route-pageNumber="@(page + 1)">Siguiente</a></li></ul></nav> }
     }
 </div>

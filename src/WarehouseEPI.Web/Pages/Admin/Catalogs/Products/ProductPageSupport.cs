@@ -88,4 +88,16 @@ internal static class ProductPageSupport
             .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
         return (units, types, classes);
     }
+
+    public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes)> LoadFilterOptionsAsync(
+        WarehouseDbContext db, short? unitId, short? typeId, short? classId, CancellationToken token)
+    {
+        var units = await db.Units.AsNoTracking().Where(x => x.IsActive || x.Id == unitId).OrderBy(x => x.Code)
+            .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
+        var types = await db.ProductTypes.AsNoTracking().Where(x => x.IsActive || x.Id == typeId).OrderBy(x => x.Code)
+            .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
+        var classes = await db.ProductClasses.AsNoTracking().Where(x => x.IsActive || x.Id == classId).OrderBy(x => x.Code)
+            .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
+        return (units, types, classes);
+    }
 }

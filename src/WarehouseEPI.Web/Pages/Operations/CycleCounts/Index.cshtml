@@ -11,6 +11,14 @@
         <a asp-page="Create" class="btn btn-primary cycle-primary-action">Nueva campaña</a>
     </header>
 
+    @if (Model.Attention is not null)
+    {
+        <div class="alert alert-warning" role="status">
+            Mostrando campañas con ubicaciones que requieren atención: <strong>@(Model.Attention == "stale" ? "conteo obsoleto" : Model.Attention == "review" ? "en revisión" : "reconteo solicitado")</strong>.
+            <a asp-page="Index" class="alert-link ms-1">Quitar filtro</a>
+        </div>
+    }
+
     <nav class="cycle-status-filters" aria-label="Filtrar campañas por estado">
         <a asp-page="Index" asp-route-search="@Model.Search" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" class="@(Model.Status is null ? "active" : null)" aria-current="@(Model.Status is null ? "page" : null)">Todas</a>
         @foreach (var status in Enum.GetValues<CycleCountCampaignStatus>())
@@ -20,6 +28,7 @@
     </nav>
 
     <form method="get" class="analytics-filter-card analytics-filter-form">
+        @if (Model.Attention is not null) { <input type="hidden" name="attention" value="@Model.Attention" /> }
         <div><label class="form-label" for="cycle-search">Folio o título</label><input id="cycle-search" name="search" value="@Model.Search" class="form-control" placeholder="Ej. CC-000021 o Fila A" /></div>
         <div><label class="form-label" for="cycle-status">Estado</label><select id="cycle-status" name="status" class="form-select"><option value="">Todos</option>@foreach (var status in Enum.GetValues<CycleCountCampaignStatus>()) { <option value="@status" selected="@(Model.Status == status)">@CycleCountPresentation.CampaignStatusLabel(status)</option> }</select></div>
         <div><label class="form-label" for="cycle-from">Desde</label><input id="cycle-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" type="date" /></div>

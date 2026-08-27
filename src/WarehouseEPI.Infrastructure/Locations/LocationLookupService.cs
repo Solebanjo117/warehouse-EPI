@@ -10,6 +10,7 @@ public sealed class LocationLookupService(WarehouseDbContext dbContext)
     public Task<Location?> FindByCodeAsync(string? scannedCode, CancellationToken cancellationToken = default)
     {
         var code = LocationNormalization.NormalizeForLookup(scannedCode);
-        return dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(location => location.Code == code, cancellationToken);
+        return dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
+            location => location.Code == code && location.IsPhysicallyPresent, cancellationToken);
     }
 }
