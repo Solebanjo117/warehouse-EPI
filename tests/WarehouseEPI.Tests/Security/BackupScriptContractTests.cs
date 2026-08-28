@@ -9,6 +9,8 @@ public sealed class BackupScriptContractTests
     [InlineData("Test-WarehouseEpiBackupRestore.ps1")]
     [InlineData("Invoke-WarehouseEpiRecoveryValidation.ps1")]
     [InlineData("Install-WarehouseEpiBackupTasks.ps1")]
+    [InlineData("New-WarehouseEpiMigrationBackup.ps1")]
+    [InlineData("Restore-WarehouseEpiMigrationBackup.ps1")]
     public void Backup_scripts_are_present_and_keep_data_under_programdata(string scriptName)
     {
         var content = File.ReadAllText(ScriptPath(scriptName));
@@ -39,7 +41,44 @@ public sealed class BackupScriptContractTests
         Assert.Contains("warehouse_epi_restore_validation_", content, StringComparison.Ordinal);
         Assert.Contains("CREATE DATABASE", content, StringComparison.Ordinal);
         Assert.Contains("DROP DATABASE IF EXISTS", content, StringComparison.Ordinal);
+        Assert.Contains("ruta insegura", content, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("archivo no declarado", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("--dbname=warehouseEPI", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Migration_package_is_fresh_validated_and_excludes_secrets()
+    {
+        var create = File.ReadAllText(ScriptPath("New-WarehouseEpiMigrationBackup.ps1"));
+        var validate = File.ReadAllText(ScriptPath("Test-WarehouseEpiMigrationBackup.ps1"));
+
+        Assert.Contains("Invoke-WarehouseEpiBackup.ps1", create, StringComparison.Ordinal);
+        Assert.Contains("Test-WarehouseEpiBackupRestore.ps1", create, StringComparison.Ordinal);
+        Assert.Contains("Test-WarehouseEpiMigrationBackup.ps1", create, StringComparison.Ordinal);
+        Assert.Contains("BrandingDirectory", create, StringComparison.Ordinal);
+        Assert.Contains("RequiredExternalSecrets", create, StringComparison.Ordinal);
+        Assert.Contains("ContainsSecrets = $false", create, StringComparison.Ordinal);
+        Assert.DoesNotContain("user-secrets list", create, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("service-settings.json", create, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SHA256", validate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("RequireExternalHash", validate, StringComparison.Ordinal);
+        Assert.Contains("ruta insegura", validate, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("archivo no declarado", validate, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Migration_restore_never_replaces_an_existing_database_and_revalidates_first()
+    {
+        var content = File.ReadAllText(ScriptPath("Restore-WarehouseEpiMigrationBackup.ps1"));
+
+        Assert.Contains("SupportsShouldProcess", content, StringComparison.Ordinal);
+        Assert.Contains("Test-WarehouseEpiMigrationBackup.ps1", content, StringComparison.Ordinal);
+        Assert.Contains("Test-WarehouseEpiBackupRestore.ps1", content, StringComparison.Ordinal);
+        Assert.Contains("warehouseEPI ya existe", content, StringComparison.Ordinal);
+        Assert.Contains("CREATE DATABASE", content, StringComparison.Ordinal);
+        Assert.Contains("--exit-on-error", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("--clean", content, StringComparison.Ordinal);
+        Assert.DoesNotContain("DROP DATABASE IF EXISTS", content[..content.IndexOf("catch", StringComparison.Ordinal)], StringComparison.Ordinal);
     }
 
     private static string ScriptPath(string scriptName)

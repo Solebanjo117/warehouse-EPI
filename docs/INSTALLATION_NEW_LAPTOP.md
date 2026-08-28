@@ -75,40 +75,21 @@ sin commit y sin `push` no aparecerá en la laptop nueva.
 En **PowerShell como administrador**, desde el repositorio:
 
 ```powershell
-pwsh ./scripts/security/Invoke-WarehouseEpiBackup.ps1
-pwsh ./scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1
+pwsh ./scripts/security/New-WarehouseEpiMigrationBackup.ps1 `
+  -DestinationDirectory $transferRoot
 ```
 
-Localiza la pareja más reciente:
+El comando crea un respaldo nuevo, valida una restauración en una base temporal
+y genera dos archivos en el medio cifrado:
 
-```powershell
-$latestDump = Get-ChildItem 'C:\ProgramData\WarehouseEPI\Backups' `
-  -Filter 'warehouseEPI-*.dump' -File |
-  Sort-Object LastWriteTimeUtc -Descending |
-  Select-Object -First 1
-$referencesZip = Join-Path $latestDump.DirectoryName `
-  ($latestDump.BaseName + '-references.zip')
-$latestDump.FullName
-$referencesZip
-Get-FileHash $latestDump.FullName -Algorithm SHA256
-Get-FileHash $referencesZip -Algorithm SHA256
+```text
+WarehouseEPI-migration-<fecha>.zip
+WarehouseEPI-migration-<fecha>.zip.sha256
 ```
 
-Detén el procedimiento si el ZIP pareado no existe o la validación aislada
-falla. Copia ambos archivos al medio cifrado y registra sus hashes por un canal
-separado.
-
-Los fondos del croquis están incluidos en el ZIP pareado. El logo y demás
-branding viven fuera de Git y deben copiarse por separado si existen:
-
-```powershell
-if (Test-Path 'C:\ProgramData\WarehouseEPI\Branding') {
-  Compress-Archive `
-    -Path 'C:\ProgramData\WarehouseEPI\Branding\*' `
-    -DestinationPath (Join-Path $transferRoot 'WarehouseEPI-branding.zip')
-  Get-FileHash (Join-Path $transferRoot 'WarehouseEPI-branding.zip') -Algorithm SHA256
-}
-```
+El paquete integra base, fondos del croquis y branding. Detén el procedimiento
+si falla cualquiera de sus dos validaciones. Conserva el ZIP y su `.sha256`
+juntos en un USB cifrado.
 
 No copies `service-settings.json` como método de instalación. La laptop nueva
 creará su propia configuración protegida. Conserva y transfiere por separado:
@@ -319,99 +300,41 @@ pwsh ./scripts/security/Initialize-WarehouseEpiBackupDirectory.ps1
 pwsh ./scripts/security/Initialize-WarehouseEpiBackupCredentials.ps1
 ```
 
-Copia la pareja validada desde el medio seguro:
+Copia el paquete y su `.sha256` desde el medio seguro. Compara primero el hash
+externo y después valida cada componente del ZIP:
 
 ```powershell
-Copy-Item -LiteralPath (Join-Path $transferRoot '<respaldo>.dump') `
-  -Destination 'C:\ProgramData\WarehouseEPI\Backups'
-Copy-Item -LiteralPath (Join-Path $transferRoot '<respaldo>-references.zip') `
-  -Destination 'C:\ProgramData\WarehouseEPI\Backups'
-Get-FileHash 'C:\ProgramData\WarehouseEPI\Backups\<respaldo>.dump' -Algorithm SHA256
-Get-FileHash 'C:\ProgramData\WarehouseEPI\Backups\<respaldo>-references.zip' -Algorithm SHA256
-pwsh ./scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1
+$migrationPackage = Join-Path $transferRoot `
+  'WarehouseEPI-migration-<fecha>.zip'
+Get-Content "$migrationPackage.sha256"
+Get-FileHash $migrationPackage -Algorithm SHA256
+pwsh ./scripts/security/Test-WarehouseEpiMigrationBackup.ps1 `
+  -PackagePath $migrationPackage -RequireExternalHash
 ```
 
-Compara los hashes con los de origen. La última orden restaura en una base
-temporal, comprueba el esquema y la elimina; no toca `warehouseEPI`.
+La validación comprueba manifiesto, rutas, tamaños y SHA-256 sin restaurar aún
+la base productiva.
 
 ### 7A.2 Restaurar en una base nueva
 
-Este bloque se detiene si `warehouseEPI` ya existe. No agregues `--clean` ni
-elimines una base existente para forzar la operación.
+El restaurador vuelve a validar el paquete y hace una restauración temporal
+antes de crear la base definitiva. Se detiene si `warehouseEPI` ya existe o si
+los directorios externos no están vacíos. No elimines datos para forzarlo.
 
 ```powershell
-$psql = 'C:\Program Files\PostgreSQL\18\bin\psql.exe'
-$createdb = 'C:\Program Files\PostgreSQL\18\bin\createdb.exe'
-$pgRestore = 'C:\Program Files\PostgreSQL\18\bin\pg_restore.exe'
-$env:PGPASSFILE = 'C:\ProgramData\WarehouseEPI\BackupCredentials\postgresql-backup.pgpass'
-$databaseExists = & $psql --host=localhost --port=5432 --username=postgres `
-  --dbname=postgres --tuples-only --no-align `
-  --command="SELECT 1 FROM pg_database WHERE datname = 'warehouseEPI'"
-if ($LASTEXITCODE -ne 0) { throw 'No fue posible consultar PostgreSQL.' }
-if ($databaseExists.Trim() -eq '1') {
-  throw 'warehouseEPI ya existe. Detenga el procedimiento y revise el destino.'
-}
-& $createdb --host=localhost --port=5432 --username=postgres `
-  --encoding=UTF8 'warehouseEPI'
-if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear warehouseEPI.' }
-$backup = Get-ChildItem 'C:\ProgramData\WarehouseEPI\Backups' `
-  -Filter 'warehouseEPI-*.dump' -File |
-  Sort-Object LastWriteTimeUtc -Descending |
-  Select-Object -First 1
-& $pgRestore --no-owner --no-privileges --exit-on-error `
-  --host=localhost --port=5432 --username=postgres `
-  --dbname=warehouseEPI $backup.FullName
-if ($LASTEXITCODE -ne 0) { throw 'La restauración productiva falló.' }
-Remove-Item Env:PGPASSFILE
+pwsh ./scripts/security/Restore-WarehouseEpiMigrationBackup.ps1 `
+  -PackagePath $migrationPackage
 ```
 
 ### 7A.3 Restaurar archivos externos
 
-El ZIP ya fue validado. Restaura solamente los nombres declarados por su
-manifiesto en un directorio nuevo:
-
-```powershell
-$referenceZip = Join-Path $backup.DirectoryName `
-  ($backup.BaseName + '-references.zip')
-$referenceTarget = 'C:\ProgramData\WarehouseEPI\WarehouseMapReferences'
-if ((Test-Path $referenceTarget) -and
-    (Get-ChildItem $referenceTarget -Force | Select-Object -First 1)) {
-  throw 'El directorio de referencias no está vacío. Revise antes de copiar.'
-}
-$referenceStage = Join-Path $env:TEMP `
-  ('warehouse-epi-references-' + [Guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $referenceStage | Out-Null
-Expand-Archive -LiteralPath $referenceZip -DestinationPath $referenceStage
-$manifest = Get-Content (Join-Path $referenceStage 'manifest.json') -Raw |
-  ConvertFrom-Json
-New-Item -ItemType Directory -Force -Path $referenceTarget | Out-Null
-foreach ($entry in $manifest.Files) {
-  if ([IO.Path]::GetFileName($entry.Name) -ne $entry.Name) {
-    throw 'El manifiesto contiene una ruta insegura.'
-  }
-  Copy-Item -LiteralPath (Join-Path $referenceStage $entry.Name) `
-    -Destination $referenceTarget
-}
-Remove-Item -LiteralPath $referenceStage -Recurse -Force
-```
-
-Si se transfirió branding, verifica primero su SHA-256 y restaura únicamente
-en un directorio nuevo:
-
-```powershell
-$brandingTarget = 'C:\ProgramData\WarehouseEPI\Branding'
-if ((Test-Path $brandingTarget) -and
-    (Get-ChildItem $brandingTarget -Force | Select-Object -First 1)) {
-  throw 'El directorio de branding no está vacío. Revise antes de copiar.'
-}
-New-Item -ItemType Directory -Force -Path $brandingTarget | Out-Null
-Expand-Archive -LiteralPath (Join-Path $transferRoot 'WarehouseEPI-branding.zip') `
-  -DestinationPath $brandingTarget
-```
+El mismo restaurador extrae únicamente los fondos y logos declarados y
+validados por el manifiesto. No se requiere una copia manual adicional.
 
 ### 7A.4 Auditar la restauración y las migraciones
 
 ```powershell
+$psql = 'C:\Program Files\PostgreSQL\18\bin\psql.exe'
 & $psql --host=localhost --port=5432 --username=postgres `
   --dbname=warehouseEPI --command='SELECT current_database(), current_schema();'
 & $psql --host=localhost --port=5432 --username=postgres `
