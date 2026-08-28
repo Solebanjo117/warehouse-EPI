@@ -83,7 +83,7 @@ public sealed class WipDispositionService(
                 if (destination is null || !destination.IsOperational || !destination.TracksInventory)
                 {
                     return await AbortAsync(transaction, new(WipDispositionStatus.ValidationFailed,
-                        Errors: ["La ubicación destino no existe, está bloqueada o no controla saldo."]), cancellationToken);
+                        Errors: ["La ubicación destino no existe, está inactiva o está bloqueada."]), cancellationToken);
                 }
 
                 var pair = new InventoryAssignmentKey(original.ProductId, destination.Id);

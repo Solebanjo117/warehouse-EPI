@@ -21,7 +21,9 @@ public sealed record OperationalLocationResult(
     bool IsActive,
     bool IsBlocked,
     LocationOperationalRole OperationalRole = LocationOperationalRole.Storage,
-    bool TracksInventory = true);
+    bool TracksInventory = true,
+    bool IsWip = false,
+    LocationKind Kind = LocationKind.Area);
 
 public sealed record OperationalCodeResolution(
     OperationalProductResult? Product,
@@ -38,7 +40,8 @@ public sealed record OperationalProductLocationResult(
     decimal Quantity,
     bool HasActiveAssignment,
     bool HasNonZeroBalance,
-    bool TracksInventory = true);
+    bool TracksInventory = true,
+    bool IsWip = false);
 
 public sealed record OperationalLocationProductResult(
     Guid Id,
@@ -251,7 +254,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 0m,
                 true,
                 false,
-                assignment.Location.OperationalRole != LocationOperationalRole.Wip))
+                true,
+                assignment.Location.OperationalRole == LocationOperationalRole.Wip))
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
@@ -264,7 +268,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 balance.Quantity,
                 false,
                 true,
-                balance.Location.OperationalRole != LocationOperationalRole.Wip))
+                true,
+                balance.Location.OperationalRole == LocationOperationalRole.Wip))
             .ToListAsync(cancellationToken);
 
         return MergeProductLocations(assignments, balances);
@@ -380,7 +385,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
         location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked,
-            location.OperationalRole, location.OperationalRole != LocationOperationalRole.Wip);
+            location.OperationalRole, true, location.OperationalRole == LocationOperationalRole.Wip, location.Kind);
 
     private static IReadOnlyList<OperationalProductLocationResult> MergeProductLocations(
         IEnumerable<OperationalProductLocationResult> assignments,

@@ -63,8 +63,7 @@ public sealed class EditModel(
         if (!string.IsNullOrWhiteSpace(LocationSearch))
         {
             var term = LocationSearch.ToUpperInvariant();
-            LocationResults = await dbContext.Locations.AsNoTracking().Where(x => x.IsActive && !x.IsBlocked &&
-                    x.OperationalRole != LocationOperationalRole.Wip &&
+            LocationResults = await dbContext.Locations.AsNoTracking().Where(x => x.IsPhysicallyPresent && x.IsActive && !x.IsBlocked &&
                     (x.Code.Contains(term) || (x.Description != null && x.Description.ToUpper().Contains(term))))
                 .OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber).ThenBy(x => x.PalletNumber).ThenBy(x => x.Code).Take(20)
                 .Select(x => new LocationSearchRow(x.Id, x.Code, x.Description,
@@ -77,7 +76,7 @@ public sealed class EditModel(
         ProductLocationAssignmentResult.ProductInactive => "No se puede asignar un producto inactivo.",
         ProductLocationAssignmentResult.LocationInactive => "No se puede asignar a una ubicación inactiva.",
         ProductLocationAssignmentResult.LocationBlocked => "No se puede asignar a una ubicación bloqueada.",
-        ProductLocationAssignmentResult.LocationDoesNotTrackInventory => "Los racks WIP no admiten asignaciones de inventario.",
+        ProductLocationAssignmentResult.LocationDoesNotTrackInventory => "La ubicación no admite asignaciones de inventario.",
         _ => "El producto o la ubicación ya no existe."
     };
     public sealed record LocationAssignmentRow(Guid LocationId, string Code, string? Description, bool LocationIsActive, bool LocationIsBlocked, bool IsActive);

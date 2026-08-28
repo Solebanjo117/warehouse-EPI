@@ -24,6 +24,9 @@ public sealed partial class BarcodeRenderingServiceTests
         Assert.Equal(first, second);
         Assert.Equal(payload, Decode(first));
         Assert.Contains("shape-rendering=\"crispEdges\"", first.Markup, StringComparison.Ordinal);
+        Assert.Contains("preserveAspectRatio=\"none\"", first.Markup, StringComparison.Ordinal);
+        Assert.Equal(first.Width, first.ModuleCount);
+        Assert.True(first.ModuleCount > 20);
         var firstBlackBar = BlackRectangle().Matches(first.Markup).Select(match => int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture)).Min();
         Assert.True(firstBlackBar >= 10, $"La zona silenciosa izquierda fue de {firstBlackBar}px.");
     }
@@ -51,6 +54,23 @@ public sealed partial class BarcodeRenderingServiceTests
         var barcode = new BarcodeRenderingService().RenderCode128Svg("<script>alert(1)</script>");
         Assert.DoesNotContain("<script>", barcode.Markup, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("<script>alert(1)</script>", Decode(barcode));
+    }
+
+    [Fact]
+    public void Print_metrics_snap_to_whole_203_dpi_dots_and_report_dense_codes()
+    {
+        var service = new BarcodeRenderingService();
+        var probe = service.RenderCode128Svg("SKU-LARGO-1234567890");
+        var safeWidthMils = (int)Math.Ceiling(probe.ModuleCount * 3m * 1000m / 203m);
+        var safe = service.RenderCode128Svg("SKU-LARGO-1234567890", new(safeWidthMils, 150));
+        var dense = service.RenderCode128Svg("SKU-LARGO-1234567890", new(120, 150));
+
+        Assert.Equal(3, safe.DotsPerModule);
+        Assert.False(safe.IsBelowRecommendedDensity);
+        Assert.Equal(safe.ModuleCount * safe.DotsPerModule / 203m, safe.PrintWidthInches);
+        Assert.Equal(safe.ModuleCount * 2m / 203m, safe.MinimumWidthInches);
+        Assert.True(dense.IsBelowRecommendedDensity);
+        Assert.True(dense.DotsPerModule < 2);
     }
 
     private static string Decode(BarcodeSvg barcode)

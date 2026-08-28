@@ -37,6 +37,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<CycleCountAttempt> CycleCountAttempts => Set<CycleCountAttempt>();
     public DbSet<CycleCountEntry> CycleCountEntries => Set<CycleCountEntry>();
     public DbSet<CycleCountAction> CycleCountActions => Set<CycleCountAction>();
+    public DbSet<CycleCountReviewBatch> CycleCountReviewBatches => Set<CycleCountReviewBatch>();
     public DbSet<LabelTemplate> LabelTemplates => Set<LabelTemplate>();
     public DbSet<LabelTemplateVersion> LabelTemplateVersions => Set<LabelTemplateVersion>();
     public DbSet<LabelAsset> LabelAssets => Set<LabelAsset>();
@@ -423,6 +424,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(location => location.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         entity.Ignore(location => location.IsOperational);
         entity.Ignore(location => location.TracksInventory);
+        entity.Ignore(location => location.IsWip);
         entity.Ignore(location => location.LevelNumber);
         entity.Ignore(location => location.HorizontalPosition);
         entity.HasIndex(location => location.Code).IsUnique();
@@ -512,11 +514,13 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
-                "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR " +
+                "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
-                "(purpose = 'WIP_WAREHOUSE_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
+                "(purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR " +
+                "(purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR " +
+                "(purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR " +
                 "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
                 "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
         });
@@ -857,6 +861,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         location.Property(item => item.Status).HasColumnName("status").HasMaxLength(30)
             .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountLocationStatus>(value, true));
         location.Property(item => item.AdjustmentMovementId).HasColumnName("adjustment_movement_id");
+        location.Property(item => item.AdjustmentReason).HasColumnName("adjustment_reason").HasMaxLength(40)
+            .HasConversion(value => value == null ? null : value.ToString()!.ToUpperInvariant(), value => string.IsNullOrWhiteSpace(value) ? null : Enum.Parse<CycleCountAdjustmentReason>(value, true));
+        location.Property(item => item.AdjustmentReasonNotes).HasColumnName("adjustment_reason_notes").HasMaxLength(500);
         location.Property(item => item.LastActionByUserId).HasColumnName("last_action_by_user_id");
         location.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         location.Property(item => item.CompletedAt).HasColumnName("completed_at");
@@ -913,6 +920,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         action.Property(item => item.CampaignId).HasColumnName("campaign_id");
         action.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
         action.Property(item => item.CycleCountAttemptId).HasColumnName("cycle_count_attempt_id");
+        action.Property(item => item.ReviewBatchId).HasColumnName("review_batch_id");
         action.Property(item => item.Type).HasColumnName("type").HasMaxLength(30)
             .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountActionType>(value, true));
         action.Property(item => item.ResponsibleUserId).HasColumnName("responsible_user_id");
@@ -923,6 +931,21 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         action.HasOne(item => item.Campaign).WithMany().HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
         action.HasOne(item => item.CycleCountLocation).WithMany().HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
         action.HasOne(item => item.CycleCountAttempt).WithMany().HasForeignKey(item => item.CycleCountAttemptId).OnDelete(DeleteBehavior.Restrict);
+        action.HasOne(item => item.ReviewBatch).WithMany(item => item.Actions).HasForeignKey(item => item.ReviewBatchId).OnDelete(DeleteBehavior.Restrict);
+
+        var reviewBatch = modelBuilder.Entity<CycleCountReviewBatch>();
+        reviewBatch.ToTable("cycle_count_review_batches");
+        reviewBatch.HasKey(item => item.Id);
+        reviewBatch.Property(item => item.Id).HasColumnName("id");
+        reviewBatch.Property(item => item.OperationId).HasColumnName("operation_id");
+        reviewBatch.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64);
+        reviewBatch.Property(item => item.CampaignId).HasColumnName("campaign_id");
+        reviewBatch.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        reviewBatch.Property(item => item.AuthorizedAt).HasColumnName("authorized_at").HasDefaultValueSql("now()");
+        reviewBatch.HasIndex(item => item.OperationId).IsUnique();
+        reviewBatch.HasIndex(item => new { item.CampaignId, item.AuthorizedAt });
+        reviewBatch.HasOne(item => item.Campaign).WithMany().HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        reviewBatch.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
         action.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
@@ -1069,6 +1092,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.GeneralExit => "GENERAL_EXIT",
         InventoryMovementPurpose.ProductionIssue => "PRODUCTION_ISSUE",
         InventoryMovementPurpose.WipWarehouseReturn => "WIP_WAREHOUSE_RETURN",
+        InventoryMovementPurpose.WipConsumption => "WIP_CONSUMPTION",
+        InventoryMovementPurpose.WipSupplierReturn => "WIP_SUPPLIER_RETURN",
         InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
         _ => "STANDARD"
     };
@@ -1078,6 +1103,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "GENERAL_EXIT" => InventoryMovementPurpose.GeneralExit,
         "PRODUCTION_ISSUE" => InventoryMovementPurpose.ProductionIssue,
         "WIP_WAREHOUSE_RETURN" => InventoryMovementPurpose.WipWarehouseReturn,
+        "WIP_CONSUMPTION" => InventoryMovementPurpose.WipConsumption,
+        "WIP_SUPPLIER_RETURN" => InventoryMovementPurpose.WipSupplierReturn,
         "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
         _ => InventoryMovementPurpose.Standard
     };

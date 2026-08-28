@@ -38,6 +38,8 @@ Consulta [la arquitectura](docs/ARCHITECTURE.md) y la
 [guia de desarrollo](docs/DEVELOPMENT.md) antes de modificar el sistema. Para
 la laptop servidor y la operación diaria, consulta el
 [manual operativo](docs/OPERATIONS.md).
+Para preparar otra laptop desde cero o migrar la instalación completa, sigue
+la [guía de implementación en una laptop nueva](docs/INSTALLATION_NEW_LAPTOP.md).
 
 ## Requisitos
 

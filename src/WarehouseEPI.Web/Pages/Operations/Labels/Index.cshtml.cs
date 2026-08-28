@@ -18,6 +18,7 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
     public LabelDesignDocumentV1? Design { get; private set; }
     public OperationalProductResult? SelectedProduct { get; private set; }
     public LabelRenderDocument? Preview { get; private set; }
+    public IReadOnlyList<string> PrintWarnings { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken token)
     {
@@ -45,6 +46,7 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
         if (!ModelState.IsValid || entity is null || SelectedProduct is null) return Page();
         var rendered = documents.Render(entity, SelectedProduct, Input.Values, Input.Copies);
         foreach (var error in rendered.Errors) ModelState.AddModelError(string.Empty, error);
+        PrintWarnings = rendered.Warnings;
         Preview = rendered.Document;
         return Page();
     }

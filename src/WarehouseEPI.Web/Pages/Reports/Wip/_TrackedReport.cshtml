@@ -1,0 +1,20 @@
+@model WarehouseEPI.Web.Pages.Reports.Wip.IndexModel
+
+<section class="mb-5" aria-labelledby="wip-current-title">
+    <h2 class="h4" id="wip-current-title">Inventario actual</h2>
+    <div class="table-responsive mb-4"><table class="table table-striped align-middle report-cards"><thead><tr><th>WIP</th><th>Producto</th><th class="text-end">Existencia</th><th>Lote positivo más antiguo</th><th>Actualizado</th></tr></thead><tbody>
+        @if (Model.TrackedReport.Inventory.Count == 0) { <tr class="report-empty-row"><td colspan="5" class="analytics-empty">No hay existencias WIP con los filtros seleccionados.</td></tr> }
+        @foreach (var row in Model.TrackedReport.Inventory) { <tr><td data-label="WIP"><span class="badge text-bg-warning">@row.WipArea</span></td><td data-label="Producto"><strong>@row.ProductSku</strong><div class="small text-muted">@row.ProductDescription</div></td><td data-label="Existencia" class="text-end fw-bold @(row.Quantity < 0 ? "text-danger" : null)">@row.Quantity.ToString("0.####") @row.Unit</td><td data-label="Lote más antiguo">@(row.OldestPositiveLotDate?.ToString("dd/MM/yyyy") ?? "—")</td><td data-label="Actualizado">@row.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</td></tr> }
+    </tbody></table></div>
+
+    <h2 class="h4">Actividad efectiva del periodo</h2>
+    <div class="table-responsive"><table class="table align-middle report-cards"><thead><tr><th>Fecha / folio</th><th>WIP</th><th>Producto</th><th>Clasificación</th><th>Trayecto</th><th class="text-end">Cambio</th></tr></thead><tbody>
+        @if (Model.TrackedReport.Activity.Count == 0) { <tr class="report-empty-row"><td colspan="6" class="analytics-empty">No hay cambios efectivos WIP dentro del periodo.</td></tr> }
+        @foreach (var row in Model.TrackedReport.Activity) { <tr><td data-label="Fecha / folio">@row.OccurredAt.ToString("dd/MM/yyyy HH:mm")<div class="small text-muted"><a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@row.MovementId">@row.MovementId.ToString()[..8]…</a></div></td><td data-label="WIP"><span class="badge text-bg-warning">@row.WipArea</span></td><td data-label="Producto"><strong>@row.ProductSku</strong><div class="small text-muted">@row.Responsible @row.Reference</div></td><td data-label="Clasificación">@row.Category</td><td data-label="Trayecto">@(row.SourceLocation ?? "Exterior") → @(row.DestinationLocation ?? "Exterior")</td><td data-label="Cambio" class="text-end fw-bold @(row.Delta < 0 ? "text-danger" : "text-success")">@row.Delta.ToString("+0.####;-0.####;0") @row.Unit</td></tr> }
+    </tbody></table></div>
+</section>
+
+<section class="alert alert-secondary" aria-labelledby="wip-legacy-title">
+    <h2 class="h5" id="wip-legacy-title">Modelo anterior al control de saldo</h2>
+    <p class="mb-0">Los resúmenes y surtimientos mostrados después de los filtros conservan el consumo asumido sólo como estimación legado. No se incorporan al saldo ni al consumo registrado actual.</p>
+</section>

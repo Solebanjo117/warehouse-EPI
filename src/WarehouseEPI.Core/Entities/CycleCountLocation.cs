@@ -8,6 +8,8 @@ public sealed class CycleCountLocation
     public int SortOrder { get; set; }
     public CycleCountLocationStatus Status { get; set; } = CycleCountLocationStatus.Pending;
     public Guid? AdjustmentMovementId { get; set; }
+    public CycleCountAdjustmentReason? AdjustmentReason { get; set; }
+    public string? AdjustmentReasonNotes { get; set; }
     public Guid? LastActionByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? CompletedAt { get; set; }

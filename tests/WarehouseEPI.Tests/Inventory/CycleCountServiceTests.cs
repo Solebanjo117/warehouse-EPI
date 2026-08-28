@@ -93,7 +93,7 @@ public sealed class CycleCountServiceTests
     }
 
     [Fact]
-    public async Task Overlapping_open_campaign_and_invalid_locations_are_rejected()
+    public async Task Overlapping_open_campaign_is_rejected_and_wip_location_is_accepted()
     {
         await using var fixture = await Fixture.CreateAsync();
         var location = await fixture.AddLocationAsync("C-1-1");
@@ -104,13 +104,13 @@ public sealed class CycleCountServiceTests
         var overlapping = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Segunda", null, [location.Id], OperationId: Guid.NewGuid()));
         var simultaneous = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Segunda ubicación", null, [otherLocation.Id], OperationId: Guid.NewGuid()));
         var wip = await fixture.AddLocationAsync("WIP-COUNT", LocationOperationalRole.Wip);
-        var invalid = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "WIP", null, [wip.Id], OperationId: Guid.NewGuid()));
+        var wipCampaign = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "WIP", null, [wip.Id], OperationId: Guid.NewGuid()));
 
         Assert.Equal(CycleCountStatus.Success, first.Status);
         Assert.Equal(first.CampaignId, repeated.CampaignId);
         Assert.Equal(CycleCountStatus.ValidationFailed, overlapping.Status);
         Assert.Equal(CycleCountStatus.Success, simultaneous.Status);
-        Assert.Equal(CycleCountStatus.ValidationFailed, invalid.Status);
+        Assert.Equal(CycleCountStatus.Success, wipCampaign.Status);
     }
 
     [Fact]
@@ -132,6 +132,68 @@ public sealed class CycleCountServiceTests
         Assert.Equal(operationId, (await fixture.Db.CycleCountAttempts.SingleAsync(item => item.Id == attemptId)).SubmissionOperationId);
     }
 
+    [Fact]
+    public async Task Prepared_submission_with_a_missing_quantity_writes_nothing_and_can_be_resent()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("COUNT-EMPTY");
+        var location = await fixture.AddLocationAsync("D-1-1");
+        await fixture.EnterAsync(product.Id, location.Id, 4m);
+        var (campaignId, countLocationId) = await fixture.CreateReleasedLocationAsync(location.Id);
+        var preparation = await fixture.CycleCounts.PrepareAsync(campaignId, countLocationId);
+
+        var incomplete = await fixture.CycleCounts.SubmitPreparedAsync(new(preparation!, Guid.NewGuid(), fixture.Pin, []));
+
+        Assert.Equal(CycleCountStatus.ValidationFailed, incomplete.Status);
+        Assert.Empty(await fixture.Db.CycleCountAttempts.ToListAsync());
+        Assert.Equal(CycleCountLocationStatus.Pending, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
+        Assert.Equal(CycleCountCampaignStatus.Released, (await fixture.Db.CycleCountCampaigns.SingleAsync()).Status);
+
+        var resent = await fixture.CycleCounts.SubmitPreparedAsync(new(preparation!, Guid.NewGuid(), fixture.Pin, [new(product.Id, 4m)]));
+
+        Assert.Equal(CycleCountStatus.Success, resent.Status);
+        Assert.Equal(CycleCountLocationStatus.Completed, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Prepared_submission_rejects_decimals_on_units_that_do_not_allow_them()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var unit = await fixture.AddUnitAsync("ROLL", allowsDecimals: false);
+        var product = await fixture.AddProductAsync("COUNT-ROLL", unit);
+        var location = await fixture.AddLocationAsync("D-1-2");
+        await fixture.EnterAsync(product.Id, location.Id, 3m);
+        var (campaignId, countLocationId) = await fixture.CreateReleasedLocationAsync(location.Id);
+        var preparation = await fixture.CycleCounts.PrepareAsync(campaignId, countLocationId);
+
+        var result = await fixture.CycleCounts.SubmitPreparedAsync(new(preparation!, Guid.NewGuid(), fixture.Pin, [new(product.Id, 2.5m)]));
+
+        Assert.Equal(CycleCountStatus.ValidationFailed, result.Status);
+        Assert.Contains("COUNT-ROLL", string.Join(' ', result.ValidationErrors), StringComparison.Ordinal);
+        Assert.Empty(await fixture.Db.CycleCountAttempts.ToListAsync());
+        Assert.Equal(CycleCountLocationStatus.Pending, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task Prepared_submission_is_idempotent_for_the_same_operation()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("COUNT-PREPARED-IDEMPOTENT");
+        var location = await fixture.AddLocationAsync("D-1-3");
+        await fixture.EnterAsync(product.Id, location.Id, 7m);
+        var (campaignId, countLocationId) = await fixture.CreateReleasedLocationAsync(location.Id);
+        var preparation = await fixture.CycleCounts.PrepareAsync(campaignId, countLocationId);
+        var operationId = Guid.NewGuid();
+
+        var first = await fixture.CycleCounts.SubmitPreparedAsync(new(preparation!, operationId, fixture.Pin, [new(product.Id, 7m)]));
+        var repeated = await fixture.CycleCounts.SubmitPreparedAsync(new(preparation!, operationId, fixture.Pin, [new(product.Id, 7m)]));
+
+        Assert.Equal(CycleCountStatus.Success, first.Status);
+        Assert.Equal(CycleCountStatus.Success, repeated.Status);
+        Assert.Equal(first.AttemptId, repeated.AttemptId);
+        Assert.Single(await fixture.Db.CycleCountAttempts.ToListAsync());
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private const string LookupKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
@@ -151,11 +213,20 @@ public sealed class CycleCountServiceTests
             var movements = new InventoryMovementService(db, pinService, TimeProvider.System);
             return new(db, movements, new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System));
         }
-        public async Task<Product> AddProductAsync(string sku) { var item = new Product { Sku = sku, BaseUnitId = 1 }; Db.Products.Add(item); await Db.SaveChangesAsync(); return item; }
+        public async Task<Product> AddProductAsync(string sku, short baseUnitId = 1) { var item = new Product { Sku = sku, BaseUnitId = baseUnitId }; Db.Products.Add(item); await Db.SaveChangesAsync(); return item; }
+        public async Task<short> AddUnitAsync(string code, bool allowsDecimals)
+        {
+            var id = (short)(await Db.Units.MaxAsync(item => (short?)item.Id) + 1 ?? 1);
+            Db.Units.Add(new Unit { Id = id, Code = code, Name = code, AllowsDecimals = allowsDecimals, IsActive = true });
+            await Db.SaveChangesAsync();
+            return id;
+        }
         public async Task<Location> AddLocationAsync(string code, LocationOperationalRole role = LocationOperationalRole.Storage) { var item = new Location { Code = code, Kind = LocationKind.Rack, OperationalRole = role, RowCode = code.Split('-')[0] }; Db.Locations.Add(item); await Db.SaveChangesAsync(); return item; }
         public async Task EnterAsync(Guid productId, Guid locationId, decimal quantity) { var result = await Movements.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, Pin, [new(productId, quantity, DestinationLocationId: locationId)])); Assert.Equal(InventoryMovementStatus.Success, result.Status); }
+        public async Task<(Guid CampaignId, Guid CycleCountLocationId)> CreateReleasedLocationAsync(Guid locationId)
+        { var created = await CycleCounts.CreateAsync(new(Pin, "Campaña", null, [locationId], OperationId: Guid.NewGuid())); Assert.Equal(CycleCountStatus.Success, created.Status); Assert.Equal(CycleCountStatus.Success, (await CycleCounts.ReleaseAsync(created.CampaignId!.Value, Guid.NewGuid(), Pin)).Status); var detail = await CycleCounts.GetCampaignAsync(created.CampaignId.Value); return (created.CampaignId.Value, Assert.Single(detail!.Locations).Id); }
         public async Task<(Guid CampaignId, Guid LocationId, Guid AttemptId)> CreateReleasedAttemptAsync(Guid locationId)
-        { var created = await CycleCounts.CreateAsync(new(Pin, "Campaña", null, [locationId], OperationId: Guid.NewGuid())); Assert.Equal(CycleCountStatus.Success, created.Status); Assert.Equal(CycleCountStatus.Success, (await CycleCounts.ReleaseAsync(created.CampaignId!.Value, Guid.NewGuid(), Pin)).Status); var detail = await CycleCounts.GetCampaignAsync(created.CampaignId.Value); var countLocation = Assert.Single(detail!.Locations); var attempt = await CycleCounts.StartAttemptAsync(countLocation.Id, Guid.NewGuid(), Pin); return (created.CampaignId.Value, countLocation.Id, attempt.AttemptId!.Value); }
+        { var (campaignId, countLocationId) = await CreateReleasedLocationAsync(locationId); var attempt = await CycleCounts.StartAttemptAsync(countLocationId, Guid.NewGuid(), Pin); return (campaignId, countLocationId, attempt.AttemptId!.Value); }
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 }

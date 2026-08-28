@@ -50,44 +50,30 @@ public sealed class OperationalAlertServiceTests
     }
 
     [Fact]
-    public async Task Wip_reminder_ignores_effective_return_but_includes_reverted_return()
+    public async Task Wip_reminder_uses_positive_balance_and_oldest_positive_lot_not_legacy_dispositions()
     {
         await using var db = CreateDbContext();
         var user = User();
         var product = Product("ALERT-WIP");
-        var source = new Location { Code = "A-02-01", Kind = LocationKind.Rack };
-        var wip = new Location { Code = "WIP-01", Kind = LocationKind.Rack, OperationalRole = LocationOperationalRole.Wip };
-        db.AddRange(user, product, source, wip);
-        var movement = new InventoryMovement
-        {
-            OperationId = Guid.NewGuid(),
-            RequestFingerprint = "aged-wip",
-            Type = InventoryMovementType.Exit,
-            Purpose = InventoryMovementPurpose.ProductionIssue,
-            OperationalArea = wip,
-            ResponsibleUser = user,
-            OccurredAt = Now.AddDays(-8)
-        };
-        var pending = Line(movement, product, source, 1, 2m);
-        var returned = Line(movement, product, source, 2, 3m);
-        var reverted = Line(movement, product, source, 3, 4m);
-        db.InventoryMovements.Add(movement);
-        var effectiveReturn = Disposition(returned, user, 3m, "return-effective");
-        var originalReturn = Disposition(reverted, user, 4m, "return-reverted");
-        var reversal = Disposition(reverted, user, 4m, "return-reversal");
-        reversal.ReversesDisposition = originalReturn;
-        db.WipDispositions.AddRange(effectiveReturn, originalReturn, reversal);
+        var recentProduct = Product("ALERT-WIP-RECENT");
+        var wip = new Location { Code = "WIP-01", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
+        var oldLot = new ProductLot { Product = product, Number = "OLD", NormalizedNumber = "OLD", LotDate = DateOnly.FromDateTime(Now.AddDays(-8).Date) };
+        var recentLot = new ProductLot { Product = recentProduct, Number = "RECENT", NormalizedNumber = "RECENT", LotDate = DateOnly.FromDateTime(Now.AddDays(-2).Date) };
+        db.AddRange(user, product, recentProduct, wip, oldLot, recentLot);
+        db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = product, Location = wip, Lot = oldLot, Quantity = 6m },
+            new InventoryBalance { Product = recentProduct, Location = wip, Lot = recentLot, Quantity = 4m });
         await db.SaveChangesAsync();
 
         var snapshot = await Service(db).GetSnapshotAsync(OperationalAlertAudience.Admin);
         var reminder = snapshot.Items.Single(x => x.Category == OperationalAlertCategory.AgedWip);
         var page = await Service(db).GetPageAsync(OperationalAlertCategory.AgedWip, null, 1, 25);
 
-        Assert.Equal(2, reminder.Count);
-        Assert.Equal(2, page.TotalCount);
-        Assert.Contains(page.Items, x => x.TargetUrl.EndsWith(pending.Id.ToString(), StringComparison.Ordinal));
-        Assert.Contains(page.Items, x => x.TargetUrl.EndsWith(reverted.Id.ToString(), StringComparison.Ordinal));
-        Assert.DoesNotContain(page.Items, x => x.TargetUrl.EndsWith(returned.Id.ToString(), StringComparison.Ordinal));
+        Assert.Equal(1, reminder.Count);
+        Assert.Equal("Saldo WIP estancado", reminder.Title);
+        Assert.Equal(1, page.TotalCount);
+        Assert.Contains(page.Items, x => x.PrimaryText == "ALERT-WIP" && x.ValueText!.Contains('6'));
+        Assert.All(page.Items, x => Assert.Contains("/Reports/Wip?attention=aged", x.TargetUrl, StringComparison.Ordinal));
     }
 
     private static OperationalAlertService Service(WarehouseDbContext db) =>

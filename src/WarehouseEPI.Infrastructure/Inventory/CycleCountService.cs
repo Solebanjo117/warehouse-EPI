@@ -199,6 +199,109 @@ public sealed class CycleCountService(
         return new(CycleCountStatus.Success, cycleLocation.CampaignId, cycleLocation.Id, attempt.Id);
     }
 
+    public async Task<CycleCountPreparation?> PrepareAsync(Guid campaignId, Guid cycleCountLocationId, CancellationToken cancellationToken = default)
+    {
+        var location = await dbContext.CycleCountLocations.Include(item => item.Location).Include(item => item.Campaign)
+            .SingleOrDefaultAsync(item => item.Id == cycleCountLocationId && item.CampaignId == campaignId, cancellationToken);
+        if (location is null || location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return null;
+        var productIds = await GetKnownProductIdsAsync(location.LocationId, cancellationToken);
+        var products = await dbContext.Products.AsNoTracking().Include(item => item.BaseUnit)
+            .Where(item => productIds.Contains(item.Id)).OrderBy(item => item.Sku).ToListAsync(cancellationToken);
+        var entries = new List<CycleCountPreparationEntry>();
+        foreach (var product in products)
+        {
+            var balance = await inventoryQuery.GetBalanceAsync(product.Id, location.LocationId, cancellationToken);
+            entries.Add(new(product.Id, product.Sku, product.Description, product.BaseUnit.Code, product.BaseUnit.AllowsDecimals, balance.Quantity, balance.Version));
+        }
+        return new(campaignId, location.Id, location.LocationId, location.Location.Code, timeProvider.GetUtcNow(), entries);
+    }
+
+    public async Task<CycleCountResult> SubmitPreparedAsync(SubmitPreparedCycleCountCommand command, CancellationToken cancellationToken = default)
+    {
+        var user = await AuthenticateAsync(command.Pin, cancellationToken);
+        if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (command.OperationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
+        var existing = await dbContext.CycleCountAttempts.AsNoTracking().Where(item => item.SubmissionOperationId == command.OperationId)
+            .Select(item => new { item.Id, item.CycleCountLocationId, item.CycleCountLocation.CampaignId }).SingleOrDefaultAsync(cancellationToken);
+        if (existing is not null) return existing.CycleCountLocationId == command.Preparation.CycleCountLocationId
+            ? new(CycleCountStatus.Success, existing.CampaignId, existing.CycleCountLocationId, existing.Id) : new(CycleCountStatus.IdempotencyConflict);
+        var location = await dbContext.CycleCountLocations.Include(item => item.Campaign).Include(item => item.Attempts)
+            .SingleOrDefaultAsync(item => item.Id == command.Preparation.CycleCountLocationId && item.CampaignId == command.Preparation.CampaignId, cancellationToken);
+        if (location is null) return new(CycleCountStatus.NotFound);
+        if (location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return new(CycleCountStatus.InvalidState, location.CampaignId, location.Id);
+
+        // La captura se valida antes de persistir: un envío inválido no debe crear el intento
+        // ni dejar la ubicación en Counting, porque el mismo token preparado se reenvía.
+        var errors = ValidateQuantities(
+            [.. command.Preparation.Entries.Select(item => new ExpectedCountLine(item.ProductId, item.Sku, item.AllowsDecimals))],
+            command.Entries,
+            command.IsLocationEmpty);
+        if (errors.Count == 0)
+            errors.AddRange(await ValidateUnexpectedProductsAsync(command.Entries, command.Preparation.Entries, cancellationToken));
+        if (errors.Count != 0) return new(CycleCountStatus.ValidationFailed, location.CampaignId, location.Id, Errors: errors);
+
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
+            : null;
+        var attempt = new CycleCountAttempt
+        {
+            OperationId = Guid.NewGuid(),
+            CycleCountLocationId = location.Id,
+            AttemptNumber = location.Attempts.Count + 1,
+            StartedByUserId = user.Id,
+            StartedAt = command.Preparation.PreparedAt
+        };
+        foreach (var entry in command.Preparation.Entries)
+            attempt.Entries.Add(new() { ProductId = entry.ProductId, UnitId = await UnitIdAsync(entry.ProductId, cancellationToken), ExpectedQuantity = entry.ExpectedQuantity, ExpectedBalanceVersion = entry.ExpectedBalanceVersion });
+        dbContext.CycleCountAttempts.Add(attempt);
+        location.Status = CycleCountLocationStatus.Counting;
+        location.Campaign.Status = CycleCountCampaignStatus.InProgress;
+        AddAction(location.Campaign, location, attempt, CycleCountActionType.AttemptStarted, user.Id, command.Preparation.PreparedAt, "Preparación confirmada al enviar el conteo.");
+        await dbContext.SaveChangesAsync(cancellationToken);
+        var result = await SubmitAsync(new(attempt.Id, command.OperationId, command.Pin, command.Entries, command.IsLocationEmpty), cancellationToken);
+        // Se confirma cualquier estado devuelto, incluido el marcado Stale, que es una
+        // transición legítima; sólo una excepción revierte el intento recién creado.
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    public async Task<CycleCountBatchResult> ReviewBatchAsync(ApproveCycleCountBatchCommand command, CancellationToken cancellationToken = default)
+    {
+        var user = await AuthenticateAsync(command.Pin, cancellationToken);
+        if (user is null) return new(CycleCountStatus.InvalidPin, null, [], ["NIP no válido."]);
+        if (command.Decisions.Any(item => item.Decision == CycleCountReviewDecision.Approve && item.Reason is null))
+            return new(CycleCountStatus.ValidationFailed, null, [], ["Selecciona una causa para cada ajuste aprobado."]);
+        if (command.Decisions.Any(item => item.Decision == CycleCountReviewDecision.Approve && item.Reason == CycleCountAdjustmentReason.Other && string.IsNullOrWhiteSpace(item.Notes)))
+            return new(CycleCountStatus.ValidationFailed, null, [], ["Describe la causa cuando eliges Otro."]);
+        var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join('|', command.Decisions.Select(item => $"{item.LocationId:N}:{item.OperationId:N}:{item.Decision}:{item.Reason}:{item.Notes}")))));
+        var batch = await dbContext.CycleCountReviewBatches.SingleOrDefaultAsync(item => item.OperationId == command.OperationId, cancellationToken);
+        if (batch is not null && batch.RequestFingerprint != fingerprint) return new(CycleCountStatus.IdempotencyConflict, batch.Id, [], ["El identificador de lote ya pertenece a otra solicitud."]);
+        if (batch is null) { batch = new() { OperationId = command.OperationId, CampaignId = command.CampaignId, AuthorizedByUserId = user.Id, AuthorizedAt = timeProvider.GetUtcNow(), RequestFingerprint = fingerprint }; dbContext.CycleCountReviewBatches.Add(batch); await dbContext.SaveChangesAsync(cancellationToken); }
+        var results = new List<CycleCountBatchItemResult>();
+        foreach (var item in command.Decisions)
+        {
+            CycleCountResult result;
+            if (item.Decision == CycleCountReviewDecision.Recount)
+                result = await RequestRecountAsync(new(item.LocationId, item.OperationId, command.Pin, item.Notes), cancellationToken);
+            else
+                result = await ApproveAsync(new(item.LocationId, item.OperationId, command.Pin, FormatReason(item.Reason, item.Notes), item.ApprovedSharedAssignments), cancellationToken);
+            if (item.Decision == CycleCountReviewDecision.Approve && result.Status == CycleCountStatus.Success)
+            {
+                var location = await dbContext.CycleCountLocations.SingleAsync(value => value.Id == item.LocationId, cancellationToken);
+                location.AdjustmentReason = item.Reason;
+                location.AdjustmentReasonNotes = Normalize(item.Notes, 500);
+                var action = await dbContext.CycleCountActions.Where(value => value.CycleCountLocationId == item.LocationId && value.Type == CycleCountActionType.AdjustmentApproved && value.ReviewBatchId == null)
+                    .OrderByDescending(value => value.RecordedAt).FirstOrDefaultAsync(cancellationToken);
+                if (action is not null) action.ReviewBatchId = batch.Id;
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            results.Add(new(item.LocationId, result.Status, result.MovementId, result.ValidationErrors, result.Conflicts));
+        }
+        dbContext.CycleCountActions.Add(new() { OperationId = Guid.NewGuid(), CampaignId = command.CampaignId, ReviewBatchId = batch.Id, Type = CycleCountActionType.BatchReviewed, ResponsibleUserId = user.Id, RecordedAt = timeProvider.GetUtcNow(), Notes = $"Revisión agrupada: {results.Count(item => item.Status == CycleCountStatus.Success)} acción(es)." });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new(CycleCountStatus.Success, batch.Id, results);
+    }
+
     public async Task<CycleCountResult> RequestRecountAsync(CycleCountActionCommand command, CancellationToken cancellationToken = default)
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
@@ -403,24 +506,76 @@ public sealed class CycleCountService(
         return true;
     }
 
-    private static List<string> ValidateSubmission(SubmitCycleCountCommand command, CycleCountAttempt attempt)
+    private static List<string> ValidateSubmission(SubmitCycleCountCommand command, CycleCountAttempt attempt) =>
+        ValidateQuantities(
+            [.. attempt.Entries.Select(item => new ExpectedCountLine(item.ProductId, item.Product.Sku, item.Product.BaseUnit.AllowsDecimals))],
+            command.Entries,
+            command.IsLocationEmpty);
+
+    private static List<string> ValidateQuantities(IReadOnlyList<ExpectedCountLine> expected, IReadOnlyList<CycleCountQuantityCommand> entries, bool isLocationEmpty)
     {
         var errors = new List<string>();
-        if (command.Entries.GroupBy(item => item.ProductId).Any(group => group.Count() != 1)) errors.Add("No repitas un producto en el conteo.");
-        if (!command.IsLocationEmpty && attempt.Entries.Any(item => !command.Entries.Any(input => input.ProductId == item.ProductId))) errors.Add("Captura una cantidad, incluso cero, para todos los productos de la ubicación.");
-        foreach (var item in command.Entries)
+        if (entries.GroupBy(item => item.ProductId).Any(group => group.Count() != 1)) errors.Add("No repitas un producto en el conteo.");
+        if (!isLocationEmpty && expected.Any(item => !entries.Any(input => input.ProductId == item.ProductId))) errors.Add("Captura una cantidad, incluso cero, para todos los productos de la ubicación.");
+        var expectedByProduct = expected.ToDictionary(item => item.ProductId);
+        foreach (var item in entries)
         {
             if (item.ProductId == Guid.Empty || item.Quantity < 0 || decimal.Round(item.Quantity, 4) != item.Quantity || Math.Abs(item.Quantity) > InventoryMovementRules.MaximumQuantity)
                 errors.Add("Una cantidad del conteo no es válida.");
+            else if (expectedByProduct.TryGetValue(item.ProductId, out var line) && !line.AllowsDecimals && decimal.Truncate(item.Quantity) != item.Quantity)
+                errors.Add($"La cantidad de {line.Sku} no respeta la unidad base.");
         }
         return errors;
     }
+
+    private async Task<List<string>> ValidateUnexpectedProductsAsync(
+        IReadOnlyList<CycleCountQuantityCommand> entries, IReadOnlyList<CycleCountPreparationEntry> prepared, CancellationToken cancellationToken)
+    {
+        var errors = new List<string>();
+        var unexpectedIds = entries.Select(item => item.ProductId).Except(prepared.Select(item => item.ProductId)).ToArray();
+        if (unexpectedIds.Length == 0) return errors;
+        var products = await dbContext.Products.AsNoTracking()
+            .Where(item => unexpectedIds.Contains(item.Id))
+            .Select(item => new { item.Id, item.Sku, item.BaseUnit.AllowsDecimals })
+            .ToListAsync(cancellationToken);
+        if (products.Count != unexpectedIds.Length)
+        {
+            errors.Add("Uno de los productos inesperados no existe.");
+            return errors;
+        }
+        errors.AddRange(ValidateQuantities(
+            [.. products.Select(item => new ExpectedCountLine(item.Id, item.Sku, item.AllowsDecimals))],
+            [.. entries.Where(item => unexpectedIds.Contains(item.ProductId))],
+            isLocationEmpty: false));
+        return errors;
+    }
+
+    private readonly record struct ExpectedCountLine(Guid ProductId, string Sku, bool AllowsDecimals);
 
     private async Task<IReadOnlyList<Guid>> GetKnownProductIdsAsync(Guid locationId, CancellationToken cancellationToken)
     {
         var assigned = dbContext.ProductLocationAssignments.Where(item => item.LocationId == locationId && item.IsActive).Select(item => item.ProductId);
         var withBalance = dbContext.InventoryBalances.Where(item => item.LocationId == locationId && item.Quantity != 0).Select(item => item.ProductId);
         return await assigned.Union(withBalance).Distinct().ToListAsync(cancellationToken);
+    }
+
+    private async Task<short> UnitIdAsync(Guid productId, CancellationToken cancellationToken) =>
+        await dbContext.Products.Where(item => item.Id == productId).Select(item => item.BaseUnitId).SingleAsync(cancellationToken);
+
+    private static string FormatReason(CycleCountAdjustmentReason? reason, string? notes)
+    {
+        var label = reason switch
+        {
+            CycleCountAdjustmentReason.UnrecordedEntry => "Entrada no registrada",
+            CycleCountAdjustmentReason.UnrecordedExit => "Salida no registrada",
+            CycleCountAdjustmentReason.WrongLocation => "Producto en ubicación incorrecta",
+            CycleCountAdjustmentReason.UnrecordedDamageOrScrap => "Daño o merma no registrada",
+            CycleCountAdjustmentReason.CaptureOrUnitError => "Error de captura o unidad",
+            CycleCountAdjustmentReason.Unknown => "Causa desconocida",
+            CycleCountAdjustmentReason.Other => "Otro",
+            _ => "Diferencia confirmada"
+        };
+        return string.IsNullOrWhiteSpace(notes) ? $"Causa: {label}." : $"Causa: {label}. {notes.Trim()}";
     }
 
     private async Task<IReadOnlyList<Location>> ResolveLocationsAsync(CreateCycleCountCommand command, CancellationToken cancellationToken)

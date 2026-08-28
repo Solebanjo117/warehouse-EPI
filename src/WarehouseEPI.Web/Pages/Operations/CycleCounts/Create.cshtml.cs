@@ -37,7 +37,7 @@ public sealed class CreateModel(WarehouseDbContext dbContext, CycleCountService 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
         Locations = await dbContext.Locations.AsNoTracking()
-            .Where(item => item.IsActive && !item.IsBlocked && item.OperationalRole != LocationOperationalRole.Wip)
+            .Where(item => item.IsPhysicallyPresent && item.IsActive && !item.IsBlocked)
             .OrderBy(item => item.RowCode).ThenBy(item => item.RackNumber).ThenBy(item => item.PalletNumber).ThenBy(item => item.Code)
             .Select(item => new LocationOption(item.Id, item.Code, item.Description, item.Kind, item.RowCode, item.RackNumber, item.PalletNumber))
             .ToListAsync(cancellationToken);

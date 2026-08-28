@@ -261,6 +261,14 @@ public sealed class OperationalInventoryQueryServiceTests
         var minimum = Assert.Single(minimumAlerts.Items);
         Assert.Equal(9m, minimum.Deficit);
         Assert.Equal(10m, minimum.CoveragePercent);
+
+        var negativeExport = await service.GetNegativeAlertExportAsync("alert-b", 50);
+        Assert.False(negativeExport.ExceedsLimit);
+        Assert.Equal(2, negativeExport.TotalRows);
+        Assert.All(negativeExport.Items, item => Assert.Equal("ALERT-B", item.LocationCode));
+        var minimumExport = await service.GetBelowMinimumAlertExportAsync("alert-main", 50);
+        Assert.Single(minimumExport.Items);
+        Assert.True((await service.GetNegativeAlertExportAsync("alert-b", 1)).ExceedsLimit);
     }
 
     [Fact]

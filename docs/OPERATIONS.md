@@ -251,24 +251,29 @@ carpetas dentro de `C:\ProgramData\WarehouseEPI\Releases`.
 
 ## Flujo operativo WIP
 
-1. En **Salida**, elige **Surtir WIP**, escanea producto y rack, elige el rack WIP completo `WIP-2`, `WIP-3` o `WIP-4`,
-   captura cantidad y confirma con NIP. El rack disminuye y WIP no recibe saldo.
-2. Consulta `/Reports/Wip`. El periodo inicial es la semana local de lunes a
-   domingo. `Consumo asumido = enviado - devuelto a bodega - devuelto a proveedor`.
-3. En **Devolución desde WIP**, localiza el surtimiento original. Para bodega,
-   escanea el destino y confirma el posible pallet compartido; para proveedor,
-   captura obligatoriamente la referencia documental. Ambos flujos requieren NIP.
-4. Una corrección ADMIN crea una compensación; nunca se edita la devolución. Si
-   fue a bodega, también revierte la entrada relacionada.
+1. En **Salida**, elige **Surtir WIP**, escanea producto y rack, selecciona
+   `WIP-2`, `WIP-3` o `WIP-4`, captura cantidad y confirma con NIP. Se crea una
+   transferencia: el rack disminuye, WIP aumenta y los lotes se conservan.
+2. En **Procesar WIP**, elige consumo, regreso a bodega o proveedor. La operación
+   usa el saldo acumulado del producto en WIP y no pide un surtimiento original.
+   Sólo la devolución a proveedor exige referencia.
+3. Consulta `/Reports/Wip` para ver existencias actuales, actividad efectiva y,
+   en una sección separada, el consumo asumido del modelo legado.
+4. Una corrección ADMIN genera reverso y reemplazo auditables. Las disposiciones
+   históricas permanecen visibles y corregibles, pero no determinan el saldo.
 
 Antes del primer despliegue WIP:
 
 1. Confirma base `warehouseEPI`, esquema `public` y revisa
    `artifacts/wip/WipProductionFlow.sql`.
 2. Ejecuta y valida `pg_dump -Fc`; no apliques la migración sin un respaldo legible.
-3. Verifica que `WIP-2/3/4` sean ubicaciones operativas WIP sin saldo ni asignaciones; se muestran como racks WIP completos, sin posiciones de pallet.
-4. Aplica la migración y audita roles, FKs, checks, índices y movimientos históricos.
-5. Prueba en tablet el surtimiento y las dos devoluciones antes de publicar Release.
+3. Verifica la migración incremental, confirma que no inventa saldo WIP y aplica
+   la Release sólo dentro de una ventana sin movimientos WIP.
+4. Crea la campaña ciega **Saldo inicial WIP**, cuenta físicamente WIP-2/3/4 y
+   aprueba las diferencias; ese conteo será el único saldo inicial.
+5. Audita saldos, lotes, movimientos, reporte y alerta; después prueba en tablet,
+   cámara y lector antes de reanudar la operación.
 
-Estado de aplicación: completado el 19 de agosto de 2026 con respaldo validado
-`BackupDatabase/public-before-wip-production-flow-20260819-154603.dump`.
+Estado del modelo legado: aplicado el 19 de agosto de 2026 con respaldo validado
+`BackupDatabase/public-before-wip-production-flow-20260819-154603.dump`. El
+nuevo control de saldo WIP sigue pendiente de despliegue autorizado y conteo físico.

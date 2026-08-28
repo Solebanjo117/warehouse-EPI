@@ -57,7 +57,7 @@
         <aside class="warehouse-map-detail" aria-live="polite"><div class="map-detail-placeholder"><h2 class="h5">Selecciona un rack o área</h2><p>Consulta sus posiciones, saldos y asignaciones sin salir del croquis.</p></div>
         @foreach(var element in Model.Map.Elements)
         {
-            <section class="map-element-detail" data-map-detail="@element.Id" hidden><div class="d-flex justify-content-between"><div><span class="text-body-secondary">@(element.IsWip?"Rack WIP — no controla saldo":element.Kind=="Rack"?"Rack":"Área")</span><h2 class="h4">@element.Label</h2></div><button type="button" class="btn-close" data-map-close aria-label="Cerrar detalle"></button></div>
+            <section class="map-element-detail" data-map-detail="@element.Id" hidden><div class="d-flex justify-content-between"><div><span class="text-body-secondary">@(element.IsWip?"WIP con existencias reales":element.Kind=="Rack"?"Rack":"Área")</span><h2 class="h4">@element.Label</h2></div><button type="button" class="btn-close" data-map-close aria-label="Cerrar detalle"></button></div>
             @if(element.IsWip)
             {
                 var wipAreaId = element.LocationId;

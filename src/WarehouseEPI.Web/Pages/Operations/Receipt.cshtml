@@ -7,6 +7,8 @@
     {
         InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
         InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP a bodega",
+        InventoryMovementPurpose.WipConsumption => "Consumo WIP",
+        InventoryMovementPurpose.WipSupplierReturn => "Devolución WIP a proveedor",
         _ => Model.Receipt.Type switch
     {
         InventoryMovementType.Entry => "Entrada",
@@ -18,7 +20,9 @@
     var newPage = Model.Receipt.Purpose switch
     {
         InventoryMovementPurpose.ProductionIssue => "/Operations/Exit",
-        InventoryMovementPurpose.WipWarehouseReturn => "/Operations/WipReturn",
+        InventoryMovementPurpose.WipWarehouseReturn => "/Operations/WipProcess",
+        InventoryMovementPurpose.WipConsumption => "/Operations/WipProcess",
+        InventoryMovementPurpose.WipSupplierReturn => "/Operations/WipProcess",
         _ => Model.Receipt.Type switch
     {
         InventoryMovementType.Entry => "/Operations/Entry",
@@ -63,7 +67,7 @@
     </section>
     @if (Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue)
     {
-        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">Rack WIP — no controla saldo. El material se considera consumido al confirmar este surtimiento.</p></section>
+        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">El surtimiento transfirió existencias al WIP y conservó los lotes del origen.</p></section>
     }
 
     @if (Model.Receipt.Correction is not null)

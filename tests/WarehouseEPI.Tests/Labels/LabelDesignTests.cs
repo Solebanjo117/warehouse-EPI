@@ -91,6 +91,25 @@ public sealed class LabelDesignTests
     }
 
     [Fact]
+    public void Renderer_warns_but_keeps_a_preview_when_a_real_code_is_too_dense_for_203_dpi()
+    {
+        var design = LabelDesignSerializer.Seed6x4();
+        var barcode = design.Elements.Single(item => item.Type == LabelElementType.Code128 && item.Binding == "product.sku");
+        barcode.Width = 120;
+        var template = new LabelTemplate { Code = "DENSE" };
+        var version = new LabelTemplateVersion { Template = template, Version = 1, Name = "Prueba", SizePreset = LabelSizePreset.SixByFourLandscape, DesignJson = LabelDesignSerializer.Serialize(design) };
+
+        var result = new LabelDocumentService(new BarcodeRenderingService()).Render(version,
+            new OperationalProductResult(Guid.NewGuid(), "SKU-LARGO-1234567890", null, null, "EA", false),
+            new Dictionary<string, string> { ["input.quantity"] = "1", ["input.manufacturingDate"] = "2026-08-27" }, 1);
+
+        Assert.Empty(result.Errors);
+        Assert.NotNull(result.Document);
+        Assert.Contains(result.Warnings, warning => warning.Contains("203 dpi", StringComparison.Ordinal));
+        Assert.Contains(result.Document.Elements, item => item.Barcode?.IsBelowRecommendedDensity == true);
+    }
+
+    [Fact]
     public async Task Asset_upload_validates_content_dimensions_and_deduplicates_by_sha256()
     {
         var options = new DbContextOptionsBuilder<WarehouseDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;

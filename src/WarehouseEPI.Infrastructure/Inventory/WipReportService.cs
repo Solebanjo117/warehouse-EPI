@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
@@ -56,8 +57,170 @@ public sealed record WipReportPage(
     int PageNumber,
     int PageSize);
 
+public sealed record WipInventoryRow(
+    Guid WipAreaId,
+    string WipArea,
+    Guid ProductId,
+    string ProductSku,
+    string? ProductDescription,
+    string Unit,
+    decimal Quantity,
+    DateOnly? OldestPositiveLotDate,
+    DateTimeOffset UpdatedAt);
+
+public sealed record WipActivityRow(
+    Guid MovementId,
+    DateTimeOffset OccurredAt,
+    Guid WipAreaId,
+    string WipArea,
+    Guid ProductId,
+    string ProductSku,
+    string? ProductDescription,
+    string Unit,
+    string Category,
+    string? SourceLocation,
+    string? DestinationLocation,
+    decimal Delta,
+    string Responsible,
+    string? Reference,
+    string? Notes);
+
+public sealed record WipTrackedReportPage(
+    IReadOnlyList<WipInventoryRow> Inventory,
+    IReadOnlyList<WipActivityRow> Activity,
+    int TotalActivityCount,
+    int PageNumber,
+    int PageSize);
+
 public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseClock warehouseClock)
 {
+    public async Task<WipTrackedReportPage> GetTrackedPageAsync(
+        WipReportFilter filter,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var balances = dbContext.InventoryBalances.AsNoTracking()
+            .Where(balance => balance.Location.OperationalRole == LocationOperationalRole.Wip &&
+                balance.Quantity != 0);
+        if (filter.WipAreaId is Guid wipAreaId)
+            balances = balances.Where(balance => balance.LocationId == wipAreaId);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var term = filter.Search.Trim().ToUpperInvariant();
+            balances = balances.Where(balance => balance.Product.Sku.ToUpper().Contains(term) ||
+                (balance.Product.Description != null && balance.Product.Description.ToUpper().Contains(term)) ||
+                balance.Location.Code.ToUpper().Contains(term));
+        }
+        var balanceRows = await balances.Select(balance => new
+        {
+            balance.LocationId,
+            WipArea = balance.Location.Code,
+            balance.ProductId,
+            ProductSku = balance.Product.Sku,
+            ProductDescription = balance.Product.Description,
+            Unit = balance.Product.BaseUnit.Code,
+            balance.Quantity,
+            LotDate = balance.Lot == null ? null : balance.Lot.LotDate,
+            balance.UpdatedAt
+        })
+            .ToListAsync(cancellationToken);
+        var inventoryUtc = balanceRows
+            .GroupBy(balance => new
+            {
+                balance.LocationId,
+                balance.WipArea,
+                balance.ProductId,
+                balance.ProductSku,
+                balance.ProductDescription,
+                balance.Unit
+            })
+            .Select(group => new WipInventoryRow(
+                group.Key.LocationId, group.Key.WipArea, group.Key.ProductId, group.Key.ProductSku,
+                group.Key.ProductDescription, group.Key.Unit, group.Sum(item => item.Quantity),
+                group.Where(item => item.Quantity > 0).Min(item => item.LotDate),
+                group.Max(item => item.UpdatedAt)))
+            .Where(item => item.Quantity != 0);
+        if (filter.AgedBefore is DateTimeOffset agedBefore)
+        {
+            var cutoff = DateOnly.FromDateTime(agedBefore.UtcDateTime);
+            inventoryUtc = inventoryUtc.Where(item => item.Quantity > 0 &&
+                item.OldestPositiveLotDate is not null && item.OldestPositiveLotDate <= cutoff);
+        }
+        var orderedInventory = inventoryUtc.OrderBy(item => item.WipArea).ThenBy(item => item.ProductSku).ToArray();
+        var inventory = new List<WipInventoryRow>(orderedInventory.Length);
+        foreach (var row in orderedInventory)
+            inventory.Add(row with { UpdatedAt = await warehouseClock.ConvertAsync(row.UpdatedAt, cancellationToken) });
+
+        var effectiveMovementIds = dbContext.InventoryMovements.AsNoTracking()
+            .WhereEffective(dbContext)
+            .Select(movement => movement.Id);
+        var changes = dbContext.InventoryBalanceChanges.AsNoTracking()
+            .Where(change => change.Location.OperationalRole == LocationOperationalRole.Wip &&
+                effectiveMovementIds.Contains(change.MovementLine.MovementId));
+        if (filter.From is DateTimeOffset from)
+            changes = changes.Where(change => change.MovementLine.Movement.OccurredAt >= from);
+        if (filter.To is DateTimeOffset to)
+            changes = changes.Where(change => change.MovementLine.Movement.OccurredAt < to);
+        if (filter.WipAreaId is Guid activityWipAreaId)
+            changes = changes.Where(change => change.LocationId == activityWipAreaId);
+        if (filter.ResponsibleUserId is Guid responsibleUserId)
+            changes = changes.Where(change => change.MovementLine.Movement.ResponsibleUserId == responsibleUserId);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var term = filter.Search.Trim().ToUpperInvariant();
+            changes = changes.Where(change => change.MovementLine.Product.Sku.ToUpper().Contains(term) ||
+                (change.MovementLine.Product.Description != null && change.MovementLine.Product.Description.ToUpper().Contains(term)) ||
+                change.Location.Code.ToUpper().Contains(term) ||
+                (change.MovementLine.Movement.Reference != null && change.MovementLine.Movement.Reference.ToUpper().Contains(term)) ||
+                (change.MovementLine.SourceLocation != null && change.MovementLine.SourceLocation.Code.ToUpper().Contains(term)) ||
+                (change.MovementLine.DestinationLocation != null && change.MovementLine.DestinationLocation.Code.ToUpper().Contains(term)));
+        }
+
+        var page = Math.Max(1, pageNumber);
+        var size = Math.Clamp(pageSize, 1, 10_001);
+        var total = await changes.CountAsync(cancellationToken);
+        var rawActivity = await changes
+            .OrderByDescending(change => change.MovementLine.Movement.OccurredAt)
+            .ThenByDescending(change => change.MovementLine.MovementId)
+            .ThenBy(change => change.MovementLine.LineNumber)
+            .ThenBy(change => change.Id)
+            .Skip((page - 1) * size)
+            .Take(size)
+            .Select(change => new
+            {
+                change.MovementLine.MovementId,
+                change.MovementLine.Movement.OccurredAt,
+                change.LocationId,
+                WipArea = change.Location.Code,
+                change.MovementLine.ProductId,
+                ProductSku = change.MovementLine.Product.Sku,
+                ProductDescription = change.MovementLine.Product.Description,
+                Unit = change.MovementLine.Unit.Code,
+                change.MovementLine.Movement.Type,
+                change.MovementLine.Movement.Purpose,
+                SourceLocation = change.MovementLine.SourceLocation == null ? null : change.MovementLine.SourceLocation.Code,
+                DestinationLocation = change.MovementLine.DestinationLocation == null ? null : change.MovementLine.DestinationLocation.Code,
+                Delta = change.DeltaQuantity,
+                Responsible = change.MovementLine.Movement.ResponsibleUser.FullName,
+                change.MovementLine.Movement.Reference,
+                change.MovementLine.Movement.Notes
+            })
+            .ToListAsync(cancellationToken);
+        var activity = new List<WipActivityRow>(rawActivity.Count);
+        foreach (var row in rawActivity)
+        {
+            var occurredAt = await warehouseClock.ConvertAsync(row.OccurredAt, cancellationToken);
+            activity.Add(new(
+                row.MovementId, occurredAt, row.LocationId, row.WipArea, row.ProductId,
+                row.ProductSku, row.ProductDescription, row.Unit,
+                ClassifyActivity(row.Purpose, row.Type, row.Delta),
+                row.SourceLocation, row.DestinationLocation, row.Delta,
+                row.Responsible, row.Reference, row.Notes));
+        }
+        return new(inventory, activity, total, page, size);
+    }
+
     public async Task<IReadOnlyList<WipIssueRow>> GetRecentIssuesAsync(
         Guid wipAreaId,
         int take = 10,
@@ -280,4 +443,19 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
         Guid? ReversesDispositionId);
 
     private sealed record WipDispositionTotals(decimal WarehouseReturned, decimal SupplierReturned);
+
+    private static string ClassifyActivity(
+        InventoryMovementPurpose purpose,
+        InventoryMovementType type,
+        decimal delta) => purpose switch
+        {
+            InventoryMovementPurpose.ProductionIssue => "Recibido",
+            InventoryMovementPurpose.WipConsumption => "Consumo registrado",
+            InventoryMovementPurpose.WipWarehouseReturn => "Regreso a bodega",
+            InventoryMovementPurpose.WipSupplierReturn => "Devolución a proveedor",
+            InventoryMovementPurpose.CycleCountAdjustment => "Ajuste",
+            _ when type == InventoryMovementType.Adjustment => "Ajuste",
+            _ when delta > 0 => "Movimiento normal recibido",
+            _ => "Movimiento normal enviado"
+        };
 }

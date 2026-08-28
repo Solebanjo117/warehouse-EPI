@@ -22,7 +22,8 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
     {
         if (!await LoadAsync(id, token)) return NotFound();
         ReturnUrl = SafeReturnUrl(ReturnUrl);
-        var line = await db.InventoryMovementLines.AsNoTracking().Include(l => l.BalanceChanges).SingleAsync(l => l.MovementId == id, token);
+        var line = await db.InventoryMovementLines.AsNoTracking().Include(l => l.BalanceChanges)
+            .Include(l => l.Movement).SingleAsync(l => l.MovementId == id, token);
         Input = InputModel.From(line, Movement.Type); return Page();
     }
 
@@ -36,9 +37,12 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         if (Input.CreateReplacement)
         {
             if (!CanReplace) { ModelState.AddModelError(string.Empty, "Esta interfaz solo puede reemplazar movimientos de una línea."); Input.Pin = string.Empty; return Page(); }
+            var original = await db.InventoryMovements.AsNoTracking().SingleAsync(item => item.Id == id, token);
             if (Input.Type == InventoryMovementType.Adjustment && Input.LocationId is Guid locationId)
                 Input.ExpectedBalanceVersion = (await inventory.GetBalanceAsync(Input.ProductId, locationId, token)).Version;
-            replacement = new(Input.Type, [new(Input.ProductId, Input.Quantity, Input.SourceLocationId, Input.DestinationLocationId, Input.LocationId, Input.ExpectedBalanceVersion)], Input.Reference, Input.Notes);
+            replacement = new(Input.Type,
+                [new(Input.ProductId, Input.Quantity, Input.SourceLocationId, Input.DestinationLocationId, Input.LocationId, Input.ExpectedBalanceVersion)],
+                Input.Reference, Input.Notes, Purpose: original.Purpose, OperationalAreaId: original.OperationalAreaId);
         }
         var result = await corrections.ConfirmAsync(new(Input.OperationId, id, requestedBy, Input.Pin, Input.Reason, replacement), token);
         Input.Pin = string.Empty;
@@ -72,6 +76,8 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         [Required, RegularExpression("^[0-9]{4,8}$")] public string Pin { get; set; } = string.Empty;
         public bool CreateReplacement { get; set; }
         public InventoryMovementType Type { get; set; }
+        public InventoryMovementPurpose Purpose { get; set; }
+        public Guid? OperationalAreaId { get; set; }
         public Guid ProductId { get; set; }
         public decimal Quantity { get; set; }
         public Guid? SourceLocationId { get; set; }
@@ -83,7 +89,7 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         public static InputModel From(InventoryMovementLine line, InventoryMovementType type)
         {
             var change = line.BalanceChanges.SingleOrDefault();
-            return new() { Type = type, ProductId = line.ProductId, Quantity = line.Quantity, SourceLocationId = line.SourceLocationId, DestinationLocationId = line.DestinationLocationId, LocationId = type == InventoryMovementType.Adjustment ? change?.LocationId : null, ExpectedBalanceVersion = type == InventoryMovementType.Adjustment ? 0u : null };
+            return new() { Type = type, Purpose = line.Movement.Purpose, OperationalAreaId = line.Movement.OperationalAreaId, ProductId = line.ProductId, Quantity = line.Quantity, SourceLocationId = line.SourceLocationId, DestinationLocationId = line.DestinationLocationId, LocationId = type == InventoryMovementType.Adjustment ? change?.LocationId : null, ExpectedBalanceVersion = type == InventoryMovementType.Adjustment ? 0u : null };
         }
     }
 }

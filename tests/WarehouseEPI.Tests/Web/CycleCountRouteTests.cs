@@ -1,10 +1,134 @@
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
 namespace WarehouseEPI.Tests.Web;
 
 public sealed class CycleCountRouteTests
 {
+    [Fact]
+    public async Task Empty_quantity_is_rejected_writes_nothing_and_keeps_the_capture()
+    {
+        await using var fixture = await CapturePage.CreateAsync("CC-PAGE-EMPTY", "Z-1-1", "4311");
+        var page = fixture.NewPage();
+        Assert.IsType<PageResult>(await page.OnGetAsync(fixture.CampaignId, fixture.CycleCountLocationId, null, default));
+        var token = page.PreparationToken;
+
+        var post = fixture.NewPage();
+        post.Input = new()
+        {
+            PreparationToken = token,
+            OperationId = Guid.NewGuid(),
+            Pin = fixture.Pin,
+            Entries = [new() { ProductId = fixture.ProductId, Quantity = null }]
+        };
+        var rejected = await post.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default);
+
+        Assert.IsType<PageResult>(rejected);
+        Assert.Contains("CC-PAGE-EMPTY", post.Error, StringComparison.Ordinal);
+        Assert.Contains(fixture.ProductId, post.MissingQuantityProductIds);
+        Assert.Equal(token, post.PreparationToken);
+        Assert.Empty(await fixture.Db.CycleCountAttempts.ToListAsync());
+        Assert.Equal(CycleCountLocationStatus.Pending, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
+
+        var resent = fixture.NewPage();
+        resent.Input = new()
+        {
+            PreparationToken = token,
+            OperationId = Guid.NewGuid(),
+            Pin = fixture.Pin,
+            Entries = [new() { ProductId = fixture.ProductId, Quantity = 6m }]
+        };
+        var accepted = await resent.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default);
+
+        Assert.Equal("Review", Assert.IsType<RedirectToPageResult>(accepted).PageName);
+        Assert.Equal(CycleCountLocationStatus.Completed, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task An_empty_location_may_be_confirmed_without_capturing_every_line()
+    {
+        await using var fixture = await CapturePage.CreateAsync("CC-PAGE-EMPTY-LOCATION", "Z-1-2", "4312");
+        var page = fixture.NewPage();
+        await page.OnGetAsync(fixture.CampaignId, fixture.CycleCountLocationId, null, default);
+
+        var post = fixture.NewPage();
+        post.Input = new()
+        {
+            PreparationToken = page.PreparationToken,
+            OperationId = Guid.NewGuid(),
+            Pin = fixture.Pin,
+            IsLocationEmpty = true,
+            Entries = [new() { ProductId = fixture.ProductId, Quantity = null }]
+        };
+
+        Assert.IsType<RedirectToPageResult>(await post.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default));
+        Assert.Equal(0m, (await fixture.Db.CycleCountEntries.SingleAsync()).CountedQuantity);
+    }
+
+    private sealed class CapturePage : IAsyncDisposable
+    {
+        private const string LookupKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
+        private readonly WarehouseEPI.Web.Security.CycleCountPreparationProtector protector = new(new EphemeralDataProtectionProvider());
+        private CycleCountService cycleCounts = null!;
+        public WarehouseDbContext Db { get; private set; } = null!;
+        public string Pin { get; private set; } = string.Empty;
+        public Guid CampaignId { get; private set; }
+        public Guid CycleCountLocationId { get; private set; }
+        public Guid ProductId { get; private set; }
+
+        public static async Task<CapturePage> CreateAsync(string sku, string locationCode, string pin)
+        {
+            var fixture = new CapturePage();
+            var db = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>().UseInMemoryDatabase($"CycleCountPage-{Guid.NewGuid():N}").Options);
+            await db.Database.EnsureCreatedAsync();
+            var pinService = new UserPinService(db, new PinProtector(LookupKey));
+            var user = new User { FullName = "Contador", RoleId = 2, PinLookup = string.Empty, PinHash = string.Empty };
+            Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(user, pin));
+            db.Users.Add(user);
+            var product = new Product { Sku = sku, Description = $"Producto {sku}", BaseUnitId = 1 };
+            var location = new Location { Code = locationCode, Kind = LocationKind.Rack, OperationalRole = LocationOperationalRole.Storage, RowCode = locationCode.Split('-')[0] };
+            db.Products.Add(product);
+            db.Locations.Add(location);
+            await db.SaveChangesAsync();
+
+            var movements = new InventoryMovementService(db, pinService, TimeProvider.System);
+            Assert.Equal(InventoryMovementStatus.Success, (await movements.ConfirmAsync(
+                new(Guid.NewGuid(), InventoryMovementType.Entry, pin, [new(product.Id, 6m, DestinationLocationId: location.Id)]))).Status);
+            var cycleCounts = new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System);
+            var created = await cycleCounts.CreateAsync(new(pin, $"Campaña {sku}", null, [location.Id], OperationId: Guid.NewGuid()));
+            Assert.Equal(CycleCountStatus.Success, created.Status);
+            Assert.Equal(CycleCountStatus.Success, (await cycleCounts.ReleaseAsync(created.CampaignId!.Value, Guid.NewGuid(), pin)).Status);
+            var detail = await cycleCounts.GetCampaignAsync(created.CampaignId.Value);
+
+            fixture.Db = db;
+            fixture.Pin = pin;
+            fixture.cycleCounts = cycleCounts;
+            fixture.CampaignId = created.CampaignId.Value;
+            fixture.CycleCountLocationId = Assert.Single(detail!.Locations).Id;
+            fixture.ProductId = product.Id;
+            return fixture;
+        }
+
+        public CountModel NewPage() => new(cycleCounts, Db, protector)
+        {
+            PageContext = new(new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor(), new ModelStateDictionary()))
+        };
+
+        public ValueTask DisposeAsync() => Db.DisposeAsync();
+    }
+
+
     [Fact]
     public void Cycle_count_pages_are_public_and_all_inventory_changes_require_pin()
     {
@@ -24,6 +148,25 @@ public sealed class CycleCountRouteTests
         Assert.Contains("cycle-count.js", count, StringComparison.Ordinal);
         Assert.Contains("SharedApprovals", review, StringComparison.Ordinal);
         Assert.DoesNotContain("asp-antiforgery=\"false\"", string.Join('\n', Directory.GetFiles(directory, "*.cshtml").Select(File.ReadAllText)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Capture_draft_expires_never_stores_the_pin_and_rows_stay_bindable()
+    {
+        var script = File.ReadAllText(RepositoryFile("src", "WarehouseEPI.Web", "wwwroot", "js", "cycle-count.js"));
+        var page = File.ReadAllText(Path.Combine(RepositoryDirectory("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts"), "Count.cshtml"));
+
+        Assert.Contains("warehouseEpi.cycleCount.${capture.dataset.cycleCampaign}.${capture.dataset.cycleLocation}", script, StringComparison.Ordinal);
+        Assert.Contains("draftLifetimeMs = 12 * 60 * 60 * 1000", script, StringComparison.Ordinal);
+        Assert.Contains("element.type !== \"password\"", script, StringComparison.Ordinal);
+        Assert.Contains("element.name !== \"Input.PreparationToken\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("Input.Pin", script, StringComparison.Ordinal);
+        // La restauración es explícita: nunca se rellena la captura sin que el operador lo pida.
+        Assert.Contains("restoreButton.addEventListener", script, StringComparison.Ordinal);
+        Assert.Contains("discardButton.addEventListener", script, StringComparison.Ordinal);
+        Assert.Contains("`Input.UnexpectedEntries[${index}].${field}`", script, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-unexpected-row", page, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-campaign", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -72,7 +215,7 @@ public sealed class CycleCountRouteTests
         Assert.Contains("cycle-count-create.js", create, StringComparison.Ordinal);
         Assert.Contains("indeterminate", createScript, StringComparison.Ordinal);
         Assert.Contains("item.dataset.row === toggle.dataset.row && item.dataset.rack === toggle.dataset.rack", createScript, StringComparison.Ordinal);
-        Assert.Contains("item.OperationalRole != LocationOperationalRole.Wip", createModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("item.OperationalRole != LocationOperationalRole.Wip", createModel, StringComparison.Ordinal);
         Assert.DoesNotContain("item.TracksInventory", createModel, StringComparison.Ordinal);
         Assert.Contains("CampaignStatusLabel", index, StringComparison.Ordinal);
         Assert.Contains("LocationStatusLabel", details, StringComparison.Ordinal);

@@ -25,6 +25,14 @@ public sealed class InventoryMovementService(
         if (user is null || user.Role.Code is not ("ADMIN" or "OPERATOR"))
             return new(InventoryMovementStatus.InvalidPin);
 
+        return await ConfirmAuthorizedAsync(command, user, cancellationToken);
+    }
+
+    internal async Task<InventoryMovementResult> ConfirmAuthorizedAsync(
+        InventoryMovementCommand command, User user, CancellationToken cancellationToken = default)
+    {
+        if (user.Role.Code is not ("ADMIN" or "OPERATOR"))
+            return new(InventoryMovementStatus.InvalidPin);
         var normalized = InventoryMovementRules.Normalize(command);
         var structuralErrors = InventoryMovementRules.ValidateStructure(normalized);
         if (structuralErrors.Count > 0)
@@ -73,6 +81,15 @@ public sealed class InventoryMovementService(
                 .Where(item => locationIds.Contains(item.Id))
                 .ToDictionaryAsync(item => item.Id, cancellationToken);
             var locationErrors = InventoryMovementRules.ValidateLocations(locationIds, locations);
+            if (command.Purpose == InventoryMovementPurpose.ProductionIssue && command.Lines.Any(line =>
+                    line.SourceLocationId is not Guid sourceId || !locations.TryGetValue(sourceId, out var source) ||
+                    source.Kind != LocationKind.Rack || source.OperationalRole == LocationOperationalRole.Wip))
+                locationErrors.Add("El surtimiento WIP requiere un rack de inventario como origen.");
+            if (command.Purpose == InventoryMovementPurpose.WipWarehouseReturn && command.Lines.Any(line =>
+                    line.DestinationLocationId is not Guid destinationId ||
+                    !locations.TryGetValue(destinationId, out var destination) ||
+                    destination.OperationalRole == LocationOperationalRole.Wip))
+                locationErrors.Add("El regreso WIP requiere una ubicación de bodega no WIP como destino.");
             if (locationErrors.Count != 0)
                 return await AbortAsync(transaction, new(InventoryMovementStatus.ValidationFailed, Errors: locationErrors), cancellationToken);
 
@@ -134,7 +151,12 @@ public sealed class InventoryMovementService(
                 }
             }
 
-            await movementStore.UpsertAssignmentsAsync(pairs, cancellationToken);
+            // WIP relationships are deliberately optional. A movement can create a real WIP
+            // balance without silently turning it into a catalog assignment.
+            var assignablePairs = pairs
+                .Where(pair => locations[pair.LocationId].OperationalRole != LocationOperationalRole.Wip)
+                .ToArray();
+            await movementStore.UpsertAssignmentsAsync(assignablePairs, cancellationToken);
             var movement = new InventoryMovement
             {
                 OperationId = command.OperationId,

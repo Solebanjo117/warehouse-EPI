@@ -39,7 +39,11 @@ public sealed class InventoryAnalyticsRouteTests
         Assert.Contains("if (!User.IsInRole(\"ADMIN\"))", pageModel, StringComparison.Ordinal);
         Assert.Contains("return Forbid()", pageModel, StringComparison.Ordinal);
         Assert.Contains("10000", pageModel, StringComparison.Ordinal);
-        Assert.Contains("La ocupación y las excepciones no se exportan", pageModel, StringComparison.Ordinal);
+        Assert.Contains("GetNegativeAlertExportAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("GetBelowMinimumAlertExportAsync", pageModel, StringComparison.Ordinal);
+        Assert.Contains("posiciones producto-ubicación", pageModel, StringComparison.Ordinal);
+        Assert.Contains("productos", pageModel, StringComparison.Ordinal);
+        Assert.Contains("report-print-meta", page, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -137,11 +141,11 @@ public sealed class InventoryAnalyticsRouteTests
         var model = CreateModel(db, TimeProvider.System);
 
         Assert.IsType<ForbidResult>(
-            await model.OnGetExportAsync("activity", "csv", null, null, null, null));
+            await model.OnGetExportAsync("activity", null, "csv", null, null, null, null));
 
         model.HttpContext.User = Principal("OPERATOR");
         Assert.IsType<ForbidResult>(
-            await model.OnGetExportAsync("activity", "csv", null, null, null, null));
+            await model.OnGetExportAsync("activity", null, "csv", null, null, null, null));
     }
 
     [Fact]
@@ -151,10 +155,28 @@ public sealed class InventoryAnalyticsRouteTests
         var model = CreateModel(db, TimeProvider.System);
         model.HttpContext.User = Principal("ADMIN");
 
-        var result = await model.OnGetExportAsync("activity", "csv", null, null, null, null);
+        var result = await model.OnGetExportAsync("activity", null, "csv", null, null, null, null);
 
         var file = Assert.IsType<FileContentResult>(result);
         Assert.EndsWith(".csv", file.FileDownloadName, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Inventory_analytics_exception_export_requires_admin_and_accepts_the_selected_population()
+    {
+        await using var db = CreateDbContext();
+        var product = new Product { Sku = "EX-CSV", BaseUnitId = 1, MinimumStock = 3m };
+        var location = new Location { Code = "EX-CSV-01", Kind = LocationKind.Rack };
+        db.AddRange(product, location);
+        db.InventoryBalances.Add(new InventoryBalance { Product = product, Location = location, Quantity = -1m });
+        await db.SaveChangesAsync();
+        var model = CreateModel(db, TimeProvider.System);
+
+        Assert.IsType<ForbidResult>(await model.OnGetExportAsync("exceptions", "negative", "csv", null, null, null, null));
+        model.HttpContext.User = Principal("ADMIN");
+        var result = Assert.IsType<FileContentResult>(await model.OnGetExportAsync("exceptions", "negative", "csv", null, null, null, null));
+        Assert.Equal("text/csv; charset=utf-8", result.ContentType);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, result.FileContents[..3]);
     }
 
     private static WarehouseEPI.Web.Pages.Reports.Inventory.IndexModel CreateModel(

@@ -18,7 +18,7 @@ public sealed class ReviewModel(CycleCountService cycleCountService) : PageModel
     public string? Error { get; private set; }
     public async Task<IActionResult> OnGetAsync(Guid id, Guid locationId, CancellationToken cancellationToken) { await LoadAsync(id, locationId, cancellationToken); return Campaign is null || Location is null ? NotFound() : Page(); }
     public async Task<IActionResult> OnPostRecountAsync(Guid id, Guid locationId, CancellationToken cancellationToken)
-    { var result=await cycleCountService.RequestRecountAsync(new(locationId,OperationId == Guid.Empty ? Guid.NewGuid() : OperationId,Pin,Notes),cancellationToken); if(result.Status==CycleCountStatus.Success)return RedirectToPage("Details",new{id}); await LoadAsync(id,locationId,cancellationToken); Error=Message(result); return Page(); }
+    { var result = await cycleCountService.RequestRecountAsync(new(locationId, OperationId == Guid.Empty ? Guid.NewGuid() : OperationId, Pin, Notes), cancellationToken); if (result.Status == CycleCountStatus.Success) return RedirectToPage("Details", new { id }); await LoadAsync(id, locationId, cancellationToken); Error = CycleCountPresentation.StatusMessage(result); return Page(); }
     public async Task<IActionResult> OnPostApproveAsync(Guid id, Guid locationId, CancellationToken cancellationToken)
     {
         var approvals = SharedApprovals.Select(ParseApproval).Where(item => item is not null).Cast<SharedAssignmentApproval>().ToArray();
@@ -26,11 +26,10 @@ public sealed class ReviewModel(CycleCountService cycleCountService) : PageModel
         if (result.Status == CycleCountStatus.Success) return RedirectToPage("Details", new { id });
         await LoadAsync(id, locationId, cancellationToken);
         SharingConflicts = result.Conflicts;
-        Error = Message(result);
+        Error = CycleCountPresentation.StatusMessage(result);
         return Page();
     }
-    private async Task LoadAsync(Guid id, Guid locationId, CancellationToken cancellationToken){Campaign=await cycleCountService.GetCampaignAsync(id,cancellationToken); Location=Campaign?.Locations.SingleOrDefault(item=>item.Id==locationId); if(Location is null)return; Attempt=await cycleCountService.GetLatestAttemptAsync(locationId,true,cancellationToken);}
-    private static string Message(CycleCountResult result)=>result.Status==CycleCountStatus.InvalidPin?"NIP no válido.":result.Status==CycleCountStatus.BalanceChanged?"El saldo cambió; solicita e inicia un reconteo.":result.Status==CycleCountStatus.RequiresLocationSharingConfirmation?"La ubicación contiene otros productos. Confirma expresamente cada asignación compartida y vuelve a autorizar.":string.Join(' ',result.ValidationErrors);
+    private async Task LoadAsync(Guid id, Guid locationId, CancellationToken cancellationToken) { Campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken); Location = Campaign?.Locations.SingleOrDefault(item => item.Id == locationId); if (Location is null) return; Attempt = await cycleCountService.GetLatestAttemptAsync(locationId, true, cancellationToken); }
     private static SharedAssignmentApproval? ParseApproval(string value)
     {
         var parts = value.Split('|');
