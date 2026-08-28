@@ -129,6 +129,19 @@ restauración los domingos a las 03:00 bajo `SYSTEM`. El usuario PostgreSQL
 configurado debe poder leer `warehouseEPI` y crear/eliminar bases temporales
 locales para la validación. Nunca pases una contraseña en la línea de comandos.
 
+Para trasladar la instalación a otra laptop, crea en un USB cifrado un paquete
+portátil nuevo. El comando incluye base, referencias y branding, valida primero
+una restauración temporal y genera un SHA-256 externo:
+
+```powershell
+pwsh ./scripts/security/New-WarehouseEpiMigrationBackup.ps1 `
+  -DestinationDirectory E:\WarehouseEPI-Transfer
+```
+
+El ZIP excluye contraseñas, CA privada y `Security:PinLookupKey`; esos secretos
+se transfieren por separado. Consulta la guía de implementación antes de
+restaurarlo.
+
 ## Release y servicio Windows
 
 Warehouse EPI se publica como aplicación autocontenida `win-x64`. Cada Release

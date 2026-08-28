@@ -284,7 +284,7 @@ public sealed class WarehouseMapEditorContractTests
     }
 
     [Fact]
-    public void Map_wip_panel_loads_and_renders_recent_issues_without_inventory_controls()
+    public void Map_wip_panel_renders_current_inventory_and_recent_issues_without_inventory_controls()
     {
         var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
@@ -292,6 +292,11 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("element.IsWip", pageModel, StringComparison.Ordinal);
         Assert.Contains("GetRecentIssuesAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("RecentWipIssues", pageModel, StringComparison.Ordinal);
+        Assert.Contains("Existencias actuales", page, StringComparison.Ordinal);
+        Assert.Contains("SelectMany(position => position.Products)", page, StringComparison.Ordinal);
+        Assert.Contains("Where(product => product.Quantity != 0)", page, StringComparison.Ordinal);
+        Assert.Contains("Este WIP no tiene existencias actualmente.", page, StringComparison.Ordinal);
+        Assert.Contains("@product.Quantity.ToString(\"0.####\") @product.Unit", page, StringComparison.Ordinal);
         Assert.Contains("Últimos surtimientos", page, StringComparison.Ordinal);
         Assert.Contains("Aún no hay surtimientos registrados en este WIP.", page, StringComparison.Ordinal);
         Assert.Contains("/Reports/Wip/Details", page, StringComparison.Ordinal);

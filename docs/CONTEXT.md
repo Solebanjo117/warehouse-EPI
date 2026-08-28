@@ -647,6 +647,15 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - La copia externa cifrada se difiere deliberadamente hasta decidir USB o SMB;
   el respaldo actual protege contra errores locales, no contra pérdida total de
   la laptop.
+- Para un cambio deliberado de laptop existe un flujo portátil separado:
+  `New-WarehouseEpiMigrationBackup.ps1` crea un respaldo fresco, valida una
+  restauración temporal y empaqueta base, referencias y branding con manifiesto
+  y SHA-256 externo. `Test-WarehouseEpiMigrationBackup.ps1` comprueba rutas,
+  componentes y hashes; `Restore-WarehouseEpiMigrationBackup.ps1` solo restaura
+  si `warehouseEPI` no existe y los directorios externos están vacíos. El ZIP
+  excluye credenciales, `service-settings.json`, CA privada y
+  `Security:PinLookupKey`, que deben viajar cifrados por separado. La ejecución
+  real del respaldo final y la restauración en otra laptop siguen pendientes.
 
 #### Fase 10.7: publicación y servicio Windows — activada
 

@@ -64,6 +64,29 @@
                 var issues = wipAreaId is Guid id
                     ? Model.RecentWipIssues.GetValueOrDefault(id) ?? []
                     : [];
+                var wipProducts = element.Positions
+                    .SelectMany(position => position.Products)
+                    .Where(product => product.Quantity != 0)
+                    .OrderBy(product => product.Sku)
+                    .ToArray();
+                <h3 class="h6 mt-3">Existencias actuales</h3>
+                @if(wipProducts.Length == 0)
+                {
+                    <p class="text-body-secondary">Este WIP no tiene existencias actualmente.</p>
+                }
+                else
+                {
+                    <div class="map-wip-inventory">
+                    @foreach(var product in wipProducts)
+                    {
+                        <div class="map-product-row">
+                            <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@product.ProductId">@(string.IsNullOrEmpty(product.Sku)?"Producto":product.Sku)</a>
+                            <strong class="@(product.Quantity<0?"text-danger":"")">@product.Quantity.ToString("0.####") @product.Unit</strong>
+                            <small>@(string.IsNullOrWhiteSpace(product.Description)?"Sin descripción":product.Description)</small>
+                        </div>
+                    }
+                    </div>
+                }
                 <h3 class="h6 mt-3">Últimos surtimientos</h3>
                 @if(issues.Count == 0)
                 {

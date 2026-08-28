@@ -48,6 +48,40 @@ try {
         throw 'La base contiene fondos de referencia, pero falta su respaldo de archivos asociado.'
     }
     if (Test-Path -LiteralPath $resolvedReferenceBackup -PathType Leaf) {
+        Add-Type -AssemblyName System.IO.Compression
+        $referenceArchive = [IO.Compression.ZipFile]::OpenRead($resolvedReferenceBackup)
+        try {
+            $referenceEntries = @($referenceArchive.Entries | Where-Object { -not [string]::IsNullOrEmpty($_.Name) })
+            foreach ($archiveEntry in $referenceArchive.Entries) {
+                $entryPath = $archiveEntry.FullName
+                if ([string]::IsNullOrWhiteSpace($entryPath) -or $entryPath.Contains('\') -or
+                    $entryPath.StartsWith('/') -or $entryPath.Split('/') -contains '..') {
+                    throw "El respaldo de referencias contiene una ruta insegura: '$entryPath'."
+                }
+            }
+            $manifestEntries = @($referenceEntries | Where-Object { $_.FullName -ceq 'manifest.json' })
+            if ($manifestEntries.Count -ne 1) { throw 'El respaldo de referencias debe contener un solo manifiesto.' }
+            $manifestReader = [IO.StreamReader]::new($manifestEntries[0].Open(), [Text.Encoding]::UTF8)
+            try { $archiveManifest = $manifestReader.ReadToEnd() | ConvertFrom-Json }
+            finally { $manifestReader.Dispose() }
+            $declaredNames = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            $null = $declaredNames.Add('manifest.json')
+            foreach ($entry in $archiveManifest.Files) {
+                if ([IO.Path]::GetFileName($entry.Name) -ne $entry.Name -or -not $declaredNames.Add([string]$entry.Name)) {
+                    throw 'El manifiesto de referencias contiene un nombre inseguro o duplicado.'
+                }
+            }
+            if ($referenceEntries.Count -ne $declaredNames.Count) {
+                throw 'El respaldo de referencias contiene archivos no declarados.'
+            }
+            foreach ($referenceEntry in $referenceEntries) {
+                if (-not $declaredNames.Contains($referenceEntry.FullName)) {
+                    throw "El respaldo de referencias contiene un archivo no declarado: '$($referenceEntry.FullName)'."
+                }
+            }
+        }
+        finally { $referenceArchive.Dispose() }
+
         New-Item -ItemType Directory -Path $referenceValidationPath | Out-Null
         Expand-Archive -LiteralPath $resolvedReferenceBackup -DestinationPath $referenceValidationPath
         $manifestPath = Join-Path $referenceValidationPath 'manifest.json'

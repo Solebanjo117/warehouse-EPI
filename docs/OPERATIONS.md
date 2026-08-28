@@ -154,6 +154,38 @@ pwsh ./scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1
 Ejecuta ambos comandos como administrador. No pases contraseñas por parámetros,
 archivos versionados, consola compartida ni documentación.
 
+### Respaldo portátil para cambiar de laptop
+
+Durante una ventana de corte, cuando ya no se admitan nuevos movimientos, crea
+el paquete final directamente en un USB cifrado:
+
+```powershell
+pwsh ./scripts/security/New-WarehouseEpiMigrationBackup.ps1 `
+  -DestinationDirectory E:\WarehouseEPI-Transfer
+```
+
+El script crea un respaldo nuevo, valida `pg_restore --list`, lo restaura en
+una base temporal, incluye el ZIP pareado de fondos y los archivos válidos de
+branding, y publica `WarehouseEPI-migration-<fecha>.zip` con su `.sha256`.
+No contiene `service-settings.json`, contraseñas, la CA privada ni
+`Security:PinLookupKey`.
+
+En la laptop nueva, después de instalar PostgreSQL, crear el `PGPASSFILE`
+protegido y transferir los secretos por separado:
+
+```powershell
+pwsh ./scripts/security/Test-WarehouseEpiMigrationBackup.ps1 `
+  -PackagePath E:\WarehouseEPI-Transfer\WarehouseEPI-migration-<fecha>.zip `
+  -RequireExternalHash
+pwsh ./scripts/security/Restore-WarehouseEpiMigrationBackup.ps1 `
+  -PackagePath E:\WarehouseEPI-Transfer\WarehouseEPI-migration-<fecha>.zip
+```
+
+La restauración solicita confirmación y se niega a reemplazar una base
+`warehouseEPI` existente o directorios de referencias/branding no vacíos. Sigue
+después `docs/INSTALLATION_NEW_LAPTOP.md` para configurar NIP, HTTPS, rol mínimo,
+servicio y validación física.
+
 ### Runbook pendiente: migración de conteos cíclicos de Fase 13.5
 
 Este procedimiento queda preparado, pero no autoriza por sí mismo una
