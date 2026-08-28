@@ -34,19 +34,6 @@ public sealed class AreaModel(WarehouseDbContext dbContext) : PageModel
         if (!ModelState.IsValid) return Page();
         if (await dbContext.Locations.AnyAsync(location => location.Code == Input.Code && location.Id != Input.Id, cancellationToken))
         { ModelState.AddModelError("Input.Code", "Ya existe una ubicación con ese código."); return Page(); }
-        if (Input.OperationalRole == LocationOperationalRole.Wip && Input.Id != Guid.Empty)
-        {
-            var hasBalances = await dbContext.InventoryBalances.AnyAsync(
-                balance => balance.LocationId == Input.Id && balance.Quantity != 0, cancellationToken);
-            var hasAssignments = await dbContext.ProductLocationAssignments.AnyAsync(
-                assignment => assignment.LocationId == Input.Id && assignment.IsActive, cancellationToken);
-            if (hasBalances || hasAssignments)
-            {
-                ModelState.AddModelError("Input.OperationalRole",
-                    "No se puede convertir a WIP mientras existan saldos o asignaciones activas.");
-                return Page();
-            }
-        }
         if (Input.Id == Guid.Empty)
             dbContext.Locations.Add(new Location { Code = Input.Code, Kind = LocationKind.Area, Description = Input.Description, OperationalRole = Input.OperationalRole });
         else

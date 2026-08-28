@@ -79,6 +79,7 @@ public sealed class DashboardRouteTests
         Assert.Contains("data-dashboard-range=\"7\"", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-summary", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-detail", page, StringComparison.Ordinal);
+        Assert.Contains("data-dashboard-detail-link", page, StringComparison.Ordinal);
         Assert.Contains("aria-describedby=\"dashboard-chart-detail\"", page, StringComparison.Ordinal);
         Assert.Contains("data-warehouse-date", page, StringComparison.Ordinal);
         Assert.Contains("/js/daily-dashboard.js", page, StringComparison.Ordinal);
@@ -119,6 +120,8 @@ public sealed class DashboardRouteTests
         Assert.Contains("cornerRadius: 10", script, StringComparison.Ordinal);
         Assert.Contains("ArrowLeft", script, StringComparison.Ordinal);
         Assert.Contains("aria-busy", script, StringComparison.Ordinal);
+        Assert.Contains("data-dashboard-detail-link", script, StringComparison.Ordinal);
+        Assert.Contains("searchParams.set(\"period\", \"custom\")", script, StringComparison.Ordinal);
         Assert.DoesNotContain("innerHTML", script, StringComparison.Ordinal);
 
         var chart = RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "lib", "chart.js", "chart.umd.min.js");

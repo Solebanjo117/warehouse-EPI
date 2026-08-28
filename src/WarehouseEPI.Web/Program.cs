@@ -117,6 +117,7 @@ builder.Services.AddScoped<ProductLotQueryService>();
 builder.Services.AddScoped<ProductCatalogQueryService>();
 builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.AddScoped<CycleCountService>();
+builder.Services.AddScoped<WarehouseEPI.Web.Security.CycleCountPreparationProtector>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.BarcodeRenderingService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelTemplateService>();

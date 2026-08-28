@@ -10,6 +10,9 @@ public sealed class ExitModel(
     : OperationPageModel(movementService, inventoryQuery, operationalQuery)
 {
     public override InventoryMovementType MovementType => InventoryMovementType.Exit;
+    protected override InventoryMovementType CommandMovementType => Input.ExitMode == ExitMode.Wip
+        ? InventoryMovementType.Transfer
+        : InventoryMovementType.Exit;
     public override InventoryMovementPurpose MovementPurpose => Input.ExitMode == ExitMode.Wip
         ? InventoryMovementPurpose.ProductionIssue
         : InventoryMovementPurpose.GeneralExit;

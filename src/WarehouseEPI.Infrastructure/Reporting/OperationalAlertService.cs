@@ -62,7 +62,7 @@ public sealed class OperationalAlertService(
         var stagnant = await StagnantProducts(now.AddDays(-90)).CountAsync(token);
         var stale = await dbContext.CycleCountLocations.AsNoTracking().CountAsync(x => x.Status == CycleCountLocationStatus.Stale, token);
         var pending = await dbContext.CycleCountLocations.AsNoTracking().CountAsync(x => x.Status == CycleCountLocationStatus.UnderReview || x.Status == CycleCountLocationStatus.RecountRequested, token);
-        var agedWip = await AgedWipLines(now.AddDays(-wipDays)).CountAsync(token);
+        var agedWip = await AgedWipBalances(DateOnly.FromDateTime(now.AddDays(-wipDays).UtcDateTime)).CountAsync(token);
         return new(negative, minimum, unassigned, restricted, stagnant, stale, pending, agedWip, wipDays);
     }
 
@@ -82,7 +82,7 @@ public sealed class OperationalAlertService(
             items.Add(Item(OperationalAlertCategory.StagnantInventory, OperationalAlertSeverity.Warning, c.Stagnant, "Inventario estancado", "Productos con existencia y 90 días o más sin salida efectiva.", "/Admin/Inventory/Alerts?view=stagnant"));
             items.Add(Item(OperationalAlertCategory.CycleCountStale, OperationalAlertSeverity.Critical, c.Stale, "Conteos obsoletos", "El saldo cambió durante el conteo y requiere reconteo.", "/Admin/Inventory/Alerts?view=cycle&attention=stale"));
             items.Add(Item(OperationalAlertCategory.CycleCountPending, OperationalAlertSeverity.Warning, c.Pending, "Conteos pendientes", "Ubicaciones en revisión o con reconteo solicitado.", "/Admin/Inventory/Alerts?view=cycle&attention=review"));
-            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Recordatorios WIP", $"Surtimientos de {c.WipDays} días o más sin devolución registrada; WIP no controla saldo.", "/Admin/Inventory/Alerts?view=wip"));
+            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Saldo WIP estancado", $"Posiciones WIP positivas con lote de {c.WipDays} días o más.", "/Admin/Inventory/Alerts?view=wip"));
         }
         return items.Where(x => x.Count > 0).OrderBy(x => x.Severity).ThenBy(x => x.Category).ToArray();
     }
@@ -142,7 +142,7 @@ public sealed class OperationalAlertService(
                 OccurredAt = x.CreatedAt
             });
         }
-        return AgedWipLines(now.AddDays(-wipDays)).Select(x => new AlertDetailProjection
+        return AgedWipBalances(DateOnly.FromDateTime(now.AddDays(-wipDays).UtcDateTime)).Select(x => new AlertDetailProjection
         {
             PrimaryText = x.Sku,
             SecondaryText = x.WipCode,
@@ -171,7 +171,7 @@ public sealed class OperationalAlertService(
             OperationalAlertCategory.BelowMinimum => $"Faltan {row.Quantity:0.####} {row.Unit}",
             OperationalAlertCategory.StagnantInventory => $"Existencia {row.Quantity:0.####} {row.Unit}",
             OperationalAlertCategory.CycleCountStale or OperationalAlertCategory.CycleCountPending => row.CycleStatus.ToString(),
-            OperationalAlertCategory.AgedWip => $"Surtido {row.Quantity:0.####} {row.Unit}",
+            OperationalAlertCategory.AgedWip => $"Existencia {row.Quantity:0.####} {row.Unit}",
             _ => $"{row.Quantity:0.####} {row.Unit}"
         };
         var target = category switch
@@ -179,7 +179,7 @@ public sealed class OperationalAlertService(
             OperationalAlertCategory.BelowMinimum => $"/Inventory?productId={row.ProductId}",
             OperationalAlertCategory.StagnantInventory => $"/Reports/Inventory?view=stagnant&stagnantCategory=90plus&search={Uri.EscapeDataString(row.PrimaryText)}",
             OperationalAlertCategory.CycleCountStale or OperationalAlertCategory.CycleCountPending => $"/Operations/CycleCounts/Details?id={row.TargetId}",
-            OperationalAlertCategory.AgedWip => $"/Reports/Wip/Details?id={row.TargetId}",
+            OperationalAlertCategory.AgedWip => $"/Reports/Wip?attention=aged&wipAreaId={row.LocationId}&search={Uri.EscapeDataString(row.PrimaryText)}",
             _ => $"/Inventory?productId={row.ProductId}&highlightLocationId={row.LocationId}"
         };
         return new(category, severity, primary, row.SecondaryText, value, target, row.ProductId, row.LocationId, row.OccurredAt);
@@ -265,25 +265,30 @@ public sealed class OperationalAlertService(
                };
     }
 
-    private IQueryable<AgedWipLine> AgedWipLines(DateTimeOffset cutoff) =>
-        from line in dbContext.InventoryMovements.AsNoTracking().WhereEffective(dbContext)
-            .Where(movement => movement.Type == InventoryMovementType.Exit &&
-                movement.Purpose == InventoryMovementPurpose.ProductionIssue &&
-                movement.OperationalAreaId != null && movement.OccurredAt <= cutoff)
-            .SelectMany(movement => movement.Lines)
-        where
-            !dbContext.WipDispositions.Any(d => d.OriginalMovementLineId == line.Id && d.ReversesDispositionId == null &&
-                !dbContext.WipDispositions.Any(reverse => reverse.ReversesDispositionId == d.Id))
+    private IQueryable<AgedWipLine> AgedWipBalances(DateOnly cutoff) =>
+        from balance in dbContext.InventoryBalances.AsNoTracking()
+        where balance.Location.OperationalRole == LocationOperationalRole.Wip
+        group balance by new
+        {
+            balance.ProductId,
+            Sku = balance.Product.Sku,
+            WipId = balance.LocationId,
+            WipCode = balance.Location.Code,
+            Unit = balance.Product.BaseUnit.Code
+        }
+        into position
+        where position.Sum(item => item.Quantity) > 0 && position.Any(item => item.Quantity > 0 && item.Lot != null &&
+            item.Lot.LotDate != null && item.Lot.LotDate <= cutoff)
         select new AgedWipLine
         {
-            LineId = line.Id,
-            ProductId = line.ProductId,
-            Sku = line.Product.Sku,
-            WipId = line.Movement.OperationalAreaId!.Value,
-            WipCode = line.Movement.OperationalArea!.Code,
-            Quantity = line.Quantity,
-            Unit = line.Unit.Code,
-            OccurredAt = line.Movement.OccurredAt
+            LineId = position.Select(item => item.Id).Min(),
+            ProductId = position.Key.ProductId,
+            Sku = position.Key.Sku,
+            WipId = position.Key.WipId,
+            WipCode = position.Key.WipCode,
+            Quantity = position.Sum(item => item.Quantity),
+            Unit = position.Key.Unit,
+            OccurredAt = position.Min(item => item.UpdatedAt)
         };
 
     private static OperationalAlertItemDto Item(OperationalAlertCategory category, OperationalAlertSeverity severity,

@@ -7,131 +7,35 @@
     var request = ViewContext.HttpContext.Request;
     var returnUrl = $"{request.Path}{request.QueryString}";
     var itemCount = Model.IsAudit ? Model.AuditResults.Items.Count : Model.EffectiveResults.Items.Count;
+    var effectiveValues = Model.RouteValues(("view", "effective"), ("state", null), ("pageNumber", null));
+    var auditValues = Model.RouteValues(("view", "audit"), ("pageNumber", null));
+    var xlsxValues = Model.RouteValues(("format", "xlsx"), ("pageNumber", null));
+    var csvValues = Model.RouteValues(("format", "csv"), ("pageNumber", null));
+    var todayValues = Model.RouteValues(("period", "today"), ("from", null), ("to", null), ("pageNumber", null));
+    var sevenValues = Model.RouteValues(("period", "7"), ("from", null), ("to", null), ("pageNumber", null));
+    var thirtyValues = Model.RouteValues(("period", "30"), ("from", null), ("to", null), ("pageNumber", null));
+    var allValues = Model.RouteValues(("period", "all"), ("from", null), ("to", null), ("pageNumber", null));
+    var clearPeriodValues = Model.RouteValues(("period", "30"), ("from", null), ("to", null), ("pageNumber", null));
+    var clearTypeValues = Model.RouteValues(("movementType", null), ("pageNumber", null));
+    var clearPurposeValues = Model.RouteValues(("purpose", null), ("pageNumber", null));
+    var clearSkuValues = Model.RouteValues(("sku", null), ("pageNumber", null));
+    var clearLocationValues = Model.RouteValues(("locationCode", null), ("pageNumber", null));
+    var clearResponsibleValues = Model.RouteValues(("responsibleUserId", null), ("pageNumber", null));
+    var clearSearchValues = Model.RouteValues(("search", null), ("pageNumber", null));
+    var clearStateValues = Model.RouteValues(("state", null), ("pageNumber", null));
+    var previousValues = Model.RouteValues(("pageNumber", (Model.PageNumber - 1).ToString()));
+    var nextValues = Model.RouteValues(("pageNumber", (Model.PageNumber + 1).ToString()));
 }
-
 <div class="inventory-analytics">
-    <header class="inventory-page-header analytics-header">
-        <div>
-            <span class="inventory-eyebrow">Consulta ADMIN</span>
-            <h1 class="h2 mb-1">Movimientos</h1>
-            <p class="text-muted mb-0">Consulta operaciones vigentes o revisa la cadena de auditoría inmutable.</p>
-        </div>
-        <div class="analytics-exports">
-            <a class="btn btn-outline-success" asp-page-handler="Export" asp-route-format="xlsx" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State">Excel (.xlsx)</a>
-            <a class="btn btn-outline-secondary" asp-page-handler="Export" asp-route-format="csv" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State">CSV</a>
-        </div>
-    </header>
-
-    <nav class="inventory-filter-tabs analytics-tabs" aria-label="Población de movimientos">
-        <a class="@(Model.IsAudit ? null : "active")" aria-current="@(!Model.IsAudit ? "page" : null)" asp-route-view="effective" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search">Vigentes</a>
-        <a class="@(Model.IsAudit ? "active" : null)" aria-current="@(Model.IsAudit ? "page" : null)" asp-route-view="audit" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State">Auditoría completa</a>
-    </nav>
-
-    <div class="alert alert-light border small mb-0" role="note">
-        @if (Model.IsAudit)
-        {
-            <strong>Población:</strong> <span>todas las operaciones confirmadas, incluidos originales corregidos, reversos y reemplazos.</span>
-        }
-        else
-        {
-            <strong>Población:</strong> <span>operaciones efectivas vigentes; excluye originales corregidos y reversos.</span>
-        }
-        <strong class="ms-2">Período local:</strong> <span>@(Model.From?.ToString("dd/MM/yyyy") ?? "inicio")–@(Model.To?.ToString("dd/MM/yyyy") ?? "actualidad").</span>
-        <strong class="ms-2">Zona:</strong> <span>@Model.TimeZoneId.</span>
-    </div>
-
-    <form method="get" class="analytics-filter-card">
-        <input type="hidden" name="view" value="@Model.View" />
-        <input type="hidden" name="period" value="@Model.Period" />
-        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-            <span class="text-muted small fw-bold">Período rápido:</span>
-            <a asp-route-view="@Model.View" asp-route-period="today" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State" class="btn btn-sm @(Model.Period == "today" ? "btn-primary" : "btn-outline-secondary")">Hoy</a>
-            <a asp-route-view="@Model.View" asp-route-period="7" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State" class="btn btn-sm @(Model.Period == "7" ? "btn-primary" : "btn-outline-secondary")">Últimos 7 días</a>
-            <a asp-route-view="@Model.View" asp-route-period="30" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State" class="btn btn-sm @(Model.Period == "30" ? "btn-primary" : "btn-outline-secondary")">Últimos 30 días</a>
-            <a asp-route-view="@Model.View" asp-route-period="all" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State" class="btn btn-sm @(Model.Period == "all" ? "btn-primary" : "btn-outline-secondary")">Todo el historial</a>
-        </div>
-        <div class="row g-3">
-            <div class="col-sm-6 col-lg-3"><label for="movement-from" class="form-label">Desde</label><input id="movement-from" type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" /></div>
-            <div class="col-sm-6 col-lg-3"><label for="movement-to" class="form-label">Hasta</label><input id="movement-to" type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control" /></div>
-            <div class="col-sm-6 col-lg-3"><label for="movement-type" class="form-label">Tipo</label><select id="movement-type" name="movementType" class="form-select"><option value="">Todos</option>@foreach (var type in Enum.GetValues<InventoryMovementType>()) { <option value="@type" selected="@(Model.MovementType == type)">@type</option> }</select></div>
-            <div class="col-sm-6 col-lg-3"><label for="movement-purpose" class="form-label">Propósito</label><select id="movement-purpose" name="purpose" class="form-select"><option value="">Todos</option>@foreach (var purpose in Enum.GetValues<InventoryMovementPurpose>()) { <option value="@purpose" selected="@(Model.Purpose == purpose)">@purpose</option> }</select></div>
-            <div class="col-sm-6 col-lg-3"><label for="movement-product" class="form-label">Producto</label><input id="movement-product" name="sku" value="@Model.Sku" class="form-control" placeholder="SKU, descripción, referencia o código" /></div>
-            <div class="col-sm-6 col-lg-3"><label for="movement-location" class="form-label">Ubicación / área</label><input id="movement-location" name="locationCode" value="@Model.LocationCode" class="form-control" placeholder="Parte del código o descripción" /></div>
-            <div class="col-sm-6 col-lg-3"><label for="movement-user" class="form-label">Responsable</label><select id="movement-user" name="responsibleUserId" class="form-select" asp-items="Model.UserOptions"><option value="">Todos</option></select></div>
-            @if (Model.IsAudit)
-            {
-                <div class="col-sm-6 col-lg-3"><label for="movement-state" class="form-label">Estado de auditoría</label><select id="movement-state" name="state" class="form-select"><option value="All" selected="@(Model.State == InventoryHistoryCorrectionState.All)">Todos</option><option value="Current" selected="@(Model.State == InventoryHistoryCorrectionState.Current)">Sin relación con corrección</option><option value="CorrectedOriginal" selected="@(Model.State == InventoryHistoryCorrectionState.CorrectedOriginal)">Original corregido</option><option value="Reversal" selected="@(Model.State == InventoryHistoryCorrectionState.Reversal)">Reverso</option><option value="Replacement" selected="@(Model.State == InventoryHistoryCorrectionState.Replacement)">Reemplazo</option></select></div>
-            }
-            <div class="col-12"><label for="movement-search" class="form-label">Búsqueda libre</label><input id="movement-search" name="search" value="@Model.Search" class="form-control" placeholder="Folio, operación, referencia, notas o responsable" /></div>
-            <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <span class="text-muted small" aria-live="polite">Mostrando <strong>@itemCount</strong> de <strong>@Model.TotalCount</strong> operaciones.</span>
-                <div class="d-flex gap-2"><a asp-page="Index" asp-route-view="@Model.View" class="btn btn-outline-secondary">Limpiar</a><button type="submit" class="btn btn-primary">Aplicar filtros</button></div>
-            </div>
-        </div>
-    </form>
-
-    @if (Model.IsAudit)
-    {
-        <div class="table-responsive analytics-table-card">
-            <table class="table table-hover align-middle">
-                <thead class="table-light"><tr><th>Fecha / folio</th><th>Tipo / propósito</th><th>Producto</th><th>Trayecto</th><th>Responsable</th><th>Referencia</th><th>Estado</th><th><span class="visually-hidden">Acciones</span></th></tr></thead>
-                <tbody>
-                @if (Model.AuditResults.Items.Count == 0)
-                {
-                    <tr><td colspan="8" class="analytics-empty">No hay movimientos de auditoría con los filtros seleccionados. Amplía el período o limpia algún criterio.</td></tr>
-                }
-                else
-                {
-                    @foreach (var item in Model.AuditResults.Items)
-                    {
-                        <tr>
-                            <td><div>@Model.LocalOccurredAt[item.Id].ToString("dd/MM/yyyy HH:mm")</div><a asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" class="small font-monospace">@item.Id.ToString()[..8]…</a></td>
-                            <td><strong>@item.Type</strong><small class="d-block text-body-secondary">@item.Purpose</small></td>
-                            <td><strong>@item.ProductSummary</strong><small class="d-block text-body-secondary">@item.Quantity</small></td>
-                            <td>@item.Route</td>
-                            <td>@item.ResponsibleName</td>
-                            <td>@(item.Reference ?? "—")</td>
-                            <td><span class="badge @(item.Status == "Reverso" || item.Status == "Original corregido" ? "text-bg-warning" : item.Status == "Reemplazo" ? "text-bg-info" : "text-bg-secondary")">@item.Status</span></td>
-                            <td class="text-end"><a class="btn btn-outline-primary btn-sm" asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" aria-label="Ver detalle del movimiento @item.Id">Ver detalle</a></td>
-                        </tr>
-                    }
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-    else
-    {
-        <div class="table-responsive analytics-table-card">
-            <table class="table table-hover align-middle">
-                <thead class="table-light"><tr><th>Fecha / folio</th><th>Tipo</th><th>Propósito</th><th>Responsable</th><th>Detalle de líneas</th><th>Referencia / notas</th><th><span class="visually-hidden">Acciones</span></th></tr></thead>
-                <tbody>
-                @if (Model.EffectiveResults.Items.Count == 0)
-                {
-                    <tr><td colspan="7" class="analytics-empty">No hay movimientos vigentes con los filtros seleccionados. Amplía el período o limpia algún criterio.</td></tr>
-                }
-                else
-                {
-                    @foreach (var item in Model.EffectiveResults.Items)
-                    {
-                        <tr>
-                            <td><div>@Model.LocalOccurredAt[item.Id].ToString("dd/MM/yyyy HH:mm")</div><a asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" class="small font-monospace">@item.Id.ToString()[..8]…</a></td>
-                            <td><span class="badge @(item.MovementType == InventoryMovementType.Entry ? "text-bg-success" : item.MovementType == InventoryMovementType.Exit ? "text-bg-danger" : item.MovementType == InventoryMovementType.Transfer ? "text-bg-info" : "text-bg-warning")">@item.MovementType</span></td>
-                            <td><span class="badge text-bg-light border">@item.Purpose</span></td>
-                            <td>@item.ResponsibleName</td>
-                            <td><div class="d-flex flex-column gap-1">@foreach (var line in item.Lines) { <div class="p-1 rounded bg-body-tertiary border-start border-3 border-primary small"><strong>@line.Sku</strong>: @if (item.MovementType == InventoryMovementType.Adjustment && line.AdjustmentDelta is not null) { <span class="fw-semibold">@(line.PreviousQuantity?.ToString("0.####") ?? "—") → @line.Quantity.ToString("0.####") @line.UnitCode (Δ @line.AdjustmentDelta.Value.ToString("+0.####;-0.####;0"))</span> } else { <span class="fw-semibold">@line.Quantity.ToString("0.####") @line.UnitCode</span> } <span class="text-body-secondary">(@(line.SourceLocationCode ?? "—") → @(line.DestinationLocationCode ?? item.OperationalAreaCode ?? "—"))</span>@foreach (var lot in line.BalanceChanges.Where(change => !string.IsNullOrWhiteSpace(change.LotNumber)).Select(change => change.LotNumber).Distinct(StringComparer.Ordinal)) { <span class="badge text-bg-secondary ms-1">Lote: @lot</span> }</div> }</div></td>
-                            <td>@if (!string.IsNullOrWhiteSpace(item.Reference)) { <div><strong>Ref:</strong> @item.Reference</div> }@if (!string.IsNullOrWhiteSpace(item.Notes)) { <small class="text-body-secondary">@item.Notes</small> }@if (string.IsNullOrWhiteSpace(item.Reference) && string.IsNullOrWhiteSpace(item.Notes)) { <span class="text-body-secondary">—</span> }</td>
-                            <td class="text-end"><div class="d-flex flex-wrap justify-content-end gap-2">@if (Model.CanGeneratePalletPlate(item)) { <a class="btn btn-outline-success btn-sm" asp-page="/Operations/PalletLabels/Index" asp-route-id="@item.Id">Generar placa</a> }<a class="btn btn-outline-primary btn-sm" asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl" aria-label="Ver detalle del movimiento @item.Id">Ver detalle</a></div></td>
-                        </tr>
-                    }
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-
-    @if (Model.TotalPages > 1)
-    {
-        <nav aria-label="Paginación de movimientos"><ul class="pagination justify-content-center"><li class="page-item @(Model.PageNumber <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State" asp-route-pageNumber="@(Model.PageNumber - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@Model.PageNumber de @Model.TotalPages</span></li><li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-movementType="@Model.MovementType" asp-route-purpose="@Model.Purpose" asp-route-sku="@Model.Sku" asp-route-locationCode="@Model.LocationCode" asp-route-responsibleUserId="@Model.ResponsibleUserId" asp-route-search="@Model.Search" asp-route-state="@Model.State" asp-route-pageNumber="@(Model.PageNumber + 1)">Siguiente</a></li></ul></nav>
-    }
+  <header class="inventory-page-header analytics-header"><div><span class="inventory-eyebrow">Consulta ADMIN</span><h1 class="h2 mb-1">Movimientos</h1><p class="text-muted mb-0">Consulta operaciones vigentes o revisa la cadena de auditoría inmutable.</p></div><div class="analytics-exports"><a class="btn btn-outline-success" asp-page-handler="Export" asp-all-route-data="@xlsxValues">Excel (.xlsx)</a><a class="btn btn-outline-secondary" asp-page-handler="Export" asp-all-route-data="@csvValues">CSV</a></div></header>
+  <nav class="inventory-filter-tabs analytics-tabs" aria-label="Población de movimientos"><a class="@(Model.IsAudit ? null : "active")" aria-current="@(!Model.IsAudit ? "page" : null)" asp-all-route-data="@effectiveValues" data-movement-tab="effective">Vigentes</a><a class="@(Model.IsAudit ? "active" : null)" aria-current="@(Model.IsAudit ? "page" : null)" asp-all-route-data="@auditValues" data-movement-tab="audit">Auditoría completa</a></nav>
+  <div class="alert alert-light border small mb-0" role="note"><strong>Población:</strong> @(Model.IsAudit ? "todas las operaciones confirmadas, incluidos originales corregidos, reversos y reemplazos." : "operaciones efectivas vigentes; excluye originales corregidos y reversos.") <strong class="ms-2">Período local:</strong> @(Model.From?.ToString("dd/MM/yyyy") ?? "inicio")–@(Model.To?.ToString("dd/MM/yyyy") ?? "actualidad"). <strong class="ms-2">Zona:</strong> @Model.TimeZoneId.</div>
+  <form method="get" class="analytics-filter-card"><input type="hidden" name="view" value="@Model.View" /><input type="hidden" name="period" value="@Model.Period" />
+    <div class="d-flex flex-wrap gap-2 align-items-center"><span class="text-muted small fw-bold">Período rápido:</span><a asp-all-route-data="@todayValues" class="btn btn-sm" data-movement-period="today">Hoy</a><a asp-all-route-data="@sevenValues" class="btn btn-sm" data-movement-period="7">Últimos 7 días</a><a asp-all-route-data="@thirtyValues" class="btn btn-sm" data-movement-period="30">Últimos 30 días</a><a asp-all-route-data="@allValues" class="btn btn-sm" data-movement-period="all">Todo el historial</a></div>
+    <details class="analytics-filter-details mt-3" open="@(Model.HasAdvancedFilters ? "open" : null)"><summary>Filtros avanzados</summary><div class="row g-3 pt-3"><div class="col-sm-6 col-lg-3"><label for="movement-from" class="form-label">Desde</label><input id="movement-from" type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" class="form-control" /></div><div class="col-sm-6 col-lg-3"><label for="movement-to" class="form-label">Hasta</label><input id="movement-to" type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" class="form-control" /></div><div class="col-sm-6 col-lg-3"><label for="movement-type" class="form-label">Tipo</label><select id="movement-type" name="movementType" class="form-select"><option value="">Todos</option>@foreach (var type in Enum.GetValues<InventoryMovementType>()) { <option value="@type" selected="@(Model.MovementType == type)">@type</option> }</select></div><div class="col-sm-6 col-lg-3"><label for="movement-purpose" class="form-label">Propósito</label><select id="movement-purpose" name="purpose" class="form-select"><option value="">Todos</option>@foreach (var purpose in Enum.GetValues<InventoryMovementPurpose>()) { <option value="@purpose" selected="@(Model.Purpose == purpose)">@purpose</option> }</select></div><div class="col-sm-6 col-lg-3"><label for="movement-product" class="form-label">Producto</label><input id="movement-product" name="sku" value="@Model.Sku" class="form-control" /></div><div class="col-sm-6 col-lg-3"><label for="movement-location" class="form-label">Ubicación / área</label><input id="movement-location" name="locationCode" value="@Model.LocationCode" class="form-control" /></div><div class="col-sm-6 col-lg-3"><label for="movement-user" class="form-label">Responsable</label><select id="movement-user" name="responsibleUserId" class="form-select" asp-items="Model.UserOptions"><option value="">Todos</option></select></div>@if (Model.IsAudit) { <div class="col-sm-6 col-lg-3"><label for="movement-state" class="form-label">Estado de auditoría</label><select id="movement-state" name="state" class="form-select"><option value="All">Todos</option><option value="Current" selected="@(Model.State == InventoryHistoryCorrectionState.Current)">Sin relación con corrección</option><option value="CorrectedOriginal" selected="@(Model.State == InventoryHistoryCorrectionState.CorrectedOriginal)">Original corregido</option><option value="Reversal" selected="@(Model.State == InventoryHistoryCorrectionState.Reversal)">Reverso</option><option value="Replacement" selected="@(Model.State == InventoryHistoryCorrectionState.Replacement)">Reemplazo</option></select></div> }<div class="col-12"><label for="movement-search" class="form-label">Búsqueda libre</label><input id="movement-search" name="search" value="@Model.Search" class="form-control" /></div><div class="col-12 d-flex justify-content-between"><span class="text-muted small">Mostrando <strong>@itemCount</strong> de <strong>@Model.TotalCount</strong> operaciones.</span><div><a asp-page="Index" asp-route-view="@Model.View" class="btn btn-outline-secondary">Limpiar</a><button type="submit" class="btn btn-primary">Aplicar filtros</button></div></div></div></details>
+  </form>
+  @if (Model.HasAdvancedFilters) { <nav class="analytics-filter-chips" aria-label="Filtros activos">@if (Model.Period == "custom") { <a asp-all-route-data="@clearPeriodValues" data-filter-chip="period">Período: @(Model.From?.ToString("dd/MM/yyyy") ?? "inicio")–@(Model.To?.ToString("dd/MM/yyyy") ?? "actualidad") ×</a> }@if (Model.MovementType is not null) { <a asp-all-route-data="@clearTypeValues" data-filter-chip="movementType">Tipo: @Model.MovementType ×</a> }@if (Model.Purpose is not null) { <a asp-all-route-data="@clearPurposeValues" data-filter-chip="purpose">Propósito: @Model.Purpose ×</a> }@if (!string.IsNullOrWhiteSpace(Model.Sku)) { <a asp-all-route-data="@clearSkuValues" data-filter-chip="sku">Producto: @Model.Sku ×</a> }@if (!string.IsNullOrWhiteSpace(Model.LocationCode)) { <a asp-all-route-data="@clearLocationValues" data-filter-chip="locationCode">Ubicación: @Model.LocationCode ×</a> }@if (Model.ResponsibleUserId is not null) { <a asp-all-route-data="@clearResponsibleValues" data-filter-chip="responsibleUserId">Responsable ×</a> }@if (!string.IsNullOrWhiteSpace(Model.Search)) { <a asp-all-route-data="@clearSearchValues" data-filter-chip="search">Búsqueda: @Model.Search ×</a> }@if (Model.IsAudit && Model.State != InventoryHistoryCorrectionState.All) { <a asp-all-route-data="@clearStateValues" data-filter-chip="state">Estado: @Model.State ×</a> }</nav> }
+  @if (Model.IsAudit) { <div class="table-responsive analytics-table-card"><table class="table table-hover align-middle report-cards"><thead><tr><th scope="col">Fecha / folio</th><th scope="col">Tipo / propósito</th><th scope="col">Producto</th><th scope="col">Trayecto</th><th scope="col">Responsable</th><th scope="col">Referencia</th><th scope="col">Estado</th><th scope="col"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>@if (Model.AuditResults.Items.Count == 0) { <tr class="report-empty-row"><td colspan="8">No hay movimientos de auditoría con los filtros seleccionados.</td></tr> } else { @foreach (var item in Model.AuditResults.Items) { <tr><td data-label="Fecha / folio">@Model.LocalOccurredAt[item.Id].ToString("dd/MM/yyyy HH:mm")<br /><a asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl">@item.Id.ToString()[..8]…</a></td><td data-label="Tipo / propósito">@item.Type<br />@item.Purpose</td><td data-label="Producto">@item.ProductSummary</td><td data-label="Trayecto">@item.Route</td><td data-label="Responsable">@item.ResponsibleName</td><td data-label="Referencia">@(item.Reference ?? "—")</td><td data-label="Estado">@item.Status</td><td data-label=""><a class="btn btn-outline-primary btn-sm" asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl">Ver detalle</a></td></tr> } }</tbody></table></div> }
+  else { <div class="table-responsive analytics-table-card"><table class="table table-hover align-middle report-cards"><thead><tr><th scope="col">Fecha / folio</th><th scope="col">Tipo</th><th scope="col">Propósito</th><th scope="col">Responsable</th><th scope="col">Detalle de líneas</th><th scope="col">Referencia / notas</th><th scope="col"><span class="visually-hidden">Acciones</span></th></tr></thead><tbody>@if (Model.EffectiveResults.Items.Count == 0) { <tr class="report-empty-row"><td colspan="7">No hay movimientos vigentes con los filtros seleccionados.</td></tr> } else { @foreach (var item in Model.EffectiveResults.Items) { <tr><td data-label="Fecha / folio">@Model.LocalOccurredAt[item.Id].ToString("dd/MM/yyyy HH:mm")<br /><a asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl">@item.Id.ToString()[..8]…</a></td><td data-label="Tipo">@item.MovementType</td><td data-label="Propósito">@item.Purpose</td><td data-label="Responsable">@item.ResponsibleName</td><td data-label="Detalle de líneas"><div class="report-lines-full">@foreach (var line in item.Lines) { <div><strong>@line.Sku</strong>: @line.Quantity.ToString("0.####") @line.UnitCode (@(line.SourceLocationCode ?? "—") → @(line.DestinationLocationCode ?? item.OperationalAreaCode ?? "—"))</div> }</div><span class="report-lines-compact">@item.LineCount línea(s) · <a asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl">Ver detalle</a></span></td><td data-label="Referencia / notas">@(item.Reference ?? item.Notes ?? "—")</td><td data-label=""><div class="d-flex flex-wrap gap-2">@if (Model.CanGeneratePalletPlate(item)) { <a class="btn btn-outline-success btn-sm" asp-page="/Operations/PalletLabels/Index" asp-route-id="@item.Id">Generar placa</a> }<a class="btn btn-outline-primary btn-sm" asp-page="Details" asp-route-id="@item.Id" asp-route-returnUrl="@returnUrl">Ver detalle</a></div></td></tr> } }</tbody></table></div> }
+  @if (Model.TotalPages > 1) { <nav aria-label="Paginación de movimientos"><ul class="pagination justify-content-center"><li class="page-item">@if (Model.PageNumber <= 1) { <span class="page-link">Anterior</span> } else { <a class="page-link" asp-all-route-data="@previousValues" data-movement-page-link="previous">Anterior</a> }</li><li class="page-item disabled"><span class="page-link">@Model.PageNumber de @Model.TotalPages</span></li><li class="page-item">@if (Model.PageNumber >= Model.TotalPages) { <span class="page-link">Siguiente</span> } else { <a class="page-link" asp-all-route-data="@nextValues" data-movement-page-link="next">Siguiente</a> }</li></ul></nav> }
 </div>

@@ -405,11 +405,9 @@
       const lookupKind = kind === "product" ? "product" : "location";
       if (lookupKind === "location") {
         const expectsWip = (operation === "wipissue" || isWipExit()) && kind === "destination";
-        const isWipLocation = item.tracksInventory === false;
-        if ((expectsWip && !isWipLocation) || (!expectsWip && isWipLocation)) {
-          const message = expectsWip
-            ? "Selecciona un rack WIP."
-            : "Este rack WIP no controla saldo y no es válido para este campo.";
+        const isWipLocation = item.isWip === true;
+        if (expectsWip && !isWipLocation) {
+          const message = "Selecciona un rack WIP.";
           lookup.input.setCustomValidity(message);
           lookup.input.reportValidity();
           setOperationFeedback(message);
@@ -970,32 +968,6 @@
       const button = operationShell.querySelector("[data-submit-button]");
       button.disabled = true;
       button.textContent = "Confirmando…";
-    });
-  }
-
-  const inventoryShell = document.querySelector("[data-inventory-query]");
-  if (inventoryShell) {
-    const lookupUrl = inventoryShell.dataset.lookupUrl;
-    inventoryShell.querySelectorAll("[data-query-form]").forEach((form) => {
-      const kind = form.dataset.queryForm;
-      const input = form.querySelector("[data-query-input]");
-      const hidden = form.querySelector("[data-query-selected-id]");
-      const results = form.querySelector("[data-query-results]");
-      const search = debounce(async () => {
-        const query = input.value.trim();
-        if (!query) return results.replaceChildren();
-        const handler = kind === "product" ? "Products" : "Locations";
-        const items = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler, q: query })}`);
-        renderSuggestions(results, items, kind, (item) => {
-          hidden.value = item.id;
-          input.value = kind === "product" ? item.sku : item.code;
-          results.replaceChildren();
-        });
-      });
-      input.addEventListener("input", () => {
-        hidden.value = "";
-        search();
-      });
     });
   }
 

@@ -16,6 +16,7 @@ public sealed class IndexModel(
 {
     private const int PageSize = 25;
     public WipReportPage Report { get; private set; } = new([], [], 0, 1, PageSize);
+    public WipTrackedReportPage TrackedReport { get; private set; } = new([], [], 0, 1, PageSize);
     public IReadOnlyList<WipAreaOption> WipAreas { get; private set; } = [];
     public DateOnly? From { get; private set; }
     public DateOnly? To { get; private set; }
@@ -23,7 +24,8 @@ public sealed class IndexModel(
     public Guid? WipAreaId { get; private set; }
     public string? Attention { get; private set; }
     public int WipReminderDays { get; private set; }
-    public int TotalPages => Math.Max(1, (int)Math.Ceiling(Report.TotalCount / (double)PageSize));
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(TrackedReport.TotalActivityCount / (double)PageSize));
+    public IReadOnlyList<int> VisiblePages { get; private set; } = [];
 
     public async Task OnGetAsync(DateOnly? from, DateOnly? to, string? search, Guid? wipAreaId, string? attention,
         int pageNumber = 1, CancellationToken cancellationToken = default)
@@ -39,13 +41,19 @@ public sealed class IndexModel(
         var settings = await settingsService.GetAsync(cancellationToken);
         WipReminderDays = settings.WipReminderDays;
         var interval = await clock.GetUtcIntervalAsync(From, To, cancellationToken);
+        var filter = new WipReportFilter(interval.FromInclusive, interval.ToExclusive, Search, WipAreaId,
+            AgedBefore: Attention is null ? null : now.AddDays(-WipReminderDays));
+        TrackedReport = await reportService.GetTrackedPageAsync(filter, pageNumber, PageSize, cancellationToken);
         Report = await reportService.GetPageAsync(
-            new(interval.FromInclusive, interval.ToExclusive, Search, WipAreaId,
-                AgedBefore: Attention is null ? null : now.AddDays(-WipReminderDays),
-                RequireNoEffectiveReturn: Attention is not null),
+            new(interval.FromInclusive, interval.ToExclusive, Search, WipAreaId),
             pageNumber, PageSize, cancellationToken);
+        var currentPage = Math.Min(TrackedReport.PageNumber, TotalPages);
+        var firstVisible = Math.Max(1, currentPage - 2);
+        var lastVisible = Math.Min(TotalPages, currentPage + 2);
+        VisiblePages = Enumerable.Range(firstVisible, lastVisible - firstVisible + 1).ToArray();
         WipAreas = await dbContext.Locations.AsNoTracking()
-            .Where(location => location.OperationalRole == LocationOperationalRole.Wip && location.IsActive)
+            .Where(location => location.IsPhysicallyPresent &&
+                location.OperationalRole == LocationOperationalRole.Wip && location.IsActive)
             .OrderBy(location => location.Code)
             .Select(location => new WipAreaOption(location.Id, location.Code))
             .ToListAsync(cancellationToken);

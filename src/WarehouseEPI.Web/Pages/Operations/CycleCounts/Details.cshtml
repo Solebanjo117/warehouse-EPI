@@ -94,6 +94,15 @@
         </div>
     </section>
 
+    @if (reviewing > 0 && !campaign.Locations.Any(item => item.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.Counting or CycleCountLocationStatus.RecountRequested))
+    {
+        <section class="analytics-filter-card cycle-primary-panel"><div><span class="eyebrow">Cierre</span><h2 class="h5 mb-1">Revisión final disponible</h2><p class="text-muted mb-0">Autoriza todas las diferencias vigentes con un solo NIP.</p></div><a asp-page="BatchReview" asp-route-id="@campaign.Id" class="btn btn-primary">Revisar diferencias</a></section>
+    }
+
+    @if (canStart)
+    {
+        <form method="post" asp-page-handler="ScanLocation" class="cycle-location-scan" data-cycle-location-scan><input type="hidden" name="id" value="@campaign.Id"/><label class="visually-hidden" for="cycle-location-code">Ubicación escaneada</label><input id="cycle-location-code" name="ScannedLocationCode" class="visually-hidden" data-cycle-location-code autocomplete="off"/><input class="visually-hidden" data-cycle-location-photo type="file" accept="image/*" capture="environment"/><button type="button" class="cycle-scan-fab" data-cycle-scan-location aria-label="Escanear ubicación">📷 <span>Escanear ubicación</span></button></form>
+    }
     @if (campaign.Status is not (CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled))
     {
         <details class="cycle-danger-zone">
@@ -102,3 +111,4 @@
         </details>
     }
 </div>
+@section Scripts { <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }

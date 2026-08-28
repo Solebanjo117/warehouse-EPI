@@ -467,6 +467,8 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Guid wipAreaId;
         await using (var setup = fixture.CreateDbContext())
         {
+            var source = await setup.Locations.SingleAsync(item => item.Id == seed.LocationId);
+            source.Kind = LocationKind.Rack;
             var wipArea = new Location
             {
                 Code = "PG-WIP-AREA",
@@ -480,37 +482,27 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
 
         var issue = await fixture.ConfirmAsync(new(
             Guid.NewGuid(),
-            InventoryMovementType.Exit,
+            InventoryMovementType.Transfer,
             seed.Pin,
-            [new(seed.ProductId, 4m, SourceLocationId: seed.LocationId)],
+            [new(seed.ProductId, 4m, seed.LocationId, wipAreaId)],
             Purpose: InventoryMovementPurpose.ProductionIssue,
             OperationalAreaId: wipAreaId));
         Assert.Equal(InventoryMovementStatus.Success, issue.Status);
 
         await using var db = fixture.CreateDbContext();
-        var lineId = await db.InventoryMovementLines
-            .Where(line => line.MovementId == issue.MovementId)
-            .Select(line => line.Id)
-            .SingleAsync();
-        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
-        var disposition = await new WipDispositionService(db, pins, TimeProvider.System).ConfirmAsync(new(
-            Guid.NewGuid(),
-            lineId,
-            WipDispositionType.SupplierReturn,
-            1m,
-            seed.Pin,
-            Reference: "PG-RMA"));
-        Assert.Equal(WipDispositionStatus.Success, disposition.Status);
+        var supplier = await fixture.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Exit, seed.Pin,
+            [new(seed.ProductId, 1m, SourceLocationId: wipAreaId)],
+            Reference: "PG-RMA", Purpose: InventoryMovementPurpose.WipSupplierReturn,
+            OperationalAreaId: wipAreaId));
+        Assert.Equal(InventoryMovementStatus.Success, supplier.Status);
 
         var reports = new WipReportService(db, new WarehouseClock(new WarehouseSettingsService(db)));
-        var search = await reports.SearchIssuesAsync("PG-WIP-REPORT");
-        var page = await reports.GetPageAsync(new(null, null, WipAreaId: wipAreaId), 1, 25);
-        var export = await reports.ExportAsync(new(null, null, WipAreaId: wipAreaId));
+        var page = await reports.GetTrackedPageAsync(new(null, null, "PG-WIP-REPORT", wipAreaId), 1, 25);
 
-        Assert.Contains(search, row => row.MovementId == issue.MovementId && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
-        Assert.Contains(page.Items, row => row.MovementId == issue.MovementId && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
-        Assert.Contains(page.Summary, row => row.ProductSku == "PG-WIP-REPORT" && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
-        Assert.Contains(export, row => row.MovementId == issue.MovementId && row.SupplierReturned == 1m && row.AssumedConsumed == 3m);
+        Assert.Contains(page.Inventory, row => row.ProductSku == "PG-WIP-REPORT" && row.Quantity == 3m);
+        Assert.Contains(page.Activity, row => row.MovementId == issue.MovementId && row.Delta == 4m && row.Category == "Recibido");
+        Assert.Contains(page.Activity, row => row.MovementId == supplier.MovementId && row.Delta == -1m && row.Category == "Devolución a proveedor");
     }
 }
 

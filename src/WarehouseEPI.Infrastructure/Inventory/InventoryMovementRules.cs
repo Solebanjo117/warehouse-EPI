@@ -32,11 +32,20 @@ internal static class InventoryMovementRules
             (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is not null))
             errors.Add("Una salida general no admite un área operativa destino.");
         if (command.Purpose == InventoryMovementPurpose.ProductionIssue &&
-            (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is null))
-            errors.Add("El surtimiento a producción requiere una salida y una zona WIP.");
+            (command.Type != InventoryMovementType.Transfer || command.OperationalAreaId is null))
+            errors.Add("El surtimiento a producción requiere una transferencia y una zona WIP.");
         if (command.Purpose == InventoryMovementPurpose.WipWarehouseReturn &&
-            (command.Type != InventoryMovementType.Entry || command.OperationalAreaId is not null))
-            errors.Add("Una devolución WIP a bodega requiere una entrada sin área operativa destino.");
+            (command.Type != InventoryMovementType.Transfer || command.OperationalAreaId is null))
+            errors.Add("Un regreso WIP a bodega requiere una transferencia y una zona WIP origen.");
+        if (command.Purpose == InventoryMovementPurpose.WipConsumption &&
+            (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is null))
+            errors.Add("Un consumo WIP requiere una salida y una zona WIP origen.");
+        if (command.Purpose == InventoryMovementPurpose.WipSupplierReturn &&
+            (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is null))
+            errors.Add("Una devolución WIP a proveedor requiere una salida y una zona WIP origen.");
+        if (command.Purpose == InventoryMovementPurpose.WipSupplierReturn &&
+            string.IsNullOrWhiteSpace(command.Reference))
+            errors.Add("La devolución WIP a proveedor requiere una referencia documental.");
         if (command.Purpose == InventoryMovementPurpose.CycleCountAdjustment &&
             (command.Type != InventoryMovementType.Adjustment || command.OperationalAreaId is not null))
             errors.Add("Un ajuste de conteo cíclico requiere tipo ajuste y no admite un área operativa.");
@@ -77,6 +86,15 @@ internal static class InventoryMovementRules
                     errors.Add($"{label}: tipo de movimiento no soportado.");
                     break;
             }
+
+            if (command.Purpose == InventoryMovementPurpose.ProductionIssue &&
+                line.DestinationLocationId != command.OperationalAreaId)
+                errors.Add($"{label}: el destino debe coincidir con la zona WIP del surtimiento.");
+            if (command.Purpose is InventoryMovementPurpose.WipConsumption or
+                    InventoryMovementPurpose.WipSupplierReturn or
+                    InventoryMovementPurpose.WipWarehouseReturn &&
+                line.SourceLocationId != command.OperationalAreaId)
+                errors.Add($"{label}: el origen debe coincidir con la zona WIP de la operación.");
         }
 
         return errors;
@@ -121,8 +139,6 @@ internal static class InventoryMovementRules
                 errors.Add($"La ubicación {location.Code} está inactiva.");
             else if (location.IsBlocked)
                 errors.Add($"La ubicación {location.Code} está bloqueada.");
-            else if (!location.TracksInventory)
-                errors.Add($"La ubicación {location.Code} es WIP y no controla saldo.");
         }
 
         return errors;

@@ -32,6 +32,7 @@ public sealed class IndexModel(
     public string? Search { get; private set; }
     public short? UnitId { get; private set; }
     public DateTimeOffset UpdatedAt { get; private set; }
+    public string TimeZoneId { get; private set; } = "UTC";
     public LocationOccupancyReportDto Occupancy { get; private set; } = new(new(0, 0, 0, 0, 0, 0), []);
     public InventoryAnalyticsPage<SkuExitActivityMetricDto> Activity { get; private set; } = new([], 0, 1, PageSize);
     public InventoryAnalyticsPage<StagnantProductDto> Stagnant { get; private set; } = new([], 0, 1, PageSize);
@@ -127,6 +128,7 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetExportAsync(
         string view,
+        string? exception,
         string format,
         string? period,
         string? status,
@@ -137,36 +139,62 @@ public sealed class IndexModel(
         if (!User.IsInRole("ADMIN"))
             return Forbid();
 
-        Normalize(view, null, period, status, search, unitId);
-        if (View is "occupancy" or "exceptions")
-            return BadRequest("La ocupación y las excepciones no se exportan en esta fase.");
+        Normalize(view, exception, period, status, search, unitId);
+        if (View == "occupancy")
+            return BadRequest("La ocupación no se exporta en esta fase.");
         if (format is not ("csv" or "xlsx"))
             return BadRequest("El formato debe ser csv o xlsx.");
 
         var nowUtc = timeProvider.GetUtcNow();
-        var filter = await BuildFilterAsync(1, nowUtc, cancellationToken);
         var localNow = await clock.ConvertAsync(nowUtc, cancellationToken);
         byte[] bytes;
         string fileName;
-        if (View == "activity")
+        if (View == "exceptions")
         {
-            var batch = await analyticsService.GetExitActivityExportAsync(filter, 10000, cancellationToken);
-            if (batch.ExceedsLimit)
-                return ExportLimit(batch.TotalRows, batch.MaximumRows);
-            bytes = format == "xlsx"
-                ? await exportService.ExportExitActivityToExcelAsync(batch.Items, filter, cancellationToken)
-                : await exportService.ExportExitActivityToCsvAsync(batch.Items, filter, cancellationToken);
-            fileName = $"actividad-salidas-sku-{localNow:yyyyMMdd-HHmmss}.{format}";
+            if (ExceptionView == "minimum")
+            {
+                var batch = await inventoryQueryService.GetBelowMinimumAlertExportAsync(Search, 10000, cancellationToken);
+                if (batch.ExceedsLimit)
+                    return ExportLimit(batch.TotalRows, batch.MaximumRows, "productos");
+                bytes = format == "xlsx"
+                    ? await exportService.ExportMinimumExceptionsToExcelAsync(batch.Items, Search, cancellationToken)
+                    : await exportService.ExportMinimumExceptionsToCsvAsync(batch.Items, Search, cancellationToken);
+                fileName = $"productos-bajo-minimo-{localNow:yyyyMMdd-HHmmss}.{format}";
+            }
+            else
+            {
+                var batch = await inventoryQueryService.GetNegativeAlertExportAsync(Search, 10000, cancellationToken);
+                if (batch.ExceedsLimit)
+                    return ExportLimit(batch.TotalRows, batch.MaximumRows, "posiciones producto-ubicación");
+                bytes = format == "xlsx"
+                    ? await exportService.ExportNegativeExceptionsToExcelAsync(batch.Items, Search, cancellationToken)
+                    : await exportService.ExportNegativeExceptionsToCsvAsync(batch.Items, Search, cancellationToken);
+                fileName = $"saldos-negativos-{localNow:yyyyMMdd-HHmmss}.{format}";
+            }
         }
         else
         {
-            var batch = await analyticsService.GetStagnantExportAsync(filter, nowUtc, 10000, cancellationToken);
-            if (batch.ExceedsLimit)
-                return ExportLimit(batch.TotalRows, batch.MaximumRows);
-            bytes = format == "xlsx"
-                ? await exportService.ExportStagnantToExcelAsync(batch.Items, filter, cancellationToken)
-                : await exportService.ExportStagnantToCsvAsync(batch.Items, filter, cancellationToken);
-            fileName = $"productos-estancados-{localNow:yyyyMMdd-HHmmss}.{format}";
+            var filter = await BuildFilterAsync(1, nowUtc, cancellationToken);
+            if (View == "activity")
+            {
+                var batch = await analyticsService.GetExitActivityExportAsync(filter, 10000, cancellationToken);
+                if (batch.ExceedsLimit)
+                    return ExportLimit(batch.TotalRows, batch.MaximumRows, "productos");
+                bytes = format == "xlsx"
+                    ? await exportService.ExportExitActivityToExcelAsync(batch.Items, filter, cancellationToken)
+                    : await exportService.ExportExitActivityToCsvAsync(batch.Items, filter, cancellationToken);
+                fileName = $"actividad-salidas-sku-{localNow:yyyyMMdd-HHmmss}.{format}";
+            }
+            else
+            {
+                var batch = await analyticsService.GetStagnantExportAsync(filter, nowUtc, 10000, cancellationToken);
+                if (batch.ExceedsLimit)
+                    return ExportLimit(batch.TotalRows, batch.MaximumRows, "productos");
+                bytes = format == "xlsx"
+                    ? await exportService.ExportStagnantToExcelAsync(batch.Items, filter, cancellationToken)
+                    : await exportService.ExportStagnantToCsvAsync(batch.Items, filter, cancellationToken);
+                fileName = $"productos-estancados-{localNow:yyyyMMdd-HHmmss}.{format}";
+            }
         }
 
         return File(
@@ -253,6 +281,7 @@ public sealed class IndexModel(
     private async Task LoadDisplayTimeZoneAsync(CancellationToken cancellationToken)
     {
         var settings = await settingsService.GetAsync(cancellationToken);
+        TimeZoneId = settings.TimeZoneId;
         displayTimeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
     }
 
@@ -274,8 +303,8 @@ public sealed class IndexModel(
     private static string CacheKey(string view, InventoryAnalyticsFilter filter, string period) =>
         $"reporting:inventory-analytics:{view}:{period}:{filter.ProductStatus}:{filter.Search}:{filter.UnitId}:{filter.StagnantCategory}:{filter.PageNumber}";
 
-    private BadRequestObjectResult ExportLimit(int totalRows, int maximumRows) => BadRequest(
-        $"La exportación contiene {totalRows:N0} productos y supera el límite de {maximumRows:N0}. Aplica filtros más específicos.");
+    private BadRequestObjectResult ExportLimit(int totalRows, int maximumRows, string population) => BadRequest(
+        $"La exportación contiene {totalRows:N0} {population} y supera el límite de {maximumRows:N0}. Aplica filtros más específicos.");
 
     private sealed record CachedAnalyticsResult<T>(T Data, DateTimeOffset GeneratedAtUtc);
     private sealed record ExceptionReportData(

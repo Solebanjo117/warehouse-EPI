@@ -77,6 +77,15 @@
       const element = dashboard.querySelector(`[data-dashboard-detail-${name}]`);
       if (element) element.textContent = name === "day" ? text(value) : format(value);
     });
+    const link = dashboard.querySelector("[data-dashboard-detail-link]");
+    if (link && dashboard.dataset.isAdmin === "true") {
+      const target = new URL("/Admin/Inventory/Movements", window.location.origin);
+      target.searchParams.set("view", "effective");
+      target.searchParams.set("period", "custom");
+      target.searchParams.set("from", text(point.date));
+      target.searchParams.set("to", text(point.date));
+      link.href = target.toString();
+    }
   };
   const chartColors = () => ({
     entry: color("--dashboard-entry"),

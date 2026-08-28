@@ -1,6 +1,39 @@
 (() => {
   "use strict";
 
+  document.querySelectorAll("[data-label-print]").forEach(button =>
+    button.addEventListener("click", () => window.print()));
+
+  const barcodeDialog = document.querySelector("[data-label-barcode-dialog]");
+  const barcodeCanvas = barcodeDialog?.querySelector("[data-label-barcode-canvas]");
+  const barcodeValue = barcodeDialog?.querySelector("[data-label-barcode-value]");
+  let barcodeTrigger;
+
+  const closeBarcodeDialog = () => {
+    if (barcodeDialog?.open) barcodeDialog.close();
+  };
+
+  document.querySelectorAll("[data-label-barcode-zoom]").forEach(button =>
+    button.addEventListener("click", () => {
+      const svg = button.parentElement?.querySelector("svg");
+      if (!barcodeDialog || !barcodeCanvas || !barcodeValue || !svg) return;
+      const modules = Number(button.dataset.barcodeModules) || 120;
+      barcodeCanvas.style.setProperty("--barcode-screen-width", `${Math.max(360, modules * 3)}px`);
+      barcodeCanvas.replaceChildren(svg.cloneNode(true));
+      barcodeValue.textContent = button.dataset.barcodeValue || "";
+      barcodeTrigger = button;
+      barcodeDialog.showModal();
+      barcodeDialog.querySelector("[data-label-barcode-close]")?.focus();
+    }));
+
+  barcodeDialog?.querySelectorAll("[data-label-barcode-close]").forEach(button =>
+    button.addEventListener("click", closeBarcodeDialog));
+  barcodeDialog?.addEventListener("close", () => {
+    barcodeCanvas?.replaceChildren();
+    barcodeTrigger?.focus();
+    barcodeTrigger = undefined;
+  });
+
   const workspace = document.querySelector("[data-label-workspace]");
   if (!workspace) return;
 
@@ -18,8 +51,6 @@
   let timer;
 
   workspace.querySelector("[data-template-picker]")?.addEventListener("change", event => event.currentTarget.form.submit());
-  workspace.querySelector("[data-label-print]")?.addEventListener("click", () => window.print());
-
   const clearResults = () => results.replaceChildren();
 
   const choose = product => {

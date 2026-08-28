@@ -1232,12 +1232,12 @@ pendientes.
 
 ### Fase 13: reportes y operación avanzada
 
-- Dividida en 6 subfases incrementales: 13.1 (contrato analítico y movimientos
+- Dividida en 7 subfases incrementales: 13.1 (contrato analítico y movimientos
   efectivos), 13.2 (reportes tabulares y exportación segura), 13.3 (tablero
   diario LAN y gráficos reactivos), 13.4 (analítica de ocupación, actividad de salidas y
   estancamiento),
-  13.5 (conteos cíclicos persistentes y ajustes autorizados) y 13.6 (alertas
-  operativas y croquis interactivo).
+  13.5 (conteos cíclicos persistentes y ajustes autorizados), 13.6 (alertas
+  operativas y croquis interactivo) y 13.7 (refinamiento UX de reportes).
 
 #### Fase 13.1: contrato analítico y movimientos efectivos — completada
 
@@ -1439,6 +1439,55 @@ pendientes.
   navegador LAN ni en tablet/dispositivo físico. Antes de producción se debe
   revisar SQL, respaldar, validar restauración, autorizar y aplicar primero 13.5,
   luego 13.6, publicar la Release y ejecutar la aceptación LAN/tablet.
+
+#### Fase 13.7: refinamiento UX de reportes — implementada en código; validación visual y física pendiente
+
+- `/Admin/Inventory/Movements` conserva consultas GET, sólo lectura, filtros y límite de 10,000 filas. Acepta `period=custom` cuando recibe `from` o `to`; centraliza las rutas con valores invariantes, conserva sólo `movementType`, elimina el estado al volver a Vigentes y muestra filtros avanzados/chips removibles sin perder la reproducción del enlace.
+- Movimientos y WIP usan tarjetas responsivas sin JavaScript por debajo de 1200 px, con encabezados de tabla accesibles, rótulos `data-label`, estados vacíos y restauración de la semántica tabular al imprimir. WIP muestra folio corto, enlace al detalle, copia segura del GUID completo y paginación acotada.
+- El tablero añade para ADMIN un enlace trazable al día visible; tanto la carga Razor como hover, teclado y refresco automático mantienen el intervalo personalizado del día seleccionado. El enlace no se renderiza para la audiencia no ADMIN.
+- Excepciones reutiliza consultas tipadas de `InventoryQueryService` para pantalla y exportación de saldos negativos por producto-ubicación y productos bajo mínimo. CSV/XLSX ADMIN conserva números nativos, BOM UTF-8, RFC 4180, defensa contra fórmulas, zona horaria, filtro y rechazo completo de 1 a 50,000 filas con el sustantivo de población correspondiente. La impresión muestra metadatos de excepción y omite controles interactivos.
+- Código verificado el 27 de agosto de 2026: `dotnet test` Release dirigido aprobó 25 pruebas de rutas, dashboard, analítica y consultas; `node --check` aprobó `site.js` y `daily-dashboard.js`; `git diff --check` no reportó errores. La compilación Release también se ejercitó por esas pruebas dirigidas.
+- No se inició la aplicación, no se simuló navegador y no se hizo validación visual a 1024×768/800×1280, impresión real ni prueba física en tablet Android. Tampoco se ejecutaron `quality.ps1`, PostgreSQL aislado ni la suite completa en esta pasada; esos diagnósticos y la validación LAN siguen pendientes antes de declarar cierre físico.
+
+#### Fase 13.8: correcciones críticas de conteo cíclico, CSP y carga de scripts — implementada; validación física pendiente
+
+- `SubmitPreparedAsync` valida antes de escribir: cantidades, unidad base y productos
+  inesperados se comprueban con el intento aún sin crear, y sólo entonces se abre la
+  transacción (`IsRelational()`) que agrupa el alta del intento y `SubmitAsync`. Antes, un
+  envío inválido dejaba el intento persistido y la ubicación en `Counting`, de modo que el
+  reintento devolvía `InvalidState` y la pantalla mostraba una alerta vacía. Ahora un rechazo
+  no escribe nada, la ubicación permanece en `Pending` y el mismo token preparado se reenvía.
+- La validación de decimales por unidad base, que sólo cubría los productos inesperados,
+  se aplica también a las líneas preparadas mediante un validador compartido con la ruta
+  legada `StartAttemptAsync` + `SubmitAsync`.
+- `Count` captura la cantidad como `decimal?` y comprueba `ModelState`: un campo vacío ya no
+  se enlaza como cero. El error nombra los SKU afectados, marca cada casilla y conserva la
+  captura y el token de preparación al re-renderizar. El NIP nunca se re-renderiza.
+- `Count`, `Review` y `BatchReview` conservan su `OperationId` entre renders; regenerarlo
+  rompía la idempotencia de envíos y autorizaciones. `CycleCountPresentation.StatusMessage`
+  centraliza los mensajes e incluye `InvalidState`, `NotFound` e `IdempotencyConflict`, que
+  antes producían una alerta sin texto.
+- La hoja ciega usaba `onclick="window.print()"`, bloqueado por `script-src 'self'`: el botón
+  no hacía nada. El handler vive en `cycle-count.js` y una prueba nueva recorre todos los
+  `.cshtml` de `Pages` buscando handlers en atributo o `javascript:`.
+- El layout dejó de cargar ZXing (395 KB), jQuery (88 KB) y `operations.js` (56 KB) en todas
+  las páginas: jQuery viaja con `_ValidationScriptsPartial` y los otros dos con las cuatro
+  estaciones y Existencias; los conteos cargan ZXing con `cycle-count.js` y la hoja de
+  impresión sólo el script. Reportes, administración, etiquetas y croquis dejan de descargar
+  ~539 KB sin comprimir.
+- Los productos inesperados admiten agregar y quitar líneas renumerando los índices del
+  enlace de modelo, y la captura guarda un borrador local por campaña+ubicación con
+  caducidad de 12 horas, restauración explícita y sin NIP ni token de preparación.
+- Se eliminó `Pages/Operations/_MovementForm.cshtml`, sin referencias desde ninguna página, y
+  la rama `[data-inventory-query]` de `operations.js`, sin marcado que la activara.
+- No hay cambios de esquema ni migraciones nuevas. Suite completa: 327/372. Los 45 fallos
+  son previos y ajenos a este trabajo: 21 por los HTTP 400 de `WebApplicationFactory` en esta
+  laptop y 24 por la migración pendiente de `CycleCountBatchReview` que ya estaba en el árbol
+  de trabajo. Se comprobó contra `HEAD` (22daf39): mismos 21 fallos HTTP y ninguna prueba que
+  pasara antes falla ahora.
+- Falta validación física: hoja ciega impresa, captura y borrador en tablet Android, lector
+  HID y comprobación en DevTools de que las páginas sin captura ya no descargan las
+  bibliotecas pesadas.
 
 ### Fase 14: PWA y operación sin conexión
 
@@ -1713,9 +1762,12 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
   cuatro tamaños, DPI, márgenes, orientación y lectura HID. No considerar esos
   nueve formatos validados físicamente hasta completar las comprobaciones.
 
-## 13. Surtimiento WIP (implementado y migrado; pendiente de Release y validación física)
+## 13. Modelo WIP anterior (histórico; sustituido en código por 13.7)
 
-- `WIP-2`, `WIP-3` y `WIP-4` son ubicaciones operativas sin saldo. Se presentan como racks WIP completos, sin posiciones de pallet; internamente conservan `LocationKind.Area` porque el tipo Rack representa posiciones individuales. La migración
+- Hasta el corte de 13.7, `WIP-2`, `WIP-3` y `WIP-4` fueron ubicaciones
+  operativas sin saldo. Se presentaban como racks WIP completos, sin posiciones
+  de pallet; internamente conservan `LocationKind.Area` porque el tipo Rack
+  representa posiciones individuales. La migración
   `WipProductionFlow` valida que no sean racks y que no tengan saldo ni
   asignaciones activas antes de clasificarlas; si encuentra datos incompatibles,
   se detiene sin borrarlos.
@@ -1737,6 +1789,35 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
   constraints/FKs/índices requeridos y 25 movimientos históricos `STANDARD`.
   No se publicó una Release y falta la prueba física en tablet/cámara. El SQL
   revisable está en `artifacts/wip/WipProductionFlow.sql`.
+
+## 13.7 WIP con existencias reales (implementado en código, pendiente de despliegue)
+
+- `WIP-2`, `WIP-3` y `WIP-4` conservan `LocationKind.Area` y
+  `OperationalRole.Wip`, pero ahora controlan inventario por producto,
+  ubicación y lote. `TracksInventory` se conserva temporalmente en contratos
+  como `true`; `IsWip` identifica el rol sin inferirlo a partir del saldo.
+- Entrada, Salida, Transferencia, Ajuste, asignaciones y conteos cíclicos
+  admiten WIP con las mismas validaciones operativas que otras ubicaciones.
+  `Surtir WIP` crea una transferencia `ProductionIssue` desde rack a WIP y
+  conserva las asignaciones FEFO del origen.
+- `/Operations/Wip` registra consumo, regreso a bodega y devolución a proveedor
+  contra el saldo acumulado. Sus propósitos son `WipConsumption`,
+  `WipWarehouseReturn` y `WipSupplierReturn`; sólo proveedor exige referencia.
+  `/Operations/WipReturn` queda como redirección compatible y ya no crea
+  `WipDisposition`. El historial anterior permanece inmutable y de solo lectura.
+- `/Reports/Wip` separa inventario actual desde `InventoryBalances`, actividad
+  efectiva desde `InventoryBalanceChange` y el modelo legado de consumo asumido.
+  Las alertas usan saldo positivo y el lote positivo más antiguo, no
+  disposiciones históricas. CSV/XLSX ADMIN limita estrictamente a 10,000 filas.
+- La migración incremental `20260828120000_WipTrackedInventory` sólo amplía los
+  constraints de propósito y forma; acepta historial y reversos, no crea tablas
+  de saldo ni convierte datos. **No está aplicada en PostgreSQL ni publicada en
+  una Release.** El saldo inicial debe provenir exclusivamente de una campaña
+  ciega aprobada después del corte operativo.
+- Verificación actual de código: compilación Release focal y pruebas WIP
+  focales pasan. Siguen pendientes la prueba PostgreSQL aislada de la migración,
+  la suite relevante completa, validación visual de temas/anchos y pruebas
+  físicas de tablet, cámara y lector.
 
 ## 14. Contexto breve para pegar en otro chat
 
@@ -1764,10 +1845,12 @@ reverso y reemplazo auditables.
 
 Las fases 1 a 9 están completadas; la fase 8 fue descartada. La base real es
 warehouseEPI, el esquema operativo es public y los secretos están en User
-Secrets. Los lotes internos globales y WIP tienen migraciones aplicadas. WIP-2,
-WIP-3 y WIP-4 no controlan saldo; Rack -> WIP consume inventario y las
-disposiciones posteriores conservan trazabilidad. WIP todavía no forma parte de
-una Release publicada ni se ha validado físicamente en tablet/cámara. Existen
+Secrets. Los lotes internos globales y el modelo WIP legado tienen migraciones
+aplicadas. El código actual convierte WIP-2/3/4 en ubicaciones con existencias
+reales: Rack -> WIP transfiere saldo y `/Operations/Wip` registra consumo,
+regreso o proveedor. La migración `20260828120000_WipTrackedInventory` aún no
+se ha aplicado ni forma parte de una Release publicada; tampoco se ha ejecutado
+el conteo físico inicial ni validado en tablet/cámara. Existen
 pruebas PostgreSQL aisladas en warehouse_epi_test; no reutilices conteos
 históricos de pruebas sin ejecutar una validación actual.
 

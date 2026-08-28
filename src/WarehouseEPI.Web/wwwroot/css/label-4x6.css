@@ -1,3 +1,5 @@
+@page { margin: 0; }
+
 .label-workspace { max-width: 78rem; margin: 0 auto; }
 .label-page-header,
 .label-preview-toolbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
@@ -24,7 +26,19 @@
 .label-element[style*="text-align:center"] { justify-content: center; }
 .label-element[style*="text-align:right"] { justify-content: flex-end; }
 .label-element-field,.label-element-text { justify-content: inherit; }
-.label-element-code128 svg,.label-element-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.label-element-code128 { justify-content: center; }
+.label-element-code128 svg { display: block; width: var(--barcode-print-width, 100%); max-width: 100%; height: 100%; }
+.label-element-image img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.label-barcode-zoom-trigger { position: absolute; right: .12rem; bottom: .12rem; z-index: 2; min-height: 28px; padding: .15rem .4rem; border: 1px solid #111; border-radius: .25rem; background: rgba(255,255,255,.94); color: #111; font-size: .7rem; font-weight: 700; line-height: 1; }
+.label-barcode-zoom-trigger:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 2px; }
+.label-barcode-dialog { width: min(96vw, 60rem); max-width: 96vw; padding: 0; border: 1px solid var(--bs-border-color); border-radius: .85rem; color: var(--bs-body-color); background: var(--bs-body-bg); }
+.label-barcode-dialog::backdrop { background: rgba(0,0,0,.55); }
+.label-barcode-dialog-header { display: flex; align-items: start; justify-content: space-between; gap: 1rem; padding: 1rem 1rem 0; }
+.label-barcode-dialog-body { padding: 1rem; }
+.label-barcode-value { overflow-wrap: anywhere; font-family: var(--bs-font-monospace); }
+.label-barcode-scan-viewport { overflow-x: auto; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: #fff; }
+.label-barcode-scan-canvas { width: max(100%, var(--barcode-screen-width, 360px)); min-height: 12rem; }
+.label-barcode-scan-canvas svg { display: block; width: 100%; height: 12rem; }
 .label-element-line { overflow: visible; }
 .label-line { display: block; width: 100%; border-top: max(1px, .012in) solid currentColor; }
 .label-element.is-blank-line { border-bottom: max(1px, .012in) solid currentColor; }
@@ -61,7 +75,13 @@
 
 @media print {
   html,
-  body { margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  body,
+  .app-body,
+  .app-content,
+  .app-main,
+  .label-workspace,
+  .label-preview-section,
+  .label-print-pages { min-height: 0 !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
   .app-topbar,
   .app-sidebar,
   .app-backdrop,
@@ -71,11 +91,13 @@
   .app-main,
   .label-workspace,
   .label-preview-section,
-  .label-print-pages { display: block !important; width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  .label-print-pages { display: block !important; width: auto !important; max-width: none !important; }
   .label-6x4 { width: 6in; height: 4in; aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; padding: .14in; print-color-adjust: exact; }
   .label-6x4:last-child { break-after: auto; page-break-after: auto; }
-  .label-dynamic { width: var(--label-width); max-width: none; height: var(--label-height); aspect-ratio: auto; break-after: page; page-break-after: always; border: 0; print-color-adjust: exact; }
+  .label-dynamic { width: var(--label-width); max-width: none; height: var(--label-height); aspect-ratio: auto; break-inside: avoid-page; page-break-inside: avoid; break-after: page; page-break-after: always; border: 0; print-color-adjust: exact; }
   .label-dynamic:last-child { break-after: auto; page-break-after: auto; }
+  .label-barcode-zoom-trigger,
+  .label-barcode-dialog { display: none !important; }
   .label-field-name { font-size: 9pt; }
   .label-identity { grid-template-columns: .75in minmax(0, 1fr); }
   .label-sku { font-size: 19pt; }

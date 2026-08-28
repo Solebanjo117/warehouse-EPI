@@ -9,6 +9,7 @@ public sealed class DetailsModel(CycleCountService cycleCountService) : PageMode
     public CycleCountCampaignDetail? Campaign { get; private set; }
     [BindProperty] public string Pin { get; set; } = string.Empty;
     [BindProperty] public string? Notes { get; set; }
+    [BindProperty] public string? ScannedLocationCode { get; set; }
     public string? Error { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken) { Campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken); return Campaign is null ? NotFound() : Page(); }
@@ -19,6 +20,19 @@ public sealed class DetailsModel(CycleCountService cycleCountService) : PageMode
         var result = await cycleCountService.StartAttemptAsync(locationId, operationId, Pin, cancellationToken);
         if (result.Status == CycleCountStatus.Success && result.AttemptId is Guid attemptId) return RedirectToPage("Count", new { id, locationId, attemptId });
         Campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken); Error = result.Status == CycleCountStatus.InvalidPin ? "NIP no válido." : string.Join(' ', result.ValidationErrors); return Page();
+    }
+    public async Task<IActionResult> OnPostScanLocationAsync(Guid id, CancellationToken cancellationToken)
+    {
+        Campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken);
+        var location = Campaign?.Locations.SingleOrDefault(item => string.Equals(item.LocationCode, ScannedLocationCode?.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (location is null) { Error = "La ubicación escaneada no pertenece a esta campaña."; return Page(); }
+        return location.Status switch
+        {
+            WarehouseEPI.Core.Entities.CycleCountLocationStatus.Pending or WarehouseEPI.Core.Entities.CycleCountLocationStatus.RecountRequested or WarehouseEPI.Core.Entities.CycleCountLocationStatus.Stale => RedirectToPage("Count", new { id, locationId = location.Id }),
+            WarehouseEPI.Core.Entities.CycleCountLocationStatus.Counting when location.ActiveAttemptId is Guid attemptId => RedirectToPage("Count", new { id, locationId = location.Id, attemptId }),
+            WarehouseEPI.Core.Entities.CycleCountLocationStatus.UnderReview => RedirectToPage("Review", new { id, locationId = location.Id }),
+            _ => RedirectToPage("Details", new { id })
+        };
     }
     private async Task<IActionResult> ExecuteAsync(Guid id, Func<Task<CycleCountResult>> action, CancellationToken cancellationToken)
     { var result = await action(); if (result.Status == CycleCountStatus.Success) return RedirectToPage(new { id }); Campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken); Error = result.Status == CycleCountStatus.InvalidPin ? "NIP no válido." : string.Join(' ', result.ValidationErrors); return Page(); }

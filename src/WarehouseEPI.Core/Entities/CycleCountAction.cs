@@ -7,6 +7,7 @@ public sealed class CycleCountAction
     public Guid CampaignId { get; set; }
     public Guid? CycleCountLocationId { get; set; }
     public Guid? CycleCountAttemptId { get; set; }
+    public Guid? ReviewBatchId { get; set; }
     public CycleCountActionType Type { get; set; }
     public Guid ResponsibleUserId { get; set; }
     public string? Notes { get; set; }
@@ -15,5 +16,6 @@ public sealed class CycleCountAction
     public CycleCountCampaign Campaign { get; set; } = null!;
     public CycleCountLocation? CycleCountLocation { get; set; }
     public CycleCountAttempt? CycleCountAttempt { get; set; }
+    public CycleCountReviewBatch? ReviewBatch { get; set; }
     public User ResponsibleUser { get; set; } = null!;
 }

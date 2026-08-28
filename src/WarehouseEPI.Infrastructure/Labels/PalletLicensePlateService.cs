@@ -17,6 +17,12 @@ public sealed record PalletLicensePlateEntry(Guid MovementId, string Sku, string
 
 public sealed record PalletLicensePlateLoad(PalletLicensePlateStatus Status, PalletLicensePlateEntry? Entry = null, string? Error = null);
 
+public sealed record PalletLicensePlateCandidate(Guid MovementId, string Sku, string? Description, string UnitCode,
+    decimal Quantity, string? Destination, string? Reference, string Responsible, DateTimeOffset OccurredAt)
+{
+    public string Identifier => $"PLT-{MovementId:N}".ToUpperInvariant();
+}
+
 public sealed class PalletLicensePlateService(WarehouseDbContext db)
 {
     public static bool IsEligible(
@@ -57,6 +63,33 @@ public sealed class PalletLicensePlateService(WarehouseDbContext db)
         return new(PalletLicensePlateStatus.Success, new(movement.Id, line.Product.Sku, line.Product.Description,
             line.Product.ExternalReference, line.Unit.Code, line.Unit.AllowsDecimals, line.Quantity,
             line.DestinationLocation?.Code, movement.Reference, movement.ResponsibleUser.FullName, movement.OccurredAt));
+    }
+
+    public const int MaxRecentCandidates = 12;
+
+    /// <summary>Últimas Entradas elegibles para placa, para ofrecerlas sin teclear el folio.</summary>
+    public async Task<IReadOnlyList<PalletLicensePlateCandidate>> RecentAsync(int take = 8, CancellationToken token = default)
+    {
+        var limit = Math.Clamp(take, 1, MaxRecentCandidates);
+        return await db.InventoryMovements.AsNoTracking()
+            .Where(item => item.Type == InventoryMovementType.Entry &&
+                item.Purpose == InventoryMovementPurpose.Standard &&
+                item.Lines.Count == 1 &&
+                !db.InventoryMovementCorrections.Any(correction =>
+                    correction.OriginalMovementId == item.Id || correction.ReversalMovementId == item.Id))
+            .OrderByDescending(item => item.OccurredAt)
+            .Take(limit)
+            .Select(item => new PalletLicensePlateCandidate(
+                item.Id,
+                item.Lines.First().Product.Sku,
+                item.Lines.First().Product.Description,
+                item.Lines.First().Unit.Code,
+                item.Lines.First().Quantity,
+                item.Lines.First().DestinationLocation!.Code,
+                item.Reference,
+                item.ResponsibleUser.FullName,
+                item.OccurredAt))
+            .ToListAsync(token);
     }
 
     public static OperationalProductResult Product(PalletLicensePlateEntry entry) => new(Guid.Empty, entry.Sku,

@@ -9,8 +9,8 @@ public sealed class UnifiedMovementRouteTests
         var model = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Index.cshtml.cs");
 
         Assert.Contains("<h1 class=\"h2 mb-1\">Movimientos</h1>", page, StringComparison.Ordinal);
-        Assert.Contains("asp-route-view=\"effective\"", page, StringComparison.Ordinal);
-        Assert.Contains("asp-route-view=\"audit\"", page, StringComparison.Ordinal);
+        Assert.Contains("RouteValues", page, StringComparison.Ordinal);
+        Assert.Contains("asp-all-route-data", page, StringComparison.Ordinal);
         Assert.Contains("name=\"movementType\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"purpose\"", page, StringComparison.Ordinal);
         Assert.Contains("name=\"sku\"", page, StringComparison.Ordinal);
@@ -22,6 +22,10 @@ public sealed class UnifiedMovementRouteTests
         Assert.Contains("movementType ?? type", model, StringComparison.Ordinal);
         Assert.Contains("GetTraceExportAsync", model, StringComparison.Ordinal);
         Assert.Contains("10000", model, StringComparison.Ordinal);
+        Assert.Contains("period is \"today\" or \"7\" or \"30\" or \"all\"", model, StringComparison.Ordinal);
+        Assert.Contains("hasCustomDates", model, StringComparison.Ordinal);
+        Assert.Contains("data-filter-chip", page, StringComparison.Ordinal);
+        Assert.Contains("report-cards", page, StringComparison.Ordinal);
     }
 
     [Fact]

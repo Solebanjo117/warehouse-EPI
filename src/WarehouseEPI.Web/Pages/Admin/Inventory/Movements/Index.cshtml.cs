@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -43,9 +44,50 @@ public sealed class IndexModel(
     public InventoryHistoryCorrectionState State { get; private set; }
     public int PageNumber { get; private set; } = 1;
     public string TimeZoneId { get; private set; } = "UTC";
+    public bool HasAdvancedFilters => Period == "custom" || MovementType is not null || Purpose is not null ||
+        !string.IsNullOrWhiteSpace(Sku) || !string.IsNullOrWhiteSpace(LocationCode) || ResponsibleUserId is not null ||
+        !string.IsNullOrWhiteSpace(Search) || (IsAudit && State != InventoryHistoryCorrectionState.All);
 
     public bool CanGeneratePalletPlate(EffectiveMovementRowDto item) =>
         PalletLicensePlateService.IsEligible(item.MovementType, item.Purpose, item.LineCount);
+
+    public Dictionary<string, string> RouteValues(params (string Key, string? Value)[] overrides)
+    {
+        var values = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["view"] = View,
+            ["period"] = Period
+        };
+        if (Period == "custom")
+        {
+            if (From is DateOnly from) values["from"] = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            if (To is DateOnly to) values["to"] = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        }
+        if (MovementType is not null) values["movementType"] = MovementType.Value.ToString();
+        if (Purpose is not null) values["purpose"] = Purpose.Value.ToString();
+        if (!string.IsNullOrWhiteSpace(Sku)) values["sku"] = Sku;
+        if (!string.IsNullOrWhiteSpace(LocationCode)) values["locationCode"] = LocationCode;
+        if (ResponsibleUserId is Guid responsible) values["responsibleUserId"] = responsible.ToString();
+        if (!string.IsNullOrWhiteSpace(Search)) values["search"] = Search;
+        if (IsAudit && State != InventoryHistoryCorrectionState.All) values["state"] = State.ToString();
+        if (PageNumber > 1) values["pageNumber"] = PageNumber.ToString(CultureInfo.InvariantCulture);
+
+        foreach (var (key, value) in overrides)
+        {
+            if (string.IsNullOrWhiteSpace(value)) values.Remove(key);
+            else values[key] = value;
+        }
+
+        if (!string.Equals(values.GetValueOrDefault("view"), "audit", StringComparison.OrdinalIgnoreCase))
+            values.Remove("state");
+        if (!string.Equals(values.GetValueOrDefault("period"), "custom", StringComparison.OrdinalIgnoreCase))
+        {
+            values.Remove("from");
+            values.Remove("to");
+        }
+        if (values.GetValueOrDefault("pageNumber") == "1") values.Remove("pageNumber");
+        return values;
+    }
 
     public async Task OnGetAsync(
         string? view, string? search, string? sku, string? locationCode,
@@ -112,10 +154,11 @@ public sealed class IndexModel(
         InventoryHistoryCorrectionState state, int pageNumber, CancellationToken cancellationToken)
     {
         View = string.Equals(view, "audit", StringComparison.OrdinalIgnoreCase) ? "audit" : "effective";
-        Period = period ?? "30";
+        var hasCustomDates = from is not null || to is not null;
+        Period = hasCustomDates ? "custom" : period is "today" or "7" or "30" or "all" ? period : "30";
         TimeZoneId = (await settingsService.GetAsync(cancellationToken)).TimeZoneId;
         var today = await clock.GetDateAsync(DateTimeOffset.UtcNow, cancellationToken);
-        if (from is null && to is null && Period != "all")
+        if (!hasCustomDates && Period != "all")
         {
             var days = Period switch { "today" => 0, "7" => 6, _ => 29 };
             from = today.AddDays(-days);

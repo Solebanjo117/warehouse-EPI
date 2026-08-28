@@ -4,3 +4,8 @@
     ViewData["Title"] = Model.PageTitle;
 }
 <partial name="_GuidedMovementForm" model="Model" />
+
+@section Scripts {
+    <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
+    <script src="~/js/operations.js" asp-append-version="true"></script>
+}

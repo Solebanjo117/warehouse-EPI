@@ -429,6 +429,131 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         return CsvBytes(sb);
     }
 
+    public async Task<byte[]> ExportNegativeExceptionsToExcelAsync(
+        IReadOnlyList<NegativeInventoryAlert> rows,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Saldos negativos");
+        WriteInventoryHeader(
+            worksheet,
+            $"{settings.WarehouseName} - Saldos producto-ubicación negativos",
+            rows.Count,
+            settings.TimeZoneId,
+            FormatExceptionFilter(search),
+            timeZone);
+
+        WriteTableHeaders(worksheet,
+        [
+            "SKU", "Descripción", "Unidad", "Ubicación", "Descripción ubicación", "Saldo actual"
+        ]);
+        var currentRow = 6;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.ProductSku));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.ProductDescription ?? string.Empty));
+            worksheet.Cell(currentRow, 3).SetValue(SanitizeText(row.UnitCode));
+            worksheet.Cell(currentRow, 4).SetValue(SanitizeText(row.LocationCode));
+            worksheet.Cell(currentRow, 5).SetValue(SanitizeText(row.LocationDescription ?? string.Empty));
+            SetNumber(worksheet.Cell(currentRow, 6), row.Quantity);
+            currentRow++;
+        }
+        worksheet.Columns().AdjustToContents(4, Math.Max(5, currentRow - 1));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportNegativeExceptionsToCsvAsync(
+        IReadOnlyList<NegativeInventoryAlert> rows,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var metadata = FormatExceptionFilter(search);
+        var sb = new StringBuilder();
+        sb.AppendLine("SKU,Descripción,Unidad,Ubicación,Descripción ubicación,Saldo actual,Zona horaria,Filtros aplicados");
+        foreach (var row in rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.ProductSku))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.ProductDescription ?? string.Empty))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.LocationCode))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.LocationDescription ?? string.Empty))).Append(',');
+            sb.Append(row.Quantity.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(metadata))).AppendLine();
+        }
+        return CsvBytes(sb);
+    }
+
+    public async Task<byte[]> ExportMinimumExceptionsToExcelAsync(
+        IReadOnlyList<MinimumStockInventoryAlert> rows,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Bajo mínimo");
+        WriteInventoryHeader(
+            worksheet,
+            $"{settings.WarehouseName} - Productos bajo mínimo",
+            rows.Count,
+            settings.TimeZoneId,
+            FormatExceptionFilter(search),
+            timeZone);
+
+        WriteTableHeaders(worksheet,
+        [
+            "SKU", "Descripción", "Unidad", "Existencia actual", "Mínimo", "Faltante", "Cobertura"
+        ]);
+        var currentRow = 6;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.Sku));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.Description ?? string.Empty));
+            worksheet.Cell(currentRow, 3).SetValue(SanitizeText(row.UnitCode));
+            SetNumber(worksheet.Cell(currentRow, 4), row.TotalQuantity);
+            SetNumber(worksheet.Cell(currentRow, 5), row.MinimumStock);
+            SetNumber(worksheet.Cell(currentRow, 6), row.Deficit);
+            if (row.CoveragePercent is decimal coverage)
+                SetNumber(worksheet.Cell(currentRow, 7), coverage);
+            currentRow++;
+        }
+        worksheet.Columns().AdjustToContents(4, Math.Max(5, currentRow - 1));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportMinimumExceptionsToCsvAsync(
+        IReadOnlyList<MinimumStockInventoryAlert> rows,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var metadata = FormatExceptionFilter(search);
+        var sb = new StringBuilder();
+        sb.AppendLine("SKU,Descripción,Unidad,Existencia actual,Mínimo,Faltante,Cobertura,Zona horaria,Filtros aplicados");
+        foreach (var row in rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.Sku))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.Description ?? string.Empty))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',');
+            sb.Append(row.TotalQuantity.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(row.MinimumStock.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(row.Deficit.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',');
+            sb.Append(row.CoveragePercent?.ToString("0.0000", CultureInfo.InvariantCulture) ?? string.Empty).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).Append(',');
+            sb.Append(EscapeCsv(SanitizeText(metadata))).AppendLine();
+        }
+        return CsvBytes(sb);
+    }
+
     public async Task<byte[]> ExportCycleCountsToExcelAsync(IReadOnlyList<CycleCountExportRow> rows, CancellationToken cancellationToken = default)
     {
         var settings = await settingsService.GetAsync(cancellationToken);
@@ -575,6 +700,9 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         return string.Join(" | ", values);
     }
 
+    private static string FormatExceptionFilter(string? search) =>
+        string.IsNullOrWhiteSpace(search) ? "Sin filtro" : $"búsqueda={search.Trim()}";
+
     private static string FormatHistoryFilter(InventoryHistoryFilter filter)
     {
         var values = new List<string> { $"estado={filter.State}" };
@@ -649,6 +777,8 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         InventoryMovementPurpose.GeneralExit => "Salida general",
         InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
         InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP",
+        InventoryMovementPurpose.WipConsumption => "Consumo WIP",
+        InventoryMovementPurpose.WipSupplierReturn => "Devolución WIP a proveedor",
         InventoryMovementPurpose.CycleCountAdjustment => "Conteo cíclico",
         _ => purpose.ToString()
     };

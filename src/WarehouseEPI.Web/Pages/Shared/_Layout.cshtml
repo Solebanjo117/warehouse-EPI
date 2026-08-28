@@ -92,8 +92,8 @@
                 <a class="app-nav-link @(IsCurrent("/Operations/Transfer") ? "active" : null)" asp-page="/Operations/Transfer" aria-current="@(IsCurrent("/Operations/Transfer") ? "page" : null)" title="Transferencia">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Transferencia</span>
                 </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/WipReturn") ? "active" : null)" asp-page="/Operations/WipReturn" title="Devolución desde WIP">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Devolución WIP</span>
+                <a class="app-nav-link @(IsCurrent("/Operations/WipProcess") || IsCurrent("/Operations/WipReturn") ? "active" : null)" asp-page="/Operations/WipProcess" title="Procesar WIP">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Procesar WIP</span>
                 </a>
                 <a class="app-nav-link @(IsCurrent("/Operations/Adjustment") ? "active" : null)" asp-page="/Operations/Adjustment" aria-current="@(IsCurrent("/Operations/Adjustment") ? "page" : null)" title="Ajuste">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Ajuste</span>
@@ -124,7 +124,7 @@
                 <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
                 </a>
-                <a class="app-nav-link @(IsSection("/Reports/Wip") ? "active" : null)" asp-page="/Reports/Wip/Index" title="Reporte WIP">
+                <a class="app-nav-link @(IsSection("/Reports/Wip") ? "active" : null)" asp-page="/Reports/Wip/Index" aria-current="@(IsSection("/Reports/Wip") ? "page" : null)" title="Reporte WIP">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte WIP</span>
                 </a>
                 <a class="app-nav-link @(IsSection("/Reports/Dashboard") ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(IsSection("/Reports/Dashboard") ? "page" : null)" title="Tablero diario">
@@ -219,11 +219,10 @@
         <div class="offcanvas-body"><div class="notification-summary" data-notification-summary><span>Consultando condiciones actuales…</span></div><div class="notification-list" data-notification-list></div><div class="notification-empty" data-notification-empty hidden><strong>Sin alertas activas.</strong><span>No hay condiciones visibles que requieran atención.</span></div><div class="notification-actions"><button type="button" class="btn btn-outline-primary" data-notification-refresh>Actualizar</button><a class="btn btn-primary" href="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">Ver todas</a></div><p class="visually-hidden" aria-live="polite" data-notification-live></p></div>
     </aside>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    @* Sólo lo que usa cualquier página. jQuery viaja con _ValidationScriptsPartial, y ZXing
+       (395 KB) y operations.js con las páginas que capturan o consultan con cámara. *@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
-    <script src="~/js/operations.js" asp-append-version="true"></script>
     <script src="~/js/operational-notifications.js" asp-append-version="true"></script>
 
     @await RenderSectionAsync("Scripts", required: false)

@@ -220,7 +220,7 @@ public sealed class LabelAssetService(WarehouseDbContext db, TimeProvider timePr
 
 public sealed record LabelRenderedElement(LabelElementDefinition Definition, string? Text, BarcodeSvg? Barcode, string? ImageUrl);
 public sealed record LabelRenderDocument(string TemplateCode, string TemplateName, int TemplateVersion, LabelSizeDefinition Size, int Copies, IReadOnlyList<LabelRenderedElement> Elements);
-public sealed record LabelGenerationResult(LabelRenderDocument? Document, IReadOnlyList<string> Errors);
+public sealed record LabelGenerationResult(LabelRenderDocument? Document, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
 
 public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
 {
@@ -228,7 +228,7 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
     {
         var errors = new List<string>(); if (copies is < 1 or > 100) errors.Add("Las copias deben estar entre 1 y 100.");
         var design = LabelDesignSerializer.Deserialize(version.DesignJson); var validation = LabelDesignSerializer.Validate(design, version.SizePreset, version.Template.Kind); errors.AddRange(validation.Errors);
-        if (design is null) return new(null, errors);
+        if (design is null) return new(null, errors, []);
         var fields = design.Fields.ToDictionary(item => item.Key, StringComparer.Ordinal); var normalized = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var key in submitted.Keys) if (!fields.ContainsKey(key) && !LabelDesignSerializer.IsSystemBinding(version.Template.Kind, key)) errors.Add($"El campo '{key}' no pertenece a la plantilla.");
         foreach (var field in design.Fields)
@@ -260,7 +260,7 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
         }
         var dateText = submitted.GetValueOrDefault("input.manufacturingDate")?.Trim() ?? string.Empty;
         if (design.Elements.Any(item => item.Binding == "input.manufacturingDate") && !DateOnly.TryParse(dateText, CultureInfo.InvariantCulture, DateTimeStyles.None, out _)) errors.Add("La fecha MFG es obligatoria y debe ser válida.");
-        if (errors.Count > 0) return new(null, errors.Distinct().ToArray());
+        if (errors.Count > 0) return new(null, errors.Distinct().ToArray(), []);
         string Value(string? binding, bool barcode = false) => binding switch
         {
             "product.sku" => product.Sku, "product.description" => product.Description ?? string.Empty, "product.unit" => product.UnitCode,
@@ -271,13 +271,26 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
             _ => normalized.GetValueOrDefault(binding ?? string.Empty) ?? string.Empty
         };
         var rendered = new List<LabelRenderedElement>();
+        var warnings = new List<string>();
         foreach (var element in design.Elements.OrderBy(item => item.ZIndex))
         {
             BarcodeSvg? barcode = null; string? text = element.Type == LabelElementType.Text ? element.Text : element.Type == LabelElementType.Field ? Value(element.Binding) : null;
-            if (element.Type == LabelElementType.Code128) { try { barcode = barcodes.RenderCode128Svg(Value(element.Binding, true), new(Math.Clamp(element.Width, 120, 2400), Math.Clamp(element.Height, 32, 800))); } catch (ArgumentException) { return new(null, [$"El valor de {element.Binding} no puede codificarse como Code 128."]); } }
+            if (element.Type == LabelElementType.Code128)
+            {
+                try
+                {
+                    barcode = barcodes.RenderCode128Svg(Value(element.Binding, true), new(element.Width, Math.Clamp(element.Height, 32, 800)));
+                    if (barcode.IsBelowRecommendedDensity)
+                        warnings.Add($"El Code 128 de {element.Binding} ({barcode.Payload}) quedará en {barcode.DotsPerModule} punto(s) por módulo a 203 dpi. Se recomienda al menos {barcode.MinimumWidthInches.ToString("0.##", CultureInfo.InvariantCulture)} in de ancho para alcanzar 2 puntos por módulo.");
+                }
+                catch (ArgumentException)
+                {
+                    return new(null, [$"El valor de {element.Binding} no puede codificarse como Code 128."], []);
+                }
+            }
             var imageUrl = element.BuiltInAssetKey == "extra-packaging-logo" ? LabelBuiltInAssets.ExtraPackagingLogoUrl : element.AssetId is null ? null : $"/Labels/Assets/{element.AssetId}";
             rendered.Add(new(element, text, barcode, imageUrl));
         }
-        return new(new(version.Template.Code, version.Name, version.Version, LabelSizeRegistry.Get(version.SizePreset), copies, rendered), []);
+        return new(new(version.Template.Code, version.Name, version.Version, LabelSizeRegistry.Get(version.SizePreset), copies, rendered), [], warnings.Distinct().ToArray());
     }
 }

@@ -23,6 +23,25 @@ public sealed record CycleCountQuantityCommand(Guid ProductId, decimal Quantity)
 public sealed record CycleCountActionCommand(Guid LocationId, Guid OperationId, string Pin, string? Notes = null,
     IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null);
 
+public sealed record CycleCountPreparation(
+    Guid CampaignId, Guid CycleCountLocationId, Guid LocationId, string LocationCode,
+    DateTimeOffset PreparedAt, IReadOnlyList<CycleCountPreparationEntry> Entries);
+public sealed record CycleCountPreparationEntry(Guid ProductId, string Sku, string? Description, string UnitCode,
+    bool AllowsDecimals, decimal ExpectedQuantity, uint ExpectedBalanceVersion);
+public sealed record SubmitPreparedCycleCountCommand(CycleCountPreparation Preparation, Guid OperationId, string Pin,
+    IReadOnlyList<CycleCountQuantityCommand> Entries, bool IsLocationEmpty = false);
+
+public enum CycleCountReviewDecision { Approve, Recount }
+public sealed record CycleCountReviewDecisionCommand(Guid LocationId, Guid OperationId, CycleCountReviewDecision Decision,
+    CycleCountAdjustmentReason? Reason = null, string? Notes = null,
+    IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null);
+public sealed record ApproveCycleCountBatchCommand(Guid CampaignId, Guid OperationId, string Pin,
+    IReadOnlyList<CycleCountReviewDecisionCommand> Decisions);
+public sealed record CycleCountBatchItemResult(Guid LocationId, CycleCountStatus Status, Guid? MovementId = null,
+    IReadOnlyList<string>? Errors = null, IReadOnlyList<SharedLocationConflict>? SharingConflicts = null);
+public sealed record CycleCountBatchResult(CycleCountStatus Status, Guid? ReviewBatchId,
+    IReadOnlyList<CycleCountBatchItemResult> Items, IReadOnlyList<string>? Errors = null);
+
 public enum CycleCountStatus
 {
     Success,

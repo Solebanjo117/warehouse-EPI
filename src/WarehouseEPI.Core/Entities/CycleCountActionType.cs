@@ -9,6 +9,7 @@ public enum CycleCountActionType
     RecountRequested,
     StaleDetected,
     AdjustmentApproved,
+    BatchReviewed,
     LocationCompleted,
     CampaignCompleted,
     Cancelled

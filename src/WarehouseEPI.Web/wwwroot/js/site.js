@@ -92,4 +92,34 @@
     button.disabled = true;
     button.textContent = "Confirmando…";
   });
+
+  const copyStatus = document.querySelector("[data-copy-status]");
+  const announceCopy = (message) => {
+    if (copyStatus) copyStatus.textContent = message;
+  };
+  const fallbackCopy = (value) => {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    return copied;
+  };
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-copy-value]");
+    if (!button) return;
+    const value = button.dataset.copyValue || "";
+    if (!value) { announceCopy("No hay valor para copiar."); return; }
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) await navigator.clipboard.writeText(value);
+      else if (!fallbackCopy(value)) throw new Error("copy-failed");
+      announceCopy("Identificador completo copiado.");
+    } catch {
+      announceCopy("No fue posible copiar el identificador.");
+    }
+  });
 })();

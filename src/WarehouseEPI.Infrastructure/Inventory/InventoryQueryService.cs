@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Reporting;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
@@ -280,6 +281,74 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         int pageSize,
         CancellationToken cancellationToken = default)
     {
+        var query = NegativeAlertQuery(search);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var page = Math.Min(NormalizePage(pageNumber), Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize)));
+        var items = await query.OrderBy(position => position.ProductSku).ThenBy(position => position.LocationCode)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(position => new NegativeInventoryAlert(
+                position.ProductId, position.ProductSku, position.ProductDescription, position.UnitCode,
+                position.LocationId, position.LocationCode, position.LocationDescription, position.Quantity))
+            .ToListAsync(cancellationToken);
+        return new(items, totalCount);
+    }
+
+    public async Task<InventoryAnalyticsExportBatch<NegativeInventoryAlert>> GetNegativeAlertExportAsync(
+        string? search,
+        int maximumRows = 10000,
+        CancellationToken cancellationToken = default)
+    {
+        var limit = Math.Clamp(maximumRows, 1, 50000);
+        var query = NegativeAlertQuery(search);
+        var totalRows = await query.CountAsync(cancellationToken);
+        if (totalRows > limit)
+            return new([], totalRows, limit);
+
+        var items = await query.OrderBy(position => position.ProductSku).ThenBy(position => position.LocationCode)
+            .Select(position => new NegativeInventoryAlert(
+                position.ProductId, position.ProductSku, position.ProductDescription, position.UnitCode,
+                position.LocationId, position.LocationCode, position.LocationDescription, position.Quantity))
+            .ToListAsync(cancellationToken);
+        return new(items, totalRows, limit);
+    }
+
+    public async Task<InventoryAlertPage<MinimumStockInventoryAlert>> GetBelowMinimumAlertPageAsync(
+        string? search,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = BelowMinimumAlertQuery(search);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var page = Math.Min(NormalizePage(pageNumber), Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize)));
+        var items = await query.OrderBy(item => item.Sku)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(item => new MinimumStockInventoryAlert(
+                item.ProductId, item.Sku, item.Description, item.UnitCode, item.TotalQuantity, item.MinimumStock))
+            .ToListAsync(cancellationToken);
+        return new(items, totalCount);
+    }
+
+    public async Task<InventoryAnalyticsExportBatch<MinimumStockInventoryAlert>> GetBelowMinimumAlertExportAsync(
+        string? search,
+        int maximumRows = 10000,
+        CancellationToken cancellationToken = default)
+    {
+        var limit = Math.Clamp(maximumRows, 1, 50000);
+        var query = BelowMinimumAlertQuery(search);
+        var totalRows = await query.CountAsync(cancellationToken);
+        if (totalRows > limit)
+            return new([], totalRows, limit);
+
+        var items = await query.OrderBy(item => item.Sku)
+            .Select(item => new MinimumStockInventoryAlert(
+                item.ProductId, item.Sku, item.Description, item.UnitCode, item.TotalQuantity, item.MinimumStock))
+            .ToListAsync(cancellationToken);
+        return new(items, totalRows, limit);
+    }
+
+    private IQueryable<NegativeAlertQueryRow> NegativeAlertQuery(string? search)
+    {
         var normalized = CatalogNormalization.NormalizeCode(search ?? string.Empty);
         var positionTotals = dbContext.InventoryBalances.AsNoTracking()
             .GroupBy(balance => new { balance.ProductId, balance.LocationId })
@@ -290,7 +359,7 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
                 Quantity = balances.Sum(balance => balance.Quantity)
             })
             .Where(position => position.Quantity < 0);
-        var query =
+        var positions =
             from position in positionTotals
             join product in dbContext.Products.AsNoTracking() on position.ProductId equals product.Id
             join location in dbContext.Locations.AsNoTracking() on position.LocationId equals location.Id
@@ -306,58 +375,68 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
                 position.Quantity
             };
         if (normalized.Length > 0)
-            query = query.Where(position => position.ProductSku.Contains(normalized) ||
+            positions = positions.Where(position => position.ProductSku.Contains(normalized) ||
                 (position.ProductDescription != null && position.ProductDescription.ToUpper().Contains(normalized)) ||
                 position.LocationCode.Contains(normalized) ||
                 (position.LocationDescription != null && position.LocationDescription.ToUpper().Contains(normalized)));
-        var totalCount = await query.CountAsync(cancellationToken);
-        var page = Math.Min(NormalizePage(pageNumber), Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize)));
-        var items = await query.OrderBy(position => position.ProductSku).ThenBy(position => position.LocationCode)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(position => new NegativeInventoryAlert(
-                position.ProductId,
-                position.ProductSku,
-                position.ProductDescription,
-                position.UnitCode,
-                position.LocationId,
-                position.LocationCode,
-                position.LocationDescription,
-                position.Quantity))
-            .ToListAsync(cancellationToken);
-        return new(items, totalCount);
+        return positions.Select(position => new NegativeAlertQueryRow
+        {
+            ProductId = position.ProductId,
+            ProductSku = position.ProductSku,
+            ProductDescription = position.ProductDescription,
+            UnitCode = position.UnitCode,
+            LocationId = position.LocationId,
+            LocationCode = position.LocationCode,
+            LocationDescription = position.LocationDescription,
+            Quantity = position.Quantity
+        });
     }
 
-    public async Task<InventoryAlertPage<MinimumStockInventoryAlert>> GetBelowMinimumAlertPageAsync(
-        string? search,
-        int pageNumber,
-        int pageSize,
-        CancellationToken cancellationToken = default)
+    private IQueryable<MinimumStockAlertQueryRow> BelowMinimumAlertQuery(string? search)
     {
         var normalized = CatalogNormalization.NormalizeCode(search ?? string.Empty);
-        var query =
+        var positions =
             from product in dbContext.Products.AsNoTracking()
             where product.IsActive
             join balance in dbContext.InventoryBalances.AsNoTracking()
                 on product.Id equals balance.ProductId into balances
             let total = balances.Sum(balance => (decimal?)balance.Quantity) ?? 0m
             where total < product.MinimumStock
-            select new { product, total };
+            select new { Product = product, Total = total };
         if (normalized.Length > 0)
-            query = query.Where(item => item.product.Sku.Contains(normalized) ||
-                (item.product.Description != null && item.product.Description.ToUpper().Contains(normalized)));
-        var totalCount = await query.CountAsync(cancellationToken);
-        var page = Math.Min(NormalizePage(pageNumber), Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize)));
-        var items = await query.OrderBy(item => item.product.Sku)
-            .Skip((page - 1) * pageSize).Take(pageSize)
-            .Select(item => new MinimumStockInventoryAlert(
-                item.product.Id,
-                item.product.Sku,
-                item.product.Description,
-                item.product.BaseUnit.Code,
-                item.total,
-                item.product.MinimumStock))
-            .ToListAsync(cancellationToken);
-        return new(items, totalCount);
+            positions = positions.Where(item => item.Product.Sku.Contains(normalized) ||
+                (item.Product.Description != null && item.Product.Description.ToUpper().Contains(normalized)));
+        return positions.Select(item => new MinimumStockAlertQueryRow
+        {
+            ProductId = item.Product.Id,
+            Sku = item.Product.Sku,
+            Description = item.Product.Description,
+            UnitCode = item.Product.BaseUnit.Code,
+            TotalQuantity = item.Total,
+            MinimumStock = item.Product.MinimumStock
+        });
+    }
+
+    private sealed class NegativeAlertQueryRow
+    {
+        public Guid ProductId { get; init; }
+        public required string ProductSku { get; init; }
+        public string? ProductDescription { get; init; }
+        public required string UnitCode { get; init; }
+        public Guid LocationId { get; init; }
+        public required string LocationCode { get; init; }
+        public string? LocationDescription { get; init; }
+        public decimal Quantity { get; init; }
+    }
+
+    private sealed class MinimumStockAlertQueryRow
+    {
+        public Guid ProductId { get; init; }
+        public required string Sku { get; init; }
+        public string? Description { get; init; }
+        public required string UnitCode { get; init; }
+        public decimal TotalQuantity { get; init; }
+        public decimal MinimumStock { get; init; }
     }
 
     private static System.Linq.Expressions.Expression<Func<InventoryBalance, InventoryBalanceView>> ToBalanceView() =>

@@ -9,16 +9,7 @@
             <h1 class="h2 mt-2 mb-1">@Model.Issue.ProductSku: @Model.Issue.SourceLocation → @Model.Issue.WipArea</h1>
             <p class="mb-0">Salida original @Model.Issue.OccurredAt.ToString("dd/MM/yyyy HH:mm") · @Model.Issue.Responsible · folio @Model.Issue.MovementId</p>
         </div>
-        @if (Model.Issue.Returnable > 0)
-        {
-            <a asp-page="/Operations/WipReturn"
-               asp-route-lineId="@Model.Issue.MovementLineId"
-               class="btn btn-primary btn-lg">Registrar devolución</a>
-        }
-        else
-        {
-            <span class="badge text-bg-secondary fs-6">Surtimiento completamente procesado</span>
-        }
+        <span class="badge text-bg-secondary fs-6">Historial legado de solo lectura</span>
     </div>
 
     <div class="row g-3 mb-4">
