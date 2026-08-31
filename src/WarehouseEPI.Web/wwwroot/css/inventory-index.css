@@ -1,0 +1,201 @@
+/* Consulta de existencias: solo para /Inventory. Ajusta la pantalla existente
+   sin tocar site.css ni operations.js. Todo el color sale de tokens de
+   Bootstrap para que funcione en tema claro, oscuro y del sistema.
+
+   Tesis: la cantidad es el titular. Producto y ubicación son el subtítulo. Los
+   estados solo gritan cuando son una excepción. */
+
+.inventory-workspace { max-width: 78rem; }
+
+.inventory-back {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 44px;
+    color: var(--bs-secondary-color);
+    font-size: .9rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.inventory-back:hover { color: var(--bs-primary); }
+
+.inventory-back-icon {
+    width: 1.1rem;
+    height: 1.1rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.inventory-workspace .inventory-page-header p {
+    max-width: 56ch;
+    color: var(--bs-secondary-color);
+}
+
+/* El buscador es lo único que se repite en cada consulta: superficie plana y
+   etiqueta que se lee de pie, a un brazo de distancia. */
+.inventory-workspace .inventory-search-card {
+    box-shadow: none;
+    border-color: var(--bs-border-color);
+}
+
+.inventory-workspace .inventory-search-card > .form-label {
+    font-size: 1rem;
+    margin-bottom: .5rem;
+}
+
+/* Identidad del resultado: el total global es la lectura grande. */
+.inventory-workspace .inventory-total {
+    align-content: center;
+    min-height: 44px;
+    border: 1px solid var(--bs-primary-border-subtle);
+    background: var(--bs-primary-bg-subtle);
+}
+
+.inventory-workspace .inventory-total span {
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+
+.inventory-workspace .inventory-total strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.65rem;
+    line-height: 1.1;
+}
+
+.inventory-identity-reset {
+    align-self: center;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    font-weight: 600;
+}
+
+/* Filtros: navegación, no métrica. Chips que envuelven en vez de cinco losas
+   que compiten con el dato. */
+.inventory-workspace .inventory-filter-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    grid-template-columns: none;
+}
+
+.inventory-workspace .inventory-filter-chips a {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    min-height: 44px;
+    min-width: 0;
+    flex: 0 1 auto;
+    padding: .4rem .85rem;
+    border-radius: 2rem;
+    box-shadow: none;
+}
+
+.inventory-workspace .inventory-filter-chips a.active {
+    border-color: var(--bs-primary);
+    background: var(--bs-primary-bg-subtle);
+    box-shadow: none;
+}
+
+.inventory-workspace .inventory-filter-chips strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.inventory-workspace .inventory-filter-chips span {
+    margin-top: 0;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--bs-body-color);
+}
+
+/* La cantidad manda: monoespaciada y del tamaño de un titular. */
+.inventory-workspace .inventory-position-quantity strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.5rem;
+    line-height: 1.1;
+    overflow-wrap: anywhere;
+}
+
+.inventory-workspace .inventory-position-product > a,
+.inventory-workspace .inventory-position-product > strong,
+.inventory-workspace .inventory-position-location > a,
+.inventory-workspace .inventory-position-location > strong {
+    font-size: 1.1rem;
+    overflow-wrap: anywhere;
+}
+
+.inventory-workspace .inventory-position.is-negative {
+    border-left: .3rem solid var(--bs-danger);
+    background: var(--bs-danger-bg-subtle);
+}
+
+/* Estado normal: texto, no insignia. Solo las excepciones llevan chip. */
+.inv-state-normal {
+    color: var(--bs-secondary-color);
+    font-size: .85rem;
+    font-weight: 600;
+}
+
+.inv-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    width: fit-content;
+    padding: .15rem .55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 2rem;
+    background: var(--bs-body-bg);
+    font-size: .8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.inv-chip::before {
+    content: "";
+    flex: 0 0 auto;
+    width: .45rem;
+    height: .45rem;
+    border-radius: 50%;
+    background: var(--bs-secondary-color);
+}
+
+.inv-chip.is-muted {
+    border-style: dashed;
+    color: var(--bs-secondary-color);
+}
+
+.inv-chip.is-muted::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--bs-secondary-color);
+}
+
+.inv-chip.is-warning {
+    border-color: var(--bs-warning-border-subtle);
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+}
+
+.inv-chip.is-warning::before { background: var(--bs-warning); }
+
+.inv-chip.is-danger {
+    border-color: var(--bs-danger-border-subtle);
+    background: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger-text-emphasis);
+}
+
+.inv-chip.is-danger::before { background: var(--bs-danger); }
+
+.inventory-workspace .inventory-empty { min-height: 11rem; }
+
+.inventory-workspace .inventory-empty strong { font-size: 1.1rem; }
+
+@media (max-width: 991.98px) {
+    .inventory-workspace .inventory-position-quantity strong { font-size: 1.65rem; }
+}

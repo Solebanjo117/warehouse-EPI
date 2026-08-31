@@ -1,0 +1,95 @@
+/* Tablero diario: solo para /Reports/Dashboard. Ajusta el tablero existente sin
+   tocar site.css ni las variables de color que daily-dashboard.js lee para la
+   gráfica (--dashboard-entry y compañía siguen definidas en site.css).
+
+   Tesis: la página promete priorizar las excepciones del día, así que las dos
+   métricas de problema se separan de las dos de actividad en lugar de competir
+   como iguales en una tira de cuatro. */
+
+.dashboard-tiers {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.dashboard-tier-title {
+    margin-bottom: .5rem;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.dashboard-tier.is-attention .dashboard-tier-title { color: var(--bs-danger-text-emphasis); }
+
+.daily-dashboard .dashboard-metrics.dashboard-metrics-pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-bottom: 0;
+}
+
+/* Superficie plana: sin degradados ni sombras, como el resto de las pantallas
+   de administración. La jerarquía la cargan el tamaño y el borde. */
+.daily-dashboard .dashboard-metrics article {
+    box-shadow: none;
+    background: var(--bs-body-bg);
+}
+
+.daily-dashboard .dashboard-tier.is-attention .dashboard-metrics article {
+    background: var(--bs-tertiary-bg);
+}
+
+.daily-dashboard .dashboard-period-summary > div:not(.dashboard-range-control) {
+    background: var(--bs-body-bg);
+    box-shadow: none;
+}
+
+.daily-dashboard .dashboard-chartjs-shell {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+    box-shadow: none;
+}
+
+.daily-dashboard .dashboard-chartjs-shell::after { content: none; }
+
+/* Los iconos del sprite sustituyen a los glifos tipográficos: misma caja y
+   mismo grosor en las cuatro métricas, color heredado del círculo. */
+.dashboard-metric-glyph {
+    width: 1.35rem;
+    height: 1.35rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+@media (min-width: 1200px) {
+    .dashboard-tiers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767.98px) {
+    .daily-dashboard .dashboard-metrics.dashboard-metrics-pair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* La gráfica: daily-dashboard.js lee estas variables con getComputedStyle, así
+   que el tooltip se retematiza sin tocar site.css. Fondo de superficie y borde
+   real en lugar de un panel casi negro sobre tema claro. */
+.daily-dashboard,
+[data-bs-theme="dark"] .daily-dashboard {
+    --dashboard-chart-tooltip: var(--bs-tertiary-bg);
+    --dashboard-chart-tooltip-border: var(--bs-border-color);
+}
+
+/* La leyenda se recortaba contra el borde derecho de la cabecera. */
+.daily-dashboard .dashboard-section-heading > div:first-child { min-width: min(100%, 22rem); }
+
+.daily-dashboard .dashboard-legend {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+.daily-dashboard .dashboard-legend span { white-space: nowrap; }

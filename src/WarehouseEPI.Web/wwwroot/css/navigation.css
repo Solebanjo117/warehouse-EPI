@@ -1,0 +1,140 @@
+/* Menú lateral: solo estilo. No cambia marcado, rutas ni comportamiento; se
+   carga después de site.css y afina lo que ya existe.
+
+   El panel es deliberadamente oscuro en los dos temas, así que aquí el color
+   no sale de los tokens de Bootstrap sino de los del propio panel
+   (--app-teal, --app-navy-deep) y de blancos con alfa. Ningún hex nuevo.
+
+   Tesis: son treinta enlaces en seis grupos. Lo caro no es añadir adorno, es
+   quitar peso: ritmo claro entre grupos, un estado activo que se lea sin
+   gritar y trazos finos. */
+
+/* Ritmo: los grupos se separan por aire y una hairline, no por un salto seco. */
+.app-nav { padding: .75rem .6rem 1rem; }
+
+.app-nav-group {
+    margin-top: 1.35rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid rgba(255, 255, 255, .07);
+}
+
+.app-nav-heading {
+    margin: 0 .75rem .5rem;
+    color: rgba(255, 255, 255, .48);
+    font-size: .66rem;
+    font-weight: 700;
+    letter-spacing: .14em;
+}
+
+/* Enlace: la caja no cambia de tamaño entre estados, solo de color y rail. */
+.app-nav-link {
+    position: relative;
+    gap: .8rem;
+    padding: .6rem .75rem;
+    border-radius: .55rem;
+    color: rgba(255, 255, 255, .74);
+    font-weight: 500;
+    transition: color .15s ease, background-color .15s ease;
+}
+
+.app-nav-link .app-icon {
+    color: rgba(255, 255, 255, .55);
+    stroke-width: 1.6;
+    transition: color .15s ease;
+}
+
+.app-nav-link:hover {
+    color: rgba(255, 255, 255, .96);
+    background: rgba(255, 255, 255, .06);
+}
+
+.app-nav-link:hover .app-icon { color: var(--app-teal); }
+
+/* El foco de teclado deja de disfrazarse de hover: anillo propio y visible. */
+.app-nav-link:focus-visible {
+    color: rgba(255, 255, 255, .96);
+    background: rgba(255, 255, 255, .06);
+    outline: 2px solid var(--app-teal);
+    outline-offset: 2px;
+}
+
+/* Activo: rail de acento y tinte, en lugar de un bloque teal sólido. En un
+   menú largo, el bloque pesa más que el resto de la pantalla. */
+.app-nav-link.active {
+    color: rgba(255, 255, 255, 1);
+    background: color-mix(in srgb, var(--app-teal) 22%, transparent);
+    box-shadow: none;
+    font-weight: 600;
+}
+
+.app-nav-link.active::before {
+    content: "";
+    position: absolute;
+    top: .45rem;
+    bottom: .45rem;
+    left: 0;
+    width: .2rem;
+    border-radius: 0 .2rem .2rem 0;
+    background: var(--app-teal);
+}
+
+.app-nav-link.active .app-icon { color: var(--app-teal); }
+
+/* Cabecera y pie: hairlines más finas y el mismo aire que la navegación. */
+.app-sidebar-header { border-bottom-color: rgba(255, 255, 255, .07); }
+
+.app-brand-text small {
+    color: rgba(255, 255, 255, .5);
+    letter-spacing: .04em;
+}
+
+.app-collapse-button { color: rgba(255, 255, 255, .6); }
+
+.app-collapse-button:hover,
+.app-collapse-button:focus-visible { color: rgba(255, 255, 255, .95); }
+
+.app-sidebar-footer {
+    border-top-color: rgba(255, 255, 255, .07);
+    padding: .6rem .6rem .75rem;
+}
+
+.app-user-avatar { font-weight: 700; }
+
+.app-user-name small { color: rgba(255, 255, 255, .5); }
+
+.app-sidebar { scrollbar-color: rgba(255, 255, 255, .24) transparent; }
+
+.app-nav { scrollbar-color: rgba(255, 255, 255, .24) transparent; }
+
+/* Modo riel: el activo mantiene el rail, pero el tinte se centra en el icono
+   para que no se vea un bloque de color en una columna estrecha. */
+@media (max-width: 899.98px) {
+    .app-nav-group {
+        margin-top: .9rem;
+        padding-top: .8rem;
+    }
+
+    .nav-open .app-nav-group {
+        margin-top: 1.35rem;
+        padding-top: 1.1rem;
+    }
+}
+
+@media (min-width: 900px) {
+    .nav-collapsed .app-nav-group {
+        margin-top: .9rem;
+        padding-top: .8rem;
+    }
+
+    .nav-collapsed .app-nav-link { padding: .6rem; }
+
+    .nav-collapsed .app-nav-link.active::before {
+        top: .35rem;
+        bottom: .35rem;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-nav-link,
+    .app-nav-link .app-icon { transition: none; }
+}

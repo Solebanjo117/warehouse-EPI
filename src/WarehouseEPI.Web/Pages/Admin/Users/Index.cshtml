@@ -2,49 +2,74 @@
 @model WarehouseEPI.Web.Pages.Admin.Users.IndexModel
 @{
     ViewData["Title"] = "Usuarios";
+    var activeCount = Model.Users.Count(user => user.IsActive);
 }
 
-<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
-    <div>
-        <h1 class="h2 mb-1">Usuarios</h1>
-        <p class="text-muted mb-0">Administra responsables, roles y NIP.</p>
-    </div>
-    <a asp-page="Create" class="btn btn-primary btn-lg">Crear usuario</a>
-</div>
+@section Styles {
+    <link rel="stylesheet" href="~/css/users-index.css" asp-append-version="true" />
+}
 
-<div class="table-responsive">
-    <table class="table table-striped align-middle">
-        <thead>
-            <tr>
-                <th>Nombre</th>
-                <th>Rol</th>
-                <th>Estado</th>
-                <th class="text-end">Acción</th>
-            </tr>
-        </thead>
-        <tbody>
-        @if (Model.Users.Count == 0)
-        {
-            <tr><td colspan="4" class="text-center text-muted py-4">No hay usuarios.</td></tr>
-        }
-        else
-        {
-            @foreach (var user in Model.Users)
+<div class="users-page">
+    <header class="users-header">
+        <div>
+            <span class="eyebrow">Control de acceso</span>
+            <h1 class="h2 mb-1">Usuarios</h1>
+            <p>Quién puede operar el almacén y con qué rol. Cada alta y cada cambio se hace desde aquí.</p>
+        </div>
+        <div class="users-actions">
+            @if (Model.Users.Count > 0)
             {
-                <tr>
-                    <td>@user.FullName</td>
-                    <td><span class="badge text-bg-secondary">@user.RoleCode</span> @user.RoleName</td>
-                    <td>
-                        <span class="badge @(user.IsActive ? "text-bg-success" : "text-bg-secondary")">
-                            @(user.IsActive ? "Activo" : "Inactivo")
-                        </span>
-                    </td>
-                    <td class="text-end">
-                        <a asp-page="Edit" asp-route-id="@user.Id" class="btn btn-outline-primary">Editar</a>
-                    </td>
-                </tr>
+                <p class="users-tally mb-0">
+                    <strong>@activeCount de @Model.Users.Count</strong>
+                    <span>Activos</span>
+                </p>
             }
-        }
-        </tbody>
-    </table>
+            <a asp-page="Create" class="btn btn-primary btn-lg">Crear usuario</a>
+        </div>
+    </header>
+
+    @if (Model.Users.Count == 0)
+    {
+        <div class="users-empty">
+            <strong>Aún no hay usuarios registrados.</strong>
+            <p>Crea el primero para asignarle un rol y habilitarlo en las operaciones del almacén.</p>
+            <a asp-page="Create" class="btn btn-primary btn-lg">Crear usuario</a>
+        </div>
+    }
+    else
+    {
+        <table class="table users-table align-middle">
+            <caption class="visually-hidden">Usuarios registrados con su rol y su estado.</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Rol</th>
+                    <th scope="col">Estado</th>
+                    <th scope="col" class="text-end">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in Model.Users)
+                {
+                    <tr class="@(user.IsActive ? null : "is-inactive")">
+                        <td class="users-cell-name">
+                            <span class="users-name">@user.FullName</span>
+                        </td>
+                        <td class="users-cell-role">
+                            <span class="users-role">
+                                <span class="role-chip @(string.Equals(user.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase) ? "is-admin" : null)">@user.RoleCode</span>
+                                <span class="role-name">@user.RoleName</span>
+                            </span>
+                        </td>
+                        <td class="users-cell-state">
+                            <span class="users-state @(user.IsActive ? "is-active" : "is-inactive")">@(user.IsActive ? "Activo" : "Inactivo")</span>
+                        </td>
+                        <td class="users-cell-action text-end">
+                            <a asp-page="Edit" asp-route-id="@user.Id" class="btn btn-outline-primary" aria-label="Editar a @user.FullName">Editar</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
 </div>

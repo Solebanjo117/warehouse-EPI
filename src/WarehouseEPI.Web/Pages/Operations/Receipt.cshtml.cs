@@ -5,9 +5,10 @@ using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
-public sealed class ReceiptModel(OperationalInventoryQueryService operationalQuery, WarehouseClock warehouseClock) : PageModel
+public sealed class ReceiptModel(OperationalInventoryQueryService operationalQuery, ReceivingQueryService receivingQuery, WarehouseClock warehouseClock) : PageModel
 {
     public InventoryReceipt Receipt { get; private set; } = null!;
+    public ReceivingMovementDocumentLink? ReceivingDocument { get; private set; }
     public DateTimeOffset OccurredAtWarehouseTime { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -16,6 +17,7 @@ public sealed class ReceiptModel(OperationalInventoryQueryService operationalQue
         if (receipt is null)
             return NotFound();
         Receipt = receipt;
+        ReceivingDocument = await receivingQuery.GetMovementLinkAsync(id, cancellationToken);
         OccurredAtWarehouseTime = await warehouseClock.ConvertAsync(receipt.OccurredAt, cancellationToken);
         return Page();
     }

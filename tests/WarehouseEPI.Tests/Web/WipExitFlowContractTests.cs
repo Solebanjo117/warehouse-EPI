@@ -62,9 +62,24 @@ public sealed class WipExitFlowContractTests
         Assert.Contains("Devolución a proveedor", page, StringComparison.Ordinal);
         Assert.Contains("data-wip-review", page, StringComparison.Ordinal);
         Assert.Contains("data-wip-camera", page, StringComparison.Ordinal);
+        Assert.Contains("data-lookup-url", page, StringComparison.Ordinal);
+        Assert.Contains("data-wip-product-search", page, StringComparison.Ordinal);
+        Assert.Contains("data-wip-product-results", page, StringComparison.Ordinal);
+        Assert.Contains("class=\"lookup-field\"", page, StringComparison.Ordinal);
+        Assert.Contains("aria-labelledby=\"wip-camera-scanner-title\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-camera-video", page, StringComparison.Ordinal);
+        Assert.Contains("data-camera-photo", page, StringComparison.Ordinal);
+        Assert.Contains("data-camera-switch", page, StringComparison.Ordinal);
+        Assert.Contains("zxing-browser.min.js", page, StringComparison.Ordinal);
         Assert.Contains("WipConsumption", model, StringComparison.Ordinal);
         Assert.Contains("WipSupplierReturn", model, StringComparison.Ordinal);
         Assert.Contains("Source.Id", model, StringComparison.Ordinal);
+        Assert.Contains("handler: \"Products\"", script, StringComparison.Ordinal);
+        Assert.Contains("Selecciona un producto de la lista.", script, StringComparison.Ordinal);
+        Assert.Contains("handler: \"ResolveCode\"", script, StringComparison.Ordinal);
+        Assert.Contains("scannerModal.show()", script, StringComparison.Ordinal);
+        Assert.Contains("navigator.mediaDevices.getUserMedia", script, StringComparison.Ordinal);
+        Assert.Contains("stream.getTracks().forEach(track => track.stop())", script, StringComparison.Ordinal);
         Assert.Contains("BarcodeDetector", script, StringComparison.Ordinal);
         Assert.Contains("event.submitter", script, StringComparison.Ordinal);
     }

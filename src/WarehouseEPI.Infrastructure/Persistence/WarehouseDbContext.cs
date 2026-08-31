@@ -43,6 +43,13 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<LabelAsset> LabelAssets => Set<LabelAsset>();
     public DbSet<LabelTemplateVersionAsset> LabelTemplateVersionAssets => Set<LabelTemplateVersionAsset>();
     public DbSet<LabelTemplateEvent> LabelTemplateEvents => Set<LabelTemplateEvent>();
+    public DbSet<OperationalExceptionCase> OperationalExceptionCases => Set<OperationalExceptionCase>();
+    public DbSet<OperationalExceptionEvent> OperationalExceptionEvents => Set<OperationalExceptionEvent>();
+    public DbSet<ReceivingDocument> ReceivingDocuments => Set<ReceivingDocument>();
+    public DbSet<ReceivingDocumentLine> ReceivingDocumentLines => Set<ReceivingDocumentLine>();
+    public DbSet<ReceivingConfirmation> ReceivingConfirmations => Set<ReceivingConfirmation>();
+    public DbSet<ReceivingConfirmationLine> ReceivingConfirmationLines => Set<ReceivingConfirmationLine>();
+    public DbSet<ReceivingDocumentEvent> ReceivingDocumentEvents => Set<ReceivingDocumentEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -70,6 +77,116 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureWarehouseMap(modelBuilder);
         ConfigureCycleCounts(modelBuilder);
         ConfigureLabels(modelBuilder);
+        ConfigureOperationalExceptions(modelBuilder);
+        ConfigureReceiving(modelBuilder);
+    }
+
+    private static void ConfigureReceiving(ModelBuilder modelBuilder)
+    {
+        var document = modelBuilder.Entity<ReceivingDocument>();
+        document.ToTable("receiving_documents", table =>
+        {
+            table.HasCheckConstraint("ck_receiving_documents_type", "type IN ('PURCHASE_ORDER','DELIVERY_NOTE','PACKING_LIST','PRODUCTION_ORDER','OTHER')");
+            table.HasCheckConstraint("ck_receiving_documents_status", "status IN ('OPEN','PARTIALLY_RECEIVED','COMPLETED','CLOSED_WITH_DIFFERENCES','CANCELLED')");
+            table.HasCheckConstraint("ck_receiving_documents_number", "length(btrim(number)) > 0 AND normalized_number = upper(btrim(number))");
+            table.HasCheckConstraint("ck_receiving_documents_origin", "length(btrim(origin)) > 0 AND normalized_origin = upper(btrim(origin))");
+            table.HasCheckConstraint("ck_receiving_documents_terminal_shape", "(status = 'COMPLETED' AND completed_at IS NOT NULL AND closed_at IS NULL AND cancelled_at IS NULL) OR (status = 'CLOSED_WITH_DIFFERENCES' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND cancelled_at IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND closed_at IS NULL) OR (status IN ('OPEN','PARTIALLY_RECEIVED') AND completed_at IS NULL AND closed_at IS NULL AND cancelled_at IS NULL)");
+        });
+        document.HasKey(item => item.Id);
+        document.Property(item => item.Id).HasColumnName("id");
+        document.Property(item => item.OperationId).HasColumnName("operation_id");
+        document.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        document.Property(item => item.Type).HasColumnName("type").HasMaxLength(30).HasConversion(value => ReceivingDocumentTypeToDatabase(value), value => ReceivingDocumentTypeFromDatabase(value));
+        document.Property(item => item.Number).HasColumnName("number").HasMaxLength(120).IsRequired();
+        document.Property(item => item.NormalizedNumber).HasColumnName("normalized_number").HasMaxLength(120).IsRequired();
+        document.Property(item => item.Origin).HasColumnName("origin").HasMaxLength(160).IsRequired();
+        document.Property(item => item.NormalizedOrigin).HasColumnName("normalized_origin").HasMaxLength(160).IsRequired();
+        document.Property(item => item.DocumentDate).HasColumnName("document_date");
+        document.Property(item => item.Status).HasColumnName("status").HasMaxLength(30).HasConversion(value => ReceivingDocumentStatusToDatabase(value), value => ReceivingDocumentStatusFromDatabase(value));
+        document.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        document.Property(item => item.OpenedByUserId).HasColumnName("opened_by_user_id");
+        document.Property(item => item.OpenedAt).HasColumnName("opened_at").HasDefaultValueSql("now()");
+        document.Property(item => item.CompletedAt).HasColumnName("completed_at");
+        document.Property(item => item.ClosedByUserId).HasColumnName("closed_by_user_id");
+        document.Property(item => item.ClosedAt).HasColumnName("closed_at");
+        document.Property(item => item.CloseReason).HasColumnName("close_reason").HasMaxLength(500);
+        document.Property(item => item.CancelledByUserId).HasColumnName("cancelled_by_user_id");
+        document.Property(item => item.CancelledAt).HasColumnName("cancelled_at");
+        document.Property(item => item.CancelReason).HasColumnName("cancel_reason").HasMaxLength(500);
+        document.Property(item => item.Version).HasColumnName("xmin").IsRowVersion();
+        document.HasIndex(item => item.OperationId).IsUnique();
+        document.HasIndex(item => new { item.Type, item.NormalizedNumber, item.NormalizedOrigin }).IsUnique().HasFilter("status <> 'CANCELLED'");
+        document.HasIndex(item => new { item.Status, item.OpenedAt });
+        document.HasOne(item => item.OpenedByUser).WithMany().HasForeignKey(item => item.OpenedByUserId).OnDelete(DeleteBehavior.Restrict);
+        document.HasOne(item => item.ClosedByUser).WithMany().HasForeignKey(item => item.ClosedByUserId).OnDelete(DeleteBehavior.Restrict);
+        document.HasOne(item => item.CancelledByUser).WithMany().HasForeignKey(item => item.CancelledByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var line = modelBuilder.Entity<ReceivingDocumentLine>();
+        line.ToTable("receiving_document_lines", table => { table.HasCheckConstraint("ck_receiving_document_lines_number", "line_number > 0"); table.HasCheckConstraint("ck_receiving_document_lines_quantity", "expected_quantity > 0"); });
+        line.HasKey(item => item.Id);
+        line.Property(item => item.Id).HasColumnName("id");
+        line.Property(item => item.ReceivingDocumentId).HasColumnName("receiving_document_id");
+        line.Property(item => item.LineNumber).HasColumnName("line_number");
+        line.Property(item => item.ProductId).HasColumnName("product_id");
+        line.Property(item => item.UnitId).HasColumnName("unit_id");
+        line.Property(item => item.ExpectedQuantity).HasColumnName("expected_quantity").HasPrecision(18, 4);
+        line.HasIndex(item => new { item.ReceivingDocumentId, item.LineNumber }).IsUnique();
+        line.HasIndex(item => new { item.ReceivingDocumentId, item.ProductId }).IsUnique();
+        line.HasIndex(item => item.ProductId);
+        line.HasOne(item => item.ReceivingDocument).WithMany(item => item.Lines).HasForeignKey(item => item.ReceivingDocumentId).OnDelete(DeleteBehavior.Restrict);
+        line.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+        line.HasOne(item => item.Unit).WithMany().HasForeignKey(item => item.UnitId).OnDelete(DeleteBehavior.Restrict);
+
+        var confirmation = modelBuilder.Entity<ReceivingConfirmation>();
+        confirmation.ToTable("receiving_confirmations");
+        confirmation.HasKey(item => item.Id);
+        confirmation.Property(item => item.Id).HasColumnName("id");
+        confirmation.Property(item => item.OperationId).HasColumnName("operation_id");
+        confirmation.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        confirmation.Property(item => item.ReceivingDocumentId).HasColumnName("receiving_document_id");
+        confirmation.Property(item => item.InventoryMovementId).HasColumnName("inventory_movement_id");
+        confirmation.Property(item => item.ResponsibleUserId).HasColumnName("responsible_user_id");
+        confirmation.Property(item => item.DifferenceAcknowledged).HasColumnName("difference_acknowledged");
+        confirmation.Property(item => item.DifferenceNotes).HasColumnName("difference_notes").HasMaxLength(500);
+        confirmation.Property(item => item.OccurredAt).HasColumnName("occurred_at").HasDefaultValueSql("now()");
+        confirmation.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        confirmation.HasIndex(item => item.OperationId).IsUnique();
+        confirmation.HasIndex(item => item.InventoryMovementId).IsUnique();
+        confirmation.HasIndex(item => new { item.ReceivingDocumentId, item.OccurredAt });
+        confirmation.HasOne(item => item.ReceivingDocument).WithMany(item => item.Confirmations).HasForeignKey(item => item.ReceivingDocumentId).OnDelete(DeleteBehavior.Restrict);
+        confirmation.HasOne(item => item.InventoryMovement).WithMany().HasForeignKey(item => item.InventoryMovementId).OnDelete(DeleteBehavior.Restrict);
+        confirmation.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var confirmationLine = modelBuilder.Entity<ReceivingConfirmationLine>();
+        confirmationLine.ToTable("receiving_confirmation_lines");
+        confirmationLine.HasKey(item => item.Id);
+        confirmationLine.Property(item => item.Id).HasColumnName("id");
+        confirmationLine.Property(item => item.ReceivingConfirmationId).HasColumnName("receiving_confirmation_id");
+        confirmationLine.Property(item => item.ReceivingDocumentLineId).HasColumnName("receiving_document_line_id");
+        confirmationLine.Property(item => item.InventoryMovementLineId).HasColumnName("inventory_movement_line_id");
+        confirmationLine.Property(item => item.ExternalLotReference).HasColumnName("external_lot_reference").HasMaxLength(120);
+        confirmationLine.HasIndex(item => item.InventoryMovementLineId).IsUnique();
+        confirmationLine.HasIndex(item => item.ReceivingDocumentLineId);
+        confirmationLine.HasIndex(item => item.ExternalLotReference).HasFilter("external_lot_reference IS NOT NULL");
+        confirmationLine.HasOne(item => item.ReceivingConfirmation).WithMany(item => item.Lines).HasForeignKey(item => item.ReceivingConfirmationId).OnDelete(DeleteBehavior.Restrict);
+        confirmationLine.HasOne(item => item.ReceivingDocumentLine).WithMany(item => item.ConfirmationLines).HasForeignKey(item => item.ReceivingDocumentLineId).OnDelete(DeleteBehavior.Restrict);
+        confirmationLine.HasOne(item => item.InventoryMovementLine).WithMany().HasForeignKey(item => item.InventoryMovementLineId).OnDelete(DeleteBehavior.Restrict);
+
+        var auditEvent = modelBuilder.Entity<ReceivingDocumentEvent>();
+        auditEvent.ToTable("receiving_document_events", table => table.HasCheckConstraint("ck_receiving_document_events_type", "type IN ('OPENED','RECEIPT_CONFIRMED','AUTOMATICALLY_COMPLETED','CLOSED_WITH_DIFFERENCES','CANCELLED','RECEIPT_CORRECTED','REOPENED_AFTER_CORRECTION')"));
+        auditEvent.HasKey(item => item.Id);
+        auditEvent.Property(item => item.Id).HasColumnName("id");
+        auditEvent.Property(item => item.OperationId).HasColumnName("operation_id");
+        auditEvent.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength();
+        auditEvent.Property(item => item.ReceivingDocumentId).HasColumnName("receiving_document_id");
+        auditEvent.Property(item => item.Type).HasColumnName("type").HasMaxLength(40).HasConversion(value => ReceivingDocumentEventTypeToDatabase(value), value => ReceivingDocumentEventTypeFromDatabase(value));
+        auditEvent.Property(item => item.ActorUserId).HasColumnName("actor_user_id");
+        auditEvent.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        auditEvent.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        auditEvent.HasIndex(item => item.OperationId).IsUnique().HasFilter("operation_id IS NOT NULL");
+        auditEvent.HasIndex(item => new { item.ReceivingDocumentId, item.RecordedAt });
+        auditEvent.HasOne(item => item.ReceivingDocument).WithMany(item => item.Events).HasForeignKey(item => item.ReceivingDocumentId).OnDelete(DeleteBehavior.Restrict);
+        auditEvent.HasOne(item => item.ActorUser).WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureLabels(ModelBuilder modelBuilder)
@@ -514,7 +631,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
                 "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
@@ -522,7 +639,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "(purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR " +
                 "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
-                "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
+                "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR " +
+                "(purpose = 'DOCUMENT_RECEIPT' AND type = 'ENTRY' AND operational_area_id IS NULL)");
         });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
@@ -949,6 +1067,71 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         action.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
+    private static void ConfigureOperationalExceptions(ModelBuilder modelBuilder)
+    {
+        var exceptionCase = modelBuilder.Entity<OperationalExceptionCase>();
+        exceptionCase.ToTable("operational_exception_cases", table =>
+        {
+            table.HasCheckConstraint("ck_operational_exception_cases_category", "category IN ('NEGATIVE_INVENTORY','BELOW_MINIMUM','UNASSIGNED_BALANCE','RESTRICTED_INVENTORY','STAGNANT_INVENTORY','CYCLE_COUNT_STALE','CYCLE_COUNT_PENDING','AGED_WIP')");
+            table.HasCheckConstraint("ck_operational_exception_cases_severity", "severity IN ('CRITICAL','WARNING','INFORMATION')");
+            table.HasCheckConstraint("ck_operational_exception_cases_status", "status IN ('NEW','IN_PROGRESS','WAITING','RESOLVED')");
+            table.HasCheckConstraint("ck_operational_exception_cases_resolution", "(status = 'RESOLVED' AND resolved_at IS NOT NULL) OR (status <> 'RESOLVED' AND resolved_at IS NULL)");
+        });
+        exceptionCase.HasKey(item => item.Id);
+        exceptionCase.Property(item => item.Id).HasColumnName("id");
+        exceptionCase.Property(item => item.Category).HasColumnName("category").HasMaxLength(30)
+            .HasConversion(value => ExceptionCategoryToDatabase(value), value => ExceptionCategoryFromDatabase(value));
+        exceptionCase.Property(item => item.Severity).HasColumnName("severity").HasMaxLength(20)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<OperationalExceptionSeverity>(value, true));
+        exceptionCase.Property(item => item.ConditionKey).HasColumnName("condition_key").HasMaxLength(220).IsRequired();
+        exceptionCase.Property(item => item.Status).HasColumnName("status").HasMaxLength(20)
+            .HasConversion(value => value == OperationalExceptionStatus.InProgress ? "IN_PROGRESS" : value.ToString().ToUpperInvariant(), value => value == "IN_PROGRESS" ? OperationalExceptionStatus.InProgress : Enum.Parse<OperationalExceptionStatus>(value, true));
+        exceptionCase.Property(item => item.ProductId).HasColumnName("product_id");
+        exceptionCase.Property(item => item.LocationId).HasColumnName("location_id");
+        exceptionCase.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        exceptionCase.Property(item => item.PrimaryText).HasColumnName("primary_text").HasMaxLength(160).IsRequired();
+        exceptionCase.Property(item => item.SecondaryText).HasColumnName("secondary_text").HasMaxLength(200).IsRequired();
+        exceptionCase.Property(item => item.ValueText).HasColumnName("value_text").HasMaxLength(200);
+        exceptionCase.Property(item => item.TargetUrl).HasColumnName("target_url").HasMaxLength(1000).IsRequired();
+        exceptionCase.Property(item => item.AssignedUserId).HasColumnName("assigned_user_id");
+        exceptionCase.Property(item => item.FirstDetectedAt).HasColumnName("first_detected_at").HasDefaultValueSql("now()");
+        exceptionCase.Property(item => item.LastDetectedAt).HasColumnName("last_detected_at").HasDefaultValueSql("now()");
+        exceptionCase.Property(item => item.ResolvedAt).HasColumnName("resolved_at");
+        exceptionCase.Property(item => item.Version).HasColumnName("xmin").IsRowVersion();
+        exceptionCase.HasIndex(item => new { item.Category, item.ConditionKey }).IsUnique().HasFilter("resolved_at IS NULL");
+        exceptionCase.HasIndex(item => new { item.Status, item.Severity, item.FirstDetectedAt });
+        exceptionCase.HasIndex(item => new { item.AssignedUserId, item.Status });
+        exceptionCase.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+        exceptionCase.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
+        exceptionCase.HasOne(item => item.CycleCountLocation).WithMany().HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
+        exceptionCase.HasOne(item => item.AssignedUser).WithMany().HasForeignKey(item => item.AssignedUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var exceptionEvent = modelBuilder.Entity<OperationalExceptionEvent>();
+        exceptionEvent.ToTable("operational_exception_events", table =>
+            table.HasCheckConstraint("ck_operational_exception_events_type", "type IN ('DETECTED','TRIAGE_UPDATED','AUTO_RESOLVED')"));
+        exceptionEvent.HasKey(item => item.Id);
+        exceptionEvent.Property(item => item.Id).HasColumnName("id");
+        exceptionEvent.Property(item => item.OperationId).HasColumnName("operation_id");
+        exceptionEvent.Property(item => item.OperationalExceptionCaseId).HasColumnName("operational_exception_case_id");
+        exceptionEvent.Property(item => item.Type).HasColumnName("type").HasMaxLength(30)
+            .HasConversion(value => ExceptionEventTypeToDatabase(value), value => ExceptionEventTypeFromDatabase(value));
+        exceptionEvent.Property(item => item.PreviousStatus).HasColumnName("previous_status").HasMaxLength(20)
+            .HasConversion(value => value == null ? null : value == OperationalExceptionStatus.InProgress ? "IN_PROGRESS" : value.ToString()!.ToUpperInvariant(), value => string.IsNullOrWhiteSpace(value) ? null : value == "IN_PROGRESS" ? OperationalExceptionStatus.InProgress : Enum.Parse<OperationalExceptionStatus>(value, true));
+        exceptionEvent.Property(item => item.CurrentStatus).HasColumnName("current_status").HasMaxLength(20)
+            .HasConversion(value => value == null ? null : value == OperationalExceptionStatus.InProgress ? "IN_PROGRESS" : value.ToString()!.ToUpperInvariant(), value => string.IsNullOrWhiteSpace(value) ? null : value == "IN_PROGRESS" ? OperationalExceptionStatus.InProgress : Enum.Parse<OperationalExceptionStatus>(value, true));
+        exceptionEvent.Property(item => item.PreviousAssignedUserId).HasColumnName("previous_assigned_user_id");
+        exceptionEvent.Property(item => item.CurrentAssignedUserId).HasColumnName("current_assigned_user_id");
+        exceptionEvent.Property(item => item.ActorUserId).HasColumnName("actor_user_id");
+        exceptionEvent.Property(item => item.Notes).HasColumnName("notes").HasMaxLength(500);
+        exceptionEvent.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        exceptionEvent.HasIndex(item => item.OperationId).IsUnique().HasFilter("operation_id IS NOT NULL");
+        exceptionEvent.HasIndex(item => new { item.OperationalExceptionCaseId, item.RecordedAt });
+        exceptionEvent.HasOne(item => item.OperationalExceptionCase).WithMany(item => item.Events).HasForeignKey(item => item.OperationalExceptionCaseId).OnDelete(DeleteBehavior.Cascade);
+        exceptionEvent.HasOne(item => item.PreviousAssignedUser).WithMany().HasForeignKey(item => item.PreviousAssignedUserId).OnDelete(DeleteBehavior.Restrict);
+        exceptionEvent.HasOne(item => item.CurrentAssignedUser).WithMany().HasForeignKey(item => item.CurrentAssignedUserId).OnDelete(DeleteBehavior.Restrict);
+        exceptionEvent.HasOne(item => item.ActorUser).WithMany().HasForeignKey(item => item.ActorUserId).OnDelete(DeleteBehavior.Restrict);
+    }
+
     private static void ConfigureInventoryMovementCorrection(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<InventoryMovementCorrection>();
@@ -1034,11 +1217,14 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Any(entry => entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or LabelTemplateEvent &&
-                entry.State is EntityState.Modified or EntityState.Deleted);
+            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent) &&
+                (entry.State is EntityState.Modified or EntityState.Deleted))
+            .Select(entry => entry.Metadata.ClrType.Name)
+            .Distinct()
+            .ToArray();
 
-        if (changedHistory)
-            throw new InvalidOperationException("Los movimientos confirmados y su historial son inmutables.");
+        if (changedHistory.Length != 0)
+            throw new InvalidOperationException($"Los movimientos confirmados y su historial son inmutables: {string.Join(", ", changedHistory)}.");
 
         var changedPublishedTemplate = ChangeTracker.Entries<LabelTemplateVersion>().Any(entry =>
             (entry.State is EntityState.Modified or EntityState.Deleted) &&
@@ -1056,6 +1242,48 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementType.Transfer => "TRANSFER",
         InventoryMovementType.Adjustment => "ADJUSTMENT",
         _ => throw new InvalidOperationException("Tipo de movimiento no soportado.")
+    };
+
+    private static string ExceptionCategoryToDatabase(OperationalExceptionCategory value) => value switch
+    {
+        OperationalExceptionCategory.NegativeInventory => "NEGATIVE_INVENTORY",
+        OperationalExceptionCategory.BelowMinimum => "BELOW_MINIMUM",
+        OperationalExceptionCategory.UnassignedBalance => "UNASSIGNED_BALANCE",
+        OperationalExceptionCategory.RestrictedInventory => "RESTRICTED_INVENTORY",
+        OperationalExceptionCategory.StagnantInventory => "STAGNANT_INVENTORY",
+        OperationalExceptionCategory.CycleCountStale => "CYCLE_COUNT_STALE",
+        OperationalExceptionCategory.CycleCountPending => "CYCLE_COUNT_PENDING",
+        OperationalExceptionCategory.AgedWip => "AGED_WIP",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static OperationalExceptionCategory ExceptionCategoryFromDatabase(string value) => value switch
+    {
+        "NEGATIVE_INVENTORY" => OperationalExceptionCategory.NegativeInventory,
+        "BELOW_MINIMUM" => OperationalExceptionCategory.BelowMinimum,
+        "UNASSIGNED_BALANCE" => OperationalExceptionCategory.UnassignedBalance,
+        "RESTRICTED_INVENTORY" => OperationalExceptionCategory.RestrictedInventory,
+        "STAGNANT_INVENTORY" => OperationalExceptionCategory.StagnantInventory,
+        "CYCLE_COUNT_STALE" => OperationalExceptionCategory.CycleCountStale,
+        "CYCLE_COUNT_PENDING" => OperationalExceptionCategory.CycleCountPending,
+        "AGED_WIP" => OperationalExceptionCategory.AgedWip,
+        _ => throw new InvalidOperationException("Categoría de excepción no soportada.")
+    };
+
+    private static string ExceptionEventTypeToDatabase(OperationalExceptionEventType value) => value switch
+    {
+        OperationalExceptionEventType.Detected => "DETECTED",
+        OperationalExceptionEventType.TriageUpdated => "TRIAGE_UPDATED",
+        OperationalExceptionEventType.AutoResolved => "AUTO_RESOLVED",
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
+    };
+
+    private static OperationalExceptionEventType ExceptionEventTypeFromDatabase(string value) => value switch
+    {
+        "DETECTED" => OperationalExceptionEventType.Detected,
+        "TRIAGE_UPDATED" => OperationalExceptionEventType.TriageUpdated,
+        "AUTO_RESOLVED" => OperationalExceptionEventType.AutoResolved,
+        _ => throw new InvalidOperationException("Tipo de evento de excepción no soportado.")
     };
 
     private static string LabelSizeToDatabase(LabelSizePreset value) => value switch
@@ -1095,6 +1323,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.WipConsumption => "WIP_CONSUMPTION",
         InventoryMovementPurpose.WipSupplierReturn => "WIP_SUPPLIER_RETURN",
         InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
+        InventoryMovementPurpose.DocumentReceipt => "DOCUMENT_RECEIPT",
         _ => "STANDARD"
     };
 
@@ -1106,7 +1335,60 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "WIP_CONSUMPTION" => InventoryMovementPurpose.WipConsumption,
         "WIP_SUPPLIER_RETURN" => InventoryMovementPurpose.WipSupplierReturn,
         "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
+        "DOCUMENT_RECEIPT" => InventoryMovementPurpose.DocumentReceipt,
         _ => InventoryMovementPurpose.Standard
+    };
+
+    private static string ReceivingDocumentTypeToDatabase(ReceivingDocumentType value) => value switch
+    {
+        ReceivingDocumentType.PurchaseOrder => "PURCHASE_ORDER",
+        ReceivingDocumentType.DeliveryNote => "DELIVERY_NOTE",
+        ReceivingDocumentType.PackingList => "PACKING_LIST",
+        ReceivingDocumentType.ProductionOrder => "PRODUCTION_ORDER",
+        _ => "OTHER"
+    };
+
+    private static ReceivingDocumentType ReceivingDocumentTypeFromDatabase(string value) => value switch
+    {
+        "PURCHASE_ORDER" => ReceivingDocumentType.PurchaseOrder,
+        "DELIVERY_NOTE" => ReceivingDocumentType.DeliveryNote,
+        "PACKING_LIST" => ReceivingDocumentType.PackingList,
+        "PRODUCTION_ORDER" => ReceivingDocumentType.ProductionOrder,
+        _ => ReceivingDocumentType.Other
+    };
+
+    private static string ReceivingDocumentStatusToDatabase(ReceivingDocumentStatus value) => value switch
+    {
+        ReceivingDocumentStatus.PartiallyReceived => "PARTIALLY_RECEIVED",
+        ReceivingDocumentStatus.ClosedWithDifferences => "CLOSED_WITH_DIFFERENCES",
+        _ => value.ToString().ToUpperInvariant()
+    };
+
+    private static ReceivingDocumentStatus ReceivingDocumentStatusFromDatabase(string value) => value switch
+    {
+        "PARTIALLY_RECEIVED" => ReceivingDocumentStatus.PartiallyReceived,
+        "CLOSED_WITH_DIFFERENCES" => ReceivingDocumentStatus.ClosedWithDifferences,
+        _ => Enum.Parse<ReceivingDocumentStatus>(value, true)
+    };
+
+    private static string ReceivingDocumentEventTypeToDatabase(ReceivingDocumentEventType value) => value switch
+    {
+        ReceivingDocumentEventType.ReceiptConfirmed => "RECEIPT_CONFIRMED",
+        ReceivingDocumentEventType.AutomaticallyCompleted => "AUTOMATICALLY_COMPLETED",
+        ReceivingDocumentEventType.ClosedWithDifferences => "CLOSED_WITH_DIFFERENCES",
+        ReceivingDocumentEventType.ReceiptCorrected => "RECEIPT_CORRECTED",
+        ReceivingDocumentEventType.ReopenedAfterCorrection => "REOPENED_AFTER_CORRECTION",
+        _ => value.ToString().ToUpperInvariant()
+    };
+
+    private static ReceivingDocumentEventType ReceivingDocumentEventTypeFromDatabase(string value) => value switch
+    {
+        "RECEIPT_CONFIRMED" => ReceivingDocumentEventType.ReceiptConfirmed,
+        "AUTOMATICALLY_COMPLETED" => ReceivingDocumentEventType.AutomaticallyCompleted,
+        "CLOSED_WITH_DIFFERENCES" => ReceivingDocumentEventType.ClosedWithDifferences,
+        "RECEIPT_CORRECTED" => ReceivingDocumentEventType.ReceiptCorrected,
+        "REOPENED_AFTER_CORRECTION" => ReceivingDocumentEventType.ReopenedAfterCorrection,
+        _ => Enum.Parse<ReceivingDocumentEventType>(value, true)
     };
 
     private static string LocationRoleToDatabase(LocationOperationalRole value) => value switch
