@@ -658,9 +658,9 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("inventory_movements", null, t =>
                         {
-                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR (purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
+                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR (purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR (purpose = 'DOCUMENT_RECEIPT' AND type = 'ENTRY' AND operational_area_id IS NULL)");
 
-                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT')");
+                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT')");
 
                             t.HasCheckConstraint("ck_inventory_movements_type", "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
                         });
@@ -1302,6 +1302,200 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AssignedUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("assigned_user_id");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("category");
+
+                    b.Property<string>("ConditionKey")
+                        .IsRequired()
+                        .HasMaxLength(220)
+                        .HasColumnType("character varying(220)")
+                        .HasColumnName("condition_key");
+
+                    b.Property<Guid?>("CycleCountLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_location_id");
+
+                    b.Property<DateTimeOffset>("FirstDetectedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("first_detected_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset>("LastDetectedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_detected_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<string>("PrimaryText")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("primary_text");
+
+                    b.Property<Guid?>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("resolved_at");
+
+                    b.Property<string>("SecondaryText")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("secondary_text");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("severity");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("TargetUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("target_url");
+
+                    b.Property<string>("ValueText")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("value_text");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CycleCountLocationId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("AssignedUserId", "Status");
+
+                    b.HasIndex("Category", "ConditionKey")
+                        .IsUnique()
+                        .HasFilter("resolved_at IS NULL");
+
+                    b.HasIndex("Status", "Severity", "FirstDetectedAt");
+
+                    b.ToTable("operational_exception_cases", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_operational_exception_cases_category", "category IN ('NEGATIVE_INVENTORY','BELOW_MINIMUM','UNASSIGNED_BALANCE','RESTRICTED_INVENTORY','STAGNANT_INVENTORY','CYCLE_COUNT_STALE','CYCLE_COUNT_PENDING','AGED_WIP')");
+
+                            t.HasCheckConstraint("ck_operational_exception_cases_resolution", "(status = 'RESOLVED' AND resolved_at IS NOT NULL) OR (status <> 'RESOLVED' AND resolved_at IS NULL)");
+
+                            t.HasCheckConstraint("ck_operational_exception_cases_severity", "severity IN ('CRITICAL','WARNING','INFORMATION')");
+
+                            t.HasCheckConstraint("ck_operational_exception_cases_status", "status IN ('NEW','IN_PROGRESS','WAITING','RESOLVED')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<Guid?>("CurrentAssignedUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("current_assigned_user_id");
+
+                    b.Property<string>("CurrentStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("current_status");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("OperationalExceptionCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operational_exception_case_id");
+
+                    b.Property<Guid?>("PreviousAssignedUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("previous_assigned_user_id");
+
+                    b.Property<string>("PreviousStatus")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("previous_status");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("CurrentAssignedUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique()
+                        .HasFilter("operation_id IS NOT NULL");
+
+                    b.HasIndex("PreviousAssignedUserId");
+
+                    b.HasIndex("OperationalExceptionCaseId", "RecordedAt");
+
+                    b.ToTable("operational_exception_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_operational_exception_events_type", "type IN ('DETECTED','TRIAGE_UPDATED','AUTO_RESOLVED')");
+                        });
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1856,6 +2050,357 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                             Code = "RAW",
                             IsActive = true,
                             Name = "Materia prima"
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("DifferenceAcknowledged")
+                        .HasColumnType("boolean")
+                        .HasColumnName("difference_acknowledged");
+
+                    b.Property<string>("DifferenceNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("difference_notes");
+
+                    b.Property<Guid>("InventoryMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_id");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("ReceivingDocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receiving_document_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryMovementId")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ReceivingDocumentId", "OccurredAt");
+
+                    b.ToTable("receiving_confirmations", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmationLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ExternalLotReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("external_lot_reference");
+
+                    b.Property<Guid>("InventoryMovementLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_line_id");
+
+                    b.Property<Guid>("ReceivingConfirmationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receiving_confirmation_id");
+
+                    b.Property<Guid?>("ReceivingDocumentLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receiving_document_line_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExternalLotReference")
+                        .HasFilter("external_lot_reference IS NOT NULL");
+
+                    b.HasIndex("InventoryMovementLineId")
+                        .IsUnique();
+
+                    b.HasIndex("ReceivingConfirmationId");
+
+                    b.HasIndex("ReceivingDocumentLineId");
+
+                    b.ToTable("receiving_confirmation_lines", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("cancel_reason");
+
+                    b.Property<DateTimeOffset?>("CancelledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("cancelled_at");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cancelled_by_user_id");
+
+                    b.Property<string>("CloseReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("close_reason");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("ClosedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_by_user_id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateOnly?>("DocumentDate")
+                        .HasColumnType("date")
+                        .HasColumnName("document_date");
+
+                    b.Property<string>("NormalizedNumber")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("normalized_number");
+
+                    b.Property<string>("NormalizedOrigin")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("normalized_origin");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("number");
+
+                    b.Property<DateTimeOffset>("OpenedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("opened_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("OpenedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("opened_by_user_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("origin");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("ClosedByUserId");
+
+                    b.HasIndex("OpenedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "OpenedAt");
+
+                    b.HasIndex("Type", "NormalizedNumber", "NormalizedOrigin")
+                        .IsUnique()
+                        .HasFilter("status <> 'CANCELLED'");
+
+                    b.ToTable("receiving_documents", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_receiving_documents_number", "length(btrim(number)) > 0 AND normalized_number = upper(btrim(number))");
+
+                            t.HasCheckConstraint("ck_receiving_documents_origin", "length(btrim(origin)) > 0 AND normalized_origin = upper(btrim(origin))");
+
+                            t.HasCheckConstraint("ck_receiving_documents_status", "status IN ('OPEN','PARTIALLY_RECEIVED','COMPLETED','CLOSED_WITH_DIFFERENCES','CANCELLED')");
+
+                            t.HasCheckConstraint("ck_receiving_documents_terminal_shape", "(status = 'COMPLETED' AND completed_at IS NOT NULL AND closed_at IS NULL AND cancelled_at IS NULL) OR (status = 'CLOSED_WITH_DIFFERENCES' AND closed_at IS NOT NULL AND close_reason IS NOT NULL AND cancelled_at IS NULL) OR (status = 'CANCELLED' AND cancelled_at IS NOT NULL AND cancel_reason IS NOT NULL AND closed_at IS NULL) OR (status IN ('OPEN','PARTIALLY_RECEIVED') AND completed_at IS NULL AND closed_at IS NULL AND cancelled_at IS NULL)");
+
+                            t.HasCheckConstraint("ck_receiving_documents_type", "type IN ('PURCHASE_ORDER','DELIVERY_NOTE','PACKING_LIST','PRODUCTION_ORDER','OTHER')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocumentEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("ReceivingDocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receiving_document_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("RequestFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique()
+                        .HasFilter("operation_id IS NOT NULL");
+
+                    b.HasIndex("ReceivingDocumentId", "RecordedAt");
+
+                    b.ToTable("receiving_document_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_receiving_document_events_type", "type IN ('OPENED','RECEIPT_CONFIRMED','AUTOMATICALLY_COMPLETED','CLOSED_WITH_DIFFERENCES','CANCELLED','RECEIPT_CORRECTED','REOPENED_AFTER_CORRECTION')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocumentLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("ExpectedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("expected_quantity");
+
+                    b.Property<int>("LineNumber")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_number");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("ReceivingDocumentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receiving_document_id");
+
+                    b.Property<short>("UnitId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("unit_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("ReceivingDocumentId", "LineNumber")
+                        .IsUnique();
+
+                    b.HasIndex("ReceivingDocumentId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("receiving_document_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_receiving_document_lines_number", "line_number > 0");
+
+                            t.HasCheckConstraint("ck_receiving_document_lines_quantity", "expected_quantity > 0");
                         });
                 });
 
@@ -3186,6 +3731,69 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("RequestedByUser");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionCase", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AssignedUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountLocation", "CycleCountLocation")
+                        .WithMany()
+                        .HasForeignKey("CycleCountLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("AssignedUser");
+
+                    b.Navigation("CycleCountLocation");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CurrentAssignedUser")
+                        .WithMany()
+                        .HasForeignKey("CurrentAssignedUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.OperationalExceptionCase", "OperationalExceptionCase")
+                        .WithMany("Events")
+                        .HasForeignKey("OperationalExceptionCaseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "PreviousAssignedUser")
+                        .WithMany()
+                        .HasForeignKey("PreviousAssignedUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("CurrentAssignedUser");
+
+                    b.Navigation("OperationalExceptionCase");
+
+                    b.Navigation("PreviousAssignedUser");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.Unit", "BaseUnit")
@@ -3277,6 +3885,129 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("ProductLot");
 
                     b.Navigation("RequestedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "InventoryMovement")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ReceivingDocument", "ReceivingDocument")
+                        .WithMany("Confirmations")
+                        .HasForeignKey("ReceivingDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InventoryMovement");
+
+                    b.Navigation("ReceivingDocument");
+
+                    b.Navigation("ResponsibleUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmationLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "InventoryMovementLine")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ReceivingConfirmation", "ReceivingConfirmation")
+                        .WithMany("Lines")
+                        .HasForeignKey("ReceivingConfirmationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ReceivingDocumentLine", "ReceivingDocumentLine")
+                        .WithMany("ConfirmationLines")
+                        .HasForeignKey("ReceivingDocumentLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("InventoryMovementLine");
+
+                    b.Navigation("ReceivingConfirmation");
+
+                    b.Navigation("ReceivingDocumentLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocument", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CancelledByUser")
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ClosedByUser")
+                        .WithMany()
+                        .HasForeignKey("ClosedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "OpenedByUser")
+                        .WithMany()
+                        .HasForeignKey("OpenedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CancelledByUser");
+
+                    b.Navigation("ClosedByUser");
+
+                    b.Navigation("OpenedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocumentEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ActorUser")
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ReceivingDocument", "ReceivingDocument")
+                        .WithMany("Events")
+                        .HasForeignKey("ReceivingDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ActorUser");
+
+                    b.Navigation("ReceivingDocument");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocumentLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ReceivingDocument", "ReceivingDocument")
+                        .WithMany("Lines")
+                        .HasForeignKey("ReceivingDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ReceivingDocument");
+
+                    b.Navigation("Unit");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.User", b =>
@@ -3480,6 +4211,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("ProductAssignments");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionCase", b =>
+                {
+                    b.Navigation("Events");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.Navigation("Barcodes");
@@ -3497,6 +4233,25 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductType", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmation", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocument", b =>
+                {
+                    b.Navigation("Confirmations");
+
+                    b.Navigation("Events");
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingDocumentLine", b =>
+                {
+                    b.Navigation("ConfirmationLines");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Role", b =>

@@ -1,0 +1,241 @@
+/* Listado de usuarios: solo para /Admin/Users. Todo el color sale de tokens de
+   Bootstrap para que la pantalla funcione en tema claro y oscuro. */
+
+.users-page {
+    display: grid;
+    gap: 1.5rem;
+    max-width: 72rem;
+}
+
+.users-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.users-header p {
+    max-width: 46ch;
+    margin-bottom: 0;
+    color: var(--bs-secondary-color);
+}
+
+.users-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+}
+
+.users-actions .btn { min-height: 44px; }
+
+.users-tally {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: .1rem;
+    min-height: 44px;
+    padding: .4rem .85rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .5rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.users-tally strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.05rem;
+    line-height: 1.2;
+}
+
+.users-tally span {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.users-table {
+    margin-bottom: 0;
+    border-color: var(--bs-border-color);
+}
+
+.users-table th {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.users-table td {
+    padding-top: .7rem;
+    padding-bottom: .7rem;
+    vertical-align: middle;
+}
+
+.users-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* El código del rol es el dato que el administrador reconoce de un vistazo;
+   el nombre largo lo acompaña sin competir. */
+.users-role {
+    display: inline-flex;
+    align-items: center;
+    gap: .55rem;
+    min-width: 0;
+}
+
+.role-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 5.75rem;
+    padding: .2rem .55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .375rem;
+    background: var(--bs-tertiary-bg);
+    font-family: var(--bs-font-monospace);
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    overflow-wrap: anywhere;
+}
+
+.role-chip.is-admin {
+    border-color: var(--bs-primary-border-subtle);
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+}
+
+.role-name {
+    font-size: .9rem;
+    color: var(--bs-secondary-color);
+    overflow-wrap: anywhere;
+}
+
+/* El estado nunca se codifica solo con color: punto, borde y palabra. */
+.users-state {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .25rem .7rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 2rem;
+    background: var(--bs-body-bg);
+    font-size: .85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.users-state::before {
+    content: "";
+    flex: 0 0 auto;
+    width: .5rem;
+    height: .5rem;
+    border-radius: 50%;
+    background: var(--bs-secondary-color);
+}
+
+.users-state.is-active {
+    border-color: var(--bs-success-border-subtle);
+    background: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+}
+
+.users-state.is-active::before { background: var(--bs-success); }
+
+.users-state.is-inactive::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--bs-secondary-color);
+}
+
+@media (min-width: 992px) and (hover: hover) {
+    .users-table tbody tr:hover > * { background-color: var(--bs-tertiary-bg); }
+}
+
+.users-table .btn {
+    min-height: 44px;
+    white-space: nowrap;
+}
+
+.users-empty {
+    display: grid;
+    justify-items: start;
+    gap: .35rem;
+    padding: 2rem;
+    border: 1px dashed var(--bs-border-color);
+    border-radius: .75rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.users-empty strong { font-size: 1.15rem; }
+
+.users-empty p {
+    margin-bottom: 0;
+    color: var(--bs-secondary-color);
+}
+
+.users-empty .btn {
+    margin-top: .75rem;
+    min-height: 44px;
+}
+
+/* Tablet vertical: la misma tabla se reordena en fichas. Sin desplazamiento
+   horizontal y sin duplicar el marcado. */
+@media (max-width: 991.98px) {
+    .users-table,
+    .users-table tbody,
+    .users-table tr,
+    .users-table td {
+        display: block;
+        width: auto;
+    }
+
+    .users-table { border: 0; }
+
+    .users-table thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .users-table tr {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: .55rem .9rem;
+        margin-bottom: .75rem;
+        padding: .9rem 1rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: .75rem;
+        background: var(--bs-body-bg);
+    }
+
+    .users-table tr.is-inactive { border-left: .25rem solid var(--bs-secondary-color); }
+
+    .users-table td {
+        padding: 0;
+        border: 0;
+        background: none;
+    }
+
+    .users-cell-name,
+    .users-cell-role { grid-column: 1 / -1; }
+
+    .users-cell-action {
+        grid-column: 2;
+        text-align: right;
+    }
+
+    .users-name { font-size: 1.2rem; }
+}

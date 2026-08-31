@@ -1,0 +1,149 @@
+/* Reporte WIP: solo para /Reports/Wip. Todo va acotado a .wip-report. Color
+   siempre por tokens de Bootstrap: tema claro, oscuro y del sistema.
+
+   Tesis: el reporte existe para responder cuánto material se fue a WIP y
+   cuánto se asume consumido. Esa última columna es la conclusión, así que se
+   lee como conclusión y se define una sola vez, donde se usa. */
+
+.wip-report { max-width: 84rem; }
+
+.wip-report-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    margin-bottom: 1.25rem;
+}
+
+.wip-report-header p {
+    max-width: 56ch;
+    margin-bottom: 0;
+    color: var(--bs-secondary-color);
+}
+
+.wip-report .card { box-shadow: none; }
+
+.wip-report .form-label {
+    margin-bottom: .25rem;
+    font-weight: 600;
+}
+
+.wip-report .form-control,
+.wip-report .form-select { min-height: 44px; }
+
+.wip-report .btn { min-height: 44px; }
+
+.wip-report-section-head {
+    display: grid;
+    gap: .2rem;
+    margin: 2rem 0 .85rem;
+    padding-bottom: .6rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.wip-report-section-head h2 {
+    margin-bottom: 0;
+    font-size: 1.25rem;
+}
+
+.wip-report-section-head p {
+    max-width: 76ch;
+    margin-bottom: 0;
+    color: var(--bs-secondary-color);
+    font-size: .9rem;
+}
+
+/* El rack WIP es un identificador, no una advertencia: sello de código, no
+   insignia ámbar. */
+.wip-area {
+    display: inline-flex;
+    align-items: center;
+    padding: .15rem .55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .375rem;
+    background: var(--bs-tertiary-bg);
+    font-family: var(--bs-font-monospace);
+    font-size: .85rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    white-space: nowrap;
+}
+
+.wip-week,
+.wip-when,
+.wip-folio {
+    font-family: var(--bs-font-monospace);
+    white-space: nowrap;
+}
+
+.wip-folio {
+    font-weight: 700;
+    letter-spacing: .04em;
+}
+
+.wip-sku {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    overflow-wrap: anywhere;
+}
+
+.wip-report .table td.wip-amount,
+.wip-report .table th.wip-amount {
+    font-family: var(--bs-font-monospace);
+    white-space: nowrap;
+}
+
+/* La conclusión del reporte: se lee antes que las tres columnas que la
+   producen. */
+.wip-report .table td.wip-consumed {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.1rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.wip-route {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+}
+
+.wip-route-arrow {
+    width: .9rem;
+    height: .9rem;
+    flex: 0 0 auto;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    color: var(--bs-secondary-color);
+}
+
+.wip-line-meta {
+    display: block;
+    margin-top: .15rem;
+    color: var(--bs-secondary-color);
+    font-size: .85rem;
+}
+
+.wip-report .analytics-empty {
+    padding: 2rem 1rem;
+    color: var(--bs-secondary-color);
+    text-align: center;
+}
+
+.wip-report .table th {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}

@@ -1,20 +1,158 @@
 @page
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Units.IndexModel
-@{ ViewData["Title"] = "Unidades"; }
-<h1 class="h2">Unidades</h1>
-<p class="text-muted">Unidades base disponibles para los productos.</p>
-@if (TempData["Error"] is string error) { <div class="alert alert-danger">@error</div> }
-<form method="post" asp-page-handler="Save" class="card card-body mb-4">
-    <input asp-for="Input.Id" type="hidden" />
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-    <div class="row g-3 align-items-end">
-        <div class="col-12 col-md-2"><label asp-for="Input.Code" class="form-label">Código</label><input asp-for="Input.Code" class="form-control text-uppercase" /><span asp-validation-for="Input.Code" class="text-danger"></span></div>
-        <div class="col-12 col-md-5"><label asp-for="Input.Name" class="form-label">Nombre</label><input asp-for="Input.Name" class="form-control" /><span asp-validation-for="Input.Name" class="text-danger"></span></div>
-        <div class="col-12 col-md-2"><div class="form-check"><input asp-for="Input.AllowsDecimals" class="form-check-input" /><label asp-for="Input.AllowsDecimals" class="form-check-label">Permite decimales</label></div></div>
-        <div class="col-12 col-md-3"><button class="btn btn-primary">@(Model.Input.Id == 0 ? "Agregar" : "Guardar")</button> @if(Model.Input.Id != 0){<a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>}</div>
-    </div>
-</form>
-<div class="table-responsive"><table class="table table-striped align-middle"><thead><tr><th>Código</th><th>Nombre</th><th>Decimales</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead><tbody>
-@foreach(var item in Model.Items){<tr><td><strong>@item.Code</strong></td><td>@item.Name</td><td>@(item.AllowsDecimals ? "Sí" : "No")</td><td>@(item.IsActive ? "Activo" : "Inactivo")</td><td class="text-end">@if(item.IsSystem){<span class="badge text-bg-secondary">Reservada</span>}else{<a asp-route-editId="@item.Id" class="btn btn-outline-primary btn-sm">Editar</a> <form method="post" asp-page-handler="Toggle" class="d-inline"><input type="hidden" name="id" value="@item.Id"/><button class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Desactivar" : "Activar")</button></form>}</td></tr>}
-</tbody></table></div>
+@{
+    ViewData["Title"] = "Unidades de medida";
+    var isEditing = Model.Input.Id != 0;
+    var totalCount = Model.Items.Count;
+    var activeCount = Model.Items.Count(unit => unit.IsActive);
+    var inactiveCount = totalCount - activeCount;
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/units-index.css" asp-append-version="true" />
+}
+
+<div class="units-page">
+    <header class="units-header">
+        <div>
+            <span class="eyebrow">Catálogo administrativo</span>
+            <h1 class="h2 mb-1">Unidades de medida</h1>
+            <p>Las unidades base definen en qué se cuenta cada producto del almacén. Un producto conserva su unidad, así que conviene revisarla antes de darla de alta.</p>
+        </div>
+        @if (totalCount > 0)
+        {
+            <dl class="units-summary">
+                <div>
+                    <dt>Total</dt>
+                    <dd>@totalCount</dd>
+                </div>
+                <div>
+                    <dt>Activas</dt>
+                    <dd>@activeCount</dd>
+                </div>
+                <div>
+                    <dt>Inactivas</dt>
+                    <dd>@inactiveCount</dd>
+                </div>
+            </dl>
+        }
+    </header>
+
+    @if (TempData["Error"] is string error)
+    {
+        <div class="alert alert-danger mb-0" role="alert" tabindex="-1">@error</div>
+    }
+
+    <section class="units-form-section @(isEditing ? "is-editing" : null)" aria-labelledby="units-form-title">
+        @if (isEditing)
+        {
+            <span class="units-editing-flag">Estás modificando una unidad existente</span>
+        }
+        <h2 class="units-form-title" id="units-form-title" tabindex="-1">@(isEditing ? "Editar unidad" : "Agregar unidad")</h2>
+        <p class="units-form-intro">
+            @if (isEditing)
+            {
+                @:Los cambios se aplican a todos los productos que ya usan esta unidad. Cancela si prefieres dejarla como está.
+            }
+            else
+            {
+                @:El código se guarda en mayúsculas y no puede repetirse.
+            }
+        </p>
+        <form method="post" asp-page-handler="Save">
+            <input asp-for="Input.Id" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+            <div class="row g-3">
+                <div class="col-12 col-md-3">
+                    <label asp-for="Input.Code" class="form-label">Código</label>
+                    <input asp-for="Input.Code" class="form-control text-uppercase" autocomplete="off" autocapitalize="characters" />
+                    <span asp-validation-for="Input.Code" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-5">
+                    <label asp-for="Input.Name" class="form-label">Nombre</label>
+                    <input asp-for="Input.Name" class="form-control" autocomplete="off" />
+                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="units-check">
+                        <div class="form-check">
+                            <input asp-for="Input.AllowsDecimals" class="form-check-input" aria-describedby="units-decimals-help" />
+                            <label asp-for="Input.AllowsDecimals" class="form-check-label">Permite decimales</label>
+                        </div>
+                        <span class="form-text" id="units-decimals-help">Los productos con esta unidad pueden registrar cantidades fraccionarias.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="units-form-actions">
+                <button type="submit" class="btn btn-primary btn-lg">@(Model.Input.Id == 0 ? "Agregar" : "Guardar cambios")</button>
+                @if (isEditing)
+                {
+                    <a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>
+                }
+            </div>
+        </form>
+    </section>
+
+    <section aria-labelledby="units-list-title">
+        <h2 class="units-list-title" id="units-list-title">Unidades registradas</h2>
+        @if (totalCount == 0)
+        {
+            <div class="units-empty">
+                <strong>Todavía no hay unidades registradas.</strong>
+                <p>Da de alta la primera con el formulario <a href="#units-form-title">Agregar unidad</a>: los productos no pueden crearse sin una unidad base.</p>
+            </div>
+        }
+        else
+        {
+            <table class="table units-table align-middle">
+                <caption class="units-caption">Unidades base disponibles para los productos. «Permite decimales» indica que los productos con esa unidad pueden registrar cantidades fraccionarias. Las unidades reservadas las administra el sistema.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Código</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Permite decimales</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="text-end">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        var rowClass = item.IsSystem ? "is-reserved" : (item.IsActive ? null : "is-inactive");
+                        <tr class="@rowClass">
+                            <td class="units-cell-code">
+                                <span class="units-code">@item.Code</span>
+                            </td>
+                            <td class="units-cell-name">
+                                <span class="units-name">@item.Name</span>
+                            </td>
+                            <td class="units-cell-decimals" data-label="Permite decimales">@(item.AllowsDecimals ? "Sí" : "No")</td>
+                            <td class="units-cell-state">
+                                <span class="units-flag @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? "Activa" : "Inactiva")</span>
+                            </td>
+                            <td class="units-cell-actions text-end">
+                                @if (item.IsSystem)
+                                {
+                                    <span class="units-reserved">Reservada</span>
+                                    <span class="units-reserved-note">La administra el sistema y permanece activa.</span>
+                                }
+                                else
+                                {
+                                    <div class="units-row-actions">
+                                        <a asp-route-editId="@item.Id" class="btn btn-outline-secondary" aria-label="Editar la unidad @item.Code">Editar</a>
+                                        <form method="post" asp-page-handler="Toggle">
+                                            <input type="hidden" name="id" value="@item.Id" />
+                                            <button type="submit" class="btn @(item.IsActive ? "btn-outline-warning" : "btn-outline-success")" aria-label="@(item.IsActive ? $"Desactivar la unidad {item.Code}" : $"Activar la unidad {item.Code}")">@(item.IsActive ? "Desactivar" : "Activar")</button>
+                                        </form>
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+</div>
+
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

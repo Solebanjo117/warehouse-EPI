@@ -22,12 +22,17 @@ public sealed class WipProcessModel(
     public OperationalLocationResult? Destination { get; private set; }
     public InventoryBalanceSnapshot? SourceBalance { get; private set; }
 
-    public async Task OnGetAsync(string? action, CancellationToken cancellationToken)
+    public async Task OnGetAsync(string? action, string? wipCode, string? productCode, CancellationToken cancellationToken)
     {
         Input.OperationId = Guid.NewGuid();
-        Input.Action = action?.Equals("return", StringComparison.OrdinalIgnoreCase) == true
-            ? WipProcessAction.WarehouseReturn
-            : WipProcessAction.Consumption;
+        Input.Action = action?.ToLowerInvariant() switch
+        {
+            "return" => WipProcessAction.WarehouseReturn,
+            "supplier" => WipProcessAction.SupplierReturn,
+            _ => WipProcessAction.Consumption
+        };
+        Input.WipCode = wipCode?.Trim() ?? string.Empty;
+        Input.ProductCode = productCode?.Trim() ?? string.Empty;
         await LoadAsync(cancellationToken);
     }
 

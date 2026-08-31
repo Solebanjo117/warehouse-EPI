@@ -1,24 +1,104 @@
-﻿@page
+@page
 @model IndexModel
 @{
     ViewData["Title"] = "Inicio";
 }
 
-<div class="operations-home py-4">
-    <div class="text-center mb-4">
+@section Styles {
+    <link rel="stylesheet" href="~/css/home-index.css" asp-append-version="true" />
+}
+
+<div class="home-page">
+    <header class="home-header">
         <span class="eyebrow">Operación de almacén</span>
-        <h1 class="display-5 fw-semibold">¿Qué vas a registrar?</h1>
-        <p class="lead text-muted">El NIP se solicitará únicamente al confirmar.</p>
-    </div>
-    <div class="operation-menu">
-        <a asp-page="/Operations/Entry" class="operation-menu-card entry"><span aria-hidden="true">＋</span><strong>Entrada</strong><small>Recibir material</small></a>
-        <a asp-page="/Operations/Exit" class="operation-menu-card exit"><span aria-hidden="true">−</span><strong>Salida</strong><small>General o surtir WIP</small></a>
-        <a asp-page="/Operations/WipProcess" class="operation-menu-card transfer"><span aria-hidden="true">↩</span><strong>Procesar WIP</strong><small>Consumo, bodega o proveedor</small></a>
-        <a asp-page="/Operations/Transfer" class="operation-menu-card transfer"><span aria-hidden="true">⇄</span><strong>Transferencia</strong><small>Mover entre ubicaciones</small></a>
-        <a asp-page="/Operations/Adjustment" class="operation-menu-card adjustment"><span aria-hidden="true">✓</span><strong>Ajuste</strong><small>Registrar conteo físico</small></a>
-        <a asp-page="/Operations/CycleCounts/Index" class="operation-menu-card inventory"><span aria-hidden="true">#</span><strong>Conteos cíclicos</strong><small>Conteo ciego por ubicación</small></a>
-        <a asp-page="/Inventory/Index" class="operation-menu-card inventory"><span aria-hidden="true">⌕</span><strong>Consultar</strong><small>Ver existencias</small></a>
-        <a asp-page="/Reports/Wip/Index" class="operation-menu-card inventory"><span aria-hidden="true">▦</span><strong>Reporte WIP</strong><small>Existencias y actividad</small></a>
-        <a asp-page="/Reports/Dashboard/Index" class="operation-menu-card inventory"><span aria-hidden="true">▥</span><strong>Tablero diario</strong><small>Actividad y alertas del día</small></a>
-    </div>
+        <h1 class="home-title">¿Qué necesitas hacer?</h1>
+        <p>Selecciona una operación o abre una consulta del almacén.</p>
+    </header>
+
+    <section aria-labelledby="home-operate-title">
+        <h2 class="home-group-title" id="home-operate-title">Registrar operación</h2>
+        <div class="home-actions home-actions-operate">
+            <a asp-page="/Operations/Entry" class="home-action home-action-operate is-entry">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-entry" />
+                </svg>
+                <strong class="home-action-title">Entrada</strong>
+                <span class="home-action-hint">Recibir material</span>
+            </a>
+            <a asp-page="/Operations/Exit" class="home-action home-action-operate is-exit">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-exit" />
+                </svg>
+                <strong class="home-action-title">Salida</strong>
+                <span class="home-action-hint">General o surtir WIP</span>
+            </a>
+            <a asp-page="/Operations/WipProcess" class="home-action home-action-operate is-transfer">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-movements" />
+                </svg>
+                <strong class="home-action-title">Procesar WIP</strong>
+                <span class="home-action-hint">Consumo, bodega o proveedor</span>
+            </a>
+            <a asp-page="/Operations/Transfer" class="home-action home-action-operate is-transfer">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-transfer" />
+                </svg>
+                <strong class="home-action-title">Transferencia</strong>
+                <span class="home-action-hint">Mover entre ubicaciones</span>
+            </a>
+            <a asp-page="/Operations/Adjustment" class="home-action home-action-operate is-adjust">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-adjust" />
+                </svg>
+                <strong class="home-action-title">Ajuste</strong>
+                <span class="home-action-hint">Registrar conteo físico</span>
+            </a>
+        </div>
+        <div class="home-nip">
+            <span class="home-nip-mark">NIP</span>
+            <p>El NIP se solicitará únicamente al confirmar.</p>
+        </div>
+    </section>
+
+    <section aria-labelledby="home-consult-title">
+        <h2 class="home-group-title" id="home-consult-title">Consultar y controlar</h2>
+        <div class="home-actions home-actions-consult">
+            <a asp-page="/Operations/CycleCounts/Index" class="home-action home-action-consult">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-product-classes" />
+                </svg>
+                <span class="home-action-text">
+                    <strong class="home-action-title">Conteos cíclicos</strong>
+                    <span class="home-action-hint">Conteo ciego por ubicación</span>
+                </span>
+            </a>
+            <a asp-page="/Inventory/Index" class="home-action home-action-consult">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-inventory" />
+                </svg>
+                <span class="home-action-text">
+                    <strong class="home-action-title">Consultar</strong>
+                    <span class="home-action-hint">Ver existencias</span>
+                </span>
+            </a>
+            <a asp-page="/Reports/Wip/Index" class="home-action home-action-consult">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-movements" />
+                </svg>
+                <span class="home-action-text">
+                    <strong class="home-action-title">Reporte WIP</strong>
+                    <span class="home-action-hint">Existencias y actividad</span>
+                </span>
+            </a>
+            <a asp-page="/Reports/Dashboard/Index" class="home-action home-action-consult">
+                <svg class="home-action-icon" aria-hidden="true">
+                    <use href="#icon-dashboard" />
+                </svg>
+                <span class="home-action-text">
+                    <strong class="home-action-title">Tablero diario</strong>
+                    <span class="home-action-hint">Actividad y alertas del día</span>
+                </span>
+            </a>
+        </div>
+    </section>
 </div>

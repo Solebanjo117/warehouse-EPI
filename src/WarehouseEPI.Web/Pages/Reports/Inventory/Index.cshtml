@@ -8,6 +8,10 @@
     var stagnantCategory = Model.StagnantCategoryFilter is null ? null : "90plus";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/reports-inventory-index.css" asp-append-version="true" />
+}
+
 <div class="inventory-analytics">
     <header class="inventory-page-header analytics-header">
         <div>
@@ -26,15 +30,16 @@
            asp-route-refresh="true">Actualizar ahora</a>
     </header>
     <p class="analytics-updated">Datos generados: <time datetime="@Model.UpdatedAt.ToString("O")">@Model.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</time></p>
-    @if (isAdmin)
-    {
-        <aside class="analytics-product-actions" aria-label="Accesos administrativos">
+    <aside class="analytics-shortcuts" aria-label="Accesos relacionados">
+        <span class="analytics-shortcuts-label">Ir a</span>
+        <a asp-page="/Operations/CycleCounts/Index">Conteos cíclicos</a>
+        @if (isAdmin)
+        {
             <a asp-page="/Admin/Inventory/Alerts">Alertas administrativas</a>
             <a asp-page="/Admin/Catalogs/Locations/Index">Ubicaciones</a>
             <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
-        </aside>
-    }
-    <aside class="analytics-product-actions" aria-label="Operación de inventario"><a asp-page="/Operations/CycleCounts/Index">Conteos cíclicos</a></aside>
+        }
+    </aside>
 
     <nav class="inventory-filter-tabs analytics-tabs" aria-label="Vista analítica">
         <a class="@(Model.View == "occupancy" ? "active" : null)" aria-current="@(Model.View == "occupancy" ? "page" : null)" asp-route-view="occupancy">Ocupación</a>
@@ -46,16 +51,21 @@
     @if (Model.View == "occupancy")
     {
         var summary = Model.Occupancy.Summary;
-        <p class="text-muted">Permite decidir dónde existe capacidad física o una anomalía; una posición se ocupa únicamente cuando tiene saldo real.</p>
-        <section class="analytics-metrics" aria-label="Resumen de ocupación">
-            <article><strong>@summary.OccupiedCount</strong><span>Ocupadas</span></article>
-            <article><strong>@summary.EmptyCount</strong><span>Vacías</span></article>
-            <article class="is-danger"><strong>@summary.NegativeCount</strong><span>Negativas</span></article>
-            <article class="is-warning"><strong>@summary.BlockedCount</strong><span>Bloqueadas</span></article>
-            <article><strong>@summary.InactiveCount</strong><span>Inactivas</span></article>
-            <article class="is-primary"><strong>@summary.UtilizationPercentage.ToString("0.##")%</strong><span>Utilización</span></article>
-        </section>
-        <p class="text-muted small">@summary.TotalStoragePositions posiciones físicas de rack. La utilización excluye bloqueadas e inactivas del denominador.</p>
+        <p class="analytics-view-intro">Permite decidir dónde existe capacidad física o una anomalía; una posición se ocupa únicamente cuando tiene saldo real.</p>
+        <div class="analytics-occupancy">
+            <dl class="analytics-utilization">
+                <dt>Utilización</dt>
+                <dd>@summary.UtilizationPercentage.ToString("0.##")%</dd>
+                <small>@summary.TotalStoragePositions posiciones físicas de rack. El denominador excluye bloqueadas e inactivas.</small>
+            </dl>
+            <section class="analytics-metrics" aria-label="Desglose de posiciones">
+                <article><strong>@summary.OccupiedCount</strong><span>Ocupadas</span></article>
+                <article><strong>@summary.EmptyCount</strong><span>Vacías</span></article>
+                <article class="is-danger"><strong>@summary.NegativeCount</strong><span>Negativas</span></article>
+                <article class="is-warning"><strong>@summary.BlockedCount</strong><span>Bloqueadas</span></article>
+                <article><strong>@summary.InactiveCount</strong><span>Inactivas</span></article>
+            </section>
+        </div>
         <div class="table-responsive analytics-table">
             <table class="table align-middle">
                 <thead><tr><th>Fila</th><th>Posiciones</th><th>Ocupadas</th><th>Vacías</th><th>Negativas</th><th>Bloqueadas</th><th>Inactivas</th><th>Utilización</th><th></th></tr></thead>
@@ -63,7 +73,7 @@
                 @if (Model.Occupancy.Rows.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">No hay posiciones físicas de rack.</td></tr> }
                 @foreach (var row in Model.Occupancy.Rows)
                 {
-                    <tr><th scope="row">@row.RowCode</th><td>@row.Summary.TotalStoragePositions</td><td>@row.Summary.OccupiedCount</td><td>@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)">@row.Summary.NegativeCount</td><td>@row.Summary.BlockedCount</td><td>@row.Summary.InactiveCount</td><td>@row.Summary.UtilizationPercentage.ToString("0.##")%</td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" class="btn btn-outline-primary btn-sm">Ver racks</a> }</td></tr>
+                    <tr><th scope="row">@row.RowCode</th><td>@row.Summary.TotalStoragePositions</td><td>@row.Summary.OccupiedCount</td><td>@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)">@row.Summary.NegativeCount</td><td>@row.Summary.BlockedCount</td><td>@row.Summary.InactiveCount</td><td><span class="analytics-utilization-cell"><strong>@row.Summary.UtilizationPercentage.ToString("0.##")%</strong><span class="analytics-utilization-bar" aria-hidden="true"><span style="@($"--analytics-share: {Math.Clamp((int)Math.Round(row.Summary.UtilizationPercentage), 0, 100)}%")"></span></span></span></td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" class="btn btn-outline-primary btn-sm">Ver racks</a> }</td></tr>
                 }
                 </tbody>
             </table>
@@ -71,7 +81,7 @@
     }
     else if (Model.View == "exceptions")
     {
-        <p class="text-muted">Prioriza saldos que requieren conciliación y productos que necesitan reabastecimiento; esta consulta nunca modifica inventario.</p>
+        <p class="analytics-view-intro">Prioriza saldos que requieren conciliación y productos que necesitan reabastecimiento; esta consulta nunca modifica inventario.</p>
         <section class="report-print-meta" aria-label="Metadatos de impresión">
             <strong>Excepción: @(Model.ExceptionView == "negative" ? "Saldos producto-ubicación negativos" : "Productos bajo mínimo")</strong>
             <span>Búsqueda: @(string.IsNullOrWhiteSpace(Model.Search) ? "Sin filtro" : Model.Search)</span>
@@ -79,9 +89,9 @@
             <span>Zona horaria: @Model.TimeZoneId</span>
         </section>
         <section class="alert-metrics" aria-label="Resumen de excepciones">
-            <article class="is-danger"><span aria-hidden="true">!</span><strong>@Model.ExceptionSummary.NegativePositions</strong><small>Saldos producto-ubicación negativos</small></article>
-            <article><span aria-hidden="true">#</span><strong>@Model.ExceptionSummary.NegativeProducts</strong><small>Productos con negativo</small></article>
-            <article class="is-warning"><span aria-hidden="true">↓</span><strong>@Model.ExceptionSummary.BelowMinimumProducts</strong><small>Productos bajo mínimo</small></article>
+            <article class="is-danger"><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-alert" /></svg></span><strong>@Model.ExceptionSummary.NegativePositions</strong><small>Saldos producto-ubicación negativos</small></article>
+            <article><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-products" /></svg></span><strong>@Model.ExceptionSummary.NegativeProducts</strong><small>Productos con negativo</small></article>
+            <article class="is-warning"><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-inventory" /></svg></span><strong>@Model.ExceptionSummary.BelowMinimumProducts</strong><small>Productos bajo mínimo</small></article>
         </section>
         <nav class="inventory-filter-tabs" aria-label="Tipo de excepción">
             <a class="@(Model.ExceptionView == "negative" ? "active" : null)" aria-current="@(Model.ExceptionView == "negative" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="negative" asp-route-search="@Model.Search">Saldos negativos <span>@Model.ExceptionSummary.NegativePositions</span></a>
@@ -108,7 +118,7 @@
                 <section class="alert-list mt-3" aria-label="Saldos producto-ubicación negativos">
                 @foreach (var item in Model.NegativeExceptions.Items)
                 {
-                    <article class="alert-row is-negative"><div><span class="inventory-card-label">Producto</span><strong>@item.ProductSku</strong><small>@(item.ProductDescription ?? "Sin descripción")</small></div><div><span class="inventory-card-label">Ubicación</span><strong>@item.LocationCode</strong><small>@(item.LocationDescription ?? "Ubicación operativa")</small></div><div><span class="badge text-bg-danger">Saldo negativo</span><strong>@item.Quantity.ToString("0.####") @item.UnitCode</strong></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" asp-route-filter="negative" asp-route-highlightLocationId="@item.LocationId">Ver existencias</a>@if (isAdmin) { <a class="btn btn-outline-secondary" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">Ficha ADMIN</a> }</div></article>
+                    <article class="alert-row is-negative"><div><span class="inventory-card-label">Producto</span><strong>@item.ProductSku</strong><small>@(item.ProductDescription ?? "Sin descripción")</small></div><div><span class="inventory-card-label">Ubicación</span><strong>@item.LocationCode</strong><small>@(item.LocationDescription ?? "Ubicación operativa")</small></div><div><span class="analytics-chip is-danger">Saldo negativo</span><strong>@item.Quantity.ToString("0.####") @item.UnitCode</strong></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" asp-route-filter="negative" asp-route-highlightLocationId="@item.LocationId">Ver existencias</a>@if (isAdmin) { <a class="btn btn-outline-secondary" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">Ficha ADMIN</a> }</div></article>
                 }
                 </section>
             }
@@ -133,7 +143,7 @@
     }
     else
     {
-        <p class="text-muted">@(Model.View == "activity" ? "Mide frecuencia y volumen de salidas efectivas por SKU; no es una tasa contra inventario promedio." : "Identifica existencia positiva sin salida durante 30 días o más para conteo, reasignación o disposición.")</p>
+        <p class="analytics-view-intro">@(Model.View == "activity" ? "Mide frecuencia y volumen de salidas efectivas por SKU; no es una tasa contra inventario promedio." : "Identifica existencia positiva sin salida durante 30 días o más para conteo, reasignación o disposición.")</p>
         @if (stagnantCategory is not null) { <div class="alert alert-warning">Mostrando productos con 90 días o más sin salida efectiva, incluidos los que nunca han salido. <a asp-route-view="stagnant" class="alert-link">Quitar filtro</a></div> }
         <form method="get" class="analytics-filter-card analytics-filter-form">
             <input type="hidden" name="view" value="@Model.View" />
@@ -156,14 +166,14 @@
         {
             <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Producto</th><th>Estado</th><th>Salidas efectivas</th><th>Cantidad movilizada</th><th>Existencia actual</th><th>Última salida</th><th></th></tr></thead><tbody>
             @if (Model.Activity.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay productos que coincidan.</td></tr> }
-            @foreach (var item in Model.Activity.Items) { <tr><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="fw-semibold">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td><span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td>@item.EffectiveExitMovementCount</td><td>@item.QuantityInBaseUnit.ToString("0.####") @item.UnitCode</td><td>@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td>@Model.FormatLocalDate(item.LastExitDateUtc)</td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
+            @foreach (var item in Model.Activity.Items) { <tr><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td><span class="analytics-chip @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td>@item.EffectiveExitMovementCount</td><td>@item.QuantityInBaseUnit.ToString("0.####") @item.UnitCode</td><td>@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td>@Model.FormatLocalDate(item.LastExitDateUtc)</td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
             </tbody></table></div>
         }
         else
         {
             <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Producto</th><th>Categoría</th><th>Existencia actual</th><th>Última salida</th><th>Días</th><th>Estado</th><th></th></tr></thead><tbody>
             @if (Model.Stagnant.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay productos estancados con los filtros seleccionados.</td></tr> }
-            @foreach (var item in Model.Stagnant.Items) { <tr><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="fw-semibold">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td><span class="badge text-bg-warning">@IndexModel.FormatCategory(item.Category)</span></td><td>@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td>@Model.FormatLocalDate(item.LastExitDateUtc)</td><td>@(item.DaysWithoutExit?.ToString() ?? "—")</td><td><span class="badge @(item.IsActive ? "text-bg-success" : "text-bg-secondary")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
+            @foreach (var item in Model.Stagnant.Items) { <tr><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td><span class="analytics-chip is-warning">@IndexModel.FormatCategory(item.Category)</span></td><td>@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td>@Model.FormatLocalDate(item.LastExitDateUtc)</td><td>@(item.DaysWithoutExit?.ToString() ?? "Sin salida registrada")</td><td><span class="analytics-chip @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
             </tbody></table></div>
         }
 

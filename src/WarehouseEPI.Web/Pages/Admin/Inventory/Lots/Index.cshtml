@@ -1,9 +1,228 @@
 @page
+@using WarehouseEPI.Infrastructure.Inventory
 @model WarehouseEPI.Web.Pages.Admin.Inventory.Lots.IndexModel
-@{ ViewData["Title"] = "Lotes internos"; }
-<section class="inventory-shell">
-<div class="d-flex justify-content-between align-items-center mb-3"><div><h1 class="h3 mb-1">Lotes internos</h1><p class="text-body-secondary mb-0">Trazabilidad de lotes automáticos; no se crean ni seleccionan manualmente.</p></div></div>
-<form method="get" class="card card-body mb-3"><div class="row g-2"><div class="col-md-5"><label class="visually-hidden" for="lot-search">Buscar</label><input id="lot-search" name="search" value="@Model.Search" class="form-control form-control-lg" placeholder="Lote, SKU, descripción, referencia o código" autofocus /></div><div class="col-sm-4 col-md-2"><select name="balance" class="form-select"><option value="All">Todos los saldos</option><option value="WithBalance">Con saldo</option><option value="Positive">Positivos</option><option value="Negative">Negativos</option><option value="Exhausted">Agotados</option></select></div><div class="col-sm-4 col-md-2"><select name="date" class="form-select"><option value="All">Toda fecha</option><option value="WithDate">Con fecha</option><option value="WithoutDate">Sin fecha</option></select></div><div class="col-sm-4 col-md-2"><button class="btn btn-primary w-100">Buscar</button></div></div></form>
-@if (Model.Results.Items.Count == 0) { <div class="empty-state"><h2 class="h5">No hay lotes con esos filtros</h2><p class="mb-0">Prueba con otra búsqueda o limpia los filtros.</p></div> } else { <div class="table-responsive"><table class="table align-middle inventory-list"><thead><tr><th>Producto</th><th>Lote</th><th>Fecha interna</th><th>Ubicaciones</th><th class="text-end">Saldo total</th><th></th></tr></thead><tbody>@foreach (var item in Model.Results.Items) { <tr><td><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">@item.Sku</a><div class="small text-body-secondary">@item.Description</div></td><td><a asp-page="Details" asp-route-id="@item.Id">@item.Number</a></td><td>@(item.LotDate?.ToString("yyyy-MM-dd") ?? "Sin fecha")</td><td>@item.Locations</td><td class="text-end @(item.Quantity < 0 ? "text-danger" : "")">@item.Quantity @item.Unit</td><td class="text-end"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Ver ficha</a></td></tr> }</tbody></table></div> }
-@if (Model.TotalPages > 1) { <nav aria-label="Paginación de lotes" class="d-flex gap-2 align-items-center"><a class="btn btn-outline-secondary @(Model.PageNumber == 1 ? "disabled" : "")" asp-route-search="@Model.Search" asp-route-balance="@Model.Balance" asp-route-date="@Model.Date" asp-route-pageNumber="@(Model.PageNumber-1)">Anterior</a><span>Página @Model.PageNumber de @Model.TotalPages</span><a class="btn btn-outline-secondary @(Model.PageNumber == Model.TotalPages ? "disabled" : "")" asp-route-search="@Model.Search" asp-route-balance="@Model.Balance" asp-route-date="@Model.Date" asp-route-pageNumber="@(Model.PageNumber+1)">Siguiente</a></nav> }
-</section>
+@{
+    ViewData["Title"] = "Lotes internos";
+    var hasFilters = !string.IsNullOrWhiteSpace(Model.Search)
+        || Model.Balance != LotBalanceFilter.All
+        || Model.Date != LotDateFilter.All
+        || Model.From is not null
+        || Model.To is not null;
+    var balanceLabel = Model.Balance switch
+    {
+        LotBalanceFilter.WithBalance => "Con saldo",
+        LotBalanceFilter.Positive => "Positivos",
+        LotBalanceFilter.Negative => "Negativos",
+        LotBalanceFilter.Exhausted => "Agotados",
+        _ => null
+    };
+    var dateLabel = Model.Date switch
+    {
+        LotDateFilter.WithDate => "Con fecha",
+        LotDateFilter.WithoutDate => "Sin fecha",
+        _ => null
+    };
+    var fromValue = Model.From?.ToString("yyyy-MM-dd");
+    var toValue = Model.To?.ToString("yyyy-MM-dd");
+    var totalLabel = Model.Results.TotalCount.ToString("N0");
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/lots-index.css" asp-append-version="true" />
+}
+
+<div class="lots-page">
+    <header class="lots-header">
+        <div>
+            <span class="eyebrow">Consulta de inventario</span>
+            <h1 class="h2 mb-1">Lotes internos</h1>
+            <p>Trazabilidad de los lotes diarios y de su saldo por producto. Desde aquí solo se consulta: el detalle completo está en la ficha de cada lote.</p>
+        </div>
+        <p class="lots-tally mb-0">
+            <strong>@totalLabel</strong>
+            <span>@(Model.Results.TotalCount == 1 ? "Lote" : "Lotes")</span>
+        </p>
+    </header>
+
+    <p class="lots-note">
+        <strong>Los lotes se generan automáticamente.</strong>
+        <span>No se crean ni se seleccionan manualmente: cada entrada del día alimenta el lote interno que le corresponde.</span>
+    </p>
+
+    <form method="get" class="lots-filters">
+        <fieldset>
+            <legend class="lots-filter-legend">Filtros de búsqueda</legend>
+            <div class="row g-3">
+                <div class="col-12 col-xl-4">
+                    <label class="form-label" for="lot-search">Buscar</label>
+                    <input id="lot-search" name="search" value="@Model.Search" class="form-control form-control-lg" type="search" autocomplete="off" placeholder="Lote, SKU, descripción, referencia o código" autofocus />
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="lot-balance">Saldo</label>
+                    <select id="lot-balance" name="balance" class="form-select">
+                        <option value="All" selected="@(Model.Balance == LotBalanceFilter.All)">Todos los saldos</option>
+                        <option value="WithBalance" selected="@(Model.Balance == LotBalanceFilter.WithBalance)">Con saldo</option>
+                        <option value="Positive" selected="@(Model.Balance == LotBalanceFilter.Positive)">Positivos</option>
+                        <option value="Negative" selected="@(Model.Balance == LotBalanceFilter.Negative)">Negativos</option>
+                        <option value="Exhausted" selected="@(Model.Balance == LotBalanceFilter.Exhausted)">Agotados</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="lot-date">Fecha interna</label>
+                    <select id="lot-date" name="date" class="form-select">
+                        <option value="All" selected="@(Model.Date == LotDateFilter.All)">Toda fecha</option>
+                        <option value="WithDate" selected="@(Model.Date == LotDateFilter.WithDate)">Con fecha</option>
+                        <option value="WithoutDate" selected="@(Model.Date == LotDateFilter.WithoutDate)">Sin fecha</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="lot-from">Desde</label>
+                    <input id="lot-from" name="from" value="@fromValue" class="form-control" type="date" />
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                    <label class="form-label" for="lot-to">Hasta</label>
+                    <input id="lot-to" name="to" value="@toValue" class="form-control" type="date" />
+                    <span class="form-text">El rango se aplica a la fecha interna del lote.</span>
+                </div>
+            </div>
+            <div class="lots-filter-actions">
+                <button type="submit" class="btn btn-primary btn-lg">Buscar</button>
+                <a asp-page="Index" class="btn btn-outline-secondary">Limpiar filtros</a>
+                @if (hasFilters)
+                {
+                    <span class="lots-active">
+                        <span class="lots-active-label">Filtros activos</span>
+                        @if (!string.IsNullOrWhiteSpace(Model.Search))
+                        {
+                            <span class="lots-chip">Texto: @Model.Search</span>
+                        }
+                        @if (balanceLabel is not null)
+                        {
+                            <span class="lots-chip">Saldo: @balanceLabel</span>
+                        }
+                        @if (dateLabel is not null)
+                        {
+                            <span class="lots-chip">Fecha: @dateLabel</span>
+                        }
+                        @if (fromValue is not null)
+                        {
+                            <span class="lots-chip">Desde @fromValue</span>
+                        }
+                        @if (toValue is not null)
+                        {
+                            <span class="lots-chip">Hasta @toValue</span>
+                        }
+                    </span>
+                }
+            </div>
+        </fieldset>
+    </form>
+
+    @if (Model.Results.Items.Count == 0)
+    {
+        <div class="lots-empty">
+            @if (hasFilters)
+            {
+                <strong>Ningún lote coincide con estos filtros.</strong>
+                <p>Ajusta la búsqueda o el rango de fechas, o limpia los filtros para ver todos los lotes.</p>
+                <a asp-page="Index" class="btn btn-primary btn-lg">Limpiar filtros</a>
+            }
+            else
+            {
+                <strong>Todavía no hay lotes internos.</strong>
+                <p>Los lotes aparecen solos al registrar la primera entrada; no hay nada que crear desde aquí.</p>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="lots-count mb-0">Mostrando @Model.Results.Items.Count de @totalLabel lotes.</p>
+        <table class="table lots-table align-middle">
+            <caption class="visually-hidden">Lotes internos con su producto, fecha interna, ubicaciones y saldo.</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Lote</th>
+                    <th scope="col">Producto</th>
+                    <th scope="col">Fecha interna</th>
+                    <th scope="col" class="text-end">Ubicaciones</th>
+                    <th scope="col" class="text-end">Saldo total</th>
+                    <th scope="col"><span class="visually-hidden">Ficha del lote</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model.Results.Items)
+                {
+                    <tr>
+                        <td class="lots-cell-lot">
+                            <a class="lots-number" asp-page="Details" asp-route-id="@item.Id">@item.Number</a>
+                        </td>
+                        <td class="lots-cell-product">
+                            <a class="lots-sku" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">@item.Sku</a>
+                            <span class="lots-description">@item.Description</span>
+                        </td>
+                        <td class="lots-cell-date" data-label="Fecha interna">
+                            @if (item.LotDate is DateOnly lotDate)
+                            {
+                                <time class="lots-date" datetime="@lotDate.ToString("yyyy-MM-dd")">@lotDate.ToString("yyyy-MM-dd")</time>
+                            }
+                            else
+                            {
+                                <span class="lots-date lots-muted">Sin fecha</span>
+                            }
+                        </td>
+                        <td class="lots-cell-locations text-end" data-label="Ubicaciones">
+                            <span class="lots-locations">@item.Locations</span>
+                        </td>
+                        <td class="lots-cell-balance text-end">
+                            <span class="lots-balance @(item.Quantity < 0 ? "is-negative" : null)">
+                                <strong>@item.Quantity.ToString("0.####") @item.Unit</strong>
+                                @if (item.Quantity < 0)
+                                {
+                                    <small>Saldo negativo</small>
+                                }
+                            </span>
+                        </td>
+                        <td class="lots-cell-action text-end">
+                            <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary" aria-label="Ver ficha del lote @item.Number">Ver ficha</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (Model.TotalPages > 1)
+    {
+        <nav class="lots-pager" aria-label="Paginación de lotes">
+            @if (Model.PageNumber > 1)
+            {
+                <a class="btn btn-outline-secondary"
+                   asp-route-search="@Model.Search"
+                   asp-route-balance="@Model.Balance"
+                   asp-route-date="@Model.Date"
+                   asp-route-from="@fromValue"
+                   asp-route-to="@toValue"
+                   asp-route-pageNumber="@(Model.PageNumber - 1)">Anterior</a>
+            }
+            else
+            {
+                <span class="btn btn-outline-secondary disabled lots-pager-step" aria-disabled="true">Anterior</span>
+            }
+            <span class="lots-pager-position">Página @Model.PageNumber de @Model.TotalPages</span>
+            @if (Model.PageNumber < Model.TotalPages)
+            {
+                <a class="btn btn-outline-secondary"
+                   asp-route-search="@Model.Search"
+                   asp-route-balance="@Model.Balance"
+                   asp-route-date="@Model.Date"
+                   asp-route-from="@fromValue"
+                   asp-route-to="@toValue"
+                   asp-route-pageNumber="@(Model.PageNumber + 1)">Siguiente</a>
+            }
+            else
+            {
+                <span class="btn btn-outline-secondary disabled lots-pager-step" aria-disabled="true">Siguiente</span>
+            }
+        </nav>
+    }
+</div>

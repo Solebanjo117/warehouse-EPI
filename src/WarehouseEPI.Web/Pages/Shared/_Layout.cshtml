@@ -17,6 +17,7 @@
     <script src="~/js/theme-init.js" asp-append-version="true"></script>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/navigation.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body class="app-body">
@@ -86,6 +87,11 @@
                 <a class="app-nav-link @(IsCurrent("/Operations/Entry") ? "active" : null)" asp-page="/Operations/Entry" aria-current="@(IsCurrent("/Operations/Entry") ? "page" : null)" title="Entrada">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Entrada</span>
                 </a>
+                @* Navegación temporalmente oculta: Recepciones contra documento no está en uso operativo.
+                <a class="app-nav-link @(IsSection("/Operations/Receiving") ? "active" : null)" asp-page="/Operations/Receiving/Index" aria-current="@(IsSection("/Operations/Receiving") ? "page" : null)" title="Recepciones contra documento">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Recepciones</span>
+                </a>
+                *@
                 <a class="app-nav-link @(IsCurrent("/Operations/Exit") ? "active" : null)" asp-page="/Operations/Exit" aria-current="@(IsCurrent("/Operations/Exit") ? "page" : null)" title="Salida">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-exit" /></svg><span>Salida</span>
                 </a>
@@ -141,6 +147,11 @@
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Movements") ? "active" : null)" asp-page="/Admin/Inventory/Movements/Index" aria-current="@(IsSection("/Admin/Inventory/Movements") ? "page" : null)" title="Movimientos">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Movimientos</span>
                     </a>
+                    @* Navegación temporalmente oculta: Trazabilidad unificada no está en uso operativo.
+                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Trace") ? "active" : null)" asp-page="/Admin/Inventory/Trace/Index" aria-current="@(IsSection("/Admin/Inventory/Trace") ? "page" : null)" title="Trazabilidad unificada">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Trazabilidad</span>
+                    </a>
+                    *@
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Lots") ? "active" : null)" asp-page="/Admin/Inventory/Lots/Index" aria-current="@(IsSection("/Admin/Inventory/Lots") ? "page" : null)" title="Lotes">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-lots" /></svg><span>Lotes</span>
                     </a>

@@ -14,7 +14,8 @@ public sealed class InventoryCorrectionService(
     UserPinService userPinService,
     InventoryMovementService movementService,
     TimeProvider timeProvider,
-    WarehouseClock? warehouseClock = null)
+    WarehouseClock? warehouseClock = null,
+    ReceivingService? receivingService = null)
 {
     private readonly InventoryReversalService reversalService = new(dbContext, timeProvider, warehouseClock);
 
@@ -63,6 +64,14 @@ public sealed class InventoryCorrectionService(
                 return await AbortAsync(transaction, new(InventoryCorrectionStatus.AlreadyCorrected), cancellationToken);
             if (await dbContext.InventoryMovementCorrections.AnyAsync(item => item.ReversalMovementId == original.Id, cancellationToken))
                 return await AbortAsync(transaction, new(InventoryCorrectionStatus.CannotCorrectReversal), cancellationToken);
+            var isDocumentReceipt = await dbContext.ReceivingConfirmations.AsNoTracking()
+                .AnyAsync(item => item.InventoryMovementId == original.Id, cancellationToken);
+            if (isDocumentReceipt && normalized.Replacement is { } receiptReplacement &&
+                (receiptReplacement.Type != InventoryMovementType.Entry || receiptReplacement.Purpose != InventoryMovementPurpose.DocumentReceipt))
+            {
+                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                    Errors: ["El reemplazo de una recepción documental debe conservar Entrada y propósito Recepción documental."]), cancellationToken);
+            }
             var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
             if (await dbContext.WipDispositions.AnyAsync(disposition =>
                     originalLineIds.Contains(disposition.OriginalMovementLineId) &&
@@ -112,6 +121,8 @@ public sealed class InventoryCorrectionService(
             };
             dbContext.InventoryMovementCorrections.Add(correction);
             await dbContext.SaveChangesAsync(cancellationToken);
+            if (isDocumentReceipt && receivingService is not null)
+                await receivingService.RecalculateAfterCorrectionAsync(original.Id, normalized.OperationId, normalized.Reason, cancellationToken);
             if (transaction is not null)
                 await transaction.CommitAsync(cancellationToken);
             return new(

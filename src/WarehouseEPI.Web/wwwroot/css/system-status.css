@@ -1,0 +1,260 @@
+/* Tablero de diagnóstico local: solo para /Admin/System. Todo el color sale de
+   tokens de Bootstrap para que el tablero funcione en tema claro y oscuro. */
+
+.sys-board {
+    display: grid;
+    gap: 1.75rem;
+    max-width: 76rem;
+}
+
+.sys-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.sys-header p {
+    max-width: 48ch;
+    margin-bottom: 0;
+    color: var(--bs-secondary-color);
+}
+
+.sys-checked {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: .1rem;
+    min-height: 44px;
+    padding: .5rem .9rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .5rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.sys-checked span {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.sys-checked time {
+    font-family: var(--bs-font-monospace);
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+/* Columna de vitales: cada panel lleva un riel lateral que codifica el estado
+   y siempre va acompañado de texto, nunca solo de color. */
+.sys-vitals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.sys-vital {
+    --sys-rail: var(--bs-secondary-color);
+    position: relative;
+    display: grid;
+    align-content: start;
+    gap: .3rem;
+    min-height: 44px;
+    padding: 1rem 1rem 1rem 1.5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    background: var(--bs-body-bg);
+}
+
+.sys-vital::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: .375rem;
+    border-radius: .75rem 0 0 .75rem;
+    background: var(--sys-rail);
+}
+
+.sys-vital.is-up { --sys-rail: var(--bs-success); }
+
+.sys-vital.is-down {
+    --sys-rail: var(--bs-danger);
+    border-color: var(--bs-danger-border-subtle);
+    background: var(--bs-danger-bg-subtle);
+}
+
+.sys-vital.is-steady { --sys-rail: var(--bs-primary); }
+
+.sys-vital-label {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.sys-readout {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-family: var(--bs-font-monospace);
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.15;
+    overflow-wrap: anywhere;
+}
+
+.sys-dot {
+    flex: 0 0 auto;
+    width: .7rem;
+    height: .7rem;
+    border-radius: 50%;
+    background: var(--sys-rail);
+    box-shadow: 0 0 0 .25rem color-mix(in srgb, var(--sys-rail) 22%, transparent);
+}
+
+.sys-vital-note {
+    font-size: .85rem;
+    color: var(--bs-secondary-color);
+}
+
+.sys-build {
+    font-family: var(--bs-font-monospace);
+    font-size: .75rem;
+    line-height: 1.35;
+    color: var(--bs-secondary-color);
+    overflow-wrap: anywhere;
+}
+
+.sys-section-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem 1rem;
+    margin-bottom: .75rem;
+}
+
+.sys-section-head h2 { margin-bottom: 0; }
+
+.sys-tally {
+    font-family: var(--bs-font-monospace);
+    font-size: .85rem;
+    color: var(--bs-secondary-color);
+}
+
+/* Actividad: la barra es proporcional al tipo con más movimientos; el dato
+   legible es siempre el número, la barra solo acelera la comparación. */
+.sys-activity {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    background: var(--bs-body-bg);
+    overflow: hidden;
+}
+
+.sys-activity-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 13rem) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .75rem 1rem;
+    min-height: 44px;
+    padding: .5rem .9rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.sys-activity-row:last-child { border-bottom: 0; }
+
+.sys-activity-type {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.sys-bar {
+    height: .6rem;
+    border-radius: .3rem;
+    background: var(--bs-tertiary-bg);
+    overflow: hidden;
+}
+
+.sys-bar > span {
+    display: block;
+    width: var(--sys-share, 0%);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--bs-primary);
+}
+
+.sys-count {
+    justify-self: end;
+    min-width: 4ch;
+    font-family: var(--bs-font-monospace);
+    font-size: 1.25rem;
+    font-weight: 700;
+    text-align: right;
+}
+
+.sys-table {
+    margin-bottom: 0;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .75rem;
+    overflow: hidden;
+}
+
+.sys-table th {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.sys-table td { vertical-align: middle; }
+
+.sys-table time,
+.sys-table code {
+    font-family: var(--bs-font-monospace);
+    overflow-wrap: anywhere;
+}
+
+.sys-table code { color: var(--bs-body-color); }
+
+.sys-status-code {
+    display: inline-block;
+    min-width: 3.5rem;
+    padding: .15rem .5rem;
+    border: 1px solid var(--bs-warning-border-subtle);
+    border-radius: .375rem;
+    background: var(--bs-warning-bg-subtle);
+    font-family: var(--bs-font-monospace);
+    font-weight: 700;
+    text-align: center;
+}
+
+.sys-empty {
+    display: grid;
+    gap: .25rem;
+    padding: 1.25rem;
+    border: 1px dashed var(--bs-border-color);
+    border-radius: .75rem;
+    background: var(--bs-tertiary-bg);
+}
+
+.sys-empty strong { font-size: 1.05rem; }
+
+.sys-empty span { color: var(--bs-secondary-color); }
+
+@media (max-width: 575.98px) {
+    .sys-activity-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .sys-bar { grid-column: 1 / -1; }
+}
+

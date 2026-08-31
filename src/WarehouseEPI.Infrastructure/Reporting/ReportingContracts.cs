@@ -243,6 +243,20 @@ public sealed record OperationalAlertPageDto(
     int PageNumber,
     int PageSize);
 
+/// <summary>Condición vigente reutilizable por alertas de solo lectura y el centro ADMIN.</summary>
+public sealed record OperationalAlertConditionDto(
+    OperationalExceptionCategory Category,
+    OperationalExceptionSeverity Severity,
+    string ConditionKey,
+    string PrimaryText,
+    string SecondaryText,
+    string? ValueText,
+    string TargetUrl,
+    Guid? ProductId,
+    Guid? LocationId,
+    Guid? CycleCountLocationId,
+    DateTimeOffset? OccurredAt);
+
 public enum MetricComparisonState { NoActivity, New, Increased, Decreased, Unchanged }
 public sealed record MetricComparisonDto(int Current, int Previous, int Delta, decimal? PercentChange, MetricComparisonState State);
 public sealed record OperationalDriverDto(string Code, string? Description, int Current, int Previous, int Delta, string TargetUrl);

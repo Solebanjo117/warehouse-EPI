@@ -2249,3 +2249,24 @@ a.product-catalog-filter-chip:focus-visible {
   .report-lines-full { display: block; }
   .report-lines-compact { display: none; }
 }
+/* Recepción contra documento */
+.receiving-shell { max-width: 1380px; margin-inline: auto; }
+.receiving-capture-line, .receiving-receipt-line { display: grid; grid-template-columns: minmax(260px, 2fr) minmax(150px, .8fr) auto; gap: .75rem; padding: 1rem 0; border-bottom: 1px solid var(--bs-border-color); position: relative; }
+.receiving-receipt-line { grid-template-columns: minmax(220px, 1.5fr) minmax(120px, .6fr) minmax(200px, 1fr) minmax(180px, 1fr) auto; }
+.receiving-capture-line .lookup-results, .receiving-receipt-line .lookup-results { position: absolute; z-index: 20; max-height: 16rem; overflow-y: auto; min-width: 20rem; }
+.receiving-timeline { list-style: none; padding-left: 0; margin-bottom: 0; }
+.receiving-timeline li { border-left: 3px solid var(--bs-primary); padding: 0 0 1rem 1rem; }
+.receiving-timeline li > span { display: block; color: var(--bs-secondary-color); font-size: .875rem; }
+.receiving-timeline li > p { margin: .25rem 0 0; }
+@media (max-width: 1199.98px) {
+  .receiving-table table, .receiving-table thead, .receiving-table tbody, .receiving-table tr, .receiving-table th, .receiving-table td { display: block; }
+  .receiving-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .receiving-table tr { border: 1px solid var(--bs-border-color); border-radius: .75rem; padding: .75rem; margin-bottom: .75rem; }
+  .receiving-table td { border: 0; padding: .3rem 0; }
+  .receiving-table td[data-label]::before { content: attr(data-label); display: block; color: var(--bs-secondary-color); font-size: .75rem; }
+  .receiving-receipt-line { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 767.98px) {
+  .receiving-capture-line, .receiving-receipt-line { grid-template-columns: 1fr; }
+  .receiving-capture-line .lookup-results, .receiving-receipt-line .lookup-results { position: static; min-width: 0; }
+}

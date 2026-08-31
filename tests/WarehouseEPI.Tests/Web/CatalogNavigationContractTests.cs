@@ -31,9 +31,16 @@ public sealed class CatalogNavigationContractTests
         Assert.Contains("asp-page-handler=\"Save\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-page-handler=\"Toggle\"", page, StringComparison.Ordinal);
         Assert.Contains("role=\"alert\"", page, StringComparison.Ordinal);
-        Assert.Contains("d-none d-md-block", page, StringComparison.Ordinal);
-        Assert.Contains("d-md-none", page, StringComparison.Ordinal);
-        Assert.Contains("catalog-admin-empty", page, StringComparison.Ordinal);
+        Assert.Contains("@section Styles", page, StringComparison.Ordinal);
+        Assert.Contains("scope=\"col\"", page, StringComparison.Ordinal);
+        Assert.Contains("<caption", page, StringComparison.Ordinal);
+        Assert.Contains("Todavía no hay", page, StringComparison.Ordinal);
+
+        // Responsive con una sola tabla que el CSS reordena en fichas: ni marcado
+        // duplicado por utilidades de visibilidad ni un segundo recorrido.
+        Assert.DoesNotContain("d-none d-md-block", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("d-md-none", page, StringComparison.Ordinal);
+        Assert.Equal(1, page.Split("@foreach", StringSplitOptions.None).Length - 1);
     }
 
     private static string RepositoryPath(params string[] parts)

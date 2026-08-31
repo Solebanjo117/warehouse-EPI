@@ -14,6 +14,19 @@ public sealed class CameraScannerContractTests
 
         Assert.Contains("data-camera-switch", File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "_GuidedMovementForm.cshtml")), StringComparison.Ordinal);
         Assert.Contains("data-camera-switch", File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Inventory", "Index.cshtml")), StringComparison.Ordinal);
+
+        var wipPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "WipProcess.cshtml"));
+        var wipScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "wip-process.js"));
+        Assert.Contains("data-camera-switch", wipPage, StringComparison.Ordinal);
+        Assert.Contains("warehouseEpi.preferredCameraDeviceId", wipScript, StringComparison.Ordinal);
+        Assert.Contains("facingMode: { exact: \"environment\" }", wipScript, StringComparison.Ordinal);
+        Assert.Contains("navigator.mediaDevices.enumerateDevices()", wipScript, StringComparison.Ordinal);
+        Assert.Contains("if (error && !isCodeNotDetectedError(error))", wipScript, StringComparison.Ordinal);
+        Assert.Contains("document.body.classList.add(\"camera-active\")", wipScript, StringComparison.Ordinal);
+        Assert.Contains("else target?.focus()", wipScript, StringComparison.Ordinal);
+        Assert.Contains("session !== cameraSession", wipScript, StringComparison.Ordinal);
+        Assert.Contains("window.addEventListener(\"pagehide\"", wipScript, StringComparison.Ordinal);
+        Assert.Contains("cameraSession++;", wipScript, StringComparison.Ordinal);
     }
 
     [Fact]

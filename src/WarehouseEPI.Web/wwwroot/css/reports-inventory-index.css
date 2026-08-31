@@ -1,0 +1,254 @@
+/* Analítica de inventario: solo para /Reports/Inventory. Todo va acotado a
+   .inventory-analytics para no alterar la pantalla de Alertas, que comparte
+   .alert-row y .alert-metrics. Color siempre por tokens de Bootstrap: tema
+   claro, oscuro y del sistema.
+
+   Tesis: cada vista responde a una pregunta distinta. La pestaña activa y su
+   explicación son una sola pieza, y la utilización —el único dato derivado de
+   la pantalla— deja de competir con cinco conteos. */
+
+.inventory-analytics { max-width: 82rem; }
+
+.inventory-analytics .analytics-updated {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 44px;
+}
+
+.inventory-analytics .analytics-updated time { font-family: var(--bs-font-monospace); }
+
+/* Accesos secundarios: una sola fila, claramente por debajo de las pestañas. */
+.analytics-shortcuts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 1rem;
+}
+
+.analytics-shortcuts-label {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.inventory-analytics .analytics-shortcuts a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: .35rem .8rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 2rem;
+    color: var(--bs-body-color);
+    font-size: .85rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.inventory-analytics .analytics-shortcuts a:hover {
+    border-color: var(--bs-primary);
+    background: var(--bs-tertiary-bg);
+}
+
+/* La explicación de la vista deja de flotar como párrafo suelto: cuelga de la
+   pestaña activa, con el mismo riel en las cuatro. */
+.analytics-view-intro {
+    max-width: 76ch;
+    margin: 1rem 0 1.25rem;
+    padding: .1rem 0 .1rem .9rem;
+    border-left: .25rem solid var(--bs-primary);
+    color: var(--bs-secondary-color);
+}
+
+/* Ocupación: la utilización es la respuesta; el resto es desglose. */
+.analytics-occupancy {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.analytics-utilization {
+    display: grid;
+    align-content: center;
+    gap: .2rem;
+    min-height: 44px;
+    padding: 1.1rem 1.25rem;
+    border: 1px solid var(--bs-primary-border-subtle);
+    border-radius: .85rem;
+    background: var(--bs-primary-bg-subtle);
+}
+
+.analytics-utilization dt {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+}
+
+.analytics-utilization dd {
+    margin-bottom: 0;
+    font-family: var(--bs-font-monospace);
+    font-size: 2.35rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.analytics-utilization small {
+    color: var(--bs-secondary-color);
+    font-size: .85rem;
+}
+
+.inventory-analytics .analytics-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+    margin-bottom: 0;
+}
+
+.inventory-analytics .analytics-metrics article {
+    min-height: 5.5rem;
+    box-shadow: none;
+    background: var(--bs-body-bg);
+}
+
+.inventory-analytics .analytics-metrics strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.5rem;
+}
+
+.inventory-analytics .analytics-metrics .is-danger { border-color: var(--bs-danger-border-subtle); }
+
+.inventory-analytics .analytics-metrics .is-warning { border-color: var(--bs-warning-border-subtle); }
+
+/* Barra proporcional en la tabla de ocupación: el ojo encuentra la fila floja
+   sin leer nueve columnas de números. */
+.analytics-utilization-cell {
+    display: grid;
+    gap: .25rem;
+    min-width: 6rem;
+}
+
+.analytics-utilization-cell strong {
+    font-family: var(--bs-font-monospace);
+    font-size: .95rem;
+}
+
+.analytics-utilization-bar {
+    height: .4rem;
+    border-radius: .2rem;
+    background: var(--bs-tertiary-bg);
+    overflow: hidden;
+}
+
+.analytics-utilization-bar > span {
+    display: block;
+    width: var(--analytics-share, 0%);
+    height: 100%;
+    border-radius: inherit;
+    background: var(--bs-primary);
+}
+
+.inventory-analytics .analytics-table table { margin-bottom: 0; }
+
+.inventory-analytics .analytics-table th {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.inventory-analytics .analytics-table tbody th[scope="row"] {
+    font-family: var(--bs-font-monospace);
+    font-size: 1rem;
+}
+
+.inventory-analytics .analytics-table .btn { min-height: 44px; }
+
+.analytics-sku {
+    font-size: 1.05rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.analytics-quantity {
+    font-family: var(--bs-font-monospace);
+    white-space: nowrap;
+}
+
+/* Iconos del sprite en el resumen de excepciones: misma caja y mismo grosor. */
+.analytics-metric-glyph {
+    width: 1.35rem;
+    height: 1.35rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* Estados: palabra, punto, borde y color; nunca solo color. */
+.analytics-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    width: fit-content;
+    padding: .15rem .55rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 2rem;
+    background: var(--bs-body-bg);
+    font-size: .8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.analytics-chip::before {
+    content: "";
+    flex: 0 0 auto;
+    width: .45rem;
+    height: .45rem;
+    border-radius: 50%;
+    background: var(--bs-secondary-color);
+}
+
+.analytics-chip.is-active {
+    border-color: var(--bs-success-border-subtle);
+    background: var(--bs-success-bg-subtle);
+    color: var(--bs-success-text-emphasis);
+}
+
+.analytics-chip.is-active::before { background: var(--bs-success); }
+
+.analytics-chip.is-inactive { border-style: dashed; }
+
+.analytics-chip.is-inactive::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--bs-secondary-color);
+}
+
+.analytics-chip.is-warning {
+    border-color: var(--bs-warning-border-subtle);
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+}
+
+.analytics-chip.is-warning::before { background: var(--bs-warning); }
+
+.analytics-chip.is-danger {
+    border-color: var(--bs-danger-border-subtle);
+    background: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger-text-emphasis);
+}
+
+.analytics-chip.is-danger::before { background: var(--bs-danger); }
+
+.inventory-analytics .analytics-filter-card { box-shadow: none; }
+
+.inventory-analytics .analytics-filter-actions .btn { min-height: 44px; }
+
+@media (min-width: 992px) {
+    .analytics-occupancy { grid-template-columns: minmax(13rem, 1fr) minmax(0, 3fr); }
+}

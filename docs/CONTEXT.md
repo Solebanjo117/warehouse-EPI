@@ -1,6 +1,6 @@
 # Contexto del proyecto Warehouse EPI
 
-Actualizado: 25 de agosto de 2026.
+Actualizado: 31 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
 un chat nuevo, se debe leer este archivo y verificar el estado actual del
@@ -21,6 +21,8 @@ completadas;
 13.3, 13.4, 13.5 y 13.6 están implementadas y automatizadas, con migraciones
 de 13.5/13.6, Release y validación física LAN/tablet/lector/impresora pendientes. La protección
 de `main` exige el check `Quality`.
+El centro de excepciones accionable está implementado en código y su migración
+posterior a WIP está aplicada; la Release y validación física siguen pendientes.
 
 ## 1. Objetivo
 
@@ -1448,6 +1450,46 @@ pendientes.
   navegador LAN ni en tablet/dispositivo físico. Antes de producción se debe
   revisar SQL, respaldar, validar restauración, autorizar y aplicar primero 13.5,
   luego 13.6, publicar la Release y ejecutar la aceptación LAN/tablet.
+
+#### Fase 13.6.1: Centro de excepciones accionable — migración aplicada; Release y validación pendientes
+
+- `OperationalExceptionCase` conserva una ocurrencia por condición activa con categoría,
+  severidad derivada, clave estable, sujeto, texto, enlace contextual, responsable,
+  fechas y concurrencia PostgreSQL `xmin`. Los estados son `New`, `InProgress`,
+  `Waiting` y `Resolved`; un caso sólo se resuelve automáticamente. `OperationalExceptionEvent`
+  registra de forma inmutable detección, seguimiento ADMIN y resolución automática.
+- `OperationalAlertService` sigue siendo lectura y alimenta ocho condiciones materializadas:
+  negativo, mínimo, sin asignación, restringido, estancado, conteos obsoleto/pendiente
+  y WIP estancado. El reconciliador no escribe si alguna consulta falla, inicia al
+  arrancar y cada cinco minutos, se excluye en proceso, y puede ejecutarse con el POST
+  ADMIN `Actualizar condiciones`. Una condición resuelta que reaparece crea una nueva
+  ocurrencia; no reabre el histórico. Campana, audiencia pública, caché de 30 segundos
+  y sondeo de 60 segundos permanecen derivados y sin mutación.
+- `/Admin/Inventory/Alerts` conserva el enlace heredado como Centro de excepciones:
+  muestra abiertos por defecto, 25 por página, filtros GET, indicadores, detalle,
+  historial, asignación y cambios de seguimiento. Sólo `AdminOnly` modifica el caso,
+  sin NIP; exige antiforgery, `NameIdentifier`, idempotencia y nota para `Waiting`.
+  Sólo se puede asignar a usuarios activos, sin borrar responsables históricos.
+- Los enlaces contextuales únicamente precargan los flujos existentes; ajuste,
+  transferencia, asignación, ubicación, salida, conteo y WIP mantienen sus propias
+  validaciones, NIP, concurrencia e idempotencia. El centro nunca cambia inventario.
+- La migración `20260828143458_AddOperationalExceptionCenter`, posterior a
+  `20260828120000_WipTrackedInventory`, crea tablas, FKs, checks, índices de filtros
+  y la unicidad parcial de caso activo. Ya fue aplicada a la base operativa; todavía
+  no se ha publicado una Release con el módulo. Permanecen pendientes la publicación,
+  verificación LAN y prueba física en tablet.
+
+#### Recepciones contra documento y trazabilidad unificada — navegación pospuesta
+
+- Los módulos `/Operations/Receiving` y `/Admin/Inventory/Trace` permanecen en el
+  código para revisión técnica, pero no se usarán todavía en la operación diaria.
+- Sus enlaces **Recepciones** y **Trazabilidad** están comentados con comentarios
+  Razor en `_Layout.cshtml`, por lo que no se renderizan en el sidebar, rail ni
+  drawer. Este cambio sólo oculta la navegación: no elimina páginas, rutas, datos,
+  permisos ni contratos operativos existentes.
+- Para activarlos posteriormente se debe aprobar el uso operativo, retirar ambos
+  comentarios Razor, ejecutar las pruebas focales y validar la navegación en laptop
+  y tablet antes de incluirlos en una Release.
 
 #### Fase 13.7: refinamiento UX de reportes — implementada en código; validación visual y física pendiente
 

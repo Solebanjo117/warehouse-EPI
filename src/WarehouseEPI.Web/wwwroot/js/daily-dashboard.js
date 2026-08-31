@@ -24,6 +24,7 @@
   let selectedIndex = -1;
   let selectedDate = "";
   let currentPoints = [];
+  let tooltipIndex = -1;
   let chart;
 
   const updateMetric = (name, value) => {
@@ -100,19 +101,6 @@
     tooltip: color("--dashboard-chart-tooltip"),
     tooltipBorder: color("--dashboard-chart-tooltip-border")
   });
-  const rgba = (hex, alpha) => {
-    const value = hex.replace("#", "").trim();
-    if (!/^[0-9a-f]{6}$/i.test(value)) return hex;
-    return `rgba(${parseInt(value.slice(0, 2), 16)}, ${parseInt(value.slice(2, 4), 16)}, ${parseInt(value.slice(4, 6), 16)}, ${alpha})`;
-  };
-  const gradient = (context, base) => {
-    const area = context.chart.chartArea;
-    if (!area) return base;
-    const fill = context.chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
-    fill.addColorStop(0, base);
-    fill.addColorStop(1, rgba(base, .72));
-    return fill;
-  };
   const setSummary = (points) => {
     const total = points.reduce((sum, point) => sum + number(point.totalEffectiveOperations), 0);
     const busiest = [...points].sort((a, b) => number(b.totalEffectiveOperations) - number(a.totalEffectiveOperations) || text(b.date).localeCompare(text(a.date)))[0];
@@ -127,10 +115,10 @@
     return {
       labels: points.map((point) => text(point.dayLabel)),
       datasets: [
-        { label: "Entradas", data: points.map((point) => number(point.entryCount)), backgroundColor: (context) => gradient(context, colors.entry), hoverBackgroundColor: colors.entry, borderColor: colors.entry, borderWidth: 1, borderRadius: 7, borderSkipped: false },
-        { label: "Salidas", data: points.map((point) => number(point.exitCount)), backgroundColor: (context) => gradient(context, colors.exit), hoverBackgroundColor: colors.exit, borderColor: colors.exit, borderWidth: 1, borderRadius: 7, borderSkipped: false },
-        { label: "Transferencias", data: points.map((point) => number(point.transferCount)), backgroundColor: (context) => gradient(context, colors.transfer), hoverBackgroundColor: colors.transfer, borderColor: colors.transfer, borderWidth: 1, borderRadius: 7, borderSkipped: false },
-        { label: "Ajustes", data: points.map((point) => number(point.adjustmentCount)), backgroundColor: (context) => gradient(context, colors.adjustment), hoverBackgroundColor: colors.adjustment, borderColor: colors.adjustment, borderWidth: 1, borderRadius: 7, borderSkipped: false }
+        { label: "Entradas", data: points.map((point) => number(point.entryCount)), backgroundColor: colors.entry, hoverBackgroundColor: colors.entry, borderColor: colors.entry, borderWidth: 1, borderRadius: 4, borderSkipped: false },
+        { label: "Salidas", data: points.map((point) => number(point.exitCount)), backgroundColor: colors.exit, hoverBackgroundColor: colors.exit, borderColor: colors.exit, borderWidth: 1, borderRadius: 4, borderSkipped: false },
+        { label: "Transferencias", data: points.map((point) => number(point.transferCount)), backgroundColor: colors.transfer, hoverBackgroundColor: colors.transfer, borderColor: colors.transfer, borderWidth: 1, borderRadius: 4, borderSkipped: false },
+        { label: "Ajustes", data: points.map((point) => number(point.adjustmentCount)), backgroundColor: colors.adjustment, hoverBackgroundColor: colors.adjustment, borderColor: colors.adjustment, borderWidth: 1, borderRadius: 4, borderSkipped: false }
       ]
     };
   };
@@ -180,6 +168,13 @@
         const total = number(point.totalEffectiveOperations);
         if (!total || (!showEveryTotal && index !== selectedIndex && index !== todayIndex)) return;
         context.fillText(format(total), x.getPixelForValue(index), y.getPixelForValue(total) - 7);
+      });
+      const zeroWidth = Math.min(42, (instance.chartArea.width / points.length) * .5);
+      const baseline = y.getPixelForValue(0);
+      context.fillStyle = chartColors().label;
+      points.forEach((point, index) => {
+        if (number(point.totalEffectiveOperations)) return;
+        context.fillRect(x.getPixelForValue(index) - (zeroWidth / 2), baseline - 2, zeroWidth, 2);
       });
       context.restore();
     }
@@ -235,6 +230,8 @@
             backgroundColor: colors.tooltip,
             borderColor: colors.tooltipBorder,
             borderWidth: 1,
+            titleColor: colors.text,
+            bodyColor: colors.text,
             cornerRadius: 10,
             padding: 12,
             caretPadding: 8,
@@ -243,10 +240,16 @@
             bodySpacing: 5,
             displayColors: true,
             boxPadding: 4,
+            filter: (item) => { tooltipIndex = item.dataIndex; return number(item.parsed.y) > 0; },
             callbacks: {
-              title: (items) => visiblePoints()[items[0].dataIndex]?.dayLabel ?? "",
+              title: (items) => visiblePoints()[items.length ? items[0].dataIndex : tooltipIndex]?.dayLabel ?? "",
               label: (item) => `${item.dataset.label}: ${format(item.parsed.y)}`,
-              afterBody: (items) => `\nTotal: ${format(visiblePoints()[items[0].dataIndex]?.totalEffectiveOperations)} operaciones\nSKUs distintos: ${format(visiblePoints()[items[0].dataIndex]?.distinctSkusCount)}`
+              afterBody: (items) => {
+                const point = visiblePoints()[items.length ? items[0].dataIndex : tooltipIndex];
+                if (!point) return "";
+                const total = number(point.totalEffectiveOperations);
+                return total ? `\nTotal: ${format(total)} operaciones\nSKUs distintos: ${format(point.distinctSkusCount)}` : "Sin actividad registrada";
+              }
             }
           }
         },

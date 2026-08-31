@@ -4,6 +4,10 @@
     ViewData["Title"] = "Productos";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/products-index.css" asp-append-version="true" />
+}
+
 <header class="product-catalog-header mb-3">
     <div>
         <span class="product-catalog-eyebrow">Catálogo</span>
@@ -89,7 +93,7 @@
             Filtros de catálogo
             @if (Model.CatalogFilterCount > 0)
             {
-                <span class="badge text-bg-primary">@Model.CatalogFilterCount</span>
+                <span class="pc-chip">@Model.CatalogFilterCount</span>
             }
         </summary>
         <div class="product-catalog-filter-grid product-catalog-filter-grid-advanced">
@@ -145,7 +149,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("search", null))">
                 <span class="product-catalog-chip-label">Búsqueda: “@Model.Search”</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Quitar el filtro de búsqueda</span>
             </a>
         }
@@ -157,7 +161,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("status", "active"))">
                 <span class="product-catalog-chip-label">@(Model.Status == "inactive" ? "Inactivos" : "Todos los estados")</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Volver a productos activos</span>
             </a>
         }
@@ -165,7 +169,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("stock", "all"))">
                 <span class="product-catalog-chip-label">@(Model.Stock switch { "balance" => "Con saldo", "empty" => "Sin saldo", "negative" => "Negativos", _ => "Bajo mínimo" })</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Quitar el filtro de existencia</span>
             </a>
         }
@@ -173,7 +177,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("assignment", "all"))">
                 <span class="product-catalog-chip-label">@(Model.Assignment == "assigned" ? "Asignados" : "Sin ubicación")</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Quitar el filtro de asignación</span>
             </a>
         }
@@ -181,7 +185,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("unitId", null))">
                 <span class="product-catalog-chip-label">Unidad: @Model.UnitLabel</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Quitar el filtro de unidad</span>
             </a>
         }
@@ -189,7 +193,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("typeId", null))">
                 <span class="product-catalog-chip-label">Tipo: @Model.TypeLabel</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Quitar el filtro de tipo</span>
             </a>
         }
@@ -197,7 +201,7 @@
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("classId", null))">
                 <span class="product-catalog-chip-label">Clase: @Model.ClassLabel</span>
-                <span class="product-catalog-chip-remove" aria-hidden="true">&times;</span>
+                <span class="product-catalog-chip-remove" aria-hidden="true"></span>
                 <span class="visually-hidden">Quitar el filtro de clase</span>
             </a>
         }
@@ -249,11 +253,11 @@ else
                         <td class="product-catalog-stock text-end @(item.IsNegative ? "text-danger" : null)"><strong>@item.Quantity.ToString("0.####") @item.Unit</strong><small>Mínimo @item.Minimum.ToString("0.####")</small></td>
                         <td class="product-catalog-count text-end">
                             <strong>@item.LocationCount</strong><small class="d-block text-body-secondary">con saldo</small>
-                            @if (!item.HasAssignment) { <span class="badge text-bg-warning mt-1">Sin asignación</span> }
+                            @if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">Sin asignación</span> }
                         </td>
                         <td>
                             <div class="product-catalog-statuses">
-                                @foreach (var badge in StatusBadges(item)) { <span class="badge @badge.Css">@badge.Text</span> }
+                                @foreach (var badge in StatusBadges(item)) { <span class="@badge.Css">@badge.Text</span> }
                             </div>
                         </td>
                         <td><div class="product-catalog-row-actions"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Ficha</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">Editar</a></div></td>
@@ -270,13 +274,13 @@ else
                 <header>
                     <div><a asp-page="Details" asp-route-id="@item.Id" class="product-catalog-sku product-catalog-card-link">@item.Sku</a><p class="product-catalog-description mb-0">@(item.Description ?? "Sin descripción")</p></div>
                     <div class="product-catalog-statuses">
-                        @foreach (var badge in StatusBadges(item)) { <span class="badge @badge.Css">@badge.Text</span> }
+                        @foreach (var badge in StatusBadges(item)) { <span class="@badge.Css">@badge.Text</span> }
                     </div>
                 </header>
                 <div class="product-catalog-meta"><span>@(item.ExternalReference ?? "Sin referencia")</span><span>@item.Unit</span><span>@(item.Type ?? "Sin tipo") / @(item.Class ?? "Sin clase")</span></div>
                 <dl class="product-catalog-card-facts">
                     <div><dt>Existencia</dt><dd class="@(item.IsNegative ? "text-danger" : null)">@item.Quantity.ToString("0.####") @item.Unit</dd><small>Mínimo @item.Minimum.ToString("0.####")</small></div>
-                    <div><dt>Ubicaciones</dt><dd>@item.LocationCount con saldo</dd>@if (!item.HasAssignment) { <small class="text-warning-emphasis">Sin asignación activa</small> }</div>
+                    <div><dt>Ubicaciones</dt><dd>@item.LocationCount con saldo</dd>@if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">Sin asignación</span> }</div>
                 </dl>
                 <footer><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Ficha</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">Editar</a></footer>
             </article>
@@ -327,10 +331,10 @@ else
     private static IReadOnlyList<(string Css, string Text)> StatusBadges(IndexModel.ProductRow item)
     {
         var badges = new List<(string Css, string Text)>();
-        if (!item.IsActive) { badges.Add(("text-bg-secondary", "Inactivo")); }
-        if (item.IsNegative) { badges.Add(("text-bg-danger", "Negativo")); }
-        else if (item.IsBelowMinimum) { badges.Add(("text-bg-warning", "Bajo mínimo")); }
-        if (badges.Count == 0) { badges.Add(("text-bg-success", "Activo")); }
+        if (!item.IsActive) { badges.Add(("pc-chip is-inactive", "Inactivo")); }
+        if (item.IsNegative) { badges.Add(("pc-chip is-danger", "Negativo")); }
+        else if (item.IsBelowMinimum) { badges.Add(("pc-chip is-warning", "Bajo mínimo")); }
+        if (badges.Count == 0) { badges.Add(("pc-chip is-ok", "Activo")); }
         return badges;
     }
 

@@ -1,0 +1,118 @@
+/* Catálogo de productos: solo para /Admin/Catalogs/Products. Complementa el
+   sistema que ya vive en site.css; aquí solo van los ajustes de esta pantalla.
+   Color siempre por tokens de Bootstrap: tema claro, oscuro y del sistema.
+
+   Tesis: el SKU y la existencia son lo que se busca. El estado normal no
+   necesita gritar; las excepciones sí. */
+
+/* El SKU es un código: sello monoespaciado, como en Lotes, Unidades y Tipos. */
+.product-catalog-sku {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.05rem;
+    letter-spacing: .04em;
+}
+
+.product-catalog-stock strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.2rem;
+}
+
+.product-catalog-count strong {
+    font-family: var(--bs-font-monospace);
+    font-size: 1.2rem;
+}
+
+.product-catalog-card-facts dd { font-family: var(--bs-font-monospace); }
+
+.product-catalog-metric strong { font-family: var(--bs-font-monospace); }
+
+/* Estado: punto, borde y palabra. El caso normal se mantiene discreto para que
+   la excepción sea lo único que salte en una lista de veinticinco filas. */
+.pc-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    width: fit-content;
+    padding: .15rem .6rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 2rem;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    font-size: .8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pc-chip::before {
+    content: "";
+    flex: 0 0 auto;
+    width: .45rem;
+    height: .45rem;
+    border-radius: 50%;
+    background: var(--bs-secondary-color);
+}
+
+.pc-chip.is-ok {
+    color: var(--bs-secondary-color);
+    font-weight: 500;
+}
+
+.pc-chip.is-ok::before { background: var(--bs-success); }
+
+.pc-chip.is-inactive { border-style: dashed; }
+
+.pc-chip.is-inactive::before {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--bs-secondary-color);
+}
+
+.pc-chip.is-warning {
+    border-color: var(--bs-warning-border-subtle);
+    background: var(--bs-warning-bg-subtle);
+    color: var(--bs-warning-text-emphasis);
+}
+
+.pc-chip.is-warning::before { background: var(--bs-warning); }
+
+.pc-chip.is-danger {
+    border-color: var(--bs-danger-border-subtle);
+    background: var(--bs-danger-bg-subtle);
+    color: var(--bs-danger-text-emphasis);
+}
+
+.pc-chip.is-danger::before { background: var(--bs-danger); }
+
+/* La aspa de los chips de filtro se dibuja; deja de ser un carácter. */
+.product-catalog-chip-remove {
+    position: relative;
+    flex: 0 0 auto;
+    width: .7rem;
+    height: .7rem;
+    font-size: 0;
+    line-height: 0;
+}
+
+.product-catalog-chip-remove::before,
+.product-catalog-chip-remove::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    border-radius: 1px;
+    background: currentColor;
+}
+
+.product-catalog-chip-remove::before { transform: rotate(45deg); }
+
+.product-catalog-chip-remove::after { transform: rotate(-45deg); }
+
+/* Filtros rápidos: siguen siendo navegación, así que bajan de altura y ceden
+   presencia al listado. */
+.product-catalog-metric { min-height: 5.25rem; }
+
+.product-catalog-metric small { color: var(--bs-secondary-color); }
+
+.product-catalog-row-actions .btn,
+.product-catalog-card footer .btn { min-height: 44px; }

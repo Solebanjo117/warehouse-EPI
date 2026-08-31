@@ -52,6 +52,27 @@ public sealed class OperationalAlertService(
         return new(rows.Select(x => ToDetailDto(category, x)).ToArray(), total, page, size);
     }
 
+    /// <summary>
+    /// Materializa las ocho condiciones actuales antes de que el centro ADMIN
+    /// realice cualquier escritura. Las rutas de alertas siguen siendo de solo lectura.
+    /// </summary>
+    public async Task<IReadOnlyList<OperationalAlertConditionDto>> GetActiveConditionsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var conditions = new List<OperationalAlertConditionDto>();
+        foreach (var category in Enum.GetValues<OperationalAlertCategory>())
+        {
+            var rows = await DetailRows(category, settings.WipReminderDays, now)
+                .OrderBy(row => row.PrimaryText).ThenBy(row => row.SecondaryText)
+                .ToListAsync(cancellationToken);
+            conditions.AddRange(rows.Select(row => ToCondition(category, row)));
+        }
+
+        return conditions.OrderBy(item => item.Category).ThenBy(item => item.ConditionKey, StringComparer.Ordinal).ToArray();
+    }
+
     private async Task<AlertCounts> GetCountsAsync(int wipDays, DateTimeOffset now, CancellationToken token)
     {
         var positions = PositionTotals();
@@ -138,6 +159,7 @@ public sealed class OperationalAlertService(
                 SecondaryText = x.Location.Code,
                 LocationId = x.LocationId,
                 TargetId = x.CampaignId,
+                CycleCountLocationId = x.Id,
                 CycleStatus = x.Status,
                 OccurredAt = x.CreatedAt
             });
@@ -183,6 +205,48 @@ public sealed class OperationalAlertService(
             _ => $"/Inventory?productId={row.ProductId}&highlightLocationId={row.LocationId}"
         };
         return new(category, severity, primary, row.SecondaryText, value, target, row.ProductId, row.LocationId, row.OccurredAt);
+    }
+
+    private static OperationalAlertConditionDto ToCondition(OperationalAlertCategory category, AlertDetailProjection row)
+    {
+        var detail = ToDetailDto(category, row);
+        var exceptionCategory = category switch
+        {
+            OperationalAlertCategory.NegativeInventory => OperationalExceptionCategory.NegativeInventory,
+            OperationalAlertCategory.BelowMinimum => OperationalExceptionCategory.BelowMinimum,
+            OperationalAlertCategory.UnassignedBalance => OperationalExceptionCategory.UnassignedBalance,
+            OperationalAlertCategory.RestrictedInventory => OperationalExceptionCategory.RestrictedInventory,
+            OperationalAlertCategory.StagnantInventory => OperationalExceptionCategory.StagnantInventory,
+            OperationalAlertCategory.CycleCountStale => OperationalExceptionCategory.CycleCountStale,
+            OperationalAlertCategory.CycleCountPending => OperationalExceptionCategory.CycleCountPending,
+            _ => OperationalExceptionCategory.AgedWip
+        };
+        var severity = detail.Severity switch
+        {
+            OperationalAlertSeverity.Critical => OperationalExceptionSeverity.Critical,
+            OperationalAlertSeverity.Information => OperationalExceptionSeverity.Information,
+            _ => OperationalExceptionSeverity.Warning
+        };
+        var subject = category switch
+        {
+            OperationalAlertCategory.NegativeInventory or OperationalAlertCategory.UnassignedBalance or OperationalAlertCategory.RestrictedInventory
+                => $"{row.ProductId:N}:{row.LocationId:N}",
+            OperationalAlertCategory.BelowMinimum or OperationalAlertCategory.StagnantInventory => row.ProductId?.ToString("N") ?? string.Empty,
+            OperationalAlertCategory.CycleCountStale or OperationalAlertCategory.CycleCountPending => row.CycleCountLocationId?.ToString("N") ?? string.Empty,
+            _ => $"{row.ProductId:N}:{row.LocationId:N}"
+        };
+        var target = category switch
+        {
+            OperationalAlertCategory.NegativeInventory => $"/Operations/Adjustment?productId={row.ProductId}&locationId={row.LocationId}",
+            OperationalAlertCategory.BelowMinimum => $"/Operations/Transfer?productId={row.ProductId}",
+            OperationalAlertCategory.UnassignedBalance => $"/Admin/Catalogs/Locations/Details?id={row.LocationId}&productSearch={Uri.EscapeDataString(row.PrimaryText)}",
+            OperationalAlertCategory.RestrictedInventory => $"/Admin/Catalogs/Locations/Details?id={row.LocationId}",
+            OperationalAlertCategory.StagnantInventory => $"/Operations/Exit?productId={row.ProductId}&mode=general",
+            OperationalAlertCategory.AgedWip => $"/Operations/Wip?action=consume&wipCode={Uri.EscapeDataString(row.SecondaryText)}&productCode={Uri.EscapeDataString(row.PrimaryText)}",
+            _ => detail.TargetUrl
+        };
+        return new(exceptionCategory, severity, $"{exceptionCategory}:{subject}", detail.PrimaryText, detail.SecondaryText,
+            detail.ValueText, target, row.ProductId, row.LocationId, row.CycleCountLocationId, row.OccurredAt);
     }
 
     private IQueryable<PositionTotal> PositionTotals()
@@ -281,7 +345,9 @@ public sealed class OperationalAlertService(
             item.Lot.LotDate != null && item.Lot.LotDate <= cutoff)
         select new AgedWipLine
         {
-            LineId = position.Select(item => item.Id).Min(),
+            // PostgreSQL has no min(uuid); the line is only a deterministic
+            // contextual subject, so choose the first UUID by ordering instead.
+            LineId = position.OrderBy(item => item.Id).Select(item => item.Id).First(),
             ProductId = position.Key.ProductId,
             Sku = position.Key.Sku,
             WipId = position.Key.WipId,
@@ -301,6 +367,7 @@ public sealed class OperationalAlertService(
         public Guid? ProductId { get; init; }
         public Guid? LocationId { get; init; }
         public Guid? TargetId { get; init; }
+        public Guid? CycleCountLocationId { get; init; }
         public decimal? Quantity { get; init; }
         public string? Unit { get; init; }
         public CycleCountLocationStatus? CycleStatus { get; init; }
