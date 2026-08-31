@@ -84,7 +84,7 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
         }
 
         var result = await cycleCountService.SubmitPreparedAsync(new(preparation, Input.OperationId, Input.Pin, entries, Input.IsLocationEmpty), cancellationToken);
-        if (result.Status == CycleCountStatus.Success) return RedirectToPage("Review", new { id, locationId });
+        if (result.Status == CycleCountStatus.Success) return RedirectToPage("Review", new { id, locationId, registered = true });
         Error = CycleCountPresentation.StatusMessage(result);
         return Page();
     }

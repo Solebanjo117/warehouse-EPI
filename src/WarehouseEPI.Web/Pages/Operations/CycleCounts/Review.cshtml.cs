@@ -16,7 +16,8 @@ public sealed class ReviewModel(CycleCountService cycleCountService) : PageModel
     [BindProperty] public List<string> SharedApprovals { get; set; } = [];
     public IReadOnlyList<SharedLocationConflict> SharingConflicts { get; private set; } = [];
     public string? Error { get; private set; }
-    public async Task<IActionResult> OnGetAsync(Guid id, Guid locationId, CancellationToken cancellationToken) { await LoadAsync(id, locationId, cancellationToken); return Campaign is null || Location is null ? NotFound() : Page(); }
+    public bool Registered { get; private set; }
+    public async Task<IActionResult> OnGetAsync(Guid id, Guid locationId, bool registered, CancellationToken cancellationToken) { Registered = registered; await LoadAsync(id, locationId, cancellationToken); return Campaign is null || Location is null ? NotFound() : Page(); }
     public async Task<IActionResult> OnPostRecountAsync(Guid id, Guid locationId, CancellationToken cancellationToken)
     { var result = await cycleCountService.RequestRecountAsync(new(locationId, OperationId == Guid.Empty ? Guid.NewGuid() : OperationId, Pin, Notes), cancellationToken); if (result.Status == CycleCountStatus.Success) return RedirectToPage("Details", new { id }); await LoadAsync(id, locationId, cancellationToken); Error = CycleCountPresentation.StatusMessage(result); return Page(); }
     public async Task<IActionResult> OnPostApproveAsync(Guid id, Guid locationId, CancellationToken cancellationToken)

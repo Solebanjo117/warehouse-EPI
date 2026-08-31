@@ -4,19 +4,24 @@
     ViewData["Title"] = "Conteo ciego";
     var attempt = Model.Attempt;
     var unexpectedRows = Math.Max(3, Model.Input.UnexpectedEntries.Count);
+    var productCount = attempt?.Entries.Count ?? 0;
 }
-<div class="inventory-analytics" data-cycle-count-capture data-cycle-campaign="@Model.CampaignId" data-cycle-location="@Model.LocationId">
-    <header class="inventory-page-header">
+<div class="operation-shell cycle-count-workspace cycle-count-station" data-cycle-count-capture data-cycle-campaign="@Model.CampaignId" data-cycle-location="@Model.LocationId">
+    <header class="entry-header">
         <div>
             <a asp-page="Details" asp-route-id="@Model.CampaignId" class="small text-decoration-none">← Campaña</a>
-            <h1 class="h2 mt-2">Conteo ciego</h1>
-            <p class="text-muted mb-0">Escanea producto, captura cantidad y continúa. El sistema no muestra existencias esperadas.</p>
+            <h1 class="h2 mt-2 mb-1">Conteo ciego</h1>
+            <p class="text-muted mb-0">Escanea producto, captura cantidad y continúa.</p>
+        </div>
+        <div class="entry-progress" role="status" aria-live="polite">
+            <span data-cycle-progress>0 de @productCount contados</span>
+            <small>1 ubicación por captura</small>
         </div>
     </header>
 
     @if (Model.Error is not null)
     {
-        <div class="alert alert-danger" role="alert">@Model.Error</div>
+        <div class="alert alert-danger" role="alert" tabindex="-1" data-cycle-errors>@Model.Error</div>
     }
 
     @if (attempt is null)
@@ -28,49 +33,53 @@
         return;
     }
 
-    <form method="post" class="analytics-filter-card">
+    <p class="cycle-blind-note">
+        <svg class="app-icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+        <span>Existencia esperada oculta. Captura lo que cuentes físicamente, incluso si es cero.</span>
+    </p>
+
+    <form method="post">
         <input asp-for="Input.PreparationToken" type="hidden" value="@Model.PreparationToken" />
         <input asp-for="Input.OperationId" type="hidden" value="@(Model.Input.OperationId == Guid.Empty ? Guid.NewGuid() : Model.Input.OperationId)" />
         <input type="hidden" name="id" value="@Model.CampaignId" />
         <input type="hidden" name="locationId" value="@Model.LocationId" />
 
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr><th scope="col">Producto</th><th scope="col">Unidad</th><th scope="col">Conteo físico</th></tr>
-                </thead>
-                <tbody>
-                    @for (var index = 0; index < attempt.Entries.Count; index++)
-                    {
-                        var entry = attempt.Entries[index];
-                        var missing = Model.MissingQuantityProductIds.Contains(entry.ProductId);
-                        <tr data-cycle-product="@entry.Sku">
-                            <td>
-                                <strong>@entry.Sku</strong>
-                                <small class="d-block text-body-secondary">@(entry.Description ?? "Sin descripción")</small>
-                                <input name="Input.Entries[@index].ProductId" type="hidden" value="@entry.ProductId" />
-                            </td>
-                            <td>@entry.UnitCode</td>
-                            <td>
-                                <label class="visually-hidden" for="quantity-@index">Conteo físico de @entry.Sku</label>
-                                <input id="quantity-@index" name="Input.Entries[@index].Quantity" value="@Model.CapturedQuantity(entry.ProductId)"
-                                       class="form-control @(missing ? "is-invalid" : null)" data-cycle-quantity
-                                       inputmode="@(entry.AllowsDecimals ? "decimal" : "numeric")" required autocomplete="off"
-                                       placeholder="Cantidad física" aria-describedby="@(missing ? $"quantity-error-{index}" : null)" />
-                                @if (missing)
-                                {
-                                    <div id="quantity-error-@index" class="invalid-feedback">Captura la cantidad física, incluso si es cero.</div>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+        <div class="entry-capture">
+            @for (var index = 0; index < attempt.Entries.Count; index++)
+            {
+                var entry = attempt.Entries[index];
+                var missing = Model.MissingQuantityProductIds.Contains(entry.ProductId);
+                <section class="entry-step cycle-count-step @(missing ? "is-missing" : null)" data-cycle-product="@entry.Sku">
+                    <header class="entry-step-header">
+                        <span class="entry-step-number" aria-hidden="true">@(index + 1)</span>
+                        <div>
+                            <h2 class="h5 mb-0">@entry.Sku</h2>
+                            <span class="entry-step-status" data-cycle-step-status>Pendiente</span>
+                        </div>
+                    </header>
+                    <div class="entry-step-body">
+                        <p class="cycle-count-description">@(entry.Description ?? "Sin descripción")</p>
+                        <input name="Input.Entries[@index].ProductId" type="hidden" value="@entry.ProductId" />
+                        <label class="form-label" for="quantity-@index">Conteo físico</label>
+                        <div class="input-group input-group-lg entry-capture-input">
+                            <input id="quantity-@index" name="Input.Entries[@index].Quantity" value="@Model.CapturedQuantity(entry.ProductId)"
+                                   class="form-control @(missing ? "is-invalid" : null)" data-cycle-quantity
+                                   inputmode="@(entry.AllowsDecimals ? "decimal" : "numeric")" required autocomplete="off"
+                                   placeholder="Cantidad física" aria-describedby="@(missing ? $"quantity-error-{index}" : null)" />
+                            <span class="input-group-text">@entry.UnitCode</span>
+                        </div>
+                        @if (missing)
+                        {
+                            <div id="quantity-error-@index" class="invalid-feedback d-block">Captura la cantidad física, incluso si es cero.</div>
+                        }
+                    </div>
+                </section>
+            }
         </div>
 
-        <fieldset class="border rounded p-3 mb-3" data-cycle-unexpected>
-            <legend class="h6 px-2">Productos inesperados</legend>
-            <p class="small text-body-secondary">Escanea o escribe un SKU/código de barras y su cantidad.</p>
+        <fieldset class="operation-card" data-cycle-unexpected>
+            <legend class="h5">Productos inesperados</legend>
+            <p class="text-body-secondary">Escanea o escribe un SKU/código de barras y su cantidad.</p>
             @for (var index = 0; index < unexpectedRows; index++)
             {
                 var unexpected = Model.UnexpectedEntry(index);
@@ -87,23 +96,49 @@
             }
         </fieldset>
 
-        <div class="form-check mb-3">
-            <input asp-for="Input.IsLocationEmpty" class="form-check-input" />
-            <label asp-for="Input.IsLocationEmpty" class="form-check-label">La ubicación está vacía: registrar cero para todas las líneas.</label>
+        <section class="operation-card cycle-empty-location">
+            <div class="form-check">
+                <input asp-for="Input.IsLocationEmpty" class="form-check-input" data-cycle-empty-location />
+                <label asp-for="Input.IsLocationEmpty" class="form-check-label">La ubicación está vacía</label>
+            </div>
+            <p class="text-body-secondary mb-0">
+                Se registrará 0 en @(productCount == 1 ? "la línea" : $"las {productCount} líneas"). Puedes desmarcarlo antes de confirmar.
+            </p>
+        </section>
+
+        <div class="operation-actions">
+            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+            <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-cycle-review>Registrar conteo</button>
         </div>
 
-        <div class="row g-2 align-items-end">
-            <div class="col-sm-4">
-                <label asp-for="Input.Pin" class="form-label">NIP responsable</label>
-                <input asp-for="Input.Pin" value="" class="form-control" type="password" inputmode="numeric" maxlength="8" autocomplete="off" />
-            </div>
-            <div class="col-sm-8">
-                <button class="btn btn-primary">Enviar conteo para revisión</button>
+        <div class="modal fade" id="confirm-cycle-count" tabindex="-1" aria-labelledby="confirm-cycle-count-title" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title h5" id="confirm-cycle-count-title">Confirmar conteo</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="confirmation-summary mb-3" data-cycle-confirmation></div>
+                        <label asp-for="Input.Pin" class="form-label fw-semibold">NIP del responsable</label>
+                        <input asp-for="Input.Pin" value="" class="form-control form-control-lg pin-input"
+                               type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
+                               autocomplete="off" data-cycle-pin />
+                        <p class="small text-muted mt-2 mb-0">El NIP se usa solo para esta operación y no se conservará.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Volver</button>
+                        <button type="submit" class="btn btn-primary btn-lg" data-cycle-submit>Registrar conteo</button>
+                    </div>
+                </div>
             </div>
         </div>
     </form>
 
-    <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="Escanear producto">📷 <span>Escanear producto</span></button>
+    <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="Escanear producto">
+        <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
+        <span>Escanear producto</span>
+    </button>
     <input class="visually-hidden" data-cycle-scan-photo type="file" accept="image/*" capture="environment" />
 </div>
 @section Scripts { <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }
