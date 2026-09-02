@@ -19,6 +19,33 @@ public sealed class ProductCatalogIndexContractTests
     }
 
     [Fact]
+    public void Product_catalog_search_can_submit_a_live_camera_scan_through_the_existing_get_form()
+    {
+        var page = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "Index.cshtml");
+        var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js");
+
+        Assert.Contains("data-product-catalog-search-form", page, StringComparison.Ordinal);
+        Assert.Contains("data-product-catalog-camera", page, StringComparison.Ordinal);
+        Assert.Contains("data-product-catalog-camera-modal", page, StringComparison.Ordinal);
+        Assert.Contains("data-lookup-url=\"@Url.Page(\"/Operations/Lookup\")\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-camera-video", page, StringComparison.Ordinal);
+        Assert.Contains("data-camera-switch", page, StringComparison.Ordinal);
+        Assert.Contains("data-camera-photo", page, StringComparison.Ordinal);
+        Assert.Contains("zxing-browser.min.js", page, StringComparison.Ordinal);
+        Assert.Contains("const createCameraScanner =", script, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(script, "createCameraScanner({"));
+        Assert.Contains("handler: \"ResolveInventoryCode\"", script, StringComparison.Ordinal);
+        Assert.Contains("if (!resolution?.product)", script, StringComparison.Ordinal);
+        Assert.Contains("El código corresponde a una ubicación, no a un producto.", script, StringComparison.Ordinal);
+        Assert.Contains("return { accepted: true, sku: resolution.product.sku }", script, StringComparison.Ordinal);
+        Assert.Contains("if (result?.accepted)", script, StringComparison.Ordinal);
+        Assert.Contains("productCatalogForm.requestSubmit()", script, StringComparison.Ordinal);
+        Assert.Contains("stream.getTracks().forEach(track => track.stop())", script, StringComparison.Ordinal);
+        Assert.Contains("window.addEventListener(\"pagehide\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("const submitScannedCode", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Product_catalog_has_desktop_table_and_tablet_cards_with_detail_first()
     {
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "Index.cshtml");
@@ -49,6 +76,9 @@ public sealed class ProductCatalogIndexContractTests
     }
 
     private static string Read(params string[] parts) => File.ReadAllText(RepositoryPath(parts));
+
+    private static int CountOccurrences(string source, string value) =>
+        (source.Length - source.Replace(value, string.Empty, StringComparison.Ordinal).Length) / value.Length;
 
     private static string RepositoryPath(params string[] parts)
     {

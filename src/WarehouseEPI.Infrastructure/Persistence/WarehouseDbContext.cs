@@ -795,6 +795,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         layout.ToTable("warehouse_map_layouts", table =>
         {
             table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1");
+            table.HasCheckConstraint("ck_warehouse_map_layout_canvas", "canvas_width BETWEEN 1600 AND 6400 AND canvas_height BETWEEN 900 AND 3600 AND canvas_width % 25 = 0 AND canvas_height % 25 = 0");
             table.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
             table.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
         });
@@ -803,6 +804,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         layout.Property(item => item.Version).HasColumnName("version");
         layout.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         layout.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        layout.Property(item => item.CanvasWidth).HasColumnName("canvas_width").HasPrecision(8, 2).HasDefaultValue(1600m);
+        layout.Property(item => item.CanvasHeight).HasColumnName("canvas_height").HasPrecision(8, 2).HasDefaultValue(900m);
         layout.Property(item => item.ScaleUnitsPerInch).HasColumnName("scale_units_per_inch").HasPrecision(12, 6);
         layout.Property(item => item.MeasurementSystem).HasColumnName("measurement_system").HasMaxLength(10)
             .HasConversion(value => value == WarehouseMapMeasurementSystem.Imperial ? "IMPERIAL" : "METRIC",

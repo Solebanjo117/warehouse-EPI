@@ -38,9 +38,11 @@
 {
     <div class="warehouse-map-toolbar mb-2"><button type="button" class="btn btn-outline-secondary" data-map-zoom="in" aria-label="Acercar">＋</button><button type="button" class="btn btn-outline-secondary" data-map-zoom="out" aria-label="Alejar">−</button><button type="button" class="btn btn-outline-secondary" data-map-fit>Ajustar</button><a asp-page="Map/Edit" class="btn btn-primary ms-auto">Editar croquis</a></div>
     @if(!Model.Map.IsInitialized){<div class="alert alert-info"><strong>Vista previa sin guardar.</strong> Revisa la distribución basada en el plano físico y confírmala desde Editar croquis.</div>}
-    <div class="warehouse-map-shell" data-warehouse-map data-highlight-location="@Model.HighlightLocationId">
+    <div class="warehouse-map-shell" data-warehouse-map data-highlight-location="@Model.HighlightLocationId"
+         data-canvas-width="@Model.Map.CanvasWidth.ToString(global::System.Globalization.CultureInfo.InvariantCulture)"
+         data-canvas-height="@Model.Map.CanvasHeight.ToString(global::System.Globalization.CultureInfo.InvariantCulture)">
         <div class="warehouse-map-viewport" data-map-viewport tabindex="0" aria-label="Croquis interactivo del almacén">
-            <svg class="warehouse-map" viewBox="0 0 1600 900" role="img" aria-labelledby="warehouse-map-title">
+            <svg class="warehouse-map" viewBox="0 0 @Model.Map.CanvasWidth.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @Model.Map.CanvasHeight.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" role="img" aria-labelledby="warehouse-map-title">
                 <title id="warehouse-map-title">Croquis del almacén Warehouse EPI</title>
                 <partial name="_WarehouseMapArchitecture" model="Model.Map.Architecture" />
                 <g data-map-layer>
@@ -111,7 +113,7 @@
             }
             else
             {
-                @if(element.Kind=="Rack") { <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><span class="small text-body-secondary">Posiciones físicas</span><a asp-page="Rack/Edit" asp-route-rowCode="@element.RowCode" asp-route-rackNumber="@element.RackNumber" class="btn btn-sm btn-outline-secondary">Editar rack</a></div><div class="map-keypad">@foreach(var pallet in new short[]{7,8,9,4,5,6,1,2,3}) { var position=element.Positions.FirstOrDefault(item=>item.PalletNumber==pallet); if(position is null){<span class="map-position missing"><strong>@pallet</strong><small>No existe</small></span>}else{<button type="button" class="map-position @PositionState(position)" data-map-position="@position.LocationId"><strong>@pallet</strong><small>@position.Code</small><span>@position.ProductCount producto(s)</span></button>} }</div> }
+                @if(element.Kind=="Rack") { <div class="d-flex justify-content-between align-items-center gap-2 mb-2"><span class="small text-body-secondary">Posiciones físicas</span><div class="d-flex flex-wrap gap-1"><a asp-page="Rack/Print" asp-route-rowCode="@element.RowCode" asp-route-rackNumber="@element.RackNumber" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">Imprimir hoja</a><a asp-page="Rack/Edit" asp-route-rowCode="@element.RowCode" asp-route-rackNumber="@element.RackNumber" class="btn btn-sm btn-outline-secondary">Editar rack</a></div></div><div class="map-keypad">@foreach(var pallet in new short[]{7,8,9,4,5,6,1,2,3}) { var position=element.Positions.FirstOrDefault(item=>item.PalletNumber==pallet); if(position is null){<span class="map-position missing"><strong>@pallet</strong><small>No existe</small></span>}else{<button type="button" class="map-position @PositionState(position)" data-map-position="@position.LocationId"><strong>@pallet</strong><small>@position.Code</small><span>@position.ProductCount producto(s)</span></button>} }</div> }
                 @foreach(var position in element.Positions){<div class="map-position-detail" data-position-detail="@position.LocationId" hidden><h3 class="h5">@position.Code</h3><p>@(position.Description??"Sin descripción")</p><div class="d-flex gap-2 flex-wrap mb-2"><span class="badge text-bg-light border">@position.AssignmentCount asignación(es)</span>@if(position.HasNegative){<span class="badge text-bg-danger">Saldo negativo</span>}else if(position.HasInventory){<span class="badge text-bg-primary">Con saldo</span>}else{<span class="badge text-bg-secondary">Sin saldo</span>}</div>@foreach(var product in position.Products){<div class="map-product-row"><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@product.ProductId">@(string.IsNullOrEmpty(product.Sku)?"Producto":product.Sku)</a><span class="@(product.Quantity<0?"text-danger":"")">@product.Quantity.ToString("0.####") @product.Unit</span><small>@(product.IsAssigned?"Asignado":"Sin asignación activa")</small><div class="dropdown"><button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">Operar</button><ul class="dropdown-menu dropdown-menu-end"><li><a class="dropdown-item" asp-page="/Operations/Entry" asp-route-productId="@product.ProductId" asp-route-destinationLocationId="@position.LocationId">Entrada</a></li><li><a class="dropdown-item" asp-page="/Operations/Exit" asp-route-mode="general" asp-route-productId="@product.ProductId" asp-route-sourceLocationId="@position.LocationId">Salida</a></li><li><a class="dropdown-item" asp-page="/Operations/Transfer" asp-route-productId="@product.ProductId" asp-route-sourceLocationId="@position.LocationId">Transferencia</a></li><li><a class="dropdown-item" asp-page="/Operations/Adjustment" asp-route-productId="@product.ProductId" asp-route-locationId="@position.LocationId">Ajuste</a></li></ul></div></div>}<div class="d-flex flex-wrap gap-2 mt-3"><div class="dropdown"><button class="btn btn-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">Nueva operación</button><ul class="dropdown-menu"><li><a class="dropdown-item" asp-page="/Operations/Entry" asp-route-destinationLocationId="@position.LocationId">Entrada</a></li><li><a class="dropdown-item" asp-page="/Operations/Exit" asp-route-mode="general" asp-route-sourceLocationId="@position.LocationId">Salida</a></li><li><a class="dropdown-item" asp-page="/Operations/Transfer" asp-route-sourceLocationId="@position.LocationId">Transferencia</a></li><li><a class="dropdown-item" asp-page="/Operations/Adjustment" asp-route-locationId="@position.LocationId">Ajuste</a></li></ul></div><a asp-page="Details" asp-route-id="@position.LocationId" class="btn btn-outline-secondary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></div>}
             }
             </section>
@@ -122,11 +124,13 @@
 }
 else if(Model.ViewMode=="racks")
 {
-    <div class="rack-filter-bar mb-3" aria-label="Filtro operativo de racks">
-        @foreach(var filter in new[]{("all","Todos"),("occupied","Con saldo"),("empty","Sin saldo"),("issues","Con incidencias")}){<a class="btn @(Model.RackFilter==filter.Item1?"btn-primary":"btn-outline-secondary")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="rack" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks" asp-route-rackFilter="@filter.Item1">@filter.Item2</a>}
+    <div class="rack-filter-bar mb-3" role="group" aria-label="Filtrar racks">
+        @foreach(var filter in new[]{("all","Todos"),("occupied","Con saldo"),("empty","Sin saldo"),("issues","Con incidencias")}){<a class="rack-filter rack-filter-@filter.Item1 @(Model.RackFilter==filter.Item1?"is-active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="rack" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks" asp-route-rackFilter="@filter.Item1" aria-current="@(Model.RackFilter==filter.Item1?"true":null)">@filter.Item2</a>}
     </div>
-    <div class="rack-legend mb-3" aria-label="Leyenda de estados"><span class="rack-legend-item occupied">Con saldo</span><span class="rack-legend-item empty">Sin saldo</span><span class="rack-legend-item negative">Saldo negativo</span><span class="rack-legend-item blocked">Bloqueada</span><span class="rack-legend-item inactive">Inactiva</span></div>
-    @if(Model.LayoutRacks.Count==0){<div class="card card-body text-center text-muted py-5">No hay racks que coincidan.</div>}
+    @if(Model.LayoutRacks.Count==0)
+    {
+        <div class="locations-empty"><p class="locations-empty-title">Ningún rack coincide con estos filtros.</p><p>Cambia el estado, quita la fila o limpia la búsqueda para ver el almacén completo.</p><a asp-page="Index" asp-route-viewMode="racks" class="btn btn-outline-primary btn-lg">Ver todos los racks</a></div>
+    }
     else
     {
         <div class="rack-view-shell" data-rack-view>
@@ -134,34 +138,55 @@ else if(Model.ViewMode=="racks")
             @foreach(var rowGroup in Model.LayoutRacks.GroupBy(rack => rack.RowCode))
             {
                 var racks = rowGroup.ToArray(); var positions = racks.SelectMany(rack => rack.Positions).OfType<IndexModel.LocationRow>().ToArray();
-                <section class="rack-row-section mb-4"><header class="rack-row-header"><div><h2 class="h4 mb-1">Fila @rowGroup.Key</h2><span>@racks.Length rack(s) · @positions.Length posiciones</span></div><div class="rack-row-metrics"><span><strong>@positions.Count(position=>position.HasInventory)</strong> con saldo</span><span><strong>@positions.Count(position=>!position.HasInventory)</strong> sin saldo</span><span><strong>@positions.Count(position=>position.HasIssue)</strong> incidencias</span></div></header><div class="rack-layout-list">
-                @foreach(var rack in racks)
-                {
-                    <article class="rack-card rack-@rack.RackState"><header><div><span>Rack</span><h3 class="h5 mb-0">@rack.RowCode-@rack.RackNumber</h3></div><div class="d-flex align-items-center gap-2"><span class="rack-count">@rack.OccupiedCount/@rack.PositionCount con saldo</span><a asp-page="Rack/Edit" asp-route-rowCode="@rack.RowCode" asp-route-rackNumber="@rack.RackNumber" class="btn btn-sm btn-outline-secondary">Editar</a></div></header><div class="rack-keypad">
-                    @foreach(var position in rack.Positions)
+                var issueCount = positions.Count(position=>position.HasIssue);
+                <section class="rack-row-section">
+                    <header class="rack-row-header">
+                        <div class="rack-row-id"><span>Fila</span><h2 class="rack-row-letter">@rowGroup.Key</h2></div>
+                        <div class="rack-row-metrics">
+                            <span><strong>@racks.Length</strong> racks</span>
+                            <span><strong>@positions.Count(position=>position.HasInventory)</strong> con saldo</span>
+                            <span><strong>@positions.Count(position=>!position.HasInventory)</strong> sin saldo</span>
+                            <span class="@(issueCount>0?"is-issue":"")"><strong>@issueCount</strong> incidencias</span>
+                        </div>
+                    </header>
+                    <div class="rack-bay-list">
+                    @foreach(var rack in racks)
                     {
-                        @if(position is null){<div class="location-slot missing" aria-label="Posición inexistente"><span>No existe</span></div>}
-                        else
-                        {
-                            var primaryBalance = position.Balances.FirstOrDefault();
-                            <a asp-page="Details" asp-route-id="@position.Id" class="location-slot @position.RackState" title="Abrir @position.Code" data-rack-open="@position.Id" aria-controls="rack-detail-@position.Id">
-                                <strong>@position.PalletNumber</strong><small>@position.Code</small><span class="rack-slot-state">@RackStateLabel(position.RackState)</span>
-                                @if(primaryBalance is not null){<span class="sku-chip">@primaryBalance.Sku</span>@if(position.Balances.Count>1){<span class="sku-more">+@(position.Balances.Count-1) producto(s)</span>}}
-                                else if(position.ProductCount>0){<span class="sku-chip">@position.Skus.FirstOrDefault()</span><span class="sku-more">Asignado sin saldo</span>}
-                            </a>
-                        }
+                        <article class="rack-bay rack-@rack.RackState">
+                            <header class="rack-bay-header">
+                                <div class="rack-bay-id"><span>Rack</span><h3 class="rack-bay-code">@rack.RowCode-@rack.RackNumber</h3></div>
+                                <p class="rack-bay-fill"><strong>@rack.OccupiedCount</strong>/@rack.PositionCount<span>con saldo</span></p>
+                                <div class="rack-bay-actions"><a asp-page="Rack/Print" asp-route-rowCode="@rack.RowCode" asp-route-rackNumber="@rack.RackNumber" class="btn btn-sm btn-outline-primary" target="_blank" rel="noopener">Imprimir</a><a asp-page="Rack/Edit" asp-route-rowCode="@rack.RowCode" asp-route-rackNumber="@rack.RackNumber" class="btn btn-sm btn-outline-secondary">Editar</a></div>
+                            </header>
+                            <div class="rack-bay-frame">
+                            @foreach(var position in rack.Positions)
+                            {
+                                @if(position is null){<div class="bay-slot bay-missing"><span class="bay-pallet" aria-hidden="true">·</span><span class="bay-note">Sin posición</span></div>}
+                                else
+                                {
+                                    var primaryBalance = position.Balances.FirstOrDefault();
+                                    <a asp-page="Details" asp-route-id="@position.Id" class="bay-slot bay-@position.RackState" data-rack-open="@position.Id" aria-controls="rack-detail-@position.Id" aria-label="@position.Code, @RackStateLabel(position.RackState)">
+                                        <span class="bay-head"><strong class="bay-pallet">@position.PalletNumber</strong><span class="bay-code">@position.Code</span></span>
+                                        @if(position.RackState is "negative" or "blocked" or "inactive"){<span class="bay-flag"><svg class="app-icon" aria-hidden="true"><use href="#icon-alert" /></svg>@RackStateLabel(position.RackState)</span>}
+                                        @if(primaryBalance is not null){<span class="sku-chip">@primaryBalance.Sku</span>@if(position.Balances.Count>1){<span class="sku-more">+@(position.Balances.Count-1) producto(s)</span>}}
+                                        else if(position.ProductCount>0){<span class="sku-chip">@position.Skus.FirstOrDefault()</span><span class="sku-more">Asignado sin saldo</span>}
+                                        else{<span class="bay-note">Sin saldo</span>}
+                                    </a>
+                                }
+                            }
+                            </div>
+                        </article>
                     }
-                    </div></article>
-                }
-                </div></section>
+                    </div>
+                </section>
             }
             </div>
             <aside class="rack-detail-panel" aria-live="polite"><div class="rack-detail-placeholder"><h2 class="h5">Selecciona una posición</h2><p>Consulta saldos, asignaciones y movimientos sin salir de la fila.</p></div>
             @foreach(var position in Model.Locations.Where(location=>location.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack))
             {
                 <section id="rack-detail-@position.Id" class="rack-position-detail" data-rack-detail="@position.Id" hidden><div class="d-flex justify-content-between gap-2"><div><span class="text-body-secondary">Ubicación</span><h2 class="h4 mb-1">@position.Code</h2><span class="badge text-bg-light border">@RackStateLabel(position.RackState)</span></div><button type="button" class="btn-close" data-rack-close aria-label="Cerrar detalle"></button></div>
-                @if(position.IsBlocked){<p class="alert alert-warning py-2 mt-3 mb-2"><strong>Bloqueada.</strong> @position.BlockReason</p>}else if(!position.IsActive){<p class="alert alert-secondary py-2 mt-3 mb-2"><strong>Inactiva.</strong></p>}
-                <h3 class="h6 mt-3">Saldos actuales</h3>@if(position.Balances.Count==0){<p class="text-body-secondary">Sin saldo registrado.</p>}else{<div class="rack-balance-list">@foreach(var balance in position.Balances){<div><div><strong>@balance.Sku</strong><small>@(balance.Description??"Sin descripción") · @(balance.IsAssigned?"Asignado":"Sin asignación activa")</small></div><span class="@(balance.Quantity<0?"text-danger":"")">@balance.Quantity.ToString("0.####") @balance.Unit</span></div>}</div>}
+                @if(position.IsBlocked){<p class="alert alert-warning py-2 mt-3 mb-2"><strong>Bloqueada.</strong> @position.BlockReason</p>}else if(!position.IsActive){<p class="alert alert-secondary py-2 mt-3 mb-2"><strong>Inactiva.</strong> Actívala desde la tabla administrativa para volver a operarla.</p>}
+                <h3 class="h6 mt-3">Saldos actuales</h3>@if(position.Balances.Count==0){<p class="text-body-secondary">Sin saldo registrado. Registra una entrada para empezar a usar la posición.</p>}else{<div class="rack-balance-list">@foreach(var balance in position.Balances){<div><div><strong>@balance.Sku</strong><small>@(balance.Description??"Sin descripción") · @(balance.IsAssigned?"Asignado":"Sin asignación activa")</small></div><span class="@(balance.Quantity<0?"text-danger":"")">@balance.Quantity.ToString("0.####") @balance.Unit</span></div>}</div>}
                 <div class="d-flex flex-wrap gap-2 mt-3"><a asp-page="Details" asp-route-id="@position.Id" class="btn btn-primary">Ficha</a><a asp-page="/Inventory/Index" asp-route-locationId="@position.Id" class="btn btn-outline-secondary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@position.Code" class="btn btn-outline-secondary">Movimientos</a></div></section>
             }
             </aside>
@@ -170,9 +195,18 @@ else if(Model.ViewMode=="racks")
 }
 else
 {
-    <div class="table-responsive"><table class="table table-striped align-middle inventory-list"><thead><tr><th>Código</th><th>Tipo / posición</th><th>Productos asignados</th><th>Estado</th><th class="text-end">Acciones</th></tr></thead><tbody>
-    @if(Model.Locations.Count==0){<tr><td colspan="5" class="text-center text-muted py-4">No hay ubicaciones que coincidan.</td></tr>}
-    @foreach(var item in Model.Locations){<tr><td><a asp-page="Details" asp-route-id="@item.Id" class="fw-bold">@item.Code</a>@if(item.Description is not null){<div class="small text-muted">@item.Description</div>}</td><td>@(item.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack?$"Fila {item.RowCode}, rack {item.RackNumber}, pallet {item.PalletNumber}":"Área especial")</td><td>@foreach(var sku in item.Skus){<span class="badge text-bg-light border me-1">@sku</span>}@if(item.ProductCount>item.Skus.Count){<span class="badge text-bg-secondary">+@(item.ProductCount-item.Skus.Count)</span>}@if(item.ProductCount==0){<span class="text-muted">Sin asignar</span>}</td><td>@if(!item.IsPhysicallyPresent){<span class="badge text-bg-dark">Retirada</span>}else if(!item.IsActive){<span class="badge text-bg-secondary">Inactiva</span>}else if(item.IsBlocked){<span class="badge text-bg-warning">Bloqueada</span><div class="small">@item.BlockReason</div>}else{<span class="badge text-bg-success">Disponible</span>}</td><td class="text-end"><div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Acciones</button><ul class="dropdown-menu dropdown-menu-end"><li><a asp-page="Details" asp-route-id="@item.Id" class="dropdown-item">Ver productos</a></li>@if(item.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack){<li><a asp-page="Rack/Edit" asp-route-rowCode="@item.RowCode" asp-route-rackNumber="@item.RackNumber" class="dropdown-item">Editar rack</a></li>}else{<li><a asp-page="Area" asp-route-locationId="@item.Id" class="dropdown-item">Editar área</a></li>}@if(item.IsPhysicallyPresent){<li><hr class="dropdown-divider"/></li>@if(item.IsActive&&!item.IsBlocked){<li><button type="button" class="dropdown-item text-warning block-location" data-bs-toggle="modal" data-bs-target="#blockModal" data-location-id="@item.Id" data-location-code="@item.Code">Bloquear</button></li>}else if(item.IsBlocked){<li><form method="post" asp-page-handler="Unblock"><input type="hidden" name="id" value="@item.Id"/><button class="dropdown-item text-success">Desbloquear</button></form></li>}<li><form method="post" asp-page-handler="Toggle"><input type="hidden" name="id" value="@item.Id"/><button class="dropdown-item">@(item.IsActive?"Desactivar":"Activar")</button></form></li>}</ul></div></td></tr>}
+    <div class="table-responsive"><table class="table align-middle inventory-list location-table"><thead><tr><th scope="col">Ubicación</th><th scope="col">Posición física</th><th scope="col">Productos asignados</th><th scope="col">Estado</th><th scope="col" class="text-end">Acciones</th></tr></thead><tbody>
+    @if(Model.Locations.Count==0){<tr><td colspan="5"><div class="locations-empty"><p class="locations-empty-title">Ninguna ubicación coincide con estos filtros.</p><p>Cambia el estado, quita la fila o limpia la búsqueda para ver el catálogo completo.</p><a asp-page="Index" asp-route-viewMode="table" class="btn btn-outline-primary btn-lg">Ver todas las ubicaciones</a></div></td></tr>}
+    @foreach(var item in Model.Locations)
+    {
+        <tr class="location-row location-row-@AdminState(item)">
+            <td data-label="Ubicación"><a asp-page="Details" asp-route-id="@item.Id" class="location-code">@item.Code</a>@if(item.Description is not null){<span class="location-desc">@item.Description</span>}</td>
+            <td data-label="Posición física">@if(item.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack){<span class="pos-triple"><span><small>Fila</small><strong>@item.RowCode</strong></span><span><small>Rack</small><strong>@item.RackNumber</strong></span><span><small>Pallet</small><strong>@item.PalletNumber</strong></span></span>}else{<span class="pos-area">Área especial</span>}</td>
+            <td data-label="Productos asignados">@if(item.ProductCount==0){<span class="text-body-secondary">Sin asignar</span>}else{<span class="sku-list">@foreach(var sku in item.Skus){<span class="sku-chip">@sku</span>}@if(item.ProductCount>item.Skus.Count){<span class="sku-more">+@(item.ProductCount-item.Skus.Count) más</span>}</span>}</td>
+            <td data-label="Estado">@if(!item.IsPhysicallyPresent){<span class="state-tag state-retired">Retirada</span>}else if(!item.IsActive){<span class="state-tag state-inactive">Inactiva</span>}else if(item.IsBlocked){<span class="state-tag state-blocked"><svg class="app-icon" aria-hidden="true"><use href="#icon-alert" /></svg>Bloqueada</span><span class="state-reason">@item.BlockReason</span>}else{<span class="state-tag state-available">Disponible</span>}</td>
+            <td data-label="Acciones" class="text-end"><div class="dropdown"><button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Acciones</button><ul class="dropdown-menu dropdown-menu-end"><li><a asp-page="Details" asp-route-id="@item.Id" class="dropdown-item">Ver productos</a></li>@if(item.Kind==WarehouseEPI.Core.Entities.LocationKind.Rack){<li><a asp-page="Rack/Edit" asp-route-rowCode="@item.RowCode" asp-route-rackNumber="@item.RackNumber" class="dropdown-item">Editar rack</a></li>}else{<li><a asp-page="Area" asp-route-locationId="@item.Id" class="dropdown-item">Editar área</a></li>}@if(item.IsPhysicallyPresent){<li><hr class="dropdown-divider"/></li>@if(item.IsActive&&!item.IsBlocked){<li><button type="button" class="dropdown-item text-warning block-location" data-bs-toggle="modal" data-bs-target="#blockModal" data-location-id="@item.Id" data-location-code="@item.Code">Bloquear</button></li>}else if(item.IsBlocked){<li><form method="post" asp-page-handler="Unblock"><input type="hidden" name="id" value="@item.Id"/><button class="dropdown-item text-success">Desbloquear</button></form></li>}<li><form method="post" asp-page-handler="Toggle"><input type="hidden" name="id" value="@item.Id"/><button class="dropdown-item">@(item.IsActive?"Desactivar":"Activar")</button></form></li>}</ul></div></td>
+        </tr>
+    }
     </tbody></table></div>
     @if(Model.TotalPages>1){<nav aria-label="Paginación"><ul class="pagination justify-content-center flex-wrap"><li class="page-item @(Model.CurrentPage<=1?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(1)">Primera</a></li><li class="page-item @(Model.CurrentPage<=1?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(Model.CurrentPage-1)">Anterior</a></li>@foreach(var pageNumber in Model.VisiblePages){<li class="page-item @(pageNumber==Model.CurrentPage?"active":"")"><a class="page-link" asp-all-route-data="@RouteValues(pageNumber)">@pageNumber</a></li>}<li class="page-item @(Model.CurrentPage>=Model.TotalPages?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(Model.CurrentPage+1)">Siguiente</a></li><li class="page-item @(Model.CurrentPage>=Model.TotalPages?"disabled":"")"><a class="page-link" asp-all-route-data="@RouteValues(Model.TotalPages)">Última</a></li></ul></nav>}
 }
@@ -189,5 +223,6 @@ else
     private static string PositionState(WarehouseMapPosition item) => item.HasNegative?"negative":!item.IsActive?"inactive":item.IsBlocked?"blocked":item.HasInventory?"occupied":"available";
     private static string StateLabel(string state) => state switch{"negative"=>"saldo negativo","inactive"=>"inactivo","blocked"=>"bloqueado","occupied"=>"con inventario",_=>"disponible"};
     private static string RackStateLabel(string state) => state switch{"negative"=>"Saldo negativo","inactive"=>"Inactiva","blocked"=>"Bloqueada","occupied"=>"Con saldo",_=>"Sin saldo"};
+    private static string AdminState(IndexModel.LocationRow item) => !item.IsPhysicallyPresent?"retired":!item.IsActive?"inactive":item.IsBlocked?"blocked":"available";
 }
 @section Scripts { <script src="~/js/warehouse-map-query.js" asp-append-version="true"></script><script src="~/js/rack-view.js" asp-append-version="true"></script> }

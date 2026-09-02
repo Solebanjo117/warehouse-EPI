@@ -51,7 +51,35 @@ public sealed class CycleCountRouteTests
         };
         var accepted = await resent.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default);
 
-        Assert.Equal("Review", Assert.IsType<RedirectToPageResult>(accepted).PageName);
+        var redirect = Assert.IsType<RedirectToPageResult>(accepted);
+        Assert.Equal("Details", redirect.PageName);
+        Assert.Equal(fixture.CycleCountLocationId, redirect.RouteValues!["submittedLocationId"]);
+        Assert.Equal(CycleCountLocationStatus.Completed, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
+    }
+
+    [Fact]
+    public async Task A_legacy_open_attempt_can_be_continued_and_submitted_once()
+    {
+        await using var fixture = await CapturePage.CreateAsync("CC-PAGE-LEGACY", "Z-1-3", "4313");
+        var attempt = await fixture.StartLegacyAttemptAsync();
+        var page = fixture.NewPage();
+
+        Assert.IsType<PageResult>(await page.OnGetAsync(fixture.CampaignId, fixture.CycleCountLocationId, attempt, default));
+        Assert.Equal(attempt, page.Input.AttemptId);
+
+        var operationId = Guid.NewGuid();
+        var post = fixture.NewPage();
+        post.Input = new()
+        {
+            AttemptId = attempt,
+            OperationId = operationId,
+            Pin = fixture.Pin,
+            Entries = [new() { ProductId = fixture.ProductId, Quantity = 6m }]
+        };
+        var accepted = await post.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default);
+
+        Assert.Equal("Details", Assert.IsType<RedirectToPageResult>(accepted).PageName);
+        Assert.Equal(operationId, (await fixture.Db.CycleCountAttempts.SingleAsync()).SubmissionOperationId);
         Assert.Equal(CycleCountLocationStatus.Completed, (await fixture.Db.CycleCountLocations.SingleAsync()).Status);
     }
 
@@ -125,6 +153,13 @@ public sealed class CycleCountRouteTests
             PageContext = new(new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor(), new ModelStateDictionary()))
         };
 
+        public async Task<Guid> StartLegacyAttemptAsync()
+        {
+            var result = await cycleCounts.StartAttemptAsync(CycleCountLocationId, Guid.NewGuid(), Pin);
+            Assert.Equal(CycleCountStatus.Success, result.Status);
+            return result.AttemptId!.Value;
+        }
+
         public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 
@@ -137,16 +172,20 @@ public sealed class CycleCountRouteTests
         var details = File.ReadAllText(Path.Combine(directory, "Details.cshtml"));
         var count = File.ReadAllText(Path.Combine(directory, "Count.cshtml"));
         var review = File.ReadAllText(Path.Combine(directory, "Review.cshtml"));
+        var batchReview = File.ReadAllText(Path.Combine(directory, "BatchReview.cshtml"));
 
         Assert.All(pageModels, content => Assert.DoesNotContain("[Authorize", content, StringComparison.Ordinal));
         Assert.Contains("type=\"password\"", details, StringComparison.Ordinal);
         Assert.Contains("type=\"password\"", count, StringComparison.Ordinal);
-        Assert.Contains("type=\"password\"", review, StringComparison.Ordinal);
+        Assert.DoesNotContain("type=\"password\"", review, StringComparison.Ordinal);
+        Assert.Contains("type=\"password\"", batchReview, StringComparison.Ordinal);
         Assert.Contains("OperationId", count, StringComparison.Ordinal);
-        Assert.Contains("OperationId", review, StringComparison.Ordinal);
+        Assert.Contains("OperationId", batchReview, StringComparison.Ordinal);
         Assert.Contains("UnexpectedEntries", count, StringComparison.Ordinal);
         Assert.Contains("cycle-count.js", count, StringComparison.Ordinal);
-        Assert.Contains("SharedApprovals", review, StringComparison.Ordinal);
+        Assert.Contains("SharedApprovals", batchReview, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-page-handler=\"Start\"", details, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"Count\"", details, StringComparison.Ordinal);
         Assert.DoesNotContain("asp-antiforgery=\"false\"", string.Join('\n', Directory.GetFiles(directory, "*.cshtml").Select(File.ReadAllText)), StringComparison.Ordinal);
     }
 
@@ -167,6 +206,8 @@ public sealed class CycleCountRouteTests
         Assert.Contains("`Input.UnexpectedEntries[${index}].${field}`", script, StringComparison.Ordinal);
         Assert.Contains("data-cycle-unexpected-row", page, StringComparison.Ordinal);
         Assert.Contains("data-cycle-campaign", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("form.addEventListener(\"submit\", discardDraft)", script, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-submitted-location", File.ReadAllText(Path.Combine(RepositoryDirectory("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts"), "Details.cshtml")), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -221,6 +262,8 @@ public sealed class CycleCountRouteTests
         Assert.Contains("LocationStatusLabel", details, StringComparison.Ordinal);
         Assert.Contains("ActiveAttemptId", details, StringComparison.Ordinal);
         Assert.Contains("Continuar conteo", details, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-filter=\"pending\"", details, StringComparison.Ordinal);
+        Assert.Contains("Ir a la siguiente pendiente", details, StringComparison.Ordinal);
         Assert.Contains("d-lg-none", index, StringComparison.Ordinal);
         Assert.Contains("name=\"from\"", index, StringComparison.Ordinal);
         Assert.Contains("name=\"to\"", index, StringComparison.Ordinal);
@@ -246,6 +289,12 @@ public sealed class CycleCountRouteTests
 
     private static string RepositoryFile(params string[] parts)
     {
+        var configuredRoot = Environment.GetEnvironmentVariable("WAREHOUSE_EPI_REPOSITORY_ROOT");
+        if (!string.IsNullOrWhiteSpace(configuredRoot))
+        {
+            var configuredCandidate = Path.Combine([configuredRoot, .. parts]);
+            if (File.Exists(configuredCandidate)) return configuredCandidate;
+        }
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {

@@ -14,6 +14,8 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], [], false, null, "IMPERIAL");
+    public decimal PublishedCanvasWidth { get; private set; } = WarehouseMapService.DefaultCanvasWidth;
+    public decimal PublishedCanvasHeight { get; private set; } = WarehouseMapService.DefaultCanvasHeight;
     public string? PreviewToken { get; private set; }
     public IReadOnlyList<WarehouseMapRevisionView> Revisions { get; private set; } = [];
     [TempData] public string? Message { get; set; }
@@ -21,6 +23,8 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
     public async Task OnGetAsync(CancellationToken token)
     {
         Map = await maps.GetAsync(true, token);
+        PublishedCanvasWidth = Map.CanvasWidth;
+        PublishedCanvasHeight = Map.CanvasHeight;
         await referenceStorage.CleanupExpiredAsync(token);
         await referenceStorage.CleanupUnreferencedAsync((Map.ActiveReference is null ? [] : new[] { Map.ActiveReference })
             .Concat(Map.ArchivedReferences ?? []).Select(item => item.StoredFileName).ToArray(), TimeSpan.FromDays(1), token);
@@ -33,7 +37,9 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
             ReferenceImageJson = JsonSerializer.Serialize((Map.ActiveReference is null ? [] : new[] { Map.ActiveReference })
                 .Concat(Map.ArchivedReferences ?? [])),
             ScaleUnitsPerInch = Map.ScaleUnitsPerInch,
-            MeasurementSystem = Map.MeasurementSystem
+            MeasurementSystem = Map.MeasurementSystem,
+            CanvasWidth = Map.CanvasWidth,
+            CanvasHeight = Map.CanvasHeight
         };
         if (!Map.IsInitialized) PreviewToken = previews.Save(CurrentUserId()).Token; else Revisions = await maps.GetRevisionsAsync(token: token);
     }
@@ -48,7 +54,8 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var layers = DeserializeLayers();
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
         var result = await maps.InitializeAsync(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry,
-            layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
+            layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem,
+            Input.CanvasWidth, Input.CanvasHeight, token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         return await CompleteAsync(result, "Croquis inicial confirmado.", token);
     }
 
@@ -63,7 +70,8 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var references = await PrepareReferencesAsync(promote: true, token);
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
         var result = await maps.SaveAsync(new(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry,
-            layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, references), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
+            layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, references,
+            Input.CanvasWidth, Input.CanvasHeight), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         return await CompleteAsync(result, "Cambios del croquis guardados.", token);
     }
 
@@ -78,7 +86,8 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         if (!ModelState.IsValid)
             return new JsonResult(new { errors = ModelState.Values.SelectMany(item => item.Errors).Select(item => item.ErrorMessage) }) { StatusCode = 400 };
         var review = await maps.ReviewAsync(new(Input.OperationId, CurrentUserId(), string.Empty, Input.Reason,
-            geometry, layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, references), token);
+            geometry, layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, references,
+            Input.CanvasWidth, Input.CanvasHeight), token);
         return new JsonResult(review) { StatusCode = review.Errors.Count == 0 ? 200 : 400 };
     }
 
@@ -136,7 +145,10 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
 
     private async Task ReloadAsync(CancellationToken token)
     {
-        Map = await maps.GetAsync(true, token); if (!Map.IsInitialized) PreviewToken = previews.Save(CurrentUserId()).Token; else Revisions = await maps.GetRevisionsAsync(token: token);
+        Map = await maps.GetAsync(true, token); PublishedCanvasWidth = Map.CanvasWidth; PublishedCanvasHeight = Map.CanvasHeight; if (!Map.IsInitialized) PreviewToken = previews.Save(CurrentUserId()).Token; else Revisions = await maps.GetRevisionsAsync(token: token);
+        if (Input.CanvasWidth >= Map.CanvasWidth && Input.CanvasWidth <= WarehouseMapService.MaximumCanvasWidth
+            && Input.CanvasHeight >= Map.CanvasHeight && Input.CanvasHeight <= WarehouseMapService.MaximumCanvasHeight)
+            Map = Map with { CanvasWidth = Input.CanvasWidth, CanvasHeight = Input.CanvasHeight };
         if (!string.IsNullOrWhiteSpace(Input.GeometryJson))
         {
             try { var draft = (JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []).ToDictionary(item => item.Id); Map = Map with { Elements = Map.Elements.Select(item => ApplyGeometry(item, draft)).ToArray(), Unplaced = Map.Unplaced.Select(item => ApplyGeometry(item, draft)).ToArray() }; } catch (JsonException) { Input.GeometryJson = string.Empty; }
@@ -243,5 +255,5 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         new(item.Id, item.LayerCode, item.Kind, item.Label, item.X, item.Y, item.Width, item.Height, item.Rotation,
             item.CornerRadius, item.Points, item.StrokeToken, item.FillToken, item.StrokeWidth, item.IsDashed,
             item.ZIndex, item.IsLocked, item.GroupId, item.IsArchived);
-    public sealed class InputModel { public Guid OperationId { get; set; } public string GeometryJson { get; set; } = "[]"; public string ArchitectureJson { get; set; } = "[]"; public string LayerStateJson { get; set; } = "[]"; public string ReferenceImageJson { get; set; } = "[]"; public Guid? ReferenceUploadToken { get; set; } public decimal? ScaleUnitsPerInch { get; set; } public string MeasurementSystem { get; set; } = "IMPERIAL"; public string? Reason { get; set; } public string Pin { get; set; } = string.Empty; }
+    public sealed class InputModel { public Guid OperationId { get; set; } public string GeometryJson { get; set; } = "[]"; public string ArchitectureJson { get; set; } = "[]"; public string LayerStateJson { get; set; } = "[]"; public string ReferenceImageJson { get; set; } = "[]"; public Guid? ReferenceUploadToken { get; set; } public decimal? ScaleUnitsPerInch { get; set; } public string MeasurementSystem { get; set; } = "IMPERIAL"; public decimal CanvasWidth { get; set; } = WarehouseMapService.DefaultCanvasWidth; public decimal CanvasHeight { get; set; } = WarehouseMapService.DefaultCanvasHeight; public string? Reason { get; set; } public string Pin { get; set; } = string.Empty; }
 }

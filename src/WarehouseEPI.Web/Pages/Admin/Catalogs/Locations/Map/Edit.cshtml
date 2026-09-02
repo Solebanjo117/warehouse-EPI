@@ -16,7 +16,12 @@
     <div class="alert alert-info"><strong>Plano compatible sin persistir.</strong> El fondo actual se conservará como arquitectura auditada al guardar esta revisión.</div>
 }
 
-<div class="map-editor" data-map-editor data-initialized="@Model.Map.IsInitialized.ToString().ToLowerInvariant()">
+<div class="map-editor" data-map-editor data-initialized="@Model.Map.IsInitialized.ToString().ToLowerInvariant()"
+     data-canvas-width="@Model.Map.CanvasWidth.ToString(CultureInfo.InvariantCulture)"
+     data-canvas-height="@Model.Map.CanvasHeight.ToString(CultureInfo.InvariantCulture)"
+     data-min-canvas-width="@Model.PublishedCanvasWidth.ToString(CultureInfo.InvariantCulture)"
+     data-min-canvas-height="@Model.PublishedCanvasHeight.ToString(CultureInfo.InvariantCulture)"
+     data-max-canvas-width="6400" data-max-canvas-height="3600">
     <div class="map-editor-toolbar">
         <div class="btn-group map-editor-tools" role="group" aria-label="Herramientas de plano">
             <button type="button" class="btn btn-primary active" data-editor-tool="select" aria-pressed="true">Seleccionar</button>
@@ -87,7 +92,7 @@
     <div class="row g-3">
         <div class="col-xl-9">
             <div class="warehouse-map-viewport editor-viewport">
-                <svg class="warehouse-map editor-canvas" viewBox="0 0 1600 900" data-editor-svg aria-label="Editor del croquis del almacén">
+                <svg class="warehouse-map editor-canvas" viewBox="0 0 @Model.Map.CanvasWidth.ToString(CultureInfo.InvariantCulture) @Model.Map.CanvasHeight.ToString(CultureInfo.InvariantCulture)" data-editor-svg aria-label="Editor del croquis del almacén">
                     <defs>
                         <pattern id="warehouse-map-editor-grid" width="25" height="25" patternUnits="userSpaceOnUse" data-editor-grid-pattern>
                             <path d="M 25 0 L 0 0 0 25" class="editor-grid-line" />
@@ -108,7 +113,7 @@
                                    height="@reference.Height.ToString(CultureInfo.InvariantCulture)" preserveAspectRatio="none" />
                         </g>
                     }
-                    <rect class="editor-grid" width="1600" height="900" fill="url(#warehouse-map-editor-grid)" data-editor-grid />
+                    <rect class="editor-grid" width="@Model.Map.CanvasWidth.ToString(CultureInfo.InvariantCulture)" height="@Model.Map.CanvasHeight.ToString(CultureInfo.InvariantCulture)" fill="url(#warehouse-map-editor-grid)" data-editor-grid />
                     <partial name="/Pages/Admin/Catalogs/Locations/_WarehouseMapArchitecture.cshtml" model="Model.Map.Architecture" />
                     <g data-editor-layer data-architecture-layer="OPERATIONS">
                     @foreach (var element in Model.Map.Elements.Concat(Model.Map.Unplaced))
@@ -127,6 +132,13 @@
                     </g>
                     <g class="editor-guides" data-editor-guides></g>
                     <g class="editor-selection" data-editor-selection></g>
+                    <g class="editor-canvas-resize" data-editor-canvas-resize tabindex="0" role="button"
+                       aria-label="Agrandar lienzo. Usa las flechas derecha y abajo o arrastra la esquina."
+                       transform="translate(@Model.Map.CanvasWidth.ToString(CultureInfo.InvariantCulture) @Model.Map.CanvasHeight.ToString(CultureInfo.InvariantCulture))">
+                        <rect class="editor-canvas-resize-hit" x="-44" y="-44" width="44" height="44" rx="8" />
+                        <path d="M -30 -8 L -8 -30 M -20 -8 L -8 -20" aria-hidden="true" />
+                        <text x="-50" y="-50" text-anchor="end" data-editor-canvas-size>@Model.Map.CanvasWidth.ToString("0") × @Model.Map.CanvasHeight.ToString("0")</text>
+                    </g>
                 </svg>
             </div>
             <div class="map-editor-viewport-controls" aria-label="Navegación del plano">
@@ -151,8 +163,8 @@
                         <div class="col-6" data-property-group="rectangle"><label class="form-label" for="map-property-radius">Radio</label><input id="map-property-radius" class="form-control" type="number" step="1" min="0" data-property="radius" /></div>
                         <div class="col-6" data-property-group="single"><label class="form-label" for="map-property-rotation">Rotación</label><select id="map-property-rotation" class="form-select" data-property="rotation"><option>0</option><option>90</option><option>180</option><option>270</option></select></div>
                         <div class="col-12" data-property-group="text"><label class="form-label" for="map-property-label">Texto</label><input id="map-property-label" class="form-control" maxlength="120" data-property="label" /></div>
-                        <div class="col-6"><label class="form-label" for="map-property-stroke">Trazo</label><select id="map-property-stroke" class="form-select" data-property="strokeToken"><option value="NONE">Ninguno</option><option value="SECONDARY">Neutro</option><option value="PRIMARY">Principal</option><option value="INFO">Informativo</option><option value="WARNING">Advertencia</option><option value="SUCCESS">Confirmación</option></select></div>
-                        <div class="col-6"><label class="form-label" for="map-property-fill">Relleno</label><select id="map-property-fill" class="form-select" data-property="fillToken"><option value="NONE">Ninguno</option><option value="SECONDARY">Neutro</option><option value="PRIMARY">Principal</option><option value="INFO">Informativo</option><option value="WARNING">Advertencia</option><option value="SUCCESS">Confirmación</option></select></div>
+                        <div class="col-6"><label class="form-label" for="map-property-stroke">Trazo</label><select id="map-property-stroke" class="form-select" data-property="strokeToken"><option value="" disabled>Varios</option><option value="NONE">Ninguno</option><option value="SECONDARY">Neutro</option><option value="PRIMARY">Principal</option><option value="INFO">Informativo</option><option value="WARNING">Advertencia</option><option value="SUCCESS">Confirmación</option></select></div>
+                        <div class="col-6"><label class="form-label" for="map-property-fill">Relleno</label><select id="map-property-fill" class="form-select" data-property="fillToken"><option value="" disabled>Varios</option><option value="NONE">Ninguno</option><option value="SECONDARY">Neutro</option><option value="PRIMARY">Principal</option><option value="INFO">Informativo</option><option value="WARNING">Advertencia</option><option value="SUCCESS">Confirmación</option></select></div>
                         <div class="col-6"><label class="form-label" for="map-property-stroke-width">Grosor</label><input id="map-property-stroke-width" class="form-control" type="number" min="0" max="12" step="0.5" data-property="strokeWidth" /></div>
                         <div class="col-6 d-flex align-items-end"><label class="form-check mb-2"><input class="form-check-input" type="checkbox" data-property="dashed" /> <span class="form-check-label">Discontinua</span></label></div>
                     </div>
@@ -283,6 +295,8 @@
                     <input asp-for="Input.ReferenceUploadToken" type="hidden" data-editor-reference-token />
                     <input asp-for="Input.ScaleUnitsPerInch" type="hidden" data-editor-scale />
                     <input asp-for="Input.MeasurementSystem" type="hidden" data-editor-measurement-field />
+                    <input asp-for="Input.CanvasWidth" type="hidden" data-editor-canvas-width />
+                    <input asp-for="Input.CanvasHeight" type="hidden" data-editor-canvas-height />
                     <div class="mb-3"><label asp-for="Input.Reason" class="form-label">Motivo (opcional)</label><textarea asp-for="Input.Reason" class="form-control" maxlength="500"></textarea></div>
                     @if (Model.Map.IsInitialized)
                     {

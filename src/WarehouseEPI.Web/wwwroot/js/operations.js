@@ -82,6 +82,249 @@
     return devices[(currentIndex + 1 + devices.length) % devices.length].deviceId;
   };
 
+  const createCameraScanner = ({ element, onCode, onAccepted, onClosed, instruction }) => {
+    const modal = bootstrap.Modal.getOrCreateInstance(element);
+    const video = element.querySelector("[data-camera-video]");
+    const preview = element.querySelector("[data-camera-preview]");
+    const status = element.querySelector("[data-camera-status]");
+    const photo = element.querySelector("[data-camera-photo]");
+    const cameraSwitch = element.querySelector("[data-camera-switch]");
+    let controls;
+    let resolving = false;
+    let accepted = false;
+    let cameraSession = 0;
+
+    const supportedZxingFormats = () => [
+      ZXingBrowser.BarcodeFormat.CODE_128,
+      ZXingBrowser.BarcodeFormat.EAN_13,
+      ZXingBrowser.BarcodeFormat.EAN_8,
+      ZXingBrowser.BarcodeFormat.UPC_A,
+      ZXingBrowser.BarcodeFormat.UPC_E
+    ];
+    const supportedNativeFormats = ["code_128", "ean_13", "ean_8", "upc_a", "upc_e"];
+    const zxingTryHarderHint = 3;
+    const setStatus = (message) => { status.textContent = message; };
+
+    const stopCamera = () => {
+      controls?.stop();
+      controls = undefined;
+      const stream = video.srcObject;
+      if (stream && typeof stream.getTracks === "function")
+        stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    };
+
+    const describeCameraError = (error) => {
+      if (error?.name === "NotAllowedError")
+        return "No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.";
+      if (error?.name === "NotFoundError")
+        return "No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.";
+      if (error?.name === "NotReadableError")
+        return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
+      if (error?.name === "OverconstrainedError")
+        return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
+      const detail = typeof error?.message === "string" && error.message.trim()
+        ? ` ${error.message.trim()}`
+        : "";
+      return `No fue posible iniciar la cámara (${error?.name || "error desconocido"}).${detail} Prueba con Tomar foto, escribe o usa el escáner físico.`;
+    };
+
+    const isCodeNotDetectedError = (error) => {
+      if (["NotFoundException", "ChecksumException", "FormatException"].includes(error?.name)) return true;
+      return /No MultiFormat Readers were able to detect the code/i.test(error?.message || "");
+    };
+
+    const optimizeCameraForBarcodes = async (stream) => {
+      const track = stream.getVideoTracks?.()[0];
+      if (!track?.getCapabilities || !track.applyConstraints) return;
+      const capabilities = track.getCapabilities();
+      if (!capabilities.focusMode?.includes("continuous")) return;
+      try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }
+      catch { /* Continuous focus is optional; the default focus remains usable. */ }
+    };
+
+    const resolveDetectedCode = async (code) => {
+      if (resolving || accepted) return false;
+      resolving = true;
+      setStatus("Código detectado. Validando…");
+      try {
+        const result = await onCode(code);
+        if (result?.accepted) {
+          accepted = true;
+          stopCamera();
+          modal.hide();
+          onAccepted?.(result, code);
+          return true;
+        }
+        setStatus(result?.message || "No se encontró un producto con ese código. Intenta nuevamente.");
+      } catch {
+        setStatus("No fue posible validar el código. La cámara seguirá activa para reintentar.");
+      } finally {
+        if (!accepted) resolving = false;
+      }
+      return false;
+    };
+
+    const startNativeScanner = async (session) => {
+      if (typeof window.BarcodeDetector !== "function") return false;
+      try {
+        const availableFormats = await window.BarcodeDetector.getSupportedFormats();
+        const formats = supportedNativeFormats.filter(format => availableFormats.includes(format));
+        if (formats.length === 0 || session !== cameraSession) return false;
+        const detector = new window.BarcodeDetector({ formats });
+        let stopped = false;
+        controls = { stop: () => { stopped = true; } };
+
+        const scanNextFrame = async () => {
+          if (stopped || accepted || session !== cameraSession) return;
+          if (!resolving) {
+            try {
+              const [result] = await detector.detect(video);
+              if (result?.rawValue) await resolveDetectedCode(result.rawValue);
+            } catch {
+              // A missing code or an unavailable frame is normal while the camera focuses.
+            }
+          }
+          if (!stopped && !accepted && session === cameraSession)
+            window.setTimeout(() => void scanNextFrame(), 100);
+        };
+
+        void scanNextFrame();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const startCamera = async (requestedDeviceId, session = cameraSession) => {
+      if (!window.isSecureContext) {
+        preview.classList.add("d-none");
+        setStatus("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico.");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia
+        || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
+        preview.classList.add("d-none");
+        setStatus("Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico.");
+        return;
+      }
+
+      preview.classList.remove("d-none");
+      setStatus("Solicitando la cámara trasera…");
+      try {
+        const stream = await openCameraStream(requestedDeviceId);
+        if (session !== cameraSession) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        await optimizeCameraForBarcodes(stream);
+        video.srcObject = stream;
+        await video.play();
+        if (session !== cameraSession) {
+          stream.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+          return;
+        }
+        await updateCameraSwitchButton(cameraSwitch, stream);
+        setStatus(instruction || "Centra el código; para etiquetas largas, acércalo y espera a que enfoque.");
+
+        if (await startNativeScanner(session)) return;
+        if (!window.ZXingBrowser || session !== cameraSession) return;
+
+        const reader = new ZXingBrowser.BrowserMultiFormatReader();
+        reader.possibleFormats = supportedZxingFormats();
+        reader.hints.set(zxingTryHarderHint, true);
+        reader.reader.setHints(reader.hints);
+        controls = await reader.decodeFromStream(stream, video, async (result, error, decoderControls) => {
+          if (!controls) controls = decoderControls;
+          if (session !== cameraSession || accepted) return;
+          if (result && !resolving) {
+            await resolveDetectedCode(result.getText());
+            return;
+          }
+          if (error && !isCodeNotDetectedError(error)) {
+            stopCamera();
+            preview.classList.add("d-none");
+            setStatus(describeCameraError(error));
+          }
+        });
+      } catch (error) {
+        if (session !== cameraSession) return;
+        stopCamera();
+        preview.classList.add("d-none");
+        setStatus(describeCameraError(error));
+      }
+    };
+
+    photo.addEventListener("change", async () => {
+      const [file] = photo.files;
+      if (!file || resolving || accepted) return;
+      if (!window.ZXingBrowser) {
+        setStatus("No fue posible leer la foto. Puedes escribir o usar el escáner físico.");
+        return;
+      }
+
+      const session = ++cameraSession;
+      stopCamera();
+      setStatus("Leyendo el código de la foto…");
+      const imageUrl = URL.createObjectURL(file);
+      try {
+        const reader = new ZXingBrowser.BrowserMultiFormatReader();
+        reader.possibleFormats = supportedZxingFormats();
+        const result = await reader.decodeFromImageUrl(imageUrl);
+        await resolveDetectedCode(result.getText());
+      } catch {
+        setStatus("No se detectó un código de barras en la foto. Reanudando la cámara…");
+      } finally {
+        URL.revokeObjectURL(imageUrl);
+        photo.value = "";
+        if (!accepted && session === cameraSession) void startCamera(undefined, session);
+      }
+    });
+
+    cameraSwitch?.addEventListener("click", async () => {
+      cameraSwitch.disabled = true;
+      setStatus("Cambiando cámara…");
+      try {
+        const deviceId = await nextCameraDeviceId(video.srcObject);
+        if (!deviceId) return;
+        const session = ++cameraSession;
+        stopCamera();
+        await startCamera(deviceId, session);
+      } catch (error) {
+        setStatus(describeCameraError(error));
+      } finally {
+        cameraSwitch.disabled = false;
+      }
+    });
+
+    element.addEventListener("hidden.bs.modal", () => {
+      const wasAccepted = accepted;
+      cameraSession++;
+      stopCamera();
+      photo.value = "";
+      resolving = false;
+      accepted = false;
+      onClosed?.({ accepted: wasAccepted });
+    });
+    window.addEventListener("pagehide", () => {
+      cameraSession++;
+      stopCamera();
+    }, { once: true });
+
+    return {
+      open: () => {
+        accepted = false;
+        resolving = false;
+        preview.classList.remove("d-none");
+        setStatus("Preparando cámara…");
+        modal.show();
+        const session = ++cameraSession;
+        void startCamera(undefined, session);
+      }
+    };
+  };
+
   const renderSuggestions = (container, items, kind, select) => {
     container.replaceChildren();
     for (const item of items || []) {
@@ -622,252 +865,39 @@
 
     const scannerElement = operationShell.querySelector("[data-camera-scanner]");
     if (scannerElement) {
-      const scannerModal = bootstrap.Modal.getOrCreateInstance(scannerElement);
-      const scannerVideo = scannerElement.querySelector("[data-camera-video]");
-      const scannerPreview = scannerElement.querySelector("[data-camera-preview]");
-      const scannerStatus = scannerElement.querySelector("[data-camera-status]");
-      const scannerPhoto = scannerElement.querySelector("[data-camera-photo]");
-      const scannerSwitch = scannerElement.querySelector("[data-camera-switch]");
       let activeScannerLookup;
-      let scannerControls;
-      let resolvingCameraCode = false;
       let focusAfterScannerClose = false;
-      const supportedCameraBarcodeFormats = [
-        ZXingBrowser.BarcodeFormat.CODE_128,
-        ZXingBrowser.BarcodeFormat.EAN_13,
-        ZXingBrowser.BarcodeFormat.EAN_8,
-        ZXingBrowser.BarcodeFormat.UPC_A,
-        ZXingBrowser.BarcodeFormat.UPC_E
-      ];
-      const supportedNativeBarcodeFormats = ["code_128", "ean_13", "ean_8", "upc_a", "upc_e"];
-      const zxingTryHarderHint = 3;
-
-      const setScannerStatus = (message) => {
-        scannerStatus.textContent = message;
-      };
-
-      const stopCamera = () => {
-        scannerControls?.stop();
-        scannerControls = undefined;
-        const stream = scannerVideo.srcObject;
-        if (stream && typeof stream.getTracks === "function")
-          stream.getTracks().forEach(track => track.stop());
-        scannerVideo.srcObject = null;
-      };
-
-      const describeCameraError = (error) => {
-        if (error?.name === "NotAllowedError")
-          return "No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.";
-        if (error?.name === "NotFoundError")
-          return "No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.";
-        if (error?.name === "NotReadableError")
-          return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
-        if (error?.name === "OverconstrainedError")
-          return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
-        if (error === false)
-          return "El navegador no pudo reproducir la vista previa. Cierra el modal e inténtalo nuevamente.";
-        const detail = typeof error?.message === "string" && error.message.trim()
-          ? ` ${error.message.trim()}`
-          : "";
-        return `No fue posible iniciar la cámara (${error?.name || "error desconocido"}).${detail} Prueba con Tomar foto, escribe o usa el escáner físico.`;
-      };
-
-      const isCodeNotDetectedError = (error) => {
-        if (["NotFoundException", "ChecksumException", "FormatException"].includes(error?.name)) return true;
-
-        // The bundled production build minifies ZXing exception class names (for example, to "e").
-        // Its message still identifies the normal condition where the current video frame has no barcode.
-        return /No MultiFormat Readers were able to detect the code/i.test(error?.message || "");
-      };
-
-      const resolveCameraCode = async (code) => {
-        resolvingCameraCode = true;
-        const lookup = lookups[activeScannerLookup];
-        clearSelection(activeScannerLookup);
-        lookup.input.value = code;
-        setScannerStatus("Código detectado. Validando…");
-        try {
+      const scanner = createCameraScanner({
+        element: scannerElement,
+        onCode: async (code) => {
+          const lookup = lookups[activeScannerLookup];
+          clearSelection(activeScannerLookup);
+          lookup.input.value = code;
           const resolution = await resolveLookupCode(activeScannerLookup, code, false);
           if (resolution.selected) {
             focusAfterScannerClose = true;
-            stopCamera();
-            scannerModal.hide();
-            return;
+            return { accepted: true };
           }
-
-          setScannerStatus(resolution.message || "No se encontró un registro operativo con ese código. Intenta nuevamente.");
-        } catch {
-          setScannerStatus("No fue posible validar el código. Intenta nuevamente.");
-        }
-        resolvingCameraCode = false;
-      };
-
-      const startNativeBarcodeScanner = async () => {
-        if (typeof window.BarcodeDetector !== "function") return false;
-
-        try {
-          const availableFormats = await window.BarcodeDetector.getSupportedFormats();
-          const formats = supportedNativeBarcodeFormats.filter(format => availableFormats.includes(format));
-          if (formats.length === 0) return false;
-
-          const detector = new window.BarcodeDetector({ formats });
-          let stopped = false;
-          scannerControls = { stop: () => { stopped = true; } };
-
-          const scanNextFrame = async () => {
-            if (stopped || resolvingCameraCode) return;
-            try {
-              const [result] = await detector.detect(scannerVideo);
-              if (result?.rawValue) {
-                await resolveCameraCode(result.rawValue);
-                return;
-              }
-            } catch {
-              // A frame can be unavailable while the camera adjusts focus; retry the next one.
-            }
-
-            if (!stopped && !resolvingCameraCode)
-              window.setTimeout(() => void scanNextFrame(), 100);
+          return {
+            accepted: false,
+            message: resolution.message || "No se encontró un registro operativo con ese código. Intenta nuevamente."
           };
-
-          void scanNextFrame();
-          return true;
-        } catch {
-          return false;
-        }
-      };
-
-      const optimizeCameraForBarcodes = async (stream) => {
-        const track = stream.getVideoTracks?.()[0];
-        if (!track?.getCapabilities || !track.applyConstraints) return;
-
-        const capabilities = track.getCapabilities();
-        if (!capabilities.focusMode?.includes("continuous")) return;
-
-        try {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-        } catch {
-          // Continuous focus is an optional camera capability; the default focus remains usable.
-        }
-      };
-
-      const startCameraScanner = async (requestedDeviceId) => {
-        if (!window.isSecureContext) {
-          scannerPreview.classList.add("d-none");
-          setScannerStatus("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico.");
-          return;
-        }
-        if (!navigator.mediaDevices?.getUserMedia
-          || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
-          scannerPreview.classList.add("d-none");
-          setScannerStatus("Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico.");
-          return;
-        }
-
-        scannerPreview.classList.remove("d-none");
-        setScannerStatus("Solicitando la cámara trasera…");
-        try {
-          // Open the device first. This keeps the permission request tied to the user's button tap
-          // and avoids relying on the decoder to create a second, hidden camera request on Android.
-          const stream = await openCameraStream(requestedDeviceId);
-          await optimizeCameraForBarcodes(stream);
-          scannerVideo.srcObject = stream;
-          await scannerVideo.play();
-          await updateCameraSwitchButton(scannerSwitch, stream);
-          setScannerStatus("Centra el código; para etiquetas largas, acércalo y espera a que enfoque.");
-
-          if (await startNativeBarcodeScanner()) return;
-
-          const reader = new ZXingBrowser.BrowserMultiFormatReader();
-          reader.possibleFormats = supportedCameraBarcodeFormats;
-          // DecodeHintType.TRY_HARDER is not exported by the browser bundle (its stable enum value is 3).
-          // It samples more scan lines, which is important for dense, long Code 128 labels.
-          reader.hints.set(zxingTryHarderHint, true);
-          reader.reader.setHints(reader.hints);
-          scannerControls = await reader.decodeFromStream(
-            stream,
-            scannerVideo,
-            async (result, error, controls) => {
-              if (!scannerControls) scannerControls = controls;
-              if (result && !resolvingCameraCode) {
-                await resolveCameraCode(result.getText());
-                return;
-              }
-
-              if (error && !isCodeNotDetectedError(error)) {
-                stopCamera();
-                scannerPreview.classList.add("d-none");
-                setScannerStatus(describeCameraError(error));
-              }
-            });
-        } catch (error) {
-          stopCamera();
-          scannerPreview.classList.add("d-none");
-          setScannerStatus(describeCameraError(error));
-        }
-      };
-
-      scannerPhoto.addEventListener("change", async () => {
-        const [photo] = scannerPhoto.files;
-        if (!photo || resolvingCameraCode) return;
-        if (!window.ZXingBrowser) {
-          setScannerStatus("No fue posible leer la foto. Puedes escribir o usar el escáner físico.");
-          return;
-        }
-
-        stopCamera();
-          setScannerStatus("Leyendo el código de la foto…");
-          const imageUrl = URL.createObjectURL(photo);
-          try {
-            const reader = new ZXingBrowser.BrowserMultiFormatReader();
-          reader.possibleFormats = supportedCameraBarcodeFormats;
-          const result = await reader.decodeFromImageUrl(imageUrl);
-          await resolveCameraCode(result.getText());
-        } catch {
-          setScannerStatus("No se detectó un código de barras en la foto. Intenta nuevamente.");
-        } finally {
-          URL.revokeObjectURL(imageUrl);
-          scannerPhoto.value = "";
-        }
-      });
-
-      scannerSwitch?.addEventListener("click", async () => {
-        scannerSwitch.disabled = true;
-        setScannerStatus("Cambiando cámara…");
-        try {
-          const deviceId = await nextCameraDeviceId(scannerVideo.srcObject);
-          if (!deviceId) return;
-          stopCamera();
-          await startCameraScanner(deviceId);
-        } catch (error) {
-          setScannerStatus(describeCameraError(error));
-        } finally {
-          scannerSwitch.disabled = false;
+        },
+        onClosed: () => {
+          const shouldFocusNext = focusAfterScannerClose;
+          activeScannerLookup = undefined;
+          focusAfterScannerClose = false;
+          if (shouldFocusNext) focusNextRequired();
         }
       });
 
       operationShell.querySelectorAll("[data-camera-scan]").forEach(button => {
         button.addEventListener("click", () => {
           activeScannerLookup = button.closest("[data-lookup-field]").dataset.lookupField;
-          resolvingCameraCode = false;
           focusAfterScannerClose = false;
-          scannerPreview.classList.remove("d-none");
-          setScannerStatus("Preparando cámara…");
-          scannerModal.show();
-          void startCameraScanner();
+          scanner.open();
         });
       });
-
-      scannerElement.addEventListener("hidden.bs.modal", () => {
-        const shouldFocusNext = focusAfterScannerClose;
-        stopCamera();
-        scannerPhoto.value = "";
-        activeScannerLookup = undefined;
-        resolvingCameraCode = false;
-        focusAfterScannerClose = false;
-        if (shouldFocusNext) focusNextRequired();
-      });
-      window.addEventListener("pagehide", stopCamera, { once: true });
     }
 
     operationShell.querySelectorAll("[data-lookup-field]").forEach(setupLookup);
@@ -1195,6 +1225,52 @@
       modalElement.addEventListener("shown.bs.modal", () => document.body.classList.add("camera-active"));
       modalElement.addEventListener("hidden.bs.modal", () => { stopCamera(); photo.value = ""; document.body.classList.remove("camera-active"); if (!resolving) input.focus(); });
       window.addEventListener("pagehide", stopCamera, { once: true });
+    }
+  }
+
+  const productCatalogForm = document.querySelector("[data-product-catalog-search-form]");
+  if (productCatalogForm) {
+    const input = productCatalogForm.querySelector("[data-product-catalog-search]");
+    const cameraButton = productCatalogForm.querySelector("[data-product-catalog-camera]");
+    const modalElement = document.querySelector("[data-product-catalog-camera-modal]");
+    const lookupUrl = productCatalogForm.dataset.lookupUrl;
+
+    if (input && cameraButton && modalElement && lookupUrl) {
+      const scanner = createCameraScanner({
+        element: modalElement,
+        instruction: "Centra el código del producto; para etiquetas largas, acércalo y espera a que enfoque.",
+        onCode: async (code) => {
+          let resolution;
+          try {
+            resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveInventoryCode", code })}`);
+          } catch {
+            return {
+              accepted: false,
+              message: "No fue posible validar el código en la red local. La cámara seguirá activa para reintentar."
+            };
+          }
+
+          if (!resolution?.product) {
+            return {
+              accepted: false,
+              message: resolution?.location
+                ? "El código corresponde a una ubicación, no a un producto. Intenta nuevamente."
+                : "No se encontró un producto con ese código. Intenta nuevamente."
+            };
+          }
+
+          return { accepted: true, sku: resolution.product.sku };
+        },
+        onAccepted: (result) => {
+          input.value = result.sku;
+          productCatalogForm.requestSubmit();
+        },
+        onClosed: ({ accepted }) => {
+          if (!accepted) input.focus();
+        }
+      });
+
+      cameraButton.addEventListener("click", () => scanner.open());
     }
   }
 })();

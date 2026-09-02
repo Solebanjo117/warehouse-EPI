@@ -250,11 +250,52 @@ public sealed class WarehouseMapEditorContractTests
         var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js"));
 
         Assert.Contains(".warehouse-map-shell .warehouse-map-viewport{height:34rem;min-height:0;overflow:auto", styles, StringComparison.Ordinal);
+        Assert.Contains(".warehouse-map-shell .warehouse-map{width:var(--warehouse-map-query-zoom,100%);height:auto;min-height:0;max-width:none}", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("height:var(--warehouse-map-query-zoom,100%)", styles, StringComparison.Ordinal);
         Assert.Contains("touch-action:pan-x pan-y", styles, StringComparison.Ordinal);
         Assert.Contains("const MAX_ZOOM = 4", script, StringComparison.Ordinal);
         Assert.Contains("svg.style.setProperty(\"--warehouse-map-query-zoom\"", script, StringComparison.Ordinal);
         Assert.Contains("viewport.scrollLeft = 0", script, StringComparison.Ordinal);
         Assert.DoesNotContain("setAttribute(\"viewBox\"", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Map_canvas_is_persisted_rendered_dynamically_and_resized_with_pointer_or_keyboard()
+    {
+        var editorPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+        var queryPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var editorScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var referenceScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-reference.js"));
+        var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260831183516_AddWarehouseMapCanvasDimensions.cs"));
+
+        Assert.Contains("data-editor-canvas-resize", editorPage, StringComparison.Ordinal);
+        Assert.Contains("data-editor-canvas-width", editorPage, StringComparison.Ordinal);
+        Assert.Contains("data-editor-canvas-height", editorPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasWidth", editorPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasHeight", editorPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasWidth", queryPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasHeight", queryPage, StringComparison.Ordinal);
+        Assert.Contains("setPointerCapture", editorScript, StringComparison.Ordinal);
+        Assert.Contains("kind: \"canvasResize\"", editorScript, StringComparison.Ordinal);
+        Assert.Contains("Math.ceil(requestedWidth / canvas.gridStep)", editorScript, StringComparison.Ordinal);
+        Assert.Contains("['ArrowRight', 'ArrowDown']", editorScript, StringComparison.Ordinal);
+        Assert.Contains("warehouse-map:canvas-changed", editorScript, StringComparison.Ordinal);
+        Assert.Contains("ARCHITECTURE_STYLE_TOKENS", editorScript, StringComparison.Ordinal);
+        Assert.Contains("normalizeArchitectureStyle", editorScript, StringComparison.Ordinal);
+        Assert.Contains("value=\"\" disabled>Varios", editorPage, StringComparison.Ordinal);
+        Assert.Contains("summary.previousCanvasWidth", editorScript, StringComparison.Ordinal);
+        Assert.Contains("summary.previousCanvasHeight", editorScript, StringComparison.Ordinal);
+        Assert.Contains("warehouse-map:canvas-changed", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("canvasWidth()", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("canvasHeight()", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("canvas_width", migration, StringComparison.Ordinal);
+        Assert.Contains("defaultValue: 1600m", migration, StringComparison.Ordinal);
+        Assert.Contains("canvas_height", migration, StringComparison.Ordinal);
+        Assert.Contains("defaultValue: 900m", migration, StringComparison.Ordinal);
+        Assert.Contains("ck_warehouse_map_layout_canvas", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
     }
 
     [Fact]

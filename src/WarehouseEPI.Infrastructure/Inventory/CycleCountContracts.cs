@@ -21,7 +21,7 @@ public sealed record SubmitCycleCountCommand(
 public sealed record CycleCountQuantityCommand(Guid ProductId, decimal Quantity);
 
 public sealed record CycleCountActionCommand(Guid LocationId, Guid OperationId, string Pin, string? Notes = null,
-    IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null);
+    IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null, Guid? ReviewBatchId = null);
 
 public sealed record CycleCountPreparation(
     Guid CampaignId, Guid CycleCountLocationId, Guid LocationId, string LocationCode,

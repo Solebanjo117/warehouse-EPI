@@ -1,0 +1,238 @@
+/* Hoja de verificación de rack.
+   La hoja es papel: no sigue data-bs-theme, porque una hoja impresa no tiene
+   tema claro ni oscuro. Por eso esta es la única superficie del proyecto con
+   tinta fija en vez de tokens de Bootstrap; los tokens se usan solo para el
+   escritorio que la rodea en pantalla.
+   Una sola maqueta sirve a pantalla y a papel: las medidas viven en variables
+   y @media print solo las reexpresa en mm y pt. */
+
+.rack-sheet {
+  --paper: #fff;
+  --ink: #14181b;
+  --ink-soft: #5c666d;
+  --rule: #b9c0c4;
+  --rule-strong: #14181b;
+  --alert: #7f1d1d;
+
+  --pad: 1.6rem;
+  --gap: .65rem;
+  --code: 2.6rem;
+  --eyebrow: .62rem;
+  --cell-pad: .7rem;
+  --pallet: 1.3rem;
+  --pos-code: 1rem;
+  --body: .78rem;
+  --micro: .66rem;
+
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: var(--gap);
+  max-width: 74rem;
+  margin: 0 auto;
+  padding: var(--pad);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.rack-sheet-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1rem; }
+.rack-sheet-actions .btn { min-height: 44px; }
+
+/* Cabecera: el código del rack es lo que se coteja contra el acero, así que es
+   la tinta más grande de la hoja. Los conteos van en una línea corrida, no en
+   tarjetas: es papel, no un tablero. */
+.rack-sheet-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: .1rem .75rem;
+  padding-bottom: calc(var(--gap) * .8);
+  border-bottom: 2px solid var(--rule-strong);
+}
+
+/* Filas explícitas: si algo llegara a ocultar la cabecera o el pie, el bastidor
+   debe seguir cayendo en la fila 1fr y no colapsar contra su contenido. */
+.rack-sheet-header { grid-row: 1; }
+.rack-sheet-frame { grid-row: 2; }
+.rack-sheet-footer { grid-row: 3; }
+
+.rack-sheet-identity { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; }
+.rack-sheet-brand { font-size: var(--eyebrow); font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.rack-sheet-eyebrow { font-size: var(--eyebrow); font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); }
+
+.rack-sheet-code {
+  grid-column: 1;
+  grid-row: 2;
+  margin: .2rem 0 0;
+  font-size: var(--code);
+  font-weight: 800;
+  line-height: .95;
+  letter-spacing: .03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.rack-sheet-code > span {
+  display: block;
+  font-size: var(--eyebrow);
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.rack-sheet-meta {
+  grid-column: 2;
+  grid-row: 1 / -1;
+  align-self: end;
+  margin: 0;
+  text-align: right;
+  font-size: var(--micro);
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* El bastidor es el alzado del rack: 7-8-9 arriba, 1-2-3 al ras, y una regla
+   gruesa por suelo. Papel y acero se leen en la misma orientación. */
+.rack-sheet-frame {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr)) auto;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.rack-sheet-frame::after {
+  content: "";
+  grid-column: 1 / -1;
+  height: 2px;
+  background: var(--rule-strong);
+}
+
+.sheet-cell {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  padding: var(--cell-pad);
+  border: 1px solid var(--rule);
+  border-left: 1px solid var(--rule);
+  background: var(--paper);
+  overflow: hidden;
+  break-inside: avoid-page;
+}
+
+/* Incidencia: regla gruesa y estado en versalitas. Nada de rellenos: una
+   impresora monocroma de nave tiene que poder distinguirla. */
+.sheet-cell.is-flagged { border-left: 3px solid var(--alert); }
+.sheet-cell.is-flagged .sheet-cell-state { color: var(--alert); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+
+.sheet-cell.is-missing {
+  align-items: center;
+  justify-content: center;
+  gap: .25rem;
+  border-style: dashed;
+  color: var(--ink-soft);
+}
+
+.sheet-cell-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: .45rem;
+}
+
+/* Numeral perfilado, no macizo: nueve recuadros de tinta sólida por hoja es
+   tóner que la nave paga en cada rack. */
+.sheet-pallet {
+  display: grid;
+  place-items: center;
+  width: calc(var(--pallet) + .75rem);
+  height: calc(var(--pallet) + .75rem);
+  border: 1.5px solid var(--rule-strong);
+  font-size: var(--pallet);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-cell-id { display: block; min-width: 0; }
+.sheet-cell-id h2 { margin: 0; font-size: var(--pos-code); font-weight: 800; line-height: 1.1; letter-spacing: .04em; font-variant-numeric: tabular-nums; }
+.sheet-cell-state { display: block; font-size: var(--micro); color: var(--ink-soft); overflow-wrap: anywhere; }
+
+/* La casilla de verificación: el pie ya pide firma, así que cada posición
+   necesita dónde caer la palomita al recorrer el rack. */
+.sheet-check {
+  width: calc(var(--pallet) * .78);
+  height: calc(var(--pallet) * .78);
+  border: 1.5px solid var(--rule-strong);
+  flex: none;
+}
+
+.sheet-products { min-height: 0; margin: calc(var(--cell-pad) * .7) 0 0; padding: 0; list-style: none; overflow: hidden; }
+
+.sheet-products > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0 .5rem;
+  padding: calc(var(--cell-pad) * .45) 0;
+  border-top: 1px solid var(--rule);
+}
+
+.sheet-sku { font-size: var(--body); font-weight: 800; letter-spacing: .02em; overflow-wrap: anywhere; }
+.sheet-qty { text-align: right; font-size: var(--body); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sheet-qty.is-negative { color: var(--alert); }
+.sheet-qty.is-none { font-weight: 600; color: var(--ink-soft); }
+
+.sheet-product-desc,
+.sheet-cell-description {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: var(--micro);
+  color: var(--ink-soft);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.sheet-product-desc { grid-column: 1; }
+.sheet-product-rel { grid-column: 2; text-align: right; font-size: var(--micro); color: var(--ink-soft); white-space: nowrap; }
+.sheet-cell-description { margin: calc(var(--cell-pad) * .6) 0 0; }
+.sheet-cell-note { margin: calc(var(--cell-pad) * .6) 0 0; font-size: var(--micro); color: var(--ink-soft); }
+.sheet-cell-more { margin: calc(var(--cell-pad) * .5) 0 0; font-size: var(--micro); font-weight: 700; color: var(--ink-soft); }
+
+.rack-sheet-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: .35rem 1.5rem;
+  padding-top: calc(var(--gap) * .7);
+  border-top: 1px solid var(--rule);
+}
+
+.rack-sheet-sign { display: flex; align-items: baseline; gap: .5rem; margin: 0; font-size: var(--micro); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); }
+.rack-sheet-blank { height: 1.15em; flex: 1; border-bottom: 1px solid var(--rule-strong); }
+.rack-sheet-fineprint { grid-column: 1 / -1; margin: 0; font-size: var(--micro); color: var(--ink-soft); }
+
+/* En pantalla la hoja se muestra como lo que es: papel sobre un escritorio,
+   con la proporción real de carta apaisada. */
+@media screen {
+  .rack-sheet-desk { padding: 1.5rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-tertiary-bg); }
+  .rack-sheet { aspect-ratio: 11 / 8.5; box-shadow: 0 .5rem 1.75rem rgba(0, 0, 0, .18); }
+}
+
+@media screen and (max-width: 991.98px) {
+  .rack-sheet-desk { padding: .75rem; }
+  .rack-sheet { aspect-ratio: auto; --pad: 1rem; }
+  .rack-sheet-header { grid-template-columns: minmax(0, 1fr); }
+  .rack-sheet-meta { grid-column: 1; grid-row: auto; margin-top: .4rem; text-align: left; }
+  .rack-sheet-frame { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; }
+  .rack-sheet-footer { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* NO QUITAR los display:...!important de abajo.
+   site.css tiene, dentro de su @media print, la regla de elemento desnuda
+   `header, footer { display: none !important }` pensada para el cromo de la
+   aplicación (.app-topbar / .app-footer). Esta hoja usa <header> semántico para
+   su cabecera y para la de cada celda, y <footer> para el pie, así que esa regla
+   se los come al imprimir: desaparecen numeral de pallet, código, casilla de
+   verificación y firmas, y el bastidor se queda sin altura. Mientras la regla
+   global siga siendo de elemento, estos tres overrides son los que sostienen la
+   hoja impresa. */
+@media print{@page{size:letter landscape;margin:7mm}html,body{height:auto}.app-topbar,.app-sidebar,.app-backdrop,.app-footer,.no-print{display:none!important}.app-content{margin:0!important;padding:0!important}.app-main{padding:0!important}.rack-sheet-desk{padding:0;border:0;border-radius:0;background:none}.rack-sheet{--pad:0;--gap:2mm;--code:24pt;--eyebrow:6pt;--cell-pad:2mm;--pallet:13pt;--pos-code:9pt;--body:7pt;--micro:5.8pt;--ink:#000;--ink-soft:#3f3f3f;--rule:#8a8a8a;--rule-strong:#000;width:100%;height:194mm;max-width:none;aspect-ratio:auto;overflow:hidden;box-shadow:none;print-color-adjust:exact}.rack-sheet-header{display:grid!important}.sheet-cell-head{display:grid!important}.rack-sheet-footer{display:grid!important}.rack-sheet-frame{grid-template-rows:repeat(3,minmax(0,1fr)) auto}.sheet-cell{break-inside:avoid-page}.sheet-cell.is-flagged{border-left-width:2.5pt}.sheet-product-desc,.sheet-cell-description{-webkit-line-clamp:2}}

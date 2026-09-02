@@ -17,6 +17,36 @@ public sealed class RackViewContractTests
         Assert.Contains("event.key === 'Escape'", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Rack_bays_render_as_elevations_and_reserve_color_for_incidents()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+
+        Assert.Contains("rack-bay-frame", page, StringComparison.Ordinal);
+        Assert.Contains("class=\"bay-slot bay-@position.RackState\"", page, StringComparison.Ordinal);
+        Assert.Contains("bay-flag", page, StringComparison.Ordinal);
+        Assert.Contains(".rack-bay-frame::after", styles, StringComparison.Ordinal);
+        Assert.Contains(".bay-negative { background: var(--bs-danger-bg-subtle)", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain(".bay-occupied {", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Admin_table_labels_every_cell_for_the_mobile_fallback()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+
+        foreach (var label in new[] { "Ubicación", "Posición física", "Productos asignados", "Estado", "Acciones" })
+        {
+            Assert.Contains($"data-label=\"{label}\"", page, StringComparison.Ordinal);
+        }
+
+        Assert.Contains("location-row-@AdminState(item)", page, StringComparison.Ordinal);
+        Assert.Contains("content:attr(data-label)", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("table-striped align-middle inventory-list", page, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

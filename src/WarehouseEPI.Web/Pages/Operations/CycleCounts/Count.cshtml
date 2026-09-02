@@ -30,6 +30,7 @@
 
     <form method="post" class="analytics-filter-card">
         <input asp-for="Input.PreparationToken" type="hidden" value="@Model.PreparationToken" />
+        <input asp-for="Input.AttemptId" type="hidden" />
         <input asp-for="Input.OperationId" type="hidden" value="@(Model.Input.OperationId == Guid.Empty ? Guid.NewGuid() : Model.Input.OperationId)" />
         <input type="hidden" name="id" value="@Model.CampaignId" />
         <input type="hidden" name="locationId" value="@Model.LocationId" />
@@ -103,7 +104,7 @@
         </div>
     </form>
 
-    <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="Escanear producto">📷 <span>Escanear producto</span></button>
-    <input class="visually-hidden" data-cycle-scan-photo type="file" accept="image/*" capture="environment" />
+    <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="Escanear producto"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg> <span>Escanear producto</span></button>
+    <partial name="_CameraScanner" />
 </div>
 @section Scripts { <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }

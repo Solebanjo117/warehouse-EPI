@@ -14,6 +14,7 @@ using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
+using RackPrintModel = WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack.PrintModel;
 
 namespace WarehouseEPI.Tests.Locations;
 
@@ -254,7 +255,7 @@ public sealed class LocationCatalogTests
         Assert.Equal(operationalBefore, operationalAfter);
         var revision = await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync();
         using var changes = JsonDocument.Parse(revision.ChangesJson);
-        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(6, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.True(changes.RootElement.TryGetProperty("Operational", out _));
         Assert.True(changes.RootElement.TryGetProperty("Layers", out _));
         Assert.True(changes.RootElement.TryGetProperty("Architecture", out _));
@@ -294,6 +295,91 @@ public sealed class LocationCatalogTests
         Assert.Contains(omittedPersisted.ValidationErrors,
             error => error.Contains("No se pueden eliminar", StringComparison.Ordinal));
         Assert.Single(await fixture.Db.WarehouseMapRevisions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Warehouse_map_canvas_only_grows_on_the_grid_and_audits_its_dimensions()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Map Canvas Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        fixture.Db.AddRange(role, user, Rack("A", 1, 1));
+        await fixture.Db.SaveChangesAsync();
+        var service = new WarehouseMapService(fixture.Db, pins, TimeProvider.System);
+        Assert.Equal(WarehouseMapSaveStatus.Success,
+            (await service.InitializeAsync(Guid.NewGuid(), user.Id, "1234", "Inicial")).Status);
+        fixture.Db.ChangeTracker.Clear();
+
+        var map = await service.GetAsync(true);
+        Assert.Equal(1600m, map.CanvasWidth);
+        Assert.Equal(900m, map.CanvasHeight);
+        var geometry = map.Elements.Concat(map.Unplaced).Select(ToMapGeometry).ToArray();
+        geometry[0] = geometry[0] with { X = 1800 };
+        var command = new WarehouseMapSaveCommand(Guid.NewGuid(), user.Id, "1234", "Segundo edificio",
+            geometry, LayerStates(map), ArchitectureGeometry(map), CanvasWidth: 2000, CanvasHeight: 1000);
+
+        var review = await service.ReviewAsync(command);
+        Assert.Empty(review.Errors);
+        Assert.True(review.Summary.CanvasChanged);
+        Assert.Equal(1600m, review.Summary.PreviousCanvasWidth);
+        Assert.Equal(900m, review.Summary.PreviousCanvasHeight);
+        Assert.Equal(2000m, review.Summary.CanvasWidth);
+        Assert.Equal(1000m, review.Summary.CanvasHeight);
+        Assert.Equal(WarehouseMapSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        fixture.Db.ChangeTracker.Clear();
+
+        var expanded = await service.GetAsync(true);
+        Assert.Equal(2000m, expanded.CanvasWidth);
+        Assert.Equal(1000m, expanded.CanvasHeight);
+        Assert.Equal(1800m, expanded.Elements.Concat(expanded.Unplaced).Single(item => item.Id == geometry[0].Id).X);
+        var revision = await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync();
+        using var changes = JsonDocument.Parse(revision.ChangesJson);
+        Assert.Equal(6, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        var canvas = changes.RootElement.GetProperty("Canvas");
+        Assert.Equal(1600m, canvas.GetProperty("BeforeWidth").GetDecimal());
+        Assert.Equal(900m, canvas.GetProperty("BeforeHeight").GetDecimal());
+        Assert.Equal(2000m, canvas.GetProperty("AfterWidth").GetDecimal());
+        Assert.Equal(1000m, canvas.GetProperty("AfterHeight").GetDecimal());
+        Assert.Contains(await service.GetRevisionsAsync(), item => item.SchemaVersion == 6
+            && item.Summary.Contains("1600 × 900 a 2000 × 1000", StringComparison.Ordinal));
+
+        fixture.Db.WarehouseMapRevisions.Add(new WarehouseMapRevision
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('b', 64),
+            PreviousVersion = 0,
+            NewVersion = 0,
+            Reason = "Revisión histórica",
+            ChangesJson = """
+                {"SchemaVersion":5,"Architecture":{"Added":[],"Modified":[],"Archived":[],"Restored":[]},"References":{"Added":[],"Modified":[],"Archived":[],"Restored":[]}}
+                """,
+            RequestedByUserId = user.Id,
+            AuthorizedByUserId = user.Id,
+            RecordedAt = DateTimeOffset.UtcNow.AddMinutes(-1)
+        });
+        await fixture.Db.SaveChangesAsync();
+        Assert.Contains(await service.GetRevisionsAsync(), item => item.SchemaVersion == 5
+            && item.Summary.Contains("Referencias:", StringComparison.Ordinal));
+
+        var shrink = await service.ReviewAsync(command with
+        {
+            OperationId = Guid.NewGuid(), CanvasWidth = 1975, CanvasHeight = 1000
+        });
+        Assert.Contains(shrink.Errors, error => error.Contains("solo puede agrandarse", StringComparison.Ordinal));
+        var offGrid = await service.ReviewAsync(command with
+        {
+            OperationId = Guid.NewGuid(), CanvasWidth = 2010, CanvasHeight = 1000
+        });
+        Assert.Contains(offGrid.Errors, error => error.Contains("incrementos de 25", StringComparison.Ordinal));
+        var overMaximum = await service.ReviewAsync(command with
+        {
+            OperationId = Guid.NewGuid(), CanvasWidth = 6425, CanvasHeight = 1000
+        });
+        Assert.Contains(overMaximum.Errors, error => error.Contains("6400 × 3600", StringComparison.Ordinal));
+        Assert.Equal(3, await fixture.Db.WarehouseMapRevisions.CountAsync());
     }
 
     [Fact]
@@ -362,7 +448,7 @@ public sealed class LocationCatalogTests
         Assert.Equal(operationalBefore, operationalAfter);
         var revision = await fixture.Db.WarehouseMapRevisions.SingleAsync(item => item.OperationId == operationId);
         using var changes = JsonDocument.Parse(revision.ChangesJson);
-        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(6, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.Equal(addedId, changes.RootElement.GetProperty("Architecture").GetProperty("Added")[0].GetGuid());
     }
 
@@ -386,7 +472,7 @@ public sealed class LocationCatalogTests
             new WarehouseMapGeometry(item.Id, item.X, item.Y, item.Width, item.Height, item.Rotation,
                 item.ZIndex, item.IsVisible)).ToArray();
         var invalid = new WarehouseMapArchitectureItem(Guid.NewGuid(), "ZONES", "Text",
-            new string('X', 121), 10, 10, 100, 24, 0, 0, [],
+            "Estilo inválido", 10, 10, 100, 24, 0, 0, [],
             "HEX-FF0000", "NONE", 20, false, 1, false);
 
         var result = await service.SaveAsync(new(Guid.NewGuid(), user.Id, "1234", null, geometry,
@@ -394,7 +480,10 @@ public sealed class LocationCatalogTests
 
         Assert.Equal(WarehouseMapSaveStatus.ValidationFailed, result.Status);
         Assert.Contains(result.ValidationErrors, error => error.Contains("compatible", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(result.ValidationErrors, error => error.Contains("estilo", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.ValidationErrors, error => error.Contains("Estilo inválido", StringComparison.Ordinal)
+            && error.Contains(invalid.Id.ToString(), StringComparison.Ordinal)
+            && error.Contains("HEX-FF0000", StringComparison.Ordinal)
+            && error.Contains("grosor 20", StringComparison.Ordinal));
 
         var tooManyPoints = new WarehouseMapArchitectureItem(Guid.NewGuid(), "STRUCTURE", "Polyline", null,
             10, 10, 100, 100, 0, 0,
@@ -484,9 +573,9 @@ public sealed class LocationCatalogTests
             (await fixture.Db.WarehouseMapLayouts.AsNoTracking().SingleAsync()).MeasurementSystem);
         var revision = await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync();
         using var changes = JsonDocument.Parse(revision.ChangesJson);
-        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(6, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.Equal(2, changes.RootElement.GetProperty("Architecture").GetProperty("Archived").GetArrayLength());
-        Assert.Contains(await service.GetRevisionsAsync(), item => item.SchemaVersion == 5
+        Assert.Contains(await service.GetRevisionsAsync(), item => item.SchemaVersion == 6
             && item.Summary.Contains("2 archivados", StringComparison.Ordinal));
     }
 
@@ -728,6 +817,46 @@ public sealed class LocationCatalogTests
     }
 
     [Fact]
+    public async Task Rack_print_sheet_groups_balances_and_keeps_assignments_distinct_from_inventory()
+    {
+        await using var fixture = new Fixture();
+        var each = new Unit { Code = "EA", Name = "Each" };
+        var assignedStock = new Product { Sku = "PRINT-STOCK", Description = "Con existencia", BaseUnit = each };
+        var assignedEmpty = new Product { Sku = "PRINT-EMPTY", Description = "Solo asignado", BaseUnit = each };
+        var unassignedNegative = new Product { Sku = "PRINT-NEG", Description = "Saldo sin asignar", BaseUnit = each };
+        var first = Rack("T", 4, 1);
+        var second = Rack("T", 4, 2);
+        fixture.Db.AddRange(each, assignedStock, assignedEmpty, unassignedNegative, first, second);
+        fixture.Db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = assignedStock, Location = first, Quantity = 5m },
+            new InventoryBalance { Product = assignedStock, Location = first, Quantity = -2m },
+            new InventoryBalance { Product = unassignedNegative, Location = second, Quantity = -1m });
+        fixture.Db.ProductLocationAssignments.AddRange(
+            new ProductLocationAssignment { Product = assignedStock, Location = first },
+            new ProductLocationAssignment { Product = assignedEmpty, Location = first });
+        await fixture.Db.SaveChangesAsync();
+
+        var page = new RackPrintModel(fixture.Db);
+        var result = await page.OnGetAsync("t", 4, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.Equal("T-4", page.RackCode);
+        Assert.Equal(2, page.PositionCount);
+        Assert.Equal(2, page.OccupiedCount);
+        Assert.Equal(3, page.ProductCount);
+        var firstPosition = Assert.Single(page.Positions, position => position.Id == first.Id);
+        var stock = Assert.Single(firstPosition.Products, product => product.ProductId == assignedStock.Id);
+        Assert.Equal(3m, stock.Quantity);
+        Assert.Equal("Asignado", stock.RelationshipState);
+        var empty = Assert.Single(firstPosition.Products, product => product.ProductId == assignedEmpty.Id);
+        Assert.Null(empty.Quantity);
+        Assert.Equal("Asignado sin saldo", empty.RelationshipState);
+        var negative = Assert.Single(Assert.Single(page.Positions, position => position.Id == second.Id).Products);
+        Assert.Equal(-1m, negative.Quantity);
+        Assert.Equal("Saldo sin asignación", negative.RelationshipState);
+    }
+
+    [Fact]
     public async Task Table_pagination_keeps_the_selected_view_and_uses_twenty_five_rows()
     {
         await using var fixture = new Fixture();
@@ -869,7 +998,7 @@ public sealed class LocationCatalogTests
         Assert.Null((await service.GetAsync(false)).ActiveReference);
         Assert.Single((await service.GetAsync(true)).ArchivedReferences!);
         using var changes = JsonDocument.Parse((await fixture.Db.WarehouseMapRevisions.OrderByDescending(item => item.NewVersion).FirstAsync()).ChangesJson);
-        Assert.Equal(5, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
+        Assert.Equal(6, changes.RootElement.GetProperty("SchemaVersion").GetInt32());
         Assert.Equal(1, changes.RootElement.GetProperty("References").GetProperty("Archived").GetArrayLength());
     }
 

@@ -12,6 +12,8 @@ public sealed class WarehouseMapLayout
     public int Version { get; set; }
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public Guid? UpdatedByUserId { get; set; }
+    public decimal CanvasWidth { get; set; } = 1600m;
+    public decimal CanvasHeight { get; set; } = 900m;
     public decimal? ScaleUnitsPerInch { get; set; }
     public WarehouseMapMeasurementSystem MeasurementSystem { get; set; } = WarehouseMapMeasurementSystem.Imperial;
     public uint RowVersion { get; set; }

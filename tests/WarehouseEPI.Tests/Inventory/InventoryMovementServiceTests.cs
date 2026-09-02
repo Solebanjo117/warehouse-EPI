@@ -143,6 +143,45 @@ public sealed class InventoryMovementServiceTests
     }
 
     [Fact]
+    public async Task Adjustment_does_not_report_a_balance_change_when_it_only_creates_a_zero_daily_lot()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("COUNTED-PRIOR-LOT");
+        var location = await fixture.AddLocationAsync("COUNTING-PRIOR-LOT");
+        var priorLot = new ProductLot
+        {
+            ProductId = product.Id,
+            Number = "AUTO-20200101",
+            NormalizedNumber = "AUTO-20200101",
+            LotDate = new DateOnly(2020, 1, 1),
+            CreatedAt = new DateTimeOffset(2020, 1, 1, 12, 0, 0, TimeSpan.Zero)
+        };
+        fixture.Db.ProductLots.Add(priorLot);
+        fixture.Db.InventoryBalances.Add(new InventoryBalance
+        {
+            ProductId = product.Id,
+            LocationId = location.Id,
+            LotId = priorLot.Id,
+            Quantity = 7m
+        });
+        await fixture.Db.SaveChangesAsync();
+        var consulted = await new InventoryQueryService(fixture.Db)
+            .GetBalanceAsync(product.Id, location.Id);
+
+        var result = await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Adjustment, fixture.OperatorPin,
+            [new(product.Id, 5m, LocationId: location.Id, ExpectedBalanceVersion: consulted.Version)],
+            Notes: "Conteo físico"));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        Assert.Equal(5m, await fixture.Db.InventoryBalances
+            .Where(item => item.ProductId == product.Id && item.LocationId == location.Id)
+            .SumAsync(item => item.Quantity));
+        Assert.Equal(2, await fixture.Db.InventoryBalances.CountAsync(item =>
+            item.ProductId == product.Id && item.LocationId == location.Id));
+    }
+
+    [Fact]
     public async Task Shared_location_requires_specific_approval()
     {
         await using var fixture = await Fixture.CreateAsync();

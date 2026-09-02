@@ -44,6 +44,69 @@ public sealed class CameraScannerContractTests
         Assert.Contains("if (!resolving) input.focus()", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Operations_and_product_catalog_share_the_validating_camera_engine()
+    {
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js"));
+
+        Assert.Contains("const createCameraScanner =", script, StringComparison.Ordinal);
+        Assert.Contains("window.BarcodeDetector", script, StringComparison.Ordinal);
+        Assert.Contains("reader.hints.set(zxingTryHarderHint, true)", script, StringComparison.Ordinal);
+        Assert.Contains("if (error && !isCodeNotDetectedError(error))", script, StringComparison.Ordinal);
+        Assert.Contains("if (result?.accepted)", script, StringComparison.Ordinal);
+        Assert.Contains("if (!accepted) resolving = false", script, StringComparison.Ordinal);
+        Assert.Contains("if (!stopped && !accepted && session === cameraSession)", script, StringComparison.Ordinal);
+        Assert.Contains("stream.getTracks().forEach(track => track.stop())", script, StringComparison.Ordinal);
+        Assert.Contains("cameraSession++", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Camera_modals_keep_the_preview_and_actions_inside_the_viewport()
+    {
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+
+        Assert.Contains("max-height: calc(100dvh - 1rem)", styles, StringComparison.Ordinal);
+        Assert.Contains("height: clamp(8rem, 42dvh, 20rem)", styles, StringComparison.Ordinal);
+        Assert.Contains("flex-wrap: wrap; justify-content: center", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("width: 100vw; max-width: 100vw; height: 100dvh", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("min-height: 100dvh; border: 0; border-radius: 0", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Cycle_counts_open_a_live_camera_and_keep_photo_as_a_fallback()
+    {
+        var directory = RepositoryDirectory("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts");
+        var details = File.ReadAllText(Path.Combine(directory, "Details.cshtml"));
+        var count = File.ReadAllText(Path.Combine(directory, "Count.cshtml"));
+        var scanner = File.ReadAllText(Path.Combine(directory, "_CameraScanner.cshtml"));
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "cycle-count.js"));
+
+        Assert.Contains("data-cycle-scan-location", details, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-scan-product", count, StringComparison.Ordinal);
+        Assert.Contains("_CameraScanner", details, StringComparison.Ordinal);
+        Assert.Contains("_CameraScanner", count, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-camera-scanner", scanner, StringComparison.Ordinal);
+        Assert.Contains("data-camera-video", scanner, StringComparison.Ordinal);
+        Assert.Contains("data-camera-switch", scanner, StringComparison.Ordinal);
+        Assert.Contains("data-camera-photo", scanner, StringComparison.Ordinal);
+
+        Assert.Contains("navigator.mediaDevices.getUserMedia", script, StringComparison.Ordinal);
+        Assert.Contains("facingMode: { exact: \"environment\" }", script, StringComparison.Ordinal);
+        Assert.Contains("window.BarcodeDetector", script, StringComparison.Ordinal);
+        Assert.Contains("decodeFromStream", script, StringComparison.Ordinal);
+        Assert.Contains("if (error && !isCodeNotDetectedError(error))", script, StringComparison.Ordinal);
+        Assert.Contains("stream.getTracks().forEach(track => track.stop())", script, StringComparison.Ordinal);
+        Assert.Contains("window.addEventListener(\"pagehide\"", script, StringComparison.Ordinal);
+        Assert.Contains("openCycleScanner(locationButton", script, StringComparison.Ordinal);
+        Assert.Contains("openCycleScanner(productButton", script, StringComparison.Ordinal);
+        Assert.Contains("openCycleScanner(scanButton", script, StringComparison.Ordinal);
+
+        Assert.DoesNotContain("data-cycle-location-photo", details, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-cycle-scan-photo", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("locationButton.addEventListener(\"click\", () => photo.click())", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("productButton.addEventListener(\"click\", () => photo.click())", script, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
@@ -51,6 +114,18 @@ public sealed class CameraScannerContractTests
         {
             var candidate = Path.Combine([directory.FullName, .. parts]);
             if (File.Exists(candidate)) return candidate;
+            directory = directory.Parent;
+        }
+        throw new DirectoryNotFoundException("No se encontró la raíz del repositorio.");
+    }
+
+    private static string RepositoryDirectory(params string[] directoryParts)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine([directory.FullName, .. directoryParts]);
+            if (Directory.Exists(candidate)) return candidate;
             directory = directory.Parent;
         }
         throw new DirectoryNotFoundException("No se encontró la raíz del repositorio.");

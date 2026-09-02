@@ -1076,6 +1076,34 @@ revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
   física con ratón y tablet Android siguen pendientes; no se atribuye fluidez al
   hardware real hasta medirla con un plano de 100–300 objetos y estrés de 500.
 
+##### Fase 11.9.5: lienzo ampliable del croquis — implementada; migración y validación visual/física pendientes
+
+- `WarehouseMapLayout` persiste ancho y alto. Los layouts existentes reciben
+  `1600 × 900`; el servidor solo acepta crecimiento hacia la derecha y abajo,
+  en incrementos de 25, hasta `6400 × 3600`. Elementos operativos, arquitectura
+  y fondos continúan obligados a permanecer dentro del lienzo enviado.
+- El editor ofrece un tirador táctil y accesible por teclado en la esquina
+  inferior derecha. El tamaño es borrador, participa en cancelar/deshacer y solo
+  se publica después de la revisión existente y la confirmación con NIP ADMIN.
+  La consulta, la cuadrícula y los fondos usan las dimensiones persistidas sin
+  alterar las coordenadas anteriores ni crear almacenes o ubicaciones.
+- En la consulta, **Ajustar** usa el ancho disponible en lugar de reducir todo
+  el lienzo alto para hacerlo caber simultáneamente. La proporción SVG se
+  conserva y el excedente vertical se recorre dentro del panel con scroll nativo;
+  el zoom continúa entre 100 % y 400 % sin cambiar el `viewBox` persistido.
+- La selección múltiple representa estilos diferentes como **Varios** sin
+  serializar un valor vacío. Antes de revisar o guardar, el editor normaliza
+  borradores antiguos al catálogo semántico y limita el grosor a `0–12`; si el
+  servidor rechaza un estilo, informa etiqueta, UUID, trazo, relleno y grosor.
+- La auditoría usa esquema 6 e incluye dimensiones antes/después; los resúmenes
+  de esquemas anteriores siguen siendo legibles. La migración
+  `20260831183516_AddWarehouseMapCanvasDimensions` solo agrega ambas columnas y
+  su restricción al layout. No se aplicó a PostgreSQL ni se publicó una Release.
+- Sintaxis JavaScript, 64 pruebas focales y el build Web Release aislado sin
+  advertencias aprobaron. La comprobación visual en navegador y la prueba física
+  táctil continúan pendientes y deben ejecutarse contra la aplicación actualizada
+  antes de declarar cierre operativo.
+
 Quedan fuera de 11.9 la importación o exportación DWG/DXF, curvas Bézier,
 bibliotecas CAD completas, colaboración simultánea en tiempo real, cálculo
 estructural, rutas automáticas de evacuación y reglas legales no confirmadas.

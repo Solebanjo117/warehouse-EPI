@@ -203,7 +203,8 @@ public sealed class CycleCountService(
     {
         var location = await dbContext.CycleCountLocations.Include(item => item.Location).Include(item => item.Campaign)
             .SingleOrDefaultAsync(item => item.Id == cycleCountLocationId && item.CampaignId == campaignId, cancellationToken);
-        if (location is null || location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return null;
+        if (location is null || location.Campaign.Status is CycleCountCampaignStatus.Draft or CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled ||
+            location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return null;
         var productIds = await GetKnownProductIdsAsync(location.LocationId, cancellationToken);
         var products = await dbContext.Products.AsNoTracking().Include(item => item.BaseUnit)
             .Where(item => productIds.Contains(item.Id)).OrderBy(item => item.Sku).ToListAsync(cancellationToken);
@@ -228,7 +229,8 @@ public sealed class CycleCountService(
         var location = await dbContext.CycleCountLocations.Include(item => item.Campaign).Include(item => item.Attempts)
             .SingleOrDefaultAsync(item => item.Id == command.Preparation.CycleCountLocationId && item.CampaignId == command.Preparation.CampaignId, cancellationToken);
         if (location is null) return new(CycleCountStatus.NotFound);
-        if (location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return new(CycleCountStatus.InvalidState, location.CampaignId, location.Id);
+        if (location.Campaign.Status is CycleCountCampaignStatus.Draft or CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled ||
+            location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return new(CycleCountStatus.InvalidState, location.CampaignId, location.Id);
 
         // La captura se valida antes de persistir: un envío inválido no debe crear el intento
         // ni dejar la ubicación en Counting, porque el mismo token preparado se reenvía.
@@ -269,35 +271,54 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin, null, [], ["NIP no válido."]);
+        if (command.OperationId == Guid.Empty || command.Decisions.Count == 0 || command.Decisions.Any(item => item.OperationId == Guid.Empty))
+            return new(CycleCountStatus.ValidationFailed, null, [], ["La revisión final no contiene identificadores de operación válidos."]);
         if (command.Decisions.Any(item => item.Decision == CycleCountReviewDecision.Approve && item.Reason is null))
             return new(CycleCountStatus.ValidationFailed, null, [], ["Selecciona una causa para cada ajuste aprobado."]);
         if (command.Decisions.Any(item => item.Decision == CycleCountReviewDecision.Approve && item.Reason == CycleCountAdjustmentReason.Other && string.IsNullOrWhiteSpace(item.Notes)))
             return new(CycleCountStatus.ValidationFailed, null, [], ["Describe la causa cuando eliges Otro."]);
-        var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(string.Join('|', command.Decisions.Select(item => $"{item.LocationId:N}:{item.OperationId:N}:{item.Decision}:{item.Reason}:{item.Notes}")))));
+        var fingerprintPayload = string.Join('|', command.Decisions.Select(item =>
+            $"{item.LocationId:N}:{item.OperationId:N}:{item.Decision}:{item.Reason}:{item.Notes}:{string.Join(',', (item.ApprovedSharedAssignments ?? []).OrderBy(value => value.ProductId).ThenBy(value => value.LocationId).Select(value => $"{value.ProductId:N}-{value.LocationId:N}"))}"));
+        var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprintPayload)));
         var batch = await dbContext.CycleCountReviewBatches.SingleOrDefaultAsync(item => item.OperationId == command.OperationId, cancellationToken);
         if (batch is not null && batch.RequestFingerprint != fingerprint) return new(CycleCountStatus.IdempotencyConflict, batch.Id, [], ["El identificador de lote ya pertenece a otra solicitud."]);
-        if (batch is null) { batch = new() { OperationId = command.OperationId, CampaignId = command.CampaignId, AuthorizedByUserId = user.Id, AuthorizedAt = timeProvider.GetUtcNow(), RequestFingerprint = fingerprint }; dbContext.CycleCountReviewBatches.Add(batch); await dbContext.SaveChangesAsync(cancellationToken); }
+        if (batch is not null) return new(CycleCountStatus.Success, batch.Id, []);
+        var decisionIds = command.Decisions.Select(item => item.LocationId).Distinct().ToArray();
+        if (decisionIds.Length != command.Decisions.Count)
+            return new(CycleCountStatus.ValidationFailed, null, [], ["Cada ubicación debe aparecer una sola vez en la revisión final."]);
+        var decisionLocations = await dbContext.CycleCountLocations.AsNoTracking()
+            .Where(item => decisionIds.Contains(item.Id))
+            .Select(item => new { item.Id, item.CampaignId, item.Status })
+            .ToListAsync(cancellationToken);
+        if (decisionLocations.Count != decisionIds.Length || decisionLocations.Any(item => item.CampaignId != command.CampaignId))
+            return new(CycleCountStatus.ValidationFailed, null, [], ["Una ubicación no pertenece a esta campaña."]);
+        if (decisionLocations.Any(item => item.Status is not (CycleCountLocationStatus.UnderReview or CycleCountLocationStatus.Stale)))
+            return new(CycleCountStatus.ValidationFailed, null, [], ["Una ubicación ya no está disponible para revisión."]);
+        var states = decisionLocations.ToDictionary(item => item.Id, item => item.Status);
+        if (command.Decisions.Any(item => item.Decision == CycleCountReviewDecision.Approve && states[item.LocationId] == CycleCountLocationStatus.Stale))
+            return new(CycleCountStatus.ValidationFailed, null, [], ["Las ubicaciones cuyo saldo cambió deben enviarse a reconteo."]);
+        batch = new() { OperationId = command.OperationId, CampaignId = command.CampaignId, AuthorizedByUserId = user.Id, AuthorizedAt = timeProvider.GetUtcNow(), RequestFingerprint = fingerprint };
+        dbContext.CycleCountReviewBatches.Add(batch);
+        await dbContext.SaveChangesAsync(cancellationToken);
         var results = new List<CycleCountBatchItemResult>();
         foreach (var item in command.Decisions)
         {
             CycleCountResult result;
             if (item.Decision == CycleCountReviewDecision.Recount)
-                result = await RequestRecountAsync(new(item.LocationId, item.OperationId, command.Pin, item.Notes), cancellationToken);
+                result = await RequestRecountAsync(new(item.LocationId, item.OperationId, command.Pin, item.Notes, ReviewBatchId: batch.Id), cancellationToken);
             else
-                result = await ApproveAsync(new(item.LocationId, item.OperationId, command.Pin, FormatReason(item.Reason, item.Notes), item.ApprovedSharedAssignments), cancellationToken);
+                result = await ApproveAsync(new(item.LocationId, item.OperationId, command.Pin, FormatReason(item.Reason, item.Notes), item.ApprovedSharedAssignments, batch.Id), cancellationToken);
             if (item.Decision == CycleCountReviewDecision.Approve && result.Status == CycleCountStatus.Success)
             {
                 var location = await dbContext.CycleCountLocations.SingleAsync(value => value.Id == item.LocationId, cancellationToken);
                 location.AdjustmentReason = item.Reason;
                 location.AdjustmentReasonNotes = Normalize(item.Notes, 500);
-                var action = await dbContext.CycleCountActions.Where(value => value.CycleCountLocationId == item.LocationId && value.Type == CycleCountActionType.AdjustmentApproved && value.ReviewBatchId == null)
-                    .OrderByDescending(value => value.RecordedAt).FirstOrDefaultAsync(cancellationToken);
-                if (action is not null) action.ReviewBatchId = batch.Id;
                 await dbContext.SaveChangesAsync(cancellationToken);
             }
             results.Add(new(item.LocationId, result.Status, result.MovementId, result.ValidationErrors, result.Conflicts));
         }
-        dbContext.CycleCountActions.Add(new() { OperationId = Guid.NewGuid(), CampaignId = command.CampaignId, ReviewBatchId = batch.Id, Type = CycleCountActionType.BatchReviewed, ResponsibleUserId = user.Id, RecordedAt = timeProvider.GetUtcNow(), Notes = $"Revisión agrupada: {results.Count(item => item.Status == CycleCountStatus.Success)} acción(es)." });
+        if (!await dbContext.CycleCountActions.AnyAsync(item => item.ReviewBatchId == batch.Id && item.Type == CycleCountActionType.BatchReviewed, cancellationToken))
+            dbContext.CycleCountActions.Add(new() { OperationId = Guid.NewGuid(), CampaignId = command.CampaignId, ReviewBatchId = batch.Id, Type = CycleCountActionType.BatchReviewed, ResponsibleUserId = user.Id, RecordedAt = timeProvider.GetUtcNow(), Notes = $"Revisión agrupada: {results.Count(item => item.Status == CycleCountStatus.Success)} acción(es)." });
         await dbContext.SaveChangesAsync(cancellationToken);
         return new(CycleCountStatus.Success, batch.Id, results);
     }
@@ -318,7 +339,7 @@ public sealed class CycleCountService(
         location.LastActionByUserId = user.Id;
         location.Campaign.Status = CycleCountCampaignStatus.InProgress;
         location.Campaign.LastActionByUserId = user.Id;
-        AddAction(location.Campaign, location, null, CycleCountActionType.RecountRequested, user.Id, now, Normalize(command.Notes, 500), command.OperationId);
+        AddAction(location.Campaign, location, null, CycleCountActionType.RecountRequested, user.Id, now, Normalize(command.Notes, 500), command.OperationId, command.ReviewBatchId);
         await dbContext.SaveChangesAsync(cancellationToken);
         return new(CycleCountStatus.Success, location.CampaignId, location.Id);
     }
@@ -372,7 +393,7 @@ public sealed class CycleCountService(
         location.CompletedAt = now;
         location.LastActionByUserId = user.Id;
         location.Campaign.LastActionByUserId = user.Id;
-        AddAction(location.Campaign, location, attempt, CycleCountActionType.AdjustmentApproved, user.Id, now, Normalize(command.Notes, 500));
+        AddAction(location.Campaign, location, attempt, CycleCountActionType.AdjustmentApproved, user.Id, now, Normalize(command.Notes, 500), reviewBatchId: command.ReviewBatchId);
         AddAction(location.Campaign, location, attempt, CycleCountActionType.LocationCompleted, user.Id, now, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         await RefreshCampaignStatusAsync(location.Campaign, user.Id, cancellationToken);
@@ -436,6 +457,24 @@ public sealed class CycleCountService(
         var attemptId = await dbContext.CycleCountAttempts.AsNoTracking().Where(item => item.CycleCountLocationId == locationId)
             .OrderByDescending(item => item.AttemptNumber).Select(item => (Guid?)item.Id).FirstOrDefaultAsync(cancellationToken);
         return attemptId is Guid id ? await GetAttemptAsync(id, includeExpected, cancellationToken) : null;
+    }
+
+    public async Task<IReadOnlyList<SharedLocationConflict>> GetReviewSharingConflictsAsync(Guid cycleCountLocationId, CancellationToken cancellationToken = default)
+    {
+        var location = await dbContext.CycleCountLocations.AsNoTracking()
+            .Include(item => item.Location)
+            .Include(item => item.Attempts).ThenInclude(item => item.Entries).ThenInclude(item => item.Product)
+            .SingleOrDefaultAsync(item => item.Id == cycleCountLocationId, cancellationToken);
+        var attempt = location?.Attempts.OrderByDescending(item => item.AttemptNumber)
+            .FirstOrDefault(item => item.Status == CycleCountAttemptStatus.Submitted);
+        if (location is null || attempt is null) return [];
+        var differences = attempt.Entries.Where(item => item.CountedQuantity != item.ExpectedQuantity).ToArray();
+        if (differences.Length == 0) return [];
+        var pairs = differences.Select(item => new InventoryAssignmentKey(item.ProductId, location.LocationId)).ToArray();
+        var products = differences.Select(item => item.Product).DistinctBy(item => item.Id).ToDictionary(item => item.Id);
+        var locations = new Dictionary<Guid, Location> { [location.LocationId] = location.Location };
+        return await new InventoryMovementStore(dbContext, timeProvider)
+            .FindSharingConflictsAsync(pairs, products, locations, [], cancellationToken);
     }
 
     public async Task<IReadOnlyList<CycleCountExportRow>> GetExportRowsAsync(Guid campaignId, int maximumRows, CancellationToken cancellationToken = default)
@@ -623,8 +662,8 @@ public sealed class CycleCountService(
             : new(CycleCountStatus.IdempotencyConflict);
     }
 
-    private void AddAction(CycleCountCampaign campaign, CycleCountLocation? location, CycleCountAttempt? attempt, CycleCountActionType type, Guid userId, DateTimeOffset now, string? notes, Guid? operationId = null) =>
-        dbContext.CycleCountActions.Add(new() { OperationId = operationId, CampaignId = campaign.Id, CycleCountLocationId = location?.Id, CycleCountAttemptId = attempt?.Id, Type = type, ResponsibleUserId = userId, RecordedAt = now, Notes = notes });
+    private void AddAction(CycleCountCampaign campaign, CycleCountLocation? location, CycleCountAttempt? attempt, CycleCountActionType type, Guid userId, DateTimeOffset now, string? notes, Guid? operationId = null, Guid? reviewBatchId = null) =>
+        dbContext.CycleCountActions.Add(new() { OperationId = operationId, CampaignId = campaign.Id, CycleCountLocationId = location?.Id, CycleCountAttemptId = attempt?.Id, ReviewBatchId = reviewBatchId, Type = type, ResponsibleUserId = userId, RecordedAt = now, Notes = notes });
 
     private static string Folio(long number) => $"CC-{number:D6}";
     private static string? Normalize(string? value, int maximum) => string.IsNullOrWhiteSpace(value) ? null : value.Trim()[..Math.Min(value.Trim().Length, maximum)];

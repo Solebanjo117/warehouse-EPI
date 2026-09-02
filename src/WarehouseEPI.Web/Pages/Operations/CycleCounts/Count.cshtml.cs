@@ -26,7 +26,15 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
     public async Task<IActionResult> OnGetAsync(Guid id, Guid locationId, Guid? attemptId, CancellationToken cancellationToken)
     {
         CampaignId = id; LocationId = locationId;
-        if (attemptId is Guid legacyAttempt) { Attempt = await cycleCountService.GetAttemptAsync(legacyAttempt, false, cancellationToken); return Attempt is null ? NotFound() : Page(); }
+        if (attemptId is Guid legacyAttempt)
+        {
+            var campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken);
+            if (campaign?.Locations.SingleOrDefault(item => item.Id == locationId)?.ActiveAttemptId != legacyAttempt) return NotFound();
+            Attempt = await cycleCountService.GetAttemptAsync(legacyAttempt, false, cancellationToken);
+            if (Attempt is null) return NotFound();
+            Input.AttemptId = legacyAttempt;
+            return Page();
+        }
         var preparation = await cycleCountService.PrepareAsync(id, locationId, cancellationToken);
         if (preparation is null) return NotFound();
         PreparationToken = preparationProtector.Protect(preparation);
@@ -37,10 +45,19 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
     public async Task<IActionResult> OnPostAsync(Guid id, Guid locationId, CancellationToken cancellationToken)
     {
         CampaignId = id; LocationId = locationId;
-        if (!preparationProtector.TryUnprotect(Input.PreparationToken, out var preparation) || preparation is null || preparation.CampaignId != id || preparation.CycleCountLocationId != locationId)
-        { Error = "La preparación expiró o no es válida. Vuelve a escanear la ubicación."; return Page(); }
-        PreparationToken = Input.PreparationToken;
-        Attempt = BlindView(preparation);
+        CycleCountPreparation? preparation = null;
+        if (Input.AttemptId is Guid legacyAttempt)
+        {
+            Attempt = await cycleCountService.GetAttemptAsync(legacyAttempt, false, cancellationToken);
+            if (Attempt is null) { Error = "El intento abierto ya no está disponible. Vuelve a la campaña."; return Page(); }
+        }
+        else
+        {
+            if (!preparationProtector.TryUnprotect(Input.PreparationToken, out preparation) || preparation is null || preparation.CampaignId != id || preparation.CycleCountLocationId != locationId)
+            { Error = "La preparación expiró o no es válida. Vuelve a escanear la ubicación."; return Page(); }
+            PreparationToken = Input.PreparationToken;
+            Attempt = BlindView(preparation);
+        }
 
         // Una cantidad vacía o ilegible nunca debe convertirse en cero: se identifica la
         // línea, se conserva lo capturado y se pide corregirla.
@@ -50,7 +67,7 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
         {
             if (item.Quantity is decimal quantity) { entries.Add(new(item.ProductId, quantity)); continue; }
             MissingQuantityProductIds.Add(item.ProductId);
-            missing.Add(preparation.Entries.FirstOrDefault(entry => entry.ProductId == item.ProductId)?.Sku ?? "el producto de la lista");
+            missing.Add(Attempt.Entries.FirstOrDefault(entry => entry.ProductId == item.ProductId)?.Sku ?? "el producto de la lista");
         }
         if (!Input.IsLocationEmpty && missing.Count != 0)
         {
@@ -83,8 +100,10 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
             entries.Add(new(productId.Value, item.Quantity.Value));
         }
 
-        var result = await cycleCountService.SubmitPreparedAsync(new(preparation, Input.OperationId, Input.Pin, entries, Input.IsLocationEmpty), cancellationToken);
-        if (result.Status == CycleCountStatus.Success) return RedirectToPage("Review", new { id, locationId });
+        var result = Input.AttemptId is Guid attemptId
+            ? await cycleCountService.SubmitAsync(new(attemptId, Input.OperationId, Input.Pin, entries, Input.IsLocationEmpty), cancellationToken)
+            : await cycleCountService.SubmitPreparedAsync(new(preparation!, Input.OperationId, Input.Pin, entries, Input.IsLocationEmpty), cancellationToken);
+        if (result.Status == CycleCountStatus.Success) return RedirectToPage("Details", new { id = result.CampaignId ?? id, submittedLocationId = result.LocationId ?? locationId });
         Error = CycleCountPresentation.StatusMessage(result);
         return Page();
     }
@@ -93,7 +112,7 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
         Guid.Empty, 1, WarehouseEPI.Core.Entities.CycleCountAttemptStatus.Counting, preparation.PreparedAt, string.Empty, null, null,
         preparation.Entries.Select(item => new CycleCountEntryItem(item.ProductId, item.Sku, item.Description, item.UnitCode, item.AllowsDecimals, null, null, null, false)).ToArray());
 
-    public sealed class InputModel { public string? PreparationToken { get; set; } public Guid OperationId { get; set; } [Required] public string Pin { get; set; } = string.Empty; public bool IsLocationEmpty { get; set; } public List<EntryInput> Entries { get; set; } = []; public List<UnexpectedEntryInput> UnexpectedEntries { get; set; } = []; }
+    public sealed class InputModel { public string? PreparationToken { get; set; } public Guid? AttemptId { get; set; } public Guid OperationId { get; set; } [Required] public string Pin { get; set; } = string.Empty; public bool IsLocationEmpty { get; set; } public List<EntryInput> Entries { get; set; } = []; public List<UnexpectedEntryInput> UnexpectedEntries { get; set; } = []; }
     public sealed class EntryInput { public Guid ProductId { get; set; } public decimal? Quantity { get; set; } }
     public sealed class UnexpectedEntryInput { public string? Code { get; set; } public decimal? Quantity { get; set; } }
 }

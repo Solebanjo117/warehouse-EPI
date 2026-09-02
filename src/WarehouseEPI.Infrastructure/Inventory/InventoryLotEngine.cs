@@ -23,9 +23,12 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
 
     internal static string DailyLotNumber(DateOnly lotDate) => $"AUTO-{lotDate:yyyyMMdd}";
 
-    internal static uint AggregateVersion(IEnumerable<InventoryBalance> balances)
+    internal static uint AggregateVersion(IEnumerable<InventoryBalance> balances) =>
+        AggregateVersion(balances.Select(item => (item.LotId, item.Quantity, item.Version)));
+
+    internal static uint AggregateVersion(IEnumerable<(Guid? LotId, decimal Quantity, uint Version)> balances)
     {
-        var text = string.Join('|', balances.OrderBy(item => item.LotId).Select(item =>
+        var text = string.Join('|', balances.Where(item => item.Quantity != 0).OrderBy(item => item.LotId).Select(item =>
             $"{item.LotId:N}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
         return text.Length == 0 ? 0 : BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
     }

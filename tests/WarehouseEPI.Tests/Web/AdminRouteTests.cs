@@ -1,7 +1,12 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -12,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Web.Pages.Admin;
 
 namespace WarehouseEPI.Tests.Web;
 
@@ -373,6 +379,41 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("WEB-EDITED", productRackSearchBody);
     }
 
+    [Fact]
+    public void Logout_page_registers_the_post_form_target()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Logout.cshtml"));
+        var layout = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
+
+        Assert.Contains("@page", page, StringComparison.Ordinal);
+        Assert.Contains("@model WarehouseEPI.Web.Pages.Admin.LogoutModel", page, StringComparison.Ordinal);
+        Assert.Contains("<form method=\"post\" asp-page=\"/Admin/Logout\">", layout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Logout_handler_expires_the_admin_cookie_and_redirects_home()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options => options.Cookie.Name = "WarehouseEPI.Admin");
+        await using var provider = services.BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = provider };
+        httpContext.Request.Headers.Cookie = "WarehouseEPI.Admin=authenticated";
+        var page = new LogoutModel
+        {
+            PageContext = new PageContext { HttpContext = httpContext }
+        };
+
+        var result = await page.OnPostAsync();
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("/Index", redirect.PageName);
+        var setCookie = httpContext.Response.Headers.SetCookie.ToString();
+        Assert.Contains("WarehouseEPI.Admin=", setCookie, StringComparison.Ordinal);
+        Assert.Contains("expires=", setCookie, StringComparison.OrdinalIgnoreCase);
+    }
+
     public sealed class WarehouseApplicationFactory : WebApplicationFactory<Program>
     {
         private readonly string databaseName = $"WarehouseWebTests-{Guid.NewGuid():N}";
@@ -410,5 +451,23 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var tokenMatch = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
         Assert.True(tokenMatch.Success, "No se encontró el token antiforgery.");
         return WebUtility.HtmlDecode(tokenMatch.Groups[1].Value);
+    }
+
+    private static string RepositoryPath(params string[] parts)
+    {
+        var root = Environment.GetEnvironmentVariable("WAREHOUSE_EPI_REPOSITORY_ROOT");
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (string.IsNullOrWhiteSpace(root) && directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "WarehouseEPI.sln")))
+                root = directory.FullName;
+            directory = directory.Parent;
+        }
+
+        Assert.False(string.IsNullOrWhiteSpace(root), "No se encontró la raíz del repositorio.");
+        var path = root!;
+        foreach (var part in parts)
+            path = Path.Combine(path, part);
+        return path;
     }
 }
