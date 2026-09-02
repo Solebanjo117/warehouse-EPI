@@ -92,9 +92,17 @@
 
   const scanButton = document.createElement("button");
   scanButton.type = "button";
-  scanButton.className = "btn btn-outline-secondary";
-  scanButton.textContent = "📷 Escanear producto inesperado";
+  scanButton.className = "btn btn-outline-secondary d-inline-flex align-items-center gap-2";
   scanButton.setAttribute("aria-describedby", "cycle-count-camera-status");
+  const scanIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  scanIcon.setAttribute("class", "app-icon");
+  scanIcon.setAttribute("aria-hidden", "true");
+  const scanIconUse = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  scanIconUse.setAttribute("href", "#icon-camera");
+  scanIcon.append(scanIconUse);
+  const scanLabel = document.createElement("span");
+  scanLabel.textContent = "Escanear producto inesperado";
+  scanButton.append(scanIcon, scanLabel);
 
   const photoInput = document.createElement("input");
   photoInput.type = "file";
@@ -190,6 +198,8 @@
       if (element.type === "checkbox") element.checked = draft.fields[element.name];
       else element.value = draft.fields[element.name];
     });
+    // La restauración no dispara eventos de usuario: avisa para recalcular estados y progreso.
+    form.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
   const draft = readDraft();
@@ -217,4 +227,83 @@
 
   form.addEventListener("input", saveDraft);
   form.addEventListener("submit", discardDraft);
+
+  // ---- Estación de captura: progreso, ubicación vacía y confirmación con NIP -------------
+  const steps = () => [...form.querySelectorAll("[data-cycle-product]")];
+  const quantityInputs = () => [...form.querySelectorAll("[data-cycle-quantity]")];
+  const emptyToggle = form.querySelector("[data-cycle-empty-location]");
+  const progress = capture.querySelector("[data-cycle-progress]");
+
+  // Marcar la ubicación como vacía rellena ceros visibles: el servidor ya fuerza 0 en esas
+  // líneas, así que esto sólo evita que el `required` del navegador bloquee el atajo.
+  const applyEmptyLocation = () => {
+    const empty = Boolean(emptyToggle?.checked);
+    quantityInputs().forEach((input) => {
+      if (empty) {
+        if (input.dataset.cyclePrevious === undefined) input.dataset.cyclePrevious = input.value;
+        input.value = "0";
+        input.readOnly = true;
+      } else {
+        if (input.dataset.cyclePrevious !== undefined) {
+          input.value = input.dataset.cyclePrevious;
+          delete input.dataset.cyclePrevious;
+        }
+        input.readOnly = false;
+      }
+    });
+    steps().forEach(step => step.classList.toggle("is-empty-location", empty));
+  };
+
+  const countedTotal = () => quantityInputs().filter(input => input.value.trim() !== "").length;
+
+  const refreshCaptureState = () => {
+    const empty = Boolean(emptyToggle?.checked);
+    steps().forEach((step) => {
+      const input = step.querySelector("[data-cycle-quantity]");
+      const filled = Boolean(input && input.value.trim() !== "");
+      step.classList.toggle("is-counted", filled);
+      const status = step.querySelector("[data-cycle-step-status]");
+      if (status) status.textContent = empty ? "Vacío" : filled ? "Contado" : "Pendiente";
+    });
+    if (progress) progress.textContent = `${countedTotal()} de ${steps().length} contados`;
+  };
+
+  emptyToggle?.addEventListener("change", () => { applyEmptyLocation(); refreshCaptureState(); saveDraft(); });
+  form.addEventListener("input", refreshCaptureState);
+  form.addEventListener("change", () => { applyEmptyLocation(); refreshCaptureState(); });
+
+  const reviewButton = form.querySelector("[data-cycle-review]");
+  const pinInput = form.querySelector("[data-cycle-pin]");
+  const modalElement = document.getElementById("confirm-cycle-count");
+  if (reviewButton && pinInput && modalElement && window.bootstrap) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    reviewButton.addEventListener("click", () => {
+      // El NIP vive en un modal oculto: exigirlo antes de validar impediría enfocarlo.
+      pinInput.required = false;
+      if (!form.reportValidity()) return;
+      const summary = form.querySelector("[data-cycle-confirmation]");
+      if (summary) {
+        summary.replaceChildren();
+        const heading = document.createElement("strong");
+        heading.textContent = emptyToggle?.checked
+          ? "Ubicación vacía"
+          : `${countedTotal()} de ${steps().length} productos contados`;
+        const detail = document.createElement("span");
+        const unexpected = codeInputs().filter(input => input.value.trim() !== "").length;
+        detail.textContent = unexpected === 1 ? "1 producto inesperado" : `${unexpected} productos inesperados`;
+        summary.append(heading, detail);
+      }
+      pinInput.required = true;
+      modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
+      modal.show();
+    });
+    form.addEventListener("submit", () => {
+      const submit = form.querySelector("[data-cycle-submit]");
+      if (submit) { submit.disabled = true; submit.textContent = "Registrando…"; }
+    });
+  }
+
+  applyEmptyLocation();
+  refreshCaptureState();
+  capture.querySelector("[data-cycle-errors]")?.focus();
 })();
