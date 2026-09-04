@@ -75,6 +75,17 @@
       const button = event.target.closest("[data-cycle-filter]");
       if (button) applyFilter(button.dataset.cycleFilter);
     });
+
+    const remaining = campaignDetail.querySelector("[data-cycle-session-remaining]");
+    if (remaining) {
+      const expiresAt = Date.parse(remaining.dataset.cycleSessionExpires || "");
+      const refreshRemaining = () => {
+        const minutes = Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000));
+        remaining.textContent = minutes === 1 ? "1 minuto" : `${minutes} minutos`;
+      };
+      refreshRemaining();
+      window.setInterval(refreshRemaining, 60000);
+    }
   }
 
   document.querySelectorAll("[data-cycle-review-decision]").forEach((section) => {
@@ -392,6 +403,7 @@
       form.requestSubmit();
       return true;
     }));
+    if (campaignDetail?.dataset.cycleScanNext === "true") code.focus();
   }
   const productButton = document.querySelector("[data-cycle-scan-product]");
   if (productButton) {
@@ -546,6 +558,7 @@
       if (element.type === "checkbox") element.checked = draft.fields[element.name];
       else element.value = draft.fields[element.name];
     });
+    form.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
   const draft = readDraft();
@@ -574,4 +587,103 @@
   form.addEventListener("input", saveDraft);
   // El borrador sólo se elimina al volver a la campaña después de un POST exitoso.
   // Así sobrevive a errores de validación, red o concurrencia sin guardar el NIP.
+
+  // ---- Estación guiada: progreso, ceros visibles, Enter y confirmación -----------------
+  const steps = () => [...form.querySelectorAll("[data-cycle-product]")];
+  const quantityInputs = () => [...form.querySelectorAll("[data-cycle-quantity]")];
+  const emptyToggle = form.querySelector("[data-cycle-empty-location]");
+  const progress = capture.querySelector("[data-cycle-progress]");
+  const reviewButton = form.querySelector("[data-cycle-review]");
+
+  const applyEmptyLocation = () => {
+    const empty = Boolean(emptyToggle?.checked);
+    quantityInputs().forEach((input) => {
+      if (empty) {
+        if (input.dataset.cyclePrevious === undefined) input.dataset.cyclePrevious = input.value;
+        input.value = "0";
+        input.readOnly = true;
+      } else {
+        if (input.dataset.cyclePrevious !== undefined) {
+          input.value = input.dataset.cyclePrevious;
+          delete input.dataset.cyclePrevious;
+        }
+        input.readOnly = false;
+      }
+    });
+    steps().forEach(step => step.classList.toggle("is-empty-location", empty));
+  };
+
+  const countedTotal = () => quantityInputs().filter(input => input.value.trim() !== "").length;
+  const refreshCaptureState = () => {
+    const empty = Boolean(emptyToggle?.checked);
+    steps().forEach((step) => {
+      const input = step.querySelector("[data-cycle-quantity]");
+      const filled = Boolean(input && input.value.trim() !== "");
+      step.classList.toggle("is-counted", filled);
+      const stepStatus = step.querySelector("[data-cycle-step-status]");
+      if (stepStatus) stepStatus.textContent = empty ? "Vacío" : filled ? "Contado" : "Pendiente";
+    });
+    if (progress) progress.textContent = `${countedTotal()} de ${steps().length} contados`;
+  };
+
+  emptyToggle?.addEventListener("change", () => { applyEmptyLocation(); refreshCaptureState(); saveDraft(); });
+  form.addEventListener("input", refreshCaptureState);
+  form.addEventListener("change", () => { applyEmptyLocation(); refreshCaptureState(); });
+
+  quantityInputs().forEach((input) => input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const quantities = quantityInputs();
+    const current = quantities.indexOf(input);
+    const next = quantities.slice(current + 1).find(candidate => !candidate.value.trim() && !candidate.readOnly)
+      || quantities.find(candidate => !candidate.value.trim() && !candidate.readOnly);
+    (next || reviewButton)?.focus();
+  }));
+
+  fieldset.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !(event.target instanceof HTMLInputElement)) return;
+    const row = event.target.closest("[data-cycle-unexpected-row]");
+    if (!row) return;
+    const code = row.querySelector('input[name$=".Code"]');
+    const quantity = row.querySelector('input[name$=".Quantity"]');
+    if (event.target === code && code.value.trim()) {
+      event.preventDefault();
+      quantity?.focus();
+      return;
+    }
+    if (event.target === quantity) {
+      event.preventDefault();
+      const nextCode = rows().map(item => item.querySelector('input[name$=".Code"]')).find(candidate => candidate && !candidate.value.trim());
+      (nextCode || reviewButton)?.focus();
+    }
+  });
+
+  const pinInput = form.querySelector("[data-cycle-pin]");
+  const modalElement = document.getElementById("confirm-cycle-count");
+  if (reviewButton && modalElement && window.bootstrap) {
+    const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+    reviewButton.addEventListener("click", () => {
+      if (pinInput) pinInput.required = false;
+      if (!form.reportValidity()) { if (pinInput) pinInput.required = true; return; }
+      if (pinInput) pinInput.required = true;
+      const summary = form.querySelector("[data-cycle-confirmation]");
+      if (summary) {
+        const unexpected = codeInputs().filter(input => input.value.trim() !== "").length;
+        summary.textContent = emptyToggle?.checked
+          ? `Ubicación vacía · ${unexpected} producto(s) inesperado(s)`
+          : `${countedTotal()} de ${steps().length} productos contados · ${unexpected} inesperado(s)`;
+      }
+      if (pinInput) modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
+      modal.show();
+    });
+    form.addEventListener("submit", () => {
+      const submit = form.querySelector("[data-cycle-submit]");
+      if (submit) { submit.disabled = true; submit.textContent = "Registrando…"; }
+    });
+  }
+
+  applyEmptyLocation();
+  refreshCaptureState();
+  capture.querySelector("[data-cycle-errors]")?.focus();
 })();

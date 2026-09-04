@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack;
@@ -10,6 +11,7 @@ namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack;
 public sealed class EditModel(LocationRackAdministrationService racks) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
+    [BindProperty] public DeleteInputModel DeleteInput { get; set; } = new();
     public LocationRackEditView Rack { get; private set; } = null!;
     public LocationRackEditSummary? ReviewSummary { get; private set; }
     public IReadOnlyList<string> ReviewErrors { get; private set; } = [];
@@ -27,9 +29,11 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
             OperationId = Guid.NewGuid(),
             RowCode = rack.RowCode,
             RackNumber = rack.RackNumber,
+            OperationalRole = rack.OperationalRole,
             PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
                 .Select(item => item.PalletNumber).ToArray()
         };
+        PrepareDeleteInput(rack);
         return Page();
     }
 
@@ -68,16 +72,59 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
         return Page();
     }
 
+    public async Task<IActionResult> OnPostDeleteAsync(CancellationToken token)
+    {
+        var rack = await racks.GetAsync(DeleteInput.RowCode, DeleteInput.RackNumber, token);
+        if (rack is null) return NotFound();
+        Rack = rack;
+        Input = new InputModel
+        {
+            OperationId = Guid.NewGuid(),
+            RowCode = rack.RowCode,
+            RackNumber = rack.RackNumber,
+            OperationalRole = rack.OperationalRole,
+            PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
+                .Select(item => item.PalletNumber).ToArray()
+        };
+        var result = await racks.DeleteAsync(new LocationRackDeleteCommand(DeleteInput.OperationId,
+            CurrentUserId(), DeleteInput.RowCode, DeleteInput.RackNumber, DeleteInput.Reason,
+            DeleteInput.Pin, DeleteInput.ConfirmationCode), token);
+        DeleteInput.Pin = string.Empty;
+        ModelState.Remove($"{nameof(DeleteInput)}.{nameof(DeleteInputModel.Pin)}");
+        if (result.Status == LocationRackDeleteStatus.Success)
+        {
+            Message = $"Se eliminó definitivamente el rack {DeleteInput.RowCode}-{DeleteInput.RackNumber}.";
+            return RedirectToPage("../Index", new { viewMode = "racks" });
+        }
+        ReviewErrors = result.Status switch
+        {
+            LocationRackDeleteStatus.InvalidPin => ["No fue posible validar el NIP de un ADMIN activo."],
+            LocationRackDeleteStatus.Unauthorized => ["La sesión ADMIN ya no es válida."],
+            LocationRackDeleteStatus.IdempotencyConflict => ["La operación ya fue utilizada con otro contenido."],
+            _ => result.Errors ?? ["No fue posible eliminar el rack."]
+        };
+        return Page();
+    }
+
     private async Task<bool> LoadRackAsync(CancellationToken token)
     {
         var rack = await racks.GetAsync(Input.RowCode, Input.RackNumber, token);
         if (rack is null) return false;
         Rack = rack;
+        PrepareDeleteInput(rack);
         return true;
     }
 
+    private void PrepareDeleteInput(LocationRackEditView rack)
+    {
+        if (DeleteInput.OperationId == Guid.Empty) DeleteInput.OperationId = Guid.NewGuid();
+        DeleteInput.RowCode = rack.RowCode;
+        DeleteInput.RackNumber = rack.RackNumber;
+    }
+
     private LocationRackEditCommand Command(string? pin) => new(Input.OperationId,
-        CurrentUserId(), Input.RowCode, Input.RackNumber, Input.PresentPallets, Input.Reason, pin);
+        CurrentUserId(), Input.RowCode, Input.RackNumber, Input.OperationalRole,
+        Input.PresentPallets, Input.Reason, pin);
 
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
         ? id : Guid.Empty;
@@ -87,8 +134,19 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
         public Guid OperationId { get; set; }
         public string RowCode { get; set; } = string.Empty;
         public short RackNumber { get; set; }
+        public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Storage;
         public short[] PresentPallets { get; set; } = [];
         public string? Reason { get; set; }
         public string Pin { get; set; } = string.Empty;
+    }
+
+    public sealed class DeleteInputModel
+    {
+        public Guid OperationId { get; set; }
+        public string RowCode { get; set; } = string.Empty;
+        public short RackNumber { get; set; }
+        public string? Reason { get; set; }
+        public string Pin { get; set; } = string.Empty;
+        public string? ConfirmationCode { get; set; }
     }
 }

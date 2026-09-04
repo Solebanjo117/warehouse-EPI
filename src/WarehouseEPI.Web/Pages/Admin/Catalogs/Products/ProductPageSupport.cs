@@ -18,15 +18,16 @@ internal static class ProductPageSupport
 
     public static async Task ValidateAsync(WarehouseDbContext db, ProductInputModel input, ModelStateDictionary state, CancellationToken token)
     {
-
+        Guid? currentDefaultEntryLocationId = null;
         if (input.Id != Guid.Empty)
         {
             var current = await db.Products.AsNoTracking()
                 .Where(product => product.Id == input.Id)
-                .Select(product => new { product.BaseUnitId })
+                .Select(product => new { product.BaseUnitId, product.DefaultEntryLocationId })
                 .SingleOrDefaultAsync(token);
             if (current is not null)
             {
+                currentDefaultEntryLocationId = current.DefaultEntryLocationId;
                 if (current.BaseUnitId != input.BaseUnitId && await db.InventoryMovementLines.AsNoTracking()
                         .AnyAsync(line => line.ProductId == input.Id, token))
                     state.AddModelError("Input.BaseUnitId", "No se puede cambiar la unidad base después de registrar movimientos.");
@@ -50,6 +51,22 @@ internal static class ProductPageSupport
             var valid = await db.ProductClasses.AnyAsync(x => x.Id == input.ProductClassId && (!input.IsActive || x.IsActive), token);
             if (!valid) state.AddModelError("Input.ProductClassId", "Seleccione una clase activa.");
         }
+
+        if (input.DefaultEntryLocationId.HasValue && input.DefaultEntryLocationId != currentDefaultEntryLocationId)
+        {
+            if (!input.IsActive)
+            {
+                state.AddModelError("Input.DefaultEntryLocationId", "Active el producto antes de asignar una ubicación principal de entrada.");
+            }
+            else
+            {
+                var valid = await db.Locations.AsNoTracking().AnyAsync(location =>
+                    location.Id == input.DefaultEntryLocationId && location.IsPhysicallyPresent &&
+                    location.IsActive && !location.IsBlocked, token);
+                if (!valid)
+                    state.AddModelError("Input.DefaultEntryLocationId", "Seleccione una ubicación física activa y no bloqueada.");
+            }
+        }
     }
 
     public static void Apply(Product product, ProductInputModel input)
@@ -61,8 +78,32 @@ internal static class ProductPageSupport
         product.ProductClassId = input.ProductClassId;
         product.BaseUnitId = input.BaseUnitId;
         product.MinimumStock = input.MinimumStock;
+        product.DefaultEntryLocationId = input.DefaultEntryLocationId;
         product.IsActive = input.IsActive;
         product.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    public static async Task EnsureDefaultEntryAssignmentAsync(
+        WarehouseDbContext db, Product product, CancellationToken token)
+    {
+        if (!product.DefaultEntryLocationId.HasValue) return;
+
+        var locationId = product.DefaultEntryLocationId.Value;
+        var assignment = await db.ProductLocationAssignments.SingleOrDefaultAsync(candidate =>
+            candidate.ProductId == product.Id && candidate.LocationId == locationId, token);
+        if (assignment is null)
+        {
+            db.ProductLocationAssignments.Add(new ProductLocationAssignment
+            {
+                ProductId = product.Id,
+                LocationId = locationId
+            });
+        }
+        else if (!assignment.IsActive)
+        {
+            assignment.IsActive = true;
+            assignment.UpdatedAt = DateTimeOffset.UtcNow;
+        }
     }
 
     public static IQueryable<Product> ApplySearch(IQueryable<Product> query, string search)
@@ -77,7 +118,7 @@ internal static class ProductPageSupport
                 assignment.IsActive && assignment.Location.Code.ToUpper().Contains(term)));
     }
 
-    public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes)> LoadOptionsAsync(
+    public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes, IReadOnlyList<SelectListItem> EntryLocations)> LoadOptionsAsync(
         WarehouseDbContext db, ProductInputModel input, CancellationToken token)
     {
         var units = await db.Units.AsNoTracking().Where(x => x.IsActive || x.Id == input.BaseUnitId).OrderBy(x => x.Code)
@@ -86,7 +127,22 @@ internal static class ProductPageSupport
             .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
         var classes = await db.ProductClasses.AsNoTracking().Where(x => x.IsActive || x.Id == input.ProductClassId).OrderBy(x => x.Code)
             .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
-        return (units, types, classes);
+        var locationRows = await db.Locations.AsNoTracking()
+            .Where(location => (location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked) ||
+                location.Id == input.DefaultEntryLocationId)
+            .OrderBy(location => location.RowCode).ThenBy(location => location.RackNumber)
+            .ThenBy(location => location.PalletNumber).ThenBy(location => location.Code)
+            .Select(location => new
+            {
+                location.Id,
+                location.Code,
+                location.Description,
+                Available = location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked
+            }).ToListAsync(token);
+        var entryLocations = locationRows.Select(location => new SelectListItem(
+            $"{location.Code}{(string.IsNullOrWhiteSpace(location.Description) ? string.Empty : $" - {location.Description}")}{(location.Available ? string.Empty : " (no disponible)")}",
+            location.Id.ToString())).ToArray();
+        return (units, types, classes, entryLocations);
     }
 
     public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes)> LoadFilterOptionsAsync(

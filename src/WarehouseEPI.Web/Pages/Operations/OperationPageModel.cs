@@ -151,7 +151,7 @@ public abstract class OperationPageModel(
             if (Input.ExitMode is null)
                 ModelState.AddModelError("Input.ExitMode", "Selecciona el tipo de salida.");
             else if (Input.ExitMode == ExitMode.General && Input.DestinationLocationId is not null)
-                ModelState.AddModelError("Input.DestinationLocationId", "La salida general no utiliza un rack WIP destino.");
+                ModelState.AddModelError("Input.DestinationLocationId", "La salida general no utiliza una ubicación WIP destino.");
         }
 
         switch (CommandMovementType)
@@ -180,7 +180,7 @@ public abstract class OperationPageModel(
                 break;
         }
         if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.DestinationLocationId is null)
-            ModelState.AddModelError("Input.DestinationLocationId", "Selecciona el rack WIP destino.");
+            ModelState.AddModelError("Input.DestinationLocationId", "Selecciona la ubicación WIP destino.");
     }
 
     private async Task LoadSelectionAsync(CancellationToken cancellationToken)
@@ -208,7 +208,7 @@ public abstract class OperationPageModel(
                 ModelState.AddModelError("Input.DestinationLocationId", "La ubicación destino no está disponible.");
             else if (MovementPurpose == InventoryMovementPurpose.ProductionIssue &&
                 SelectedDestination.OperationalRole != LocationOperationalRole.Wip)
-                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona un rack WIP.");
+                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona una ubicación WIP.");
         }
         if (Input.LocationId is Guid locationId)
         {

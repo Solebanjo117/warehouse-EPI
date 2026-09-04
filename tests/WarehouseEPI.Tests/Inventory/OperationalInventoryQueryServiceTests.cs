@@ -74,11 +74,15 @@ public sealed class OperationalInventoryQueryServiceTests
             Product = lotProduct,
             Location = blocked
         });
+        lotProduct.DefaultEntryLocation = blocked;
         await db.SaveChangesAsync();
         var service = new OperationalInventoryQueryService(db);
 
         Assert.Null(await service.ResolveProductAsync(inactive.Sku));
-        Assert.NotNull(await service.ResolveProductAsync(lotProduct.Sku));
+        var resolvedProduct = Assert.IsType<OperationalProductResult>(await service.ResolveProductAsync(lotProduct.Sku));
+        Assert.Equal(blocked.Id, resolvedProduct.DefaultEntryLocationId);
+        Assert.Equal(blocked.Code, resolvedProduct.DefaultEntryLocationCode);
+        Assert.False(resolvedProduct.IsDefaultEntryLocationAvailable);
         Assert.Null(await service.ResolveLocationAsync(blocked.Code));
         Assert.NotNull(await service.ResolveLocationAsync(blocked.Code, false));
         Assert.Empty(await service.GetProductLocationsAsync(lotProduct.Id));
@@ -117,6 +121,7 @@ public sealed class OperationalInventoryQueryServiceTests
             new ProductLocationAssignment { Product = product, Location = assigned },
             new ProductLocationAssignment { Product = product, Location = both },
             new ProductLocationAssignment { Product = product, Location = inactiveOnly, IsActive = false });
+        product.DefaultEntryLocation = assigned;
         db.InventoryBalances.AddRange(
             new InventoryBalance { Product = product, Location = balanceOnly, Quantity = 4.5m },
             new InventoryBalance { Product = product, Location = both, Quantity = 2m },
@@ -127,6 +132,7 @@ public sealed class OperationalInventoryQueryServiceTests
         var locations = await service.GetProductLocationsAsync(product.Id);
         Assert.Equal(["REL-A", "REL-B", "REL-C"], locations.Select(item => item.Code));
         Assert.True(locations.Single(item => item.Code == "REL-A").HasActiveAssignment);
+        Assert.True(locations.Single(item => item.Code == "REL-A").IsDefaultEntry);
         Assert.False(locations.Single(item => item.Code == "REL-A").HasNonZeroBalance);
         Assert.False(locations.Single(item => item.Code == "REL-B").HasActiveAssignment);
         Assert.Equal(4.5m, locations.Single(item => item.Code == "REL-B").Quantity);
@@ -134,12 +140,23 @@ public sealed class OperationalInventoryQueryServiceTests
         Assert.True(locations.Single(item => item.Code == "REL-C").HasNonZeroBalance);
         Assert.All(locations, item => Assert.True(item.TracksInventory));
 
+        var resolved = Assert.IsType<OperationalProductResult>(await service.ResolveProductAsync(product.Sku));
+        Assert.Equal(assigned.Id, resolved.DefaultEntryLocationId);
+        Assert.Equal(assigned.Code, resolved.DefaultEntryLocationCode);
+        Assert.True(resolved.IsDefaultEntryLocationAvailable);
+
         var products = await service.GetLocationProductsAsync(both.Id);
         Assert.Equal(["REL-BALANCE", "REL-MAIN"], products.Select(item => item.Sku));
         Assert.False(products.Single(item => item.Sku == "REL-BALANCE").HasActiveAssignment);
         Assert.Equal(-1m, products.Single(item => item.Sku == "REL-BALANCE").Quantity);
         Assert.True(products.Single(item => item.Sku == "REL-MAIN").HasActiveAssignment);
         Assert.True(products.Single(item => item.Sku == "REL-MAIN").HasNonZeroBalance);
+
+        (await db.ProductLocationAssignments.FindAsync(product.Id, assigned.Id))!.IsActive = false;
+        await db.SaveChangesAsync();
+        var unavailableDefault = Assert.IsType<OperationalProductResult>(await service.ResolveProductAsync(product.Sku));
+        Assert.Equal(assigned.Id, unavailableDefault.DefaultEntryLocationId);
+        Assert.False(unavailableDefault.IsDefaultEntryLocationAvailable);
     }
 
     [Fact]

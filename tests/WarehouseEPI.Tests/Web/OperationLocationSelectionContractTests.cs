@@ -3,23 +3,28 @@ namespace WarehouseEPI.Tests.Web;
 public sealed class OperationLocationSelectionContractTests
 {
     [Fact]
-    public void Product_location_autoselection_excludes_entries_and_requires_one_option()
+    public void Product_location_autoselection_uses_only_an_available_explicit_entry_default()
     {
         var script = File.ReadAllText(RepositoryPath(
             "src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js"));
 
         Assert.Contains(
-            "operation !== \"entry\" && !selected[primaryLocationKind] && items.length === 1",
+            "operation === \"entry\" && !selected[primaryLocationKind] && selected.product.defaultEntryLocationId",
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "await applySelection(primaryLocationKind, items[0], true)",
+            "selected.product.isDefaultEntryLocationAvailable && defaultLocation",
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "(item) => void applySelection(primaryLocationKind, item, true)",
+            "Destino principal aplicado: ${defaultLocation.code}. Puedes cambiarlo.",
             script,
             StringComparison.Ordinal);
+        Assert.Contains("La ubicación principal ${code} no está disponible.", script, StringComparison.Ordinal);
+        Assert.Contains("operation !== \"entry\" && !selected[primaryLocationKind] && items.length === 1", script, StringComparison.Ordinal);
+        Assert.Contains("(item) => void applySelection(primaryLocationKind, item, true)", script, StringComparison.Ordinal);
+        Assert.Contains("autoSelectedEntryDestinationForProductId === selected.product?.id", script, StringComparison.Ordinal);
+        Assert.Contains("clearSelection(primaryLocationKind)", script, StringComparison.Ordinal);
     }
 
     private static string RepositoryPath(params string[] parts)

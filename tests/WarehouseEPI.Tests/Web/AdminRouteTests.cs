@@ -217,6 +217,8 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("href=\"/Admin/Catalogs/Products\"", createHtml);
         Assert.Contains("name=\"Input.Sku\"", createHtml);
         Assert.Contains("name=\"Input.BaseUnitId\"", createHtml);
+        Assert.Contains("name=\"Input.DefaultEntryLocationId\"", createHtml);
+        Assert.Contains("Ubicación principal de entrada", createHtml);
         Assert.DoesNotContain("Códigos de barras", createHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", createHtml, StringComparison.Ordinal);
 
@@ -261,6 +263,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("Guardar cambios", editHtml);
         Assert.Contains("Ver ficha", editHtml);
         Assert.Contains("Ubicaciones asignadas", editHtml);
+        Assert.Contains("name=\"Input.DefaultEntryLocationId\"", editHtml);
         Assert.DoesNotContain("Códigos de barras", editHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", editHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AddBarcode", editHtml, StringComparison.Ordinal);
@@ -341,6 +344,41 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.True(await verificationDb.Locations.AnyAsync(location => location.Code == "Z-1-9"));
 
         var generatedLocation = await verificationDb.Locations.SingleAsync(location => location.Code == "Z-1-9");
+        var createWithDefaultPage = await client.GetStringAsync("/Admin/Catalogs/Products/Create");
+        var createWithDefaultResponse = await client.PostAsync(
+            "/Admin/Catalogs/Products/Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Sku"] = "WEB-DEFAULT-ENTRY",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "0",
+                ["Input.DefaultEntryLocationId"] = generatedLocation.Id.ToString(),
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = Antiforgery(createWithDefaultPage)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, createWithDefaultResponse.StatusCode);
+        verificationDb.ChangeTracker.Clear();
+        var productWithDefault = await verificationDb.Products.SingleAsync(product => product.Sku == "WEB-DEFAULT-ENTRY");
+        Assert.Equal(generatedLocation.Id, productWithDefault.DefaultEntryLocationId);
+        Assert.True(await verificationDb.ProductLocationAssignments.AnyAsync(assignment =>
+            assignment.ProductId == productWithDefault.Id && assignment.LocationId == generatedLocation.Id && assignment.IsActive));
+
+        var invalidDefaultPage = await client.GetStringAsync("/Admin/Catalogs/Products/Create");
+        var invalidDefaultResponse = await client.PostAsync(
+            "/Admin/Catalogs/Products/Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Sku"] = "WEB-INVALID-DEFAULT",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "0",
+                ["Input.DefaultEntryLocationId"] = Guid.NewGuid().ToString(),
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = Antiforgery(invalidDefaultPage)
+            }));
+        Assert.Equal(HttpStatusCode.OK, invalidDefaultResponse.StatusCode);
+        Assert.Contains("Seleccione una ubicación física activa y no bloqueada.",
+            await invalidDefaultResponse.Content.ReadAsStringAsync());
+
         var assignmentPage = await client.GetAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}?locationSearch=Z-1-9");
         var assignmentHtml = await assignmentPage.Content.ReadAsStringAsync();
         var assignmentToken = Regex.Match(assignmentHtml, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
@@ -357,6 +395,28 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         verificationDb.ChangeTracker.Clear();
         Assert.True(await verificationDb.ProductLocationAssignments.AnyAsync(assignment =>
             assignment.ProductId == savedProduct.Id && assignment.LocationId == generatedLocation.Id && assignment.IsActive));
+
+        var defaultEditPage = await client.GetStringAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}");
+        var defaultEditResponse = await client.PostAsync(
+            $"/Admin/Catalogs/Products/Edit/{savedProduct.Id}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Id"] = savedProduct.Id.ToString(),
+                ["Input.Sku"] = "WEB-EDITED",
+                ["Input.Description"] = "Producto actualizado desde el formulario",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "3.5",
+                ["__Invariant"] = "Input.MinimumStock",
+                ["Input.DefaultEntryLocationId"] = generatedLocation.Id.ToString(),
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = Antiforgery(defaultEditPage)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, defaultEditResponse.StatusCode);
+        verificationDb.ChangeTracker.Clear();
+        Assert.Equal(generatedLocation.Id,
+            (await verificationDb.Products.SingleAsync(product => product.Id == savedProduct.Id)).DefaultEntryLocationId);
+        Assert.Contains("Principal de entrada",
+            await client.GetStringAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}"));
 
         var detailResponse = await client.GetAsync($"/Admin/Catalogs/Locations/{generatedLocation.Id}");
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);

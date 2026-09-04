@@ -81,6 +81,14 @@
                         <span asp-validation-for="Input.MinimumStock" class="text-danger"></span>
                     </div>
                     <div class="col-12">
+                        <label asp-for="Input.DefaultEntryLocationId" class="form-label fw-semibold">Ubicación principal de entrada <span class="text-body-secondary fw-normal">(opcional)</span></label>
+                        <select asp-for="Input.DefaultEntryLocationId" asp-items="Model.EntryLocations" class="form-select product-editor-control">
+                            <option value="">Sin ubicación principal</option>
+                        </select>
+                        <div class="form-text">Entrada la seleccionará como destino al escanear este producto. El operador podrá cambiarla.</div>
+                        <span asp-validation-for="Input.DefaultEntryLocationId" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
                         <div class="product-editor-status-control">
                             <div>
                                 <span class="fw-semibold d-block">Estado del producto</span>

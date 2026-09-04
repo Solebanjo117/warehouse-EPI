@@ -12,7 +12,10 @@ public sealed record OperationalProductResult(
     string? ExternalReference,
     string UnitCode,
     bool AllowsDecimals,
-    bool IsActive = true);
+    bool IsActive = true,
+    Guid? DefaultEntryLocationId = null,
+    string? DefaultEntryLocationCode = null,
+    bool IsDefaultEntryLocationAvailable = false);
 
 public sealed record OperationalLocationResult(
     Guid Id,
@@ -41,7 +44,8 @@ public sealed record OperationalProductLocationResult(
     bool HasActiveAssignment,
     bool HasNonZeroBalance,
     bool TracksInventory = true,
-    bool IsWip = false);
+    bool IsWip = false,
+    bool IsDefaultEntry = false);
 
 public sealed record OperationalLocationProductResult(
     Guid Id,
@@ -255,7 +259,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 true,
                 false,
                 true,
-                assignment.Location.OperationalRole == LocationOperationalRole.Wip))
+                assignment.Location.OperationalRole == LocationOperationalRole.Wip,
+                assignment.Product.DefaultEntryLocationId == assignment.LocationId))
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
@@ -269,7 +274,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 false,
                 true,
                 true,
-                balance.Location.OperationalRole == LocationOperationalRole.Wip))
+                balance.Location.OperationalRole == LocationOperationalRole.Wip,
+                balance.Product.DefaultEntryLocationId == balance.LocationId))
             .ToListAsync(cancellationToken);
 
         return MergeProductLocations(assignments, balances);
@@ -381,7 +387,13 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             product.ExternalReference,
             product.BaseUnit.Code,
             product.BaseUnit.AllowsDecimals,
-            product.IsActive);
+            product.IsActive,
+            product.DefaultEntryLocationId,
+            product.DefaultEntryLocation == null ? null : product.DefaultEntryLocation.Code,
+            product.DefaultEntryLocationId != null && product.DefaultEntryLocation != null &&
+                product.DefaultEntryLocation.IsPhysicallyPresent && product.DefaultEntryLocation.IsActive &&
+                !product.DefaultEntryLocation.IsBlocked && product.LocationAssignments.Any(assignment =>
+                    assignment.LocationId == product.DefaultEntryLocationId && assignment.IsActive));
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
         location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked,

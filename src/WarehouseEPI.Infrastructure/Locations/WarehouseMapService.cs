@@ -1043,6 +1043,15 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             using var document = JsonDocument.Parse(changesJson);
             var root = document.RootElement;
             var schema = root.TryGetProperty("SchemaVersion", out var schemaValue) ? schemaValue.GetInt32() : 1;
+            if (root.TryGetProperty("Action", out var action))
+            {
+                if (action.GetString() == "DELETE_AREA" &&
+                    root.TryGetProperty("DeletedLocation", out var deletedLocation) &&
+                    deletedLocation.TryGetProperty("Code", out var deletedAreaCode))
+                    return (schema, $"Área {deletedAreaCode.GetString()} eliminada definitivamente del catálogo y del croquis.");
+                if (action.GetString() == "DELETE_RACK" && root.TryGetProperty("RackCode", out var deletedRackCode))
+                    return (schema, $"Rack {deletedRackCode.GetString()} eliminado definitivamente del catálogo y del croquis.");
+            }
             if (schema < 4 || !root.TryGetProperty("Architecture", out var architecture))
                 return (schema, "La revisión histórica completa permanece disponible en la auditoría.");
             static int Count(JsonElement parent, string name) =>

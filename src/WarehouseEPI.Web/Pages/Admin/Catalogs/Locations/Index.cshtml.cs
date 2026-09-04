@@ -75,13 +75,15 @@ public sealed class IndexModel(
         {
             Map = await mapService.GetAsync(true, includeReferences: false, cancellationToken);
             var recentWipIssues = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
-            foreach (var wipAreaId in Map.Elements.Where(element => element.IsWip)
-                         .Select(element => element.LocationId)
-                         .OfType<Guid>()
-                         .Distinct())
+            foreach (var element in Map.Elements.Where(element => element.IsWip))
             {
-                recentWipIssues[wipAreaId] = await wipReportService.GetRecentIssuesAsync(
-                    wipAreaId, 10, cancellationToken);
+                var wipLocationIds = element.Positions
+                    .Where(position => position.OperationalRole == LocationOperationalRole.Wip)
+                    .Select(position => position.LocationId)
+                    .Distinct()
+                    .ToArray();
+                recentWipIssues[element.Id] = await wipReportService.GetRecentIssuesAsync(
+                    wipLocationIds, 10, cancellationToken);
             }
             RecentWipIssues = recentWipIssues;
             MapMatches = (string.IsNullOrWhiteSpace(Search) ? [] : await query.Select(location => location.Id).ToListAsync(cancellationToken)).Append(HighlightLocationId ?? Guid.Empty).Where(id => id != Guid.Empty).ToHashSet();
@@ -225,7 +227,8 @@ public sealed class IndexModel(
     {
         var locations = await query.Select(location => new LocationBaseRow(
             location.Id, location.Code, location.Kind, location.RowCode, location.RackNumber,
-            location.PalletNumber, location.Description, location.IsBlocked, location.BlockReason,
+            location.PalletNumber, location.Description, location.OperationalRole,
+            location.IsBlocked, location.BlockReason,
             location.IsActive, location.IsPhysicallyPresent)).ToListAsync(cancellationToken);
         var ids = locations.Select(location => location.Id).ToArray();
         var assignments = ids.Length == 0
@@ -254,7 +257,8 @@ public sealed class IndexModel(
         {
             var skus = byLocation.GetValueOrDefault(location.Id) ?? [];
             return new LocationRow(location.Id, location.Code, location.Kind, location.RowCode,
-                location.RackNumber, location.PalletNumber, location.Description, location.IsBlocked,
+                location.RackNumber, location.PalletNumber, location.Description, location.OperationalRole,
+                location.IsBlocked,
                 location.BlockReason, location.IsActive, location.IsPhysicallyPresent,
                 skus.Take(3).ToArray(), skus.Length,
                 balanceLookup.GetValueOrDefault(location.Id) ?? []);
@@ -262,17 +266,20 @@ public sealed class IndexModel(
     }
 
     private sealed record LocationBaseRow(Guid Id, string Code, LocationKind Kind, string? RowCode,
-        short? RackNumber, short? PalletNumber, string? Description, bool IsBlocked,
+        short? RackNumber, short? PalletNumber, string? Description,
+        LocationOperationalRole OperationalRole, bool IsBlocked,
         string? BlockReason, bool IsActive, bool IsPhysicallyPresent);
     private sealed record AssignmentRow(Guid LocationId, Guid ProductId, string Sku);
     private sealed record BalanceSource(Guid LocationId, Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity);
     public sealed record LocationBalance(Guid ProductId, string Sku, string? Description, string Unit, decimal Quantity, bool IsAssigned);
     public sealed record LocationRow(Guid Id, string Code, LocationKind Kind, string? RowCode,
-        short? RackNumber, short? PalletNumber, string? Description, bool IsBlocked,
+        short? RackNumber, short? PalletNumber, string? Description,
+        LocationOperationalRole OperationalRole, bool IsBlocked,
         string? BlockReason, bool IsActive, bool IsPhysicallyPresent,
         IReadOnlyList<string> Skus, int ProductCount, IReadOnlyList<LocationBalance> Balances)
     {
         public bool HasInventory => Balances.Count > 0;
+        public bool IsWip => OperationalRole == LocationOperationalRole.Wip;
         public bool HasNegative => Balances.Any(balance => balance.Quantity < 0);
         public bool HasIssue => !IsActive || IsBlocked || HasNegative;
         public string RackState => HasNegative ? "negative" : !IsActive ? "inactive" : IsBlocked ? "blocked" : HasInventory ? "occupied" : "empty";
@@ -284,6 +291,7 @@ public sealed class IndexModel(
         public int OccupiedCount => Existing.Count(position => position.HasInventory);
         public int EmptyCount => Existing.Count(position => !position.HasInventory);
         public int IssueCount => Existing.Count(position => position.HasIssue);
+        public bool IsWip => Existing.Any() && Existing.All(position => position.IsWip);
         public string RackState => Existing.Any(position => position.HasNegative) ? "negative" : Existing.Any(position => !position.IsActive) ? "inactive" : Existing.Any(position => position.IsBlocked) ? "blocked" : Existing.Any(position => position.HasInventory) ? "occupied" : "empty";
     }
     public sealed record LocationSummary(int Available, int Blocked, int Inactive, int Retired, int Racks, int Areas);

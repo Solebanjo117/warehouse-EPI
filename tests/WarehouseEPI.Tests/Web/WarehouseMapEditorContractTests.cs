@@ -334,15 +334,19 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("GetRecentIssuesAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("RecentWipIssues", pageModel, StringComparison.Ordinal);
         Assert.Contains("Existencias actuales", page, StringComparison.Ordinal);
-        Assert.Contains("SelectMany(position => position.Products)", page, StringComparison.Ordinal);
+        Assert.Contains("SelectMany(position => position.Products", page, StringComparison.Ordinal);
         Assert.Contains("Where(product => product.Quantity != 0)", page, StringComparison.Ordinal);
+        Assert.Contains("PositionCode = position.Code", page, StringComparison.Ordinal);
+        Assert.Contains("GetValueOrDefault(element.Id)", page, StringComparison.Ordinal);
+        Assert.Contains("Resumen del rack WIP", page, StringComparison.Ordinal);
         Assert.Contains("Este WIP no tiene existencias actualmente.", page, StringComparison.Ordinal);
         Assert.Contains("@product.Quantity.ToString(\"0.####\") @product.Unit", page, StringComparison.Ordinal);
         Assert.Contains("Últimos surtimientos", page, StringComparison.Ordinal);
         Assert.Contains("Aún no hay surtimientos registrados en este WIP.", page, StringComparison.Ordinal);
         Assert.Contains("/Reports/Wip/Details", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-wipAreaId", page, StringComparison.Ordinal);
-        Assert.Contains("else\n            {\n                @if(element.Kind==\"Rack\")", page, StringComparison.Ordinal);
+        Assert.Contains("@if(element.Kind==\"Rack\")", page, StringComparison.Ordinal);
+        Assert.Contains("else if(element.IsWip)", page, StringComparison.Ordinal);
     }
 
     private static string RepositoryPath(params string[] parts)

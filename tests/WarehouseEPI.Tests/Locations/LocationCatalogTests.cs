@@ -25,6 +25,32 @@ public sealed class LocationCatalogTests
         Assert.Single(typeof(IndexModel).GetConstructors());
 
     [Fact]
+    public async Task Area_editor_loads_an_existing_wip_area_without_changing_its_role()
+    {
+        await using var fixture = new Fixture();
+        var area = new Location
+        {
+            Code = "WIP-EDITABLE",
+            Kind = LocationKind.Area,
+            OperationalRole = LocationOperationalRole.Wip,
+            Description = "Área WIP existente"
+        };
+        fixture.Db.Locations.Add(area);
+        await fixture.Db.SaveChangesAsync();
+        var page = new AreaModel(fixture.Db, new LocationAreaAdministrationService(fixture.Db,
+            new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")),
+            TimeProvider.System));
+
+        var result = await page.OnGetAsync(area.Id, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.IsEdit);
+        Assert.Equal(area.Id, page.Input.Id);
+        Assert.Equal(LocationOperationalRole.Wip, page.Input.OperationalRole);
+        Assert.Equal("Área WIP existente", page.Input.Description);
+    }
+
+    [Fact]
     public async Task Warehouse_map_does_not_require_a_client_concurrency_token()
     {
         await using var fixture = new Fixture();
@@ -700,8 +726,11 @@ public sealed class LocationCatalogTests
             await assignments.AssignAsync(secondProduct.Id, firstLocation.Id));
         Assert.Equal(3, await fixture.Db.ProductLocationAssignments.CountAsync());
 
-        Assert.Equal(ProductLocationAssignmentResult.Success,
+        firstProduct.DefaultEntryLocationId = firstLocation.Id;
+        await fixture.Db.SaveChangesAsync();
+        Assert.Equal(ProductLocationAssignmentResult.SuccessDefaultEntryCleared,
             await assignments.DeactivateAsync(firstProduct.Id, firstLocation.Id));
+        Assert.Null(firstProduct.DefaultEntryLocationId);
         Assert.Equal(ProductLocationAssignmentResult.Success,
             await assignments.AssignAsync(firstProduct.Id, firstLocation.Id));
         Assert.Equal(3, await fixture.Db.ProductLocationAssignments.CountAsync());
@@ -1045,7 +1074,8 @@ public sealed class LocationCatalogTests
         var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
         var operationId = Guid.NewGuid();
         var command = new LocationRackEditCommand(operationId, user.Id, "Q", 2,
-            [1, 2, 3, 4, 5, 6], "El rack físico solo tiene seis posiciones", "1234");
+            LocationOperationalRole.Storage, [1, 2, 3, 4, 5, 6],
+            "El rack físico solo tiene seis posiciones", "1234");
 
         Assert.Empty((await service.ReviewAsync(command)).Errors);
         Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
@@ -1068,6 +1098,59 @@ public sealed class LocationCatalogTests
     }
 
     [Fact]
+    public async Task Rack_role_change_applies_to_every_position_and_preserves_inventory_relationships()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack WIP Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "4321");
+        var unit = new Unit { Code = "EA", Name = "Each" };
+        var product = new Product { Sku = "RACK-WIP-STOCK", BaseUnit = unit };
+        var positions = Enumerable.Range(1, 8).Select(number => Rack("M", 1, (short)number)).ToArray();
+        fixture.Db.AddRange(role, user, product);
+        fixture.Db.Locations.AddRange(positions);
+        fixture.Db.Add(new InventoryBalance { Product = product, Location = positions[0], Quantity = 7 });
+        fixture.Db.Add(new ProductLocationAssignment { Product = product, Location = positions[0] });
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var command = new LocationRackEditCommand(Guid.NewGuid(), user.Id, "M", 1,
+            LocationOperationalRole.Wip, [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            "El rack completo se destina a producción en proceso", "4321");
+
+        var review = await service.ReviewAsync(command);
+        Assert.True(review.Summary.OperationalRoleChanged);
+        Assert.Equal(LocationOperationalRole.Storage, review.Summary.PreviousOperationalRole);
+        Assert.Equal(LocationOperationalRole.Wip, review.Summary.RequestedOperationalRole);
+        Assert.Equal(LocationRackSaveStatus.InvalidPin,
+            (await service.SaveAsync(command with { Pin = "0000" })).Status);
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        Assert.Equal(LocationRackSaveStatus.IdempotencyConflict,
+            (await service.SaveAsync(command with { OperationalRole = LocationOperationalRole.Storage })).Status);
+
+        var rows = await fixture.Db.Locations.Where(item => item.RowCode == "M" && item.RackNumber == 1)
+            .OrderBy(item => item.PalletNumber).ToArrayAsync();
+        Assert.Equal(9, rows.Length);
+        Assert.All(rows, item => Assert.Equal(LocationOperationalRole.Wip, item.OperationalRole));
+        Assert.Equal(7m, await fixture.Db.InventoryBalances.SumAsync(item => item.Quantity));
+        Assert.Single(await fixture.Db.ProductLocationAssignments.ToListAsync());
+        var revision = Assert.Single(await fixture.Db.LocationRackRevisions.ToListAsync());
+        Assert.Contains("OperationalRole", revision.BeforeJson, StringComparison.Ordinal);
+        Assert.Contains("OperationalRole", revision.AfterJson, StringComparison.Ordinal);
+
+        var restore = command with
+        {
+            OperationId = Guid.NewGuid(),
+            OperationalRole = LocationOperationalRole.Storage,
+            Reason = "El rack vuelve a almacenamiento general"
+        };
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(restore)).Status);
+        Assert.All(await fixture.Db.Locations.Where(item => item.RowCode == "M" && item.RackNumber == 1).ToArrayAsync(),
+            item => Assert.Equal(LocationOperationalRole.Storage, item.OperationalRole));
+    }
+
+    [Fact]
     public async Task Rack_correction_blocks_retirement_with_balance_or_active_assignment()
     {
         await using var fixture = new Fixture();
@@ -1084,11 +1167,171 @@ public sealed class LocationCatalogTests
             new ProductLocationAssignment { Product = product, Location = two });
         await fixture.Db.SaveChangesAsync();
         var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
-        var review = await service.ReviewAsync(new(Guid.NewGuid(), user.Id, "P", 1, [1], "Retirar la posición dos", null));
+        var review = await service.ReviewAsync(new(Guid.NewGuid(), user.Id, "P", 1,
+            LocationOperationalRole.Storage, [1], "Retirar la posición dos", null));
 
         Assert.Contains(review.Errors, error => error.Contains("P-1-2") && error.Contains("asignaciones"));
-        var balanceReview = await service.ReviewAsync(new(Guid.NewGuid(), user.Id, "P", 1, [2], "Retirar la posición uno", null));
+        var balanceReview = await service.ReviewAsync(new(Guid.NewGuid(), user.Id, "P", 1,
+            LocationOperationalRole.Storage, [2], "Retirar la posición uno", null));
         Assert.Contains(balanceReview.Errors, error => error.Contains("P-1-1") && error.Contains("saldo"));
+    }
+
+    [Fact]
+    public async Task Unused_rack_can_be_deleted_permanently_with_map_geometry_and_audit()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack Delete Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "2468");
+        var positions = Enumerable.Range(1, 9).Select(number => Rack("Z", 4, (short)number)).ToArray();
+        var layout = new WarehouseMapLayout { Id = 1, Version = 7 };
+        var mapElement = new WarehouseMapElement
+        {
+            Layout = layout, Kind = WarehouseMapElementKind.Rack, RowCode = "Z", RackNumber = 4,
+            X = 10, Y = 20, Width = 30, Height = 40
+        };
+        fixture.Db.AddRange(role, user, layout, mapElement);
+        fixture.Db.Locations.AddRange(positions);
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var operationId = Guid.NewGuid();
+        var command = new LocationRackDeleteCommand(operationId, user.Id, "Z", 4,
+            "Se creó por error y nunca fue utilizado", "2468", "Z-4");
+
+        var view = await service.GetAsync("Z", 4);
+        Assert.NotNull(view);
+        Assert.True(view.Deletion.CanDelete);
+        Assert.Equal(LocationRackDeleteStatus.ValidationFailed,
+            (await service.DeleteAsync(command with { ConfirmationCode = "Z-5" })).Status);
+        Assert.Equal(LocationRackDeleteStatus.InvalidPin,
+            (await service.DeleteAsync(command with { Pin = "0000" })).Status);
+        Assert.Equal(LocationRackDeleteStatus.Success, (await service.DeleteAsync(command)).Status);
+        Assert.Equal(LocationRackDeleteStatus.Success, (await service.DeleteAsync(command)).Status);
+        Assert.Equal(LocationRackDeleteStatus.IdempotencyConflict,
+            (await service.DeleteAsync(command with { Reason = "Otro motivo" })).Status);
+
+        Assert.Empty(await fixture.Db.Locations.Where(item => item.RowCode == "Z" && item.RackNumber == 4).ToListAsync());
+        Assert.Empty(await fixture.Db.WarehouseMapElements.Where(item => item.RowCode == "Z" && item.RackNumber == 4).ToListAsync());
+        Assert.Equal(8, (await fixture.Db.WarehouseMapLayouts.SingleAsync()).Version);
+        var revision = Assert.Single(await fixture.Db.LocationRackRevisions.Where(item => item.OperationId == operationId).ToListAsync());
+        Assert.Contains("Deleted", revision.AfterJson, StringComparison.Ordinal);
+        Assert.Single(await fixture.Db.WarehouseMapRevisions.Where(item => item.OperationId == operationId).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Unused_area_can_be_deleted_permanently_with_map_geometry_and_audit()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Area Delete Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "8642");
+        var area = new Location
+        {
+            Code = "WIP-UNUSED",
+            Kind = LocationKind.Area,
+            OperationalRole = LocationOperationalRole.Wip,
+            Description = "Creada por error"
+        };
+        var layout = new WarehouseMapLayout { Id = 1, Version = 3 };
+        var mapElement = new WarehouseMapElement
+        {
+            Layout = layout, Kind = WarehouseMapElementKind.Area, Location = area,
+            X = 10, Y = 20, Width = 30, Height = 40
+        };
+        fixture.Db.AddRange(role, user, area, layout, mapElement);
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationAreaAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var operationId = Guid.NewGuid();
+        var command = new LocationAreaDeleteCommand(operationId, user.Id, area.Id,
+            "El área WIP se creó por error", "8642", "WIP-UNUSED");
+
+        var deletion = await service.GetDeletionStateAsync(area.Id);
+        Assert.NotNull(deletion);
+        Assert.True(deletion.CanDelete);
+        Assert.Equal(LocationAreaDeleteStatus.ValidationFailed,
+            (await service.DeleteAsync(command with { ConfirmationCode = "OTRA" })).Status);
+        Assert.Equal(LocationAreaDeleteStatus.InvalidPin,
+            (await service.DeleteAsync(command with { Pin = "0000" })).Status);
+        Assert.Equal(LocationAreaDeleteStatus.Success, (await service.DeleteAsync(command)).Status);
+        Assert.Equal(LocationAreaDeleteStatus.Success, (await service.DeleteAsync(command)).Status);
+        Assert.Equal(LocationAreaDeleteStatus.IdempotencyConflict,
+            (await service.DeleteAsync(command with { Reason = "Otro motivo" })).Status);
+
+        Assert.False(await fixture.Db.Locations.AnyAsync(item => item.Id == area.Id));
+        Assert.False(await fixture.Db.WarehouseMapElements.AnyAsync(item => item.Id == mapElement.Id));
+        Assert.Equal(4, (await fixture.Db.WarehouseMapLayouts.SingleAsync()).Version);
+        var revision = Assert.Single(await fixture.Db.WarehouseMapRevisions
+            .Where(item => item.OperationId == operationId).ToListAsync());
+        Assert.Contains("DELETE_AREA", revision.ChangesJson, StringComparison.Ordinal);
+        Assert.Contains("WIP-UNUSED", revision.ChangesJson, StringComparison.Ordinal);
+        var audit = await new WarehouseMapService(fixture.Db, pins, TimeProvider.System).GetRevisionsAsync();
+        Assert.Contains(audit, item => item.Summary.Contains("Área WIP-UNUSED eliminada definitivamente"));
+    }
+
+    [Fact]
+    public async Task Area_deletion_is_blocked_by_inactive_assignment_and_zero_balance_records()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Area Delete Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "8642");
+        var unit = new Unit { Code = "EA", Name = "Each" };
+        var product = new Product { Sku = "AREA-DELETE-BLOCK", BaseUnit = unit };
+        var area = new Location { Code = "WIP-USED", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
+        fixture.Db.AddRange(role, user, product, area,
+            new ProductLocationAssignment { Product = product, Location = area, IsActive = false },
+            new InventoryBalance { Product = product, Location = area, Quantity = 0 });
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationAreaAdministrationService(fixture.Db, pins, TimeProvider.System);
+
+        var deletion = await service.GetDeletionStateAsync(area.Id);
+        Assert.NotNull(deletion);
+        Assert.False(deletion.CanDelete);
+        Assert.Contains(deletion.Blockers, item => item.Contains("productos asignados"));
+        Assert.Contains(deletion.Blockers, item => item.Contains("saldo actual es cero"));
+        var result = await service.DeleteAsync(new(Guid.NewGuid(), user.Id, area.Id,
+            "Intento de eliminación", "8642", area.Code));
+
+        Assert.Equal(LocationAreaDeleteStatus.ValidationFailed, result.Status);
+        Assert.True(await fixture.Db.Locations.AnyAsync(item => item.Id == area.Id));
+        Assert.Empty(await fixture.Db.WarehouseMapRevisions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Rack_deletion_is_blocked_by_any_product_record_even_when_inactive_or_zero()
+    {
+        await using var fixture = new Fixture();
+        var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
+        var pins = new UserPinService(fixture.Db, protector);
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack Delete Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "2468");
+        var unit = new Unit { Code = "EA", Name = "Each" };
+        var product = new Product { Sku = "RACK-DELETE-BLOCK", BaseUnit = unit };
+        var one = Rack("Z", 5, 1);
+        fixture.Db.AddRange(role, user, product, one,
+            new ProductLocationAssignment { Product = product, Location = one, IsActive = false },
+            new InventoryBalance { Product = product, Location = one, Quantity = 0 });
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+
+        var view = await service.GetAsync("Z", 5);
+        Assert.NotNull(view);
+        Assert.False(view.Deletion.CanDelete);
+        Assert.Contains(view.Deletion.Blockers, item => item.Contains("productos asignados"));
+        Assert.Contains(view.Deletion.Blockers, item => item.Contains("saldo actual es cero"));
+        var result = await service.DeleteAsync(new(Guid.NewGuid(), user.Id, "Z", 5,
+            "Intento de eliminación", "2468", "Z-5"));
+
+        Assert.Equal(LocationRackDeleteStatus.ValidationFailed, result.Status);
+        Assert.NotEmpty(await fixture.Db.Locations.Where(item => item.RowCode == "Z" && item.RackNumber == 5).ToListAsync());
+        Assert.Empty(await fixture.Db.LocationRackRevisions.ToListAsync());
     }
 
     private static WarehouseMapGeometry ToMapGeometry(WarehouseMapElementView item) =>

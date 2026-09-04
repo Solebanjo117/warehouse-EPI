@@ -10,6 +10,7 @@ public sealed class Product
     public short? ProductClassId { get; set; }
     public short BaseUnitId { get; set; }
     public decimal MinimumStock { get; set; }
+    public Guid? DefaultEntryLocationId { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -17,6 +18,7 @@ public sealed class Product
     public Unit BaseUnit { get; set; } = null!;
     public ProductType? ProductType { get; set; }
     public ProductClass? ProductClass { get; set; }
+    public Location? DefaultEntryLocation { get; set; }
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
     public ICollection<ProductLocationAssignment> LocationAssignments { get; set; } = [];
     public ICollection<ProductLot> Lots { get; set; } = [];

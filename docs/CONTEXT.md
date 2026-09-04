@@ -60,8 +60,9 @@ El sistema debe priorizar:
 ### Productos e inventario
 
 - Un producto puede existir en múltiples ubicaciones.
-- Un producto puede tener varias ubicaciones fijas asignadas, sin una ubicación
-  principal, y una ubicación puede estar asignada a varios productos. La
+- Un producto puede tener varias ubicaciones fijas asignadas y una ubicación
+  principal de entrada opcional; una ubicación puede estar asignada a varios
+  productos. La ubicación principal siempre mantiene una asignación activa. La
   asignación permanece aunque el saldo sea cero; no sustituye al saldo real.
 - Al confirmar una entrada, la cantidad queda ligada al producto y a la
   ubicación seleccionada.
@@ -450,8 +451,9 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   teclado numérico y una tabla administrativa paginada. La búsqueda acepta
   código o descripción de ubicación y también SKU, descripción, referencia o
   código de barras de productos asignados.
-- Existe una asignación fija muchos-a-muchos entre productos y ubicaciones, sin
-  ubicación principal. Las asignaciones se desactivan y reactivan sin borrado,
+- Existe una asignación fija muchos-a-muchos entre productos y ubicaciones. Cada
+  producto puede marcar una de ellas como principal de entrada; las demás siguen
+  siendo relaciones secundarias. Las asignaciones se desactivan y reactivan sin borrado,
   permanecen visibles aunque posteriormente el saldo sea cero y se administran
   desde ambos detalles.
 - Cada posición muestra hasta tres SKU y permite navegar al producto; Productos
@@ -492,7 +494,10 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   código o descripción de ubicación, con selección por escáner HID y Enter.
 - El escaneo es bidireccional: un producto muestra ubicaciones con asignación
   activa o saldo distinto de cero y una ubicación muestra sus productos bajo la
-  misma regla. Una única relación se autocompleta; varias exigen selección. Una
+  misma regla. Entrada solo autoselecciona el destino principal explícito y
+  disponible; permite cambiarlo y solicita captura manual si queda bloqueado,
+  inactivo o retirado. En las demás operaciones, una única relación puede
+  autocompletarse y varias exigen selección. Una
   pareja nueva se anuncia en pantalla y solo se crea al confirmar con NIP.
 - En transferencias, el producto puede autocompletar únicamente el origen. El
   destino muestra su contenido sin reemplazar el producto seleccionado.
@@ -821,21 +826,34 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   físicamente lector HID, cámara, foco, tablet horizontal/vertical y temas
   Claro/Oscuro/Sistema.
 
-#### Fase 11.6: trazabilidad de movimientos y lotes — en implementación; validación física pendiente
+#### Fase 11.6: trazabilidad de movimientos y lotes — implementada en código; validación física pendiente
 
 - El historial ADMIN usa periodos locales del almacén (por defecto los últimos
   30 días), consultas UTC de intervalo semiabierto, paginación de 25 y
   exportación trazable por cambio de saldo.
 - El detalle de movimiento expone snapshots históricos de lote, enlaces
   administrativos y la cadena de corrección sin alterar movimientos confirmados.
-- La ficha ADMIN prioriza trazabilidad rápida: cabecera local, metadatos de
-  auditoría, tarjetas por producto y cambios de saldo legibles en laptop y
-  tablet. No añade impresión, PDF, operaciones prellenadas ni cambios al POST.
+- La ficha ADMIN `/Admin/Inventory/Movements/Details/{id}` es el registro
+  profesional de trazabilidad del movimiento. Conserva cabecera, metadatos,
+  productos, lotes y cambios de saldo, y agrega una cronología causal de la
+  cadena original/reverso/reemplazo, la confirmación documental, las
+  disposiciones WIP y las acciones de la ubicación de conteo relacionadas.
+  Abrir cualquier miembro de una corrección devuelve el mismo contexto y marca
+  cuál es la ficha actual; no incorpora otras recepciones del documento ni
+  acciones de otras ubicaciones de la campaña.
+- La ficha usa la identidad configurada del negocio/almacén y `WarehouseClock`,
+  distingue eventos que impactan inventario de eventos informativos, y permite
+  imprimir o guardar como PDF desde el navegador en Carta vertical. La hoja
+  oculta navegación y acciones, restaura encabezados semánticos, admite varias
+  páginas y no incluye firmas. No genera PDF en servidor ni cambia contratos
+  POST, movimientos, saldos o esquema.
 - Lotes internos cuenta con filtros, saldo agregado, ficha de distribución,
   movimientos relacionados y auditoría de cambios de fecha. La fecha sigue
   afectando únicamente FEFO futuro y exige motivo/NIP ADMIN.
-- Sigue pendiente la validación física en laptop, tablet horizontal/vertical,
-  lector HID y cámara; no se aplicó migración ni se modificó el esquema.
+- El servicio transversal es de solo lectura y se validó con pruebas focales
+  InMemory y PostgreSQL contra `warehouse_epi_test`. Sigue pendiente la
+  validación visual en navegador, Carta vertical en impresora real y tablet
+  horizontal/vertical; no se aplicó migración ni se modificó el esquema.
 
 #### Fase 11.7: Catálogo y ficha integral de Productos — implementación inicial; validación física pendiente
 
@@ -879,6 +897,24 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
 - Siguen pendientes en 11.7 el lector/cámara del listado y la modernización
   visual de Crear/Editar e Importación, que quedaron deliberadamente fuera de
   esta entrega de presentación.
+
+##### Ubicación principal de entrada — implementada en código; migración y validación física pendientes
+
+- Crear y Editar producto admiten una ubicación principal opcional. Elegirla
+  crea o reactiva su asignación fija; cambiarla conserva las asignaciones
+  secundarias y limpiar el selector no las elimina. Desasignar la principal sí
+  retira ambas relaciones en una sola operación lógica.
+- `/Operations/Entry` autoselecciona únicamente esa relación explícita cuando
+  sigue física, activa, no bloqueada y asignada. La sugerencia puede cambiarse;
+  una principal no disponible produce una advertencia y mantiene la captura
+  manual. Salida, Transferencia, Ajuste y WIP conservan su comportamiento.
+- La migración `20260904143029_AddProductDefaultEntryLocation` agrega solamente
+  `products.default_entry_location_id`, su índice y la FK `RESTRICT`, sin
+  backfill. El SQL fue revisado, pero la migración no se aplicó a PostgreSQL.
+- Pasaron 14 pruebas focales de modelo, asignación, consulta y contrato cliente;
+  `operations.js` pasó validación sintáctica. La prueba web integral continúa
+  afectada por el HTTP 400/antiforgery preexistente. Faltan navegador y prueba
+  física con tablet, lector HID y cámara.
 
 #### Fase 11.8: Ubicaciones y croquis interactivo — implementada; validación física pendiente
 
@@ -1130,6 +1166,21 @@ editor SVG y demostrar una necesidad operativa concreta.
   motivo y estados JSON antes/después. La corrección usa transacción serializable
   y bloqueo de las filas del rack; no aumenta la versión ni la auditoría del
   croquis arquitectónico.
+- El editor ofrece además **Eliminar rack definitivamente** sólo cuando ninguna
+  posición tiene asignaciones (activas o históricas), filas de saldo aunque estén
+  en cero, movimientos, cambios de saldo, conteos, incidencias ni actividad WIP.
+  La confirmación exige motivo, NIP ADMIN y escribir el código exacto del rack;
+  el servidor vuelve a comprobar las referencias dentro de una transacción
+  serializable. Se eliminan todas sus posiciones y la geometría operativa del
+  croquis, se incrementa la versión del croquis y se conservan revisiones JSON
+  de ambas operaciones como auditoría. No requiere migración de esquema.
+- El editor de áreas ofrece **Eliminar área definitivamente** con el mismo
+  criterio estricto para áreas generales y WIP: cualquier asignación, fila de
+  saldo, movimiento, cambio de saldo, conteo, incidencia o disposición impide
+  el borrado. Exige motivo, código exacto y NIP ADMIN; elimina también su
+  geometría y registra una revisión/versionado cuando el croquis ya existe.
+  Si aún no hay un croquis inicializado, elimina sólo el catálogo porque no hay
+  geometría publicada. Tampoco requiere migración de esquema.
 - Las posiciones retiradas se excluyen del croquis publicado, cuadrículas físicas,
   búsquedas/precargas operativas, movimientos, conteos cíclicos y consulta pública
   de inventario. Permanecen accesibles por ID y desde la tabla ADMIN para consultar
@@ -1501,6 +1552,12 @@ pendientes.
 - Los enlaces contextuales únicamente precargan los flujos existentes; ajuste,
   transferencia, asignación, ubicación, salida, conteo y WIP mantienen sus propias
   validaciones, NIP, concurrencia e idempotencia. El centro nunca cambia inventario.
+- La ficha de seguimiento fue enriquecida en código para explicar las ocho categorías,
+  mostrar motivo, acción recomendada, responsable, vigencia en hora local del almacén
+  e historial descendente con transiciones. `ReasonText` se actualiza sin crear eventos
+  periódicos y se conserva al resolverse; la migración
+  `20260904144551_EnrichOperationalExceptionContext` agrega el contexto con backfill,
+  pero aún no se ha aplicado a la base operativa ni se ha publicado en una Release.
 - La migración `20260828143458_AddOperationalExceptionCenter`, posterior a
   `20260828120000_WipTrackedInventory`, crea tablas, FKs, checks, índices de filtros
   y la unicidad parcial de caso activo. Ya fue aplicada a la base operativa; todavía
@@ -1875,6 +1932,15 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
   `OperationalRole.Wip`, pero ahora controlan inventario por producto,
   ubicación y lote. `TracksInventory` se conserva temporalmente en contratos
   como `true`; `IsWip` identifica el rol sin inferirlo a partir del saldo.
+- Los racks físicos también pueden clasificarse completos como WIP desde
+  `Editar rack`. El rol se aplica uniformemente a sus posiciones presentes y
+  retiradas; una posición creada o restaurada hereda el rol del rack. El saldo,
+  las asignaciones y el historial permanecen por pallet exacto, por ejemplo
+  `M-1-1`, y el croquis combina la consulta del rack sin crear una ubicación
+  agregada `M-1`. La migración `20260904120000_AllowRackWip` elimina solamente
+  la restricción que reservaba WIP para áreas; fue verificada en
+  `warehouse_epi_test`, pero permanece sin aplicar en la base operativa hasta
+  su autorización explícita.
 - Entrada, Salida, Transferencia, Ajuste, asignaciones y conteos cíclicos
   admiten WIP con las mismas validaciones operativas que otras ubicaciones.
   `Surtir WIP` crea una transferencia `ProductionIssue` desde rack a WIP y

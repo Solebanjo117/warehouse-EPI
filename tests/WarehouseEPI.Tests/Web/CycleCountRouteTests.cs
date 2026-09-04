@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -6,6 +7,9 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -104,16 +108,66 @@ public sealed class CycleCountRouteTests
         Assert.Equal(0m, (await fixture.Db.CycleCountEntries.SingleAsync()).CountedQuantity);
     }
 
+    [Fact]
+    public async Task Active_operator_session_submits_without_repeating_the_pin()
+    {
+        await using var fixture = await CapturePage.CreateAsync("CC-PAGE-SESSION", "Z-1-4", "4314");
+        var cookie = await fixture.StartOperatorSessionAsync();
+        var page = fixture.NewPage(cookie);
+        await page.OnGetAsync(fixture.CampaignId, fixture.CycleCountLocationId, null, default);
+        Assert.Equal(fixture.UserId, page.OperatorSession?.UserId);
+
+        var post = fixture.NewPage(cookie);
+        post.Input = new()
+        {
+            PreparationToken = page.PreparationToken,
+            OperationId = Guid.NewGuid(),
+            Entries = [new() { ProductId = fixture.ProductId, Quantity = 6m }]
+        };
+
+        var result = await post.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(string.Empty, post.Input.Pin);
+        Assert.Equal(fixture.UserId, (await fixture.Db.CycleCountAttempts.SingleAsync()).SubmittedByUserId);
+    }
+
+    [Fact]
+    public async Task Missing_operator_session_keeps_capture_and_operation_for_reauthentication()
+    {
+        await using var fixture = await CapturePage.CreateAsync("CC-PAGE-REAUTH", "Z-1-5", "4315");
+        var page = fixture.NewPage();
+        await page.OnGetAsync(fixture.CampaignId, fixture.CycleCountLocationId, null, default);
+        var operationId = Guid.NewGuid();
+        var post = fixture.NewPage();
+        post.Input = new()
+        {
+            PreparationToken = page.PreparationToken,
+            OperationId = operationId,
+            Entries = [new() { ProductId = fixture.ProductId, Quantity = 6m }]
+        };
+
+        Assert.IsType<PageResult>(await post.OnPostAsync(fixture.CampaignId, fixture.CycleCountLocationId, default));
+
+        Assert.True(post.RequireOperatorPin);
+        Assert.Equal(operationId, post.Input.OperationId);
+        Assert.Equal(6m, Assert.Single(post.Input.Entries).Quantity);
+        Assert.Equal(page.PreparationToken, post.PreparationToken);
+        Assert.Empty(await fixture.Db.CycleCountAttempts.ToListAsync());
+    }
+
     private sealed class CapturePage : IAsyncDisposable
     {
         private const string LookupKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
         private readonly WarehouseEPI.Web.Security.CycleCountPreparationProtector protector = new(new EphemeralDataProtectionProvider());
         private CycleCountService cycleCounts = null!;
+        private WarehouseEPI.Web.Security.CycleCountOperatorSession operatorSessions = null!;
         public WarehouseDbContext Db { get; private set; } = null!;
         public string Pin { get; private set; } = string.Empty;
         public Guid CampaignId { get; private set; }
         public Guid CycleCountLocationId { get; private set; }
         public Guid ProductId { get; private set; }
+        public Guid UserId { get; private set; }
 
         public static async Task<CapturePage> CreateAsync(string sku, string locationCode, string pin)
         {
@@ -142,16 +196,35 @@ public sealed class CycleCountRouteTests
             fixture.Db = db;
             fixture.Pin = pin;
             fixture.cycleCounts = cycleCounts;
+            fixture.operatorSessions = new(new EphemeralDataProtectionProvider(), new MemoryCache(new MemoryCacheOptions()),
+                pinService, db, new TestEnvironment(), TimeProvider.System);
             fixture.CampaignId = created.CampaignId.Value;
             fixture.CycleCountLocationId = Assert.Single(detail!.Locations).Id;
             fixture.ProductId = product.Id;
+            fixture.UserId = user.Id;
             return fixture;
         }
 
-        public CountModel NewPage() => new(cycleCounts, Db, protector)
+        public CountModel NewPage(string? cookie = null) => new(cycleCounts, Db, protector, operatorSessions)
         {
-            PageContext = new(new ActionContext(new DefaultHttpContext(), new RouteData(), new ActionDescriptor(), new ModelStateDictionary()))
+            PageContext = new(new ActionContext(Context(cookie), new RouteData(), new ActionDescriptor(), new ModelStateDictionary()))
         };
+
+        public async Task<string> StartOperatorSessionAsync()
+        {
+            var context = Context();
+            Assert.NotNull(await operatorSessions.StartAsync(context, CampaignId, Pin));
+            var header = context.Response.Headers.SetCookie.Last(value =>
+                !value!.Contains("expires=Thu, 01 Jan 1970", StringComparison.OrdinalIgnoreCase));
+            return header!.Split(';', 2)[0];
+        }
+
+        private static DefaultHttpContext Context(string? cookie = null)
+        {
+            var context = new DefaultHttpContext();
+            if (cookie is not null) context.Request.Headers.Cookie = cookie;
+            return context;
+        }
 
         public async Task<Guid> StartLegacyAttemptAsync()
         {
@@ -161,11 +234,21 @@ public sealed class CycleCountRouteTests
         }
 
         public ValueTask DisposeAsync() => Db.DisposeAsync();
+
+        private sealed class TestEnvironment : IWebHostEnvironment
+        {
+            public string ApplicationName { get; set; } = "WarehouseEPI.Tests";
+            public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
+            public string WebRootPath { get; set; } = string.Empty;
+            public string EnvironmentName { get; set; } = Environments.Development;
+            public string ContentRootPath { get; set; } = string.Empty;
+            public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
+        }
     }
 
 
     [Fact]
-    public void Cycle_count_pages_are_public_and_all_inventory_changes_require_pin()
+    public void Cycle_count_pages_are_public_and_keep_explicit_pin_boundaries()
     {
         var directory = RepositoryDirectory("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts");
         var pageModels = Directory.GetFiles(directory, "*.cshtml.cs").Select(File.ReadAllText).ToArray();
@@ -179,6 +262,10 @@ public sealed class CycleCountRouteTests
         Assert.Contains("type=\"password\"", count, StringComparison.Ordinal);
         Assert.DoesNotContain("type=\"password\"", review, StringComparison.Ordinal);
         Assert.Contains("type=\"password\"", batchReview, StringComparison.Ordinal);
+        Assert.Contains("StartOperatorSession", details, StringComparison.Ordinal);
+        Assert.Contains("EndOperatorSession", details, StringComparison.Ordinal);
+        Assert.Contains("Contando como", count, StringComparison.Ordinal);
+        Assert.Contains("Registrar y escanear siguiente", count, StringComparison.Ordinal);
         Assert.Contains("OperationId", count, StringComparison.Ordinal);
         Assert.Contains("OperationId", batchReview, StringComparison.Ordinal);
         Assert.Contains("UnexpectedEntries", count, StringComparison.Ordinal);

@@ -363,6 +363,7 @@
     const selected = {};
     const lookups = {};
     let productLocations = null;
+    let autoSelectedEntryDestinationForProductId = null;
     const locationProducts = {};
 
     const hiddenFor = (kind) => operationShell.querySelector(`[data-selected-id="${kind}"]`);
@@ -518,8 +519,9 @@
 
     const relationshipMeta = (item) => {
       const quantity = format(number(item.quantity));
-      if (item.hasActiveAssignment && item.hasNonZeroBalance) return `Asignación activa · saldo ${quantity}`;
-      if (item.hasActiveAssignment) return "Asignación activa · saldo 0";
+      const prefix = item.isDefaultEntry ? "Principal de entrada · " : "";
+      if (item.hasActiveAssignment && item.hasNonZeroBalance) return `${prefix}Asignación activa · saldo ${quantity}`;
+      if (item.hasActiveAssignment) return `${prefix}Asignación activa · saldo 0`;
       return `Con saldo ${quantity}`;
     };
 
@@ -627,7 +629,17 @@
       if (selected.product?.id !== productId || !items) return;
       productLocations = items;
       renderProductRelationships();
-      if (operation !== "entry" && !selected[primaryLocationKind] && items.length === 1)
+      if (operation === "entry" && !selected[primaryLocationKind] && selected.product.defaultEntryLocationId) {
+        const defaultLocation = items.find(item => item.id === selected.product.defaultEntryLocationId);
+        if (selected.product.isDefaultEntryLocationAvailable && defaultLocation) {
+          await applySelection(primaryLocationKind, defaultLocation, true);
+          autoSelectedEntryDestinationForProductId = selected.product.id;
+          setOperationFeedback(`Destino principal aplicado: ${defaultLocation.code}. Puedes cambiarlo.`);
+        } else {
+          const code = selected.product.defaultEntryLocationCode || "configurada";
+          setOperationFeedback(`La ubicación principal ${code} no está disponible. Escanea o selecciona otro destino.`);
+        }
+      } else if (operation !== "entry" && !selected[primaryLocationKind] && items.length === 1)
         await applySelection(primaryLocationKind, items[0], true);
     };
 
@@ -646,11 +658,18 @@
     const applySelection = async (kind, item, loadRelationships) => {
       const lookup = lookups[kind];
       const lookupKind = kind === "product" ? "product" : "location";
+      if (operation === "entry" && kind === "product" && selected.product?.id !== item.id &&
+        autoSelectedEntryDestinationForProductId === selected.product?.id) {
+        clearSelection(primaryLocationKind);
+        autoSelectedEntryDestinationForProductId = null;
+      }
+      if (operation === "entry" && kind === primaryLocationKind)
+        autoSelectedEntryDestinationForProductId = null;
       if (lookupKind === "location") {
         const expectsWip = (operation === "wipissue" || isWipExit()) && kind === "destination";
         const isWipLocation = item.isWip === true;
         if (expectsWip && !isWipLocation) {
-          const message = "Selecciona un rack WIP.";
+          const message = "Selecciona una ubicación WIP.";
           lookup.input.setCustomValidity(message);
           lookup.input.reportValidity();
           setOperationFeedback(message);

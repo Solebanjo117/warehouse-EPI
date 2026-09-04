@@ -139,13 +139,52 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         var service = new LocationRackAdministrationService(db,
             new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
         var result = await service.SaveAsync(new(Guid.NewGuid(), admin.Id, "Y", 8,
-            [1, 2, 3, 4, 5, 6], "Corrección PostgreSQL aislada", admin.Pin));
+            LocationOperationalRole.Storage, [1, 2, 3, 4, 5, 6],
+            "Corrección PostgreSQL aislada", admin.Pin));
 
         Assert.Equal(LocationRackSaveStatus.Success, result.Status);
         Assert.Equal(9, await db.Locations.CountAsync(item => item.RowCode == "Y" && item.RackNumber == 8));
         Assert.Equal(3, await db.Locations.CountAsync(item => item.RowCode == "Y" && item.RackNumber == 8 && !item.IsPhysicallyPresent));
         Assert.Equal(movementCount, await db.InventoryMovements.CountAsync());
         Assert.Single(await db.LocationRackRevisions.Where(item => item.RowCode == "Y" && item.RackNumber == 8).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Rack_wip_migration_reverts_and_reapplies_without_removing_operational_rows()
+    {
+        await using var db = fixture.CreateDbContext();
+        var rackWip = new Location
+        {
+            Code = "V-77-1",
+            Kind = LocationKind.Rack,
+            RowCode = "V",
+            RackNumber = 77,
+            PalletNumber = 1,
+            OperationalRole = LocationOperationalRole.Wip
+        };
+        db.Locations.Add(rackWip);
+        await db.SaveChangesAsync();
+        var locationCount = await db.Locations.CountAsync();
+        var migrator = db.GetService<IMigrator>();
+
+        await migrator.MigrateAsync("20260831183516_AddWarehouseMapCanvasDimensions");
+        db.ChangeTracker.Clear();
+        Assert.Equal(locationCount, await db.Locations.CountAsync());
+        Assert.Equal(LocationOperationalRole.Storage,
+            (await db.Locations.SingleAsync(item => item.Id == rackWip.Id)).OperationalRole);
+        Assert.True(await db.Database.SqlQueryRaw<bool>("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'ck_locations_wip_area') AS "Value"
+            """).SingleAsync());
+
+        await migrator.MigrateAsync("20260904120000_AllowRackWip");
+        Assert.False(await db.Database.SqlQueryRaw<bool>("""
+            SELECT EXISTS (
+                SELECT 1 FROM pg_constraint
+                WHERE conname = 'ck_locations_wip_area') AS "Value"
+            """).SingleAsync());
+        Assert.Equal(locationCount, await db.Locations.CountAsync());
     }
 
     [Fact]
@@ -471,8 +510,11 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
             source.Kind = LocationKind.Rack;
             var wipArea = new Location
             {
-                Code = "PG-WIP-AREA",
-                Kind = LocationKind.Area,
+                Code = "W-91-1",
+                Kind = LocationKind.Rack,
+                RowCode = "W",
+                RackNumber = 91,
+                PalletNumber = 1,
                 OperationalRole = LocationOperationalRole.Wip
             };
             setup.Locations.Add(wipArea);
@@ -499,10 +541,93 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
 
         var reports = new WipReportService(db, new WarehouseClock(new WarehouseSettingsService(db)));
         var page = await reports.GetTrackedPageAsync(new(null, null, "PG-WIP-REPORT", wipAreaId), 1, 25);
+        var recent = await reports.GetRecentIssuesAsync([wipAreaId]);
 
         Assert.Contains(page.Inventory, row => row.ProductSku == "PG-WIP-REPORT" && row.Quantity == 3m);
         Assert.Contains(page.Activity, row => row.MovementId == issue.MovementId && row.Delta == 4m && row.Category == "Recibido");
         Assert.Contains(page.Activity, row => row.MovementId == supplier.MovementId && row.Delta == -1m && row.Category == "Devolución a proveedor");
+        Assert.Contains(recent, row => row.MovementId == issue.MovementId && row.WipAreaId == wipAreaId);
+    }
+
+    [Fact]
+    public async Task Unused_rack_deletion_is_atomic_on_postgresql()
+    {
+        var admin = await fixture.AddAdminAsync("Administrador eliminación rack", "3186");
+        await using var db = fixture.CreateDbContext();
+        var positions = Enumerable.Range(1, 9).Select(number => new Location
+        {
+            Code = $"X-90-{number}", Kind = LocationKind.Rack, RowCode = "X",
+            RackNumber = 90, PalletNumber = (short)number
+        }).ToArray();
+        var layout = await db.WarehouseMapLayouts.SingleOrDefaultAsync();
+        if (layout is null)
+        {
+            layout = new WarehouseMapLayout { Id = 1 };
+            db.WarehouseMapLayouts.Add(layout);
+        }
+        var mapElement = new WarehouseMapElement
+        {
+            LayoutId = layout.Id, Kind = WarehouseMapElementKind.Rack, RowCode = "X", RackNumber = 90,
+            X = 100, Y = 100, Width = 100, Height = 100
+        };
+        db.Locations.AddRange(positions);
+        db.WarehouseMapElements.Add(mapElement);
+        await db.SaveChangesAsync();
+        var previousMapVersion = layout.Version;
+        var operationId = Guid.NewGuid();
+        var service = new LocationRackAdministrationService(db,
+            new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
+
+        var result = await service.DeleteAsync(new(operationId, admin.Id, "X", 90,
+            "Rack de prueba creado sin uso", admin.Pin, "X-90"));
+
+        Assert.Equal(LocationRackDeleteStatus.Success, result.Status);
+        Assert.False(await db.Locations.AnyAsync(item => item.RowCode == "X" && item.RackNumber == 90));
+        Assert.False(await db.WarehouseMapElements.AnyAsync(item => item.Id == mapElement.Id));
+        Assert.Equal(previousMapVersion + 1, (await db.WarehouseMapLayouts.AsNoTracking().SingleAsync()).Version);
+        Assert.True(await db.LocationRackRevisions.AnyAsync(item => item.OperationId == operationId));
+        Assert.True(await db.WarehouseMapRevisions.AnyAsync(item => item.OperationId == operationId));
+    }
+
+    [Fact]
+    public async Task Unused_wip_area_deletion_is_atomic_on_postgresql()
+    {
+        var admin = await fixture.AddAdminAsync("Administrador eliminación área", "3187");
+        await using var db = fixture.CreateDbContext();
+        var area = new Location
+        {
+            Code = "PG-WIP-DELETE",
+            Kind = LocationKind.Area,
+            OperationalRole = LocationOperationalRole.Wip
+        };
+        var layout = await db.WarehouseMapLayouts.SingleOrDefaultAsync();
+        if (layout is null)
+        {
+            layout = new WarehouseMapLayout { Id = 1 };
+            db.WarehouseMapLayouts.Add(layout);
+        }
+        var mapElement = new WarehouseMapElement
+        {
+            LayoutId = layout.Id, Kind = WarehouseMapElementKind.Area, LocationId = area.Id,
+            X = 100, Y = 100, Width = 100, Height = 100
+        };
+        db.Locations.Add(area);
+        db.WarehouseMapElements.Add(mapElement);
+        await db.SaveChangesAsync();
+        var previousMapVersion = layout.Version;
+        var operationId = Guid.NewGuid();
+        var service = new LocationAreaAdministrationService(db,
+            new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
+
+        var result = await service.DeleteAsync(new(operationId, admin.Id, area.Id,
+            "Área WIP de prueba creada sin uso", admin.Pin, area.Code));
+
+        Assert.Equal(LocationAreaDeleteStatus.Success, result.Status);
+        Assert.False(await db.Locations.AnyAsync(item => item.Id == area.Id));
+        Assert.False(await db.WarehouseMapElements.AnyAsync(item => item.Id == mapElement.Id));
+        Assert.Equal(previousMapVersion + 1, (await db.WarehouseMapLayouts.AsNoTracking().SingleAsync()).Version);
+        var revision = await db.WarehouseMapRevisions.SingleAsync(item => item.OperationId == operationId);
+        Assert.Contains("DELETE_AREA", revision.ChangesJson, StringComparison.Ordinal);
     }
 }
 

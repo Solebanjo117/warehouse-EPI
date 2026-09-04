@@ -7,4 +7,40 @@
 <div class="col-12 col-md-7"><label asp-for="Input.Description" class="form-label">Descripción</label><input asp-for="Input.Description" class="form-control form-control-lg" maxlength="200"/><span asp-validation-for="Input.Description" class="text-danger"></span></div>
 <div class="col-12 col-md-5"><label asp-for="Input.OperationalRole" class="form-label">Función operativa</label><select asp-for="Input.OperationalRole" class="form-select form-select-lg"><option value="Other">Área general</option><option value="Storage">Área con inventario</option><option value="Wip">WIP con inventario</option></select><span asp-validation-for="Input.OperationalRole" class="text-danger"></span><div class="form-text">WIP controla existencias y admite movimientos, asignaciones y conteos igual que otras ubicaciones.</div></div>
 <div class="col-12"><button class="btn btn-primary btn-lg">Guardar área</button> <a asp-page="Index" class="btn btn-outline-secondary btn-lg">Cancelar</a></div></div></form>
+@if (Model.IsEdit && Model.Deletion is not null)
+{
+    <section class="card border-danger mt-4" aria-labelledby="delete-area-title">
+        <div class="card-body">
+            <h2 id="delete-area-title" class="h4 text-danger">Eliminar área definitivamente</h2>
+            @if (Model.Deletion.CanDelete)
+            {
+                <p>Esta área nunca ha sido utilizada por inventario, productos u operaciones. La eliminación también la quitará del croquis.</p>
+                <details open="@(Model.DeleteErrors.Count > 0 ? "open" : null)">
+                    <summary class="btn btn-outline-danger">Preparar eliminación definitiva</summary>
+                    <form method="post" asp-page-handler="Delete" class="mt-3" data-area-delete-form>
+                        <input asp-for="DeleteInput.OperationId" type="hidden" />
+                        <input asp-for="DeleteInput.LocationId" type="hidden" />
+                        @if (Model.DeleteErrors.Count > 0)
+                        {
+                            <div class="alert alert-danger" role="alert"><strong>No se puede continuar.</strong><ul class="mb-0 mt-2">@foreach (var error in Model.DeleteErrors) { <li>@error</li> }</ul></div>
+                        }
+                        <div class="alert alert-danger" role="alert"><strong>Esta acción no se puede deshacer.</strong> Los registros operativos nunca se eliminan.</div>
+                        <label asp-for="DeleteInput.Reason" class="form-label">Motivo de la eliminación</label>
+                        <textarea asp-for="DeleteInput.Reason" class="form-control mb-3" rows="3" maxlength="500" required></textarea>
+                        <label asp-for="DeleteInput.ConfirmationCode" class="form-label">Escribe @Model.Input.Code para confirmar</label>
+                        <input asp-for="DeleteInput.ConfirmationCode" class="form-control mb-3 text-uppercase" required autocomplete="off" />
+                        <label asp-for="DeleteInput.Pin" class="form-label">NIP ADMIN</label>
+                        <input asp-for="DeleteInput.Pin" value="" class="form-control" type="password" inputmode="numeric" autocomplete="off" required />
+                        <button type="submit" class="btn btn-danger mt-3">Eliminar área definitivamente</button>
+                    </form>
+                </details>
+            }
+            else
+            {
+                <p class="mb-2">Esta área no puede eliminarse porque conserva registros relacionados:</p>
+                <ul class="mb-0">@foreach (var blocker in Model.Deletion.Blockers) { <li>@blocker</li> }</ul>
+            }
+        </div>
+    </section>
+}
 @section Scripts { <partial name="_ValidationScriptsPartial" /> }

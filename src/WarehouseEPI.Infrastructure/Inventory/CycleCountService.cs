@@ -136,24 +136,37 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
-        if (command.OperationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
+        return await SubmitCoreAsync(command.AttemptId, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
+    }
+
+    public async Task<CycleCountResult> SubmitForUserAsync(SubmitCycleCountForUserCommand command, CancellationToken cancellationToken = default)
+    {
+        var user = await FindAuthorizedUserAsync(command.ResponsibleUserId, cancellationToken);
+        if (user is null) return new(CycleCountStatus.InvalidPin);
+        return await SubmitCoreAsync(command.AttemptId, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
+    }
+
+    private async Task<CycleCountResult> SubmitCoreAsync(Guid attemptId, Guid operationId, User user,
+        IReadOnlyList<CycleCountQuantityCommand> entries, bool isLocationEmpty, CancellationToken cancellationToken)
+    {
+        if (operationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
         var submitted = await dbContext.CycleCountAttempts.AsNoTracking()
-            .Where(item => item.SubmissionOperationId == command.OperationId)
+            .Where(item => item.SubmissionOperationId == operationId)
             .Select(item => new { item.Id, item.CycleCountLocationId, item.CycleCountLocation.CampaignId })
             .SingleOrDefaultAsync(cancellationToken);
         if (submitted is not null)
-            return submitted.Id == command.AttemptId
+            return submitted.Id == attemptId
                 ? new(CycleCountStatus.Success, submitted.CampaignId, submitted.CycleCountLocationId, submitted.Id)
                 : new(CycleCountStatus.IdempotencyConflict);
         var attempt = await dbContext.CycleCountAttempts.Include(item => item.Entries).ThenInclude(item => item.Product).ThenInclude(item => item.BaseUnit)
             .Include(item => item.CycleCountLocation).ThenInclude(item => item.Campaign)
-            .SingleOrDefaultAsync(item => item.Id == command.AttemptId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == attemptId, cancellationToken);
         if (attempt is null) return new(CycleCountStatus.NotFound);
         if (attempt.Status != CycleCountAttemptStatus.Counting) return new(CycleCountStatus.InvalidState, attempt.CycleCountLocation.CampaignId, attempt.CycleCountLocationId, attempt.Id);
 
-        var errors = ValidateSubmission(command, attempt);
+        var errors = ValidateSubmission(entries, isLocationEmpty, attempt);
         if (errors.Count != 0) return new(CycleCountStatus.ValidationFailed, attempt.CycleCountLocation.CampaignId, attempt.CycleCountLocationId, attempt.Id, Errors: errors);
-        var entriesByProduct = command.Entries.GroupBy(item => item.ProductId).ToDictionary(group => group.Key, group => group.Single().Quantity);
+        var entriesByProduct = entries.GroupBy(item => item.ProductId).ToDictionary(group => group.Key, group => group.Single().Quantity);
         var unexpectedIds = entriesByProduct.Keys.Except(attempt.Entries.Select(item => item.ProductId)).ToArray();
         if (unexpectedIds.Length != 0)
         {
@@ -180,9 +193,9 @@ public sealed class CycleCountService(
 
         if (!await VersionsMatchAsync(attempt, cancellationToken)) return await MarkStaleAsync(attempt, user.Id, cancellationToken);
         foreach (var entry in attempt.Entries)
-            entry.CountedQuantity = command.IsLocationEmpty ? 0m : entriesByProduct[entry.ProductId];
+            entry.CountedQuantity = isLocationEmpty ? 0m : entriesByProduct[entry.ProductId];
         attempt.Status = CycleCountAttemptStatus.Submitted;
-        attempt.SubmissionOperationId = command.OperationId;
+        attempt.SubmissionOperationId = operationId;
         attempt.SubmittedByUserId = user.Id;
         attempt.SubmittedAt = timeProvider.GetUtcNow();
         var hasDifference = attempt.Entries.Any(item => item.CountedQuantity != item.ExpectedQuantity);
@@ -221,13 +234,26 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
-        if (command.OperationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
-        var existing = await dbContext.CycleCountAttempts.AsNoTracking().Where(item => item.SubmissionOperationId == command.OperationId)
+        return await SubmitPreparedCoreAsync(command.Preparation, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
+    }
+
+    public async Task<CycleCountResult> SubmitPreparedForUserAsync(SubmitPreparedCycleCountForUserCommand command, CancellationToken cancellationToken = default)
+    {
+        var user = await FindAuthorizedUserAsync(command.ResponsibleUserId, cancellationToken);
+        if (user is null) return new(CycleCountStatus.InvalidPin);
+        return await SubmitPreparedCoreAsync(command.Preparation, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
+    }
+
+    private async Task<CycleCountResult> SubmitPreparedCoreAsync(CycleCountPreparation preparation, Guid operationId, User user,
+        IReadOnlyList<CycleCountQuantityCommand> entries, bool isLocationEmpty, CancellationToken cancellationToken)
+    {
+        if (operationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
+        var existing = await dbContext.CycleCountAttempts.AsNoTracking().Where(item => item.SubmissionOperationId == operationId)
             .Select(item => new { item.Id, item.CycleCountLocationId, item.CycleCountLocation.CampaignId }).SingleOrDefaultAsync(cancellationToken);
-        if (existing is not null) return existing.CycleCountLocationId == command.Preparation.CycleCountLocationId
+        if (existing is not null) return existing.CycleCountLocationId == preparation.CycleCountLocationId
             ? new(CycleCountStatus.Success, existing.CampaignId, existing.CycleCountLocationId, existing.Id) : new(CycleCountStatus.IdempotencyConflict);
         var location = await dbContext.CycleCountLocations.Include(item => item.Campaign).Include(item => item.Attempts)
-            .SingleOrDefaultAsync(item => item.Id == command.Preparation.CycleCountLocationId && item.CampaignId == command.Preparation.CampaignId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == preparation.CycleCountLocationId && item.CampaignId == preparation.CampaignId, cancellationToken);
         if (location is null) return new(CycleCountStatus.NotFound);
         if (location.Campaign.Status is CycleCountCampaignStatus.Draft or CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled ||
             location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return new(CycleCountStatus.InvalidState, location.CampaignId, location.Id);
@@ -235,11 +261,11 @@ public sealed class CycleCountService(
         // La captura se valida antes de persistir: un envío inválido no debe crear el intento
         // ni dejar la ubicación en Counting, porque el mismo token preparado se reenvía.
         var errors = ValidateQuantities(
-            [.. command.Preparation.Entries.Select(item => new ExpectedCountLine(item.ProductId, item.Sku, item.AllowsDecimals))],
-            command.Entries,
-            command.IsLocationEmpty);
+            [.. preparation.Entries.Select(item => new ExpectedCountLine(item.ProductId, item.Sku, item.AllowsDecimals))],
+            entries,
+            isLocationEmpty);
         if (errors.Count == 0)
-            errors.AddRange(await ValidateUnexpectedProductsAsync(command.Entries, command.Preparation.Entries, cancellationToken));
+            errors.AddRange(await ValidateUnexpectedProductsAsync(entries, preparation.Entries, cancellationToken));
         if (errors.Count != 0) return new(CycleCountStatus.ValidationFailed, location.CampaignId, location.Id, Errors: errors);
 
         await using var transaction = dbContext.Database.IsRelational()
@@ -251,16 +277,16 @@ public sealed class CycleCountService(
             CycleCountLocationId = location.Id,
             AttemptNumber = location.Attempts.Count + 1,
             StartedByUserId = user.Id,
-            StartedAt = command.Preparation.PreparedAt
+            StartedAt = preparation.PreparedAt
         };
-        foreach (var entry in command.Preparation.Entries)
+        foreach (var entry in preparation.Entries)
             attempt.Entries.Add(new() { ProductId = entry.ProductId, UnitId = await UnitIdAsync(entry.ProductId, cancellationToken), ExpectedQuantity = entry.ExpectedQuantity, ExpectedBalanceVersion = entry.ExpectedBalanceVersion });
         dbContext.CycleCountAttempts.Add(attempt);
         location.Status = CycleCountLocationStatus.Counting;
         location.Campaign.Status = CycleCountCampaignStatus.InProgress;
-        AddAction(location.Campaign, location, attempt, CycleCountActionType.AttemptStarted, user.Id, command.Preparation.PreparedAt, "Preparación confirmada al enviar el conteo.");
+        AddAction(location.Campaign, location, attempt, CycleCountActionType.AttemptStarted, user.Id, preparation.PreparedAt, "Preparación confirmada al enviar el conteo.");
         await dbContext.SaveChangesAsync(cancellationToken);
-        var result = await SubmitAsync(new(attempt.Id, command.OperationId, command.Pin, command.Entries, command.IsLocationEmpty), cancellationToken);
+        var result = await SubmitCoreAsync(attempt.Id, operationId, user, entries, isLocationEmpty, cancellationToken);
         // Se confirma cualquier estado devuelto, incluido el marcado Stale, que es una
         // transición legítima; sólo una excepción revierte el intento recién creado.
         if (transaction is not null) await transaction.CommitAsync(cancellationToken);
@@ -545,11 +571,11 @@ public sealed class CycleCountService(
         return true;
     }
 
-    private static List<string> ValidateSubmission(SubmitCycleCountCommand command, CycleCountAttempt attempt) =>
+    private static List<string> ValidateSubmission(IReadOnlyList<CycleCountQuantityCommand> entries, bool isLocationEmpty, CycleCountAttempt attempt) =>
         ValidateQuantities(
             [.. attempt.Entries.Select(item => new ExpectedCountLine(item.ProductId, item.Product.Sku, item.Product.BaseUnit.AllowsDecimals))],
-            command.Entries,
-            command.IsLocationEmpty);
+            entries,
+            isLocationEmpty);
 
     private static List<string> ValidateQuantities(IReadOnlyList<ExpectedCountLine> expected, IReadOnlyList<CycleCountQuantityCommand> entries, bool isLocationEmpty)
     {
@@ -630,6 +656,11 @@ public sealed class CycleCountService(
         var user = await userPinService.AuthenticateAsync(pin, cancellationToken);
         return user?.Role.Code is "ADMIN" or "OPERATOR" ? user : null;
     }
+
+    private Task<User?> FindAuthorizedUserAsync(Guid userId, CancellationToken cancellationToken) =>
+        dbContext.Users.AsNoTracking().Include(item => item.Role)
+            .SingleOrDefaultAsync(item => item.Id == userId && item.IsActive &&
+                (item.Role.Code == "ADMIN" || item.Role.Code == "OPERATOR"), cancellationToken);
 
     private async Task RefreshCampaignStatusAsync(CycleCountCampaign campaign, Guid userId, CancellationToken cancellationToken)
     {

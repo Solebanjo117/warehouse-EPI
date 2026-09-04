@@ -28,6 +28,22 @@ public sealed class RackOperationsContractTests
     }
 
     [Fact]
+    public void Rack_editor_submits_save_when_enter_is_pressed_in_the_reviewed_pin()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Edit.cshtml"));
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "rack-editor.js"));
+
+        Assert.Contains("data-rack-editor", page, StringComparison.Ordinal);
+        Assert.Contains("autofocus data-rack-pin", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page-handler=\"Save\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-rack-save", page, StringComparison.Ordinal);
+        Assert.Contains("~/js/rack-editor.js", page, StringComparison.Ordinal);
+        Assert.Contains("event.key !== 'Enter'", script, StringComparison.Ordinal);
+        Assert.Contains("event.preventDefault()", script, StringComparison.Ordinal);
+        Assert.Contains("form.requestSubmit(saveButton)", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Rack_editor_uses_two_column_workspace_with_sticky_review_panel()
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Edit.cshtml"));

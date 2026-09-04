@@ -15,7 +15,7 @@ public sealed class EditModel(
     ProductLocationAssignmentService assignmentService) : PageModel, IProductFormPage
 {
     [BindProperty] public ProductInputModel Input { get; set; } = new();
-    public IReadOnlyList<SelectListItem> Units { get; private set; } = []; public IReadOnlyList<SelectListItem> Types { get; private set; } = []; public IReadOnlyList<SelectListItem> Classes { get; private set; } = [];
+    public IReadOnlyList<SelectListItem> Units { get; private set; } = []; public IReadOnlyList<SelectListItem> Types { get; private set; } = []; public IReadOnlyList<SelectListItem> Classes { get; private set; } = []; public IReadOnlyList<SelectListItem> EntryLocations { get; private set; } = [];
     public IReadOnlyList<LocationAssignmentRow> LocationAssignments { get; private set; } = [];
     public IReadOnlyList<LocationSearchRow> LocationResults { get; private set; } = [];
     public string? LocationSearch { get; private set; }
@@ -24,7 +24,7 @@ public sealed class EditModel(
     {
         LocationSearch = locationSearch?.Trim();
         var product = await dbContext.Products.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, token); if (product is null) return NotFound();
-        Input = new ProductInputModel { Id = product.Id, Sku = product.Sku, Description = product.Description, ExternalReference = product.ExternalReference, ProductTypeId = product.ProductTypeId, ProductClassId = product.ProductClassId, BaseUnitId = product.BaseUnitId, MinimumStock = product.MinimumStock, IsActive = product.IsActive };
+        Input = new ProductInputModel { Id = product.Id, Sku = product.Sku, Description = product.Description, ExternalReference = product.ExternalReference, ProductTypeId = product.ProductTypeId, ProductClassId = product.ProductClassId, BaseUnitId = product.BaseUnitId, MinimumStock = product.MinimumStock, DefaultEntryLocationId = product.DefaultEntryLocationId, IsActive = product.IsActive };
         await LoadAsync(token); return Page();
     }
 
@@ -34,6 +34,7 @@ public sealed class EditModel(
         var product = await dbContext.Products.SingleOrDefaultAsync(x => x.Id == Input.Id, token); if (product is null) return NotFound();
         if (!ModelState.IsValid) { await LoadAsync(token); return Page(); }
         ProductPageSupport.Apply(product, Input);
+        await ProductPageSupport.EnsureDefaultEntryAssignmentAsync(dbContext, product, token);
         try { await dbContext.SaveChangesAsync(token); } catch (DbUpdateException) { ModelState.AddModelError("Input.Sku", "No fue posible guardar; verifique que el SKU no esté repetido."); await LoadAsync(token); return Page(); }
         TempData["Success"] = "Producto actualizado."; return RedirectToPage("Details", new { id = Input.Id });
     }
@@ -50,16 +51,17 @@ public sealed class EditModel(
     {
         var result = await assignmentService.DeactivateAsync(id, locationId, token);
         if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = "La asignación fue desactivada.";
+        else if (result == ProductLocationAssignmentResult.SuccessDefaultEntryCleared) TempData["Success"] = "La asignación fue desactivada y la ubicación principal de entrada fue retirada.";
         else TempData["Error"] = "La asignación activa ya no existe.";
         return RedirectToPage(new { id });
     }
 
     private async Task LoadAsync(CancellationToken token)
     {
-        (Units, Types, Classes) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token);
+        (Units, Types, Classes, EntryLocations) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token);
         LocationAssignments = await dbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.ProductId == Input.Id)
             .OrderByDescending(x => x.IsActive).ThenBy(x => x.Location.RowCode).ThenBy(x => x.Location.RackNumber).ThenBy(x => x.Location.PalletNumber).ThenBy(x => x.Location.Code)
-            .Select(x => new LocationAssignmentRow(x.LocationId, x.Location.Code, x.Location.Description, x.Location.IsActive, x.Location.IsBlocked, x.IsActive)).ToListAsync(token);
+            .Select(x => new LocationAssignmentRow(x.LocationId, x.Location.Code, x.Location.Description, x.Location.IsActive, x.Location.IsBlocked, x.IsActive, x.LocationId == Input.DefaultEntryLocationId)).ToListAsync(token);
         if (!string.IsNullOrWhiteSpace(LocationSearch))
         {
             var term = LocationSearch.ToUpperInvariant();
@@ -79,6 +81,6 @@ public sealed class EditModel(
         ProductLocationAssignmentResult.LocationDoesNotTrackInventory => "La ubicación no admite asignaciones de inventario.",
         _ => "El producto o la ubicación ya no existe."
     };
-    public sealed record LocationAssignmentRow(Guid LocationId, string Code, string? Description, bool LocationIsActive, bool LocationIsBlocked, bool IsActive);
+    public sealed record LocationAssignmentRow(Guid LocationId, string Code, string? Description, bool LocationIsActive, bool LocationIsBlocked, bool IsActive, bool IsDefaultEntry);
     public sealed record LocationSearchRow(Guid Id, string Code, string? Description, bool IsAssigned);
 }

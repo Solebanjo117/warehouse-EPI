@@ -463,10 +463,12 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(product => product.ProductClassId).HasColumnName("product_class_id");
         entity.Property(product => product.BaseUnitId).HasColumnName("base_unit_id");
         entity.Property(product => product.MinimumStock).HasColumnName("minimum_stock").HasPrecision(18, 4);
+        entity.Property(product => product.DefaultEntryLocationId).HasColumnName("default_entry_location_id");
         entity.Property(product => product.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(product => product.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(product => product.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         entity.HasIndex(product => product.Sku).IsUnique();
+        entity.HasIndex(product => product.DefaultEntryLocationId);
         entity.HasOne(product => product.BaseUnit)
             .WithMany(unit => unit.Products)
             .HasForeignKey(product => product.BaseUnitId)
@@ -478,6 +480,10 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.HasOne(product => product.ProductClass)
             .WithMany(productClass => productClass.Products)
             .HasForeignKey(product => product.ProductClassId)
+            .OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(product => product.DefaultEntryLocation)
+            .WithMany()
+            .HasForeignKey(product => product.DefaultEntryLocationId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 
@@ -515,7 +521,6 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         {
             table.HasCheckConstraint("ck_locations_kind", "kind IN ('RACK', 'AREA')");
             table.HasCheckConstraint("ck_locations_operational_role", "operational_role IN ('STORAGE', 'WIP', 'OTHER')");
-            table.HasCheckConstraint("ck_locations_wip_area", "operational_role <> 'WIP' OR kind = 'AREA'");
             table.HasCheckConstraint("ck_locations_code_normalized", "code = upper(btrim(code)) AND code <> ''");
             table.HasCheckConstraint("ck_locations_structure", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND pallet_number BETWEEN 1 AND 9 AND code = row_code || '-' || rack_number::text || '-' || pallet_number::text) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND pallet_number IS NULL AND code ~ '^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$')");
             table.HasCheckConstraint("ck_locations_block", "(is_blocked = FALSE AND block_reason IS NULL) OR (is_active = TRUE AND is_blocked = TRUE AND block_reason IS NOT NULL AND btrim(block_reason) <> '')");
@@ -1094,6 +1099,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         exceptionCase.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
         exceptionCase.Property(item => item.PrimaryText).HasColumnName("primary_text").HasMaxLength(160).IsRequired();
         exceptionCase.Property(item => item.SecondaryText).HasColumnName("secondary_text").HasMaxLength(200).IsRequired();
+        exceptionCase.Property(item => item.ReasonText).HasColumnName("reason_text").HasMaxLength(500).IsRequired();
         exceptionCase.Property(item => item.ValueText).HasColumnName("value_text").HasMaxLength(200);
         exceptionCase.Property(item => item.TargetUrl).HasColumnName("target_url").HasMaxLength(1000).IsRequired();
         exceptionCase.Property(item => item.AssignedUserId).HasColumnName("assigned_user_id");

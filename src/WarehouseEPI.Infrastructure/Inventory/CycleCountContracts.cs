@@ -18,6 +18,13 @@ public sealed record SubmitCycleCountCommand(
     IReadOnlyList<CycleCountQuantityCommand> Entries,
     bool IsLocationEmpty = false);
 
+public sealed record SubmitCycleCountForUserCommand(
+    Guid AttemptId,
+    Guid OperationId,
+    Guid ResponsibleUserId,
+    IReadOnlyList<CycleCountQuantityCommand> Entries,
+    bool IsLocationEmpty = false);
+
 public sealed record CycleCountQuantityCommand(Guid ProductId, decimal Quantity);
 
 public sealed record CycleCountActionCommand(Guid LocationId, Guid OperationId, string Pin, string? Notes = null,
@@ -30,6 +37,9 @@ public sealed record CycleCountPreparationEntry(Guid ProductId, string Sku, stri
     bool AllowsDecimals, decimal ExpectedQuantity, uint ExpectedBalanceVersion);
 public sealed record SubmitPreparedCycleCountCommand(CycleCountPreparation Preparation, Guid OperationId, string Pin,
     IReadOnlyList<CycleCountQuantityCommand> Entries, bool IsLocationEmpty = false);
+
+public sealed record SubmitPreparedCycleCountForUserCommand(CycleCountPreparation Preparation, Guid OperationId,
+    Guid ResponsibleUserId, IReadOnlyList<CycleCountQuantityCommand> Entries, bool IsLocationEmpty = false);
 
 public enum CycleCountReviewDecision { Approve, Recount }
 public sealed record CycleCountReviewDecisionCommand(Guid LocationId, Guid OperationId, CycleCountReviewDecision Decision,

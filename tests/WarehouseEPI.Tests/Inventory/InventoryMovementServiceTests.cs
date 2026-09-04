@@ -590,6 +590,14 @@ public sealed class InventoryMovementServiceTests
         Assert.Equal(rows.OrderByDescending(row => row.OccurredAt).Select(row => row.MovementId),
             rows.Select(row => row.MovementId));
 
+        var combined = await new WipReportService(fixture.Db,
+            new WarehouseClock(new WarehouseSettingsService(fixture.Db)))
+            .GetRecentIssuesAsync([selectedWip.Id, otherWip.Id]);
+        Assert.Equal(10, combined.Count);
+        Assert.Equal(777m, combined[0].Issued);
+        Assert.Contains(combined, row => row.WipAreaId == selectedWip.Id);
+        Assert.Contains(combined, row => row.WipAreaId == otherWip.Id);
+
         InventoryMovement CreateIssue(Guid wipAreaId, decimal quantity, DateTimeOffset occurredAt)
             => new()
             {
