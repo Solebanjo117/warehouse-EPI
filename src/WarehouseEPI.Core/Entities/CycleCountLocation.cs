@@ -19,4 +19,5 @@ public sealed class CycleCountLocation
     public InventoryMovement? AdjustmentMovement { get; set; }
     public User? LastActionByUser { get; set; }
     public ICollection<CycleCountAttempt> Attempts { get; set; } = [];
+    public ICollection<CycleCountPlannedProduct> PlannedProducts { get; set; } = [];
 }

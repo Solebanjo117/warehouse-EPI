@@ -1,0 +1,12 @@
+using WarehouseEPI.Core.Entities;
+
+namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
+
+public static class CycleCountPlanPresentation
+{
+    public static string FrequencyLabel(CycleCountFrequency value) => value switch
+    {
+        CycleCountFrequency.Weekly => "Semanal", CycleCountFrequency.Biweekly => "Quincenal", CycleCountFrequency.Monthly => "Mensual",
+        CycleCountFrequency.Quarterly => "Trimestral", CycleCountFrequency.Semiannual => "Semestral", CycleCountFrequency.Annual => "Anual", _ => value.ToString()
+    };
+}

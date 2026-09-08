@@ -111,7 +111,8 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("_WarehouseMapArchitecture.cshtml", editor, StringComparison.Ordinal);
         Assert.Contains("data-architecture-element", renderer, StringComparison.Ordinal);
         Assert.Contains("data-architecture-layer", renderer, StringComparison.Ordinal);
-        Assert.Contains("<tspan x=\"0\" y=\"18\"", renderer, StringComparison.Ordinal);
+        Assert.Contains("<g><text x=\"0\" y=\"18\"", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("<tspan", renderer, StringComparison.Ordinal);
         Assert.Contains("architecture-stroke-@item.StrokeToken", renderer, StringComparison.Ordinal);
         Assert.Contains("architecture-fill-@item.FillToken", renderer, StringComparison.Ordinal);
         Assert.DoesNotContain("<image href=\"/images/warehouse-floor-base.svg\"", query, StringComparison.Ordinal);

@@ -187,7 +187,8 @@ public sealed class CycleCountRouteTests
             var movements = new InventoryMovementService(db, pinService, TimeProvider.System);
             Assert.Equal(InventoryMovementStatus.Success, (await movements.ConfirmAsync(
                 new(Guid.NewGuid(), InventoryMovementType.Entry, pin, [new(product.Id, 6m, DestinationLocationId: location.Id)]))).Status);
-            var cycleCounts = new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System);
+            var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db));
+            var cycleCounts = new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System, clock);
             var created = await cycleCounts.CreateAsync(new(pin, $"Campaña {sku}", null, [location.Id], OperationId: Guid.NewGuid()));
             Assert.Equal(CycleCountStatus.Success, created.Status);
             Assert.Equal(CycleCountStatus.Success, (await cycleCounts.ReleaseAsync(created.CampaignId!.Value, Guid.NewGuid(), pin)).Status);

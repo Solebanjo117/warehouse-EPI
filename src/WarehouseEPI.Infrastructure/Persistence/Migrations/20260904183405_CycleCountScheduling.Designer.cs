@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using WarehouseEPI.Infrastructure.Persistence;
 namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WarehouseDbContext))]
-    partial class WarehouseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260904183405_CycleCountScheduling")]
+    partial class CycleCountScheduling
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -442,10 +445,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid?>("CreatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("created_by_user_id");
-
                     b.Property<string>("Frequency")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -476,17 +475,9 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnName("updated_at")
                         .HasDefaultValueSql("now()");
 
-                    b.Property<Guid?>("UpdatedByUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by_user_id");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedByUserId");
-
                     b.HasIndex("LocationId");
-
-                    b.HasIndex("UpdatedByUserId");
 
                     b.HasIndex("IsActive", "NextDueDate");
 
@@ -494,88 +485,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("cycle_count_plans", (string)null);
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlanEvent", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid?>("CampaignId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("campaign_id");
-
-                    b.Property<Guid?>("CycleCountLocationId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("cycle_count_location_id");
-
-                    b.Property<Guid>("CycleCountPlanId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("cycle_count_plan_id");
-
-                    b.Property<DateOnly?>("NewAnchorDate")
-                        .HasColumnType("date")
-                        .HasColumnName("new_anchor_date");
-
-                    b.Property<string>("NewFrequency")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("new_frequency");
-
-                    b.Property<bool?>("NewIsActive")
-                        .HasColumnType("boolean")
-                        .HasColumnName("new_is_active");
-
-                    b.Property<DateOnly?>("NewNextDueDate")
-                        .HasColumnType("date")
-                        .HasColumnName("new_next_due_date");
-
-                    b.Property<DateOnly?>("PreviousAnchorDate")
-                        .HasColumnType("date")
-                        .HasColumnName("previous_anchor_date");
-
-                    b.Property<string>("PreviousFrequency")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("previous_frequency");
-
-                    b.Property<bool?>("PreviousIsActive")
-                        .HasColumnType("boolean")
-                        .HasColumnName("previous_is_active");
-
-                    b.Property<DateOnly?>("PreviousNextDueDate")
-                        .HasColumnType("date")
-                        .HasColumnName("previous_next_due_date");
-
-                    b.Property<DateTimeOffset>("RecordedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("recorded_at")
-                        .HasDefaultValueSql("now()");
-
-                    b.Property<Guid?>("ResponsibleUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("responsible_user_id");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("type");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CampaignId");
-
-                    b.HasIndex("CycleCountLocationId");
-
-                    b.HasIndex("ResponsibleUserId");
-
-                    b.HasIndex("CycleCountPlanId", "RecordedAt");
-
-                    b.ToTable("cycle_count_plan_events", (string)null);
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlannedProduct", b =>
@@ -609,8 +518,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CycleCountLocationId", "ProductId")
                         .IsUnique();
-
-                    b.HasIndex("ScheduledFor", "CycleCountPlanId");
 
                     b.ToTable("cycle_count_planned_products", (string)null);
                 });
@@ -3646,11 +3553,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlan", b =>
                 {
-                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
                         .WithMany()
                         .HasForeignKey("LocationId")
@@ -3663,50 +3565,9 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("WarehouseEPI.Core.Entities.User", "UpdatedByUser")
-                        .WithMany()
-                        .HasForeignKey("UpdatedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("CreatedByUser");
-
                     b.Navigation("Location");
 
                     b.Navigation("Product");
-
-                    b.Navigation("UpdatedByUser");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlanEvent", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountCampaign", "Campaign")
-                        .WithMany()
-                        .HasForeignKey("CampaignId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountLocation", "CycleCountLocation")
-                        .WithMany()
-                        .HasForeignKey("CycleCountLocationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountPlan", "CycleCountPlan")
-                        .WithMany("Events")
-                        .HasForeignKey("CycleCountPlanId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
-                        .WithMany()
-                        .HasForeignKey("ResponsibleUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Campaign");
-
-                    b.Navigation("CycleCountLocation");
-
-                    b.Navigation("CycleCountPlan");
-
-                    b.Navigation("ResponsibleUser");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlannedProduct", b =>
@@ -4491,8 +4352,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlan", b =>
                 {
                     b.Navigation("Dispatches");
-
-                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountReviewBatch", b =>

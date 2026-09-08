@@ -27,6 +27,20 @@ public sealed class OperationLocationSelectionContractTests
         Assert.Contains("clearSelection(primaryLocationKind)", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Next_required_location_keeps_related_choices_but_focuses_the_scan_input()
+    {
+        var script = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js"));
+
+        Assert.Contains("renderRelationshipChoices(", script, StringComparison.Ordinal);
+        Assert.Contains("focusLookupInput(next);", script, StringComparison.Ordinal);
+        Assert.Contains("focusLookupInput(missing);", script, StringComparison.Ordinal);
+        Assert.Contains("input?.focus();", script, StringComparison.Ordinal);
+        Assert.Contains("input?.select();", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("relationshipButton", script, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

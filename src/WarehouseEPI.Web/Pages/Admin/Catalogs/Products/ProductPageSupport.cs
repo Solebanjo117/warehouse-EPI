@@ -118,7 +118,7 @@ internal static class ProductPageSupport
                 assignment.IsActive && assignment.Location.Code.ToUpper().Contains(term)));
     }
 
-    public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes, IReadOnlyList<SelectListItem> EntryLocations)> LoadOptionsAsync(
+    public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes, ProductEntryLocationOption? SelectedEntryLocation)> LoadOptionsAsync(
         WarehouseDbContext db, ProductInputModel input, CancellationToken token)
     {
         var units = await db.Units.AsNoTracking().Where(x => x.IsActive || x.Id == input.BaseUnitId).OrderBy(x => x.Code)
@@ -127,22 +127,17 @@ internal static class ProductPageSupport
             .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
         var classes = await db.ProductClasses.AsNoTracking().Where(x => x.IsActive || x.Id == input.ProductClassId).OrderBy(x => x.Code)
             .Select(x => new SelectListItem($"{x.Code} - {x.Name}", x.Id.ToString())).ToListAsync(token);
-        var locationRows = await db.Locations.AsNoTracking()
-            .Where(location => (location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked) ||
-                location.Id == input.DefaultEntryLocationId)
-            .OrderBy(location => location.RowCode).ThenBy(location => location.RackNumber)
-            .ThenBy(location => location.PalletNumber).ThenBy(location => location.Code)
-            .Select(location => new
-            {
-                location.Id,
-                location.Code,
-                location.Description,
-                Available = location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked
-            }).ToListAsync(token);
-        var entryLocations = locationRows.Select(location => new SelectListItem(
-            $"{location.Code}{(string.IsNullOrWhiteSpace(location.Description) ? string.Empty : $" - {location.Description}")}{(location.Available ? string.Empty : " (no disponible)")}",
-            location.Id.ToString())).ToArray();
-        return (units, types, classes, entryLocations);
+        var selectedEntryLocation = input.DefaultEntryLocationId.HasValue
+            ? await db.Locations.AsNoTracking()
+                .Where(location => location.Id == input.DefaultEntryLocationId)
+                .Select(location => new ProductEntryLocationOption(
+                    location.Id,
+                    location.Code,
+                    location.Description,
+                    location.IsPhysicallyPresent && location.IsActive && !location.IsBlocked))
+                .SingleOrDefaultAsync(token)
+            : null;
+        return (units, types, classes, selectedEntryLocation);
     }
 
     public static async Task<(IReadOnlyList<SelectListItem> Units, IReadOnlyList<SelectListItem> Types, IReadOnlyList<SelectListItem> Classes)> LoadFilterOptionsAsync(

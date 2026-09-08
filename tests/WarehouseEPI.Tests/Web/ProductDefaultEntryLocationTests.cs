@@ -9,6 +9,26 @@ namespace WarehouseEPI.Tests.Web;
 public sealed class ProductDefaultEntryLocationTests
 {
     [Fact]
+    public void Product_form_uses_a_bounded_accessible_location_lookup()
+    {
+        var page = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "_ProductForm.cshtml"));
+        var script = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "wwwroot", "js", "product-editor.js"));
+
+        Assert.Contains("type=\"hidden\" data-product-entry-location-id", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"combobox\"", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"listbox\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-items=\"Model.EntryLocations\"", page, StringComparison.Ordinal);
+        Assert.Contains("handler: \"Locations\"", script, StringComparison.Ordinal);
+        Assert.Contains("window.setTimeout(() => void search(), 250)", script, StringComparison.Ordinal);
+        Assert.Contains("event.key === \"ArrowDown\"", script, StringComparison.Ordinal);
+        Assert.Contains("event.key === \"Escape\"", script, StringComparison.Ordinal);
+        Assert.Contains("Selecciona una ubicación de los resultados", script, StringComparison.Ordinal);
+        Assert.Contains("clearSelection(true)", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Create_change_and_clear_default_entry_location_preserves_assignments()
     {
         await using var db = CreateDbContext();
@@ -132,13 +152,27 @@ public sealed class ProductDefaultEntryLocationTests
         var options = await ProductPageSupport.LoadOptionsAsync(db, input, default);
 
         Assert.True(state.IsValid);
-        var current = Assert.Single(options.EntryLocations);
-        Assert.Equal(location.Id.ToString(), current.Value);
-        Assert.Contains("no disponible", current.Text, StringComparison.OrdinalIgnoreCase);
+        var current = Assert.IsType<ProductEntryLocationOption>(options.SelectedEntryLocation);
+        Assert.Equal(location.Id, current.Id);
+        Assert.Equal(location.Code, current.Code);
+        Assert.False(current.IsAvailable);
     }
 
     private static WarehouseDbContext CreateDbContext() => new(
         new DbContextOptionsBuilder<WarehouseDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
+
+    private static string RepositoryPath(params string[] parts)
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            var candidate = Path.Combine([directory.FullName, .. parts]);
+            if (File.Exists(candidate)) return candidate;
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("No se encontró la raíz del repositorio.");
+    }
 }

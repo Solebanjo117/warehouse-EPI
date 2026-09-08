@@ -9,8 +9,14 @@ public interface IProductFormPage
     IReadOnlyList<SelectListItem> Units { get; }
     IReadOnlyList<SelectListItem> Types { get; }
     IReadOnlyList<SelectListItem> Classes { get; }
-    IReadOnlyList<SelectListItem> EntryLocations { get; }
+    ProductEntryLocationOption? SelectedEntryLocation { get; }
 }
+
+public sealed record ProductEntryLocationOption(
+    Guid Id,
+    string Code,
+    string? Description,
+    bool IsAvailable);
 
 public sealed class ProductInputModel
 {

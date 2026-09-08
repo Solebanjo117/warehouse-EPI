@@ -12,7 +12,7 @@ namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 public sealed class CreateModel(WarehouseDbContext dbContext) : PageModel, IProductFormPage
 {
     [BindProperty] public ProductInputModel Input { get; set; } = new();
-    public IReadOnlyList<SelectListItem> Units { get; private set; } = []; public IReadOnlyList<SelectListItem> Types { get; private set; } = []; public IReadOnlyList<SelectListItem> Classes { get; private set; } = []; public IReadOnlyList<SelectListItem> EntryLocations { get; private set; } = [];
+    public IReadOnlyList<SelectListItem> Units { get; private set; } = []; public IReadOnlyList<SelectListItem> Types { get; private set; } = []; public IReadOnlyList<SelectListItem> Classes { get; private set; } = []; public ProductEntryLocationOption? SelectedEntryLocation { get; private set; }
     public async Task OnGetAsync(CancellationToken token) { await LoadAsync(token); }
     public async Task<IActionResult> OnPostAsync(CancellationToken token)
     {
@@ -24,5 +24,5 @@ public sealed class CreateModel(WarehouseDbContext dbContext) : PageModel, IProd
         TempData["Success"] = "Producto creado.";
         return RedirectToPage("Details", new { id = product.Id });
     }
-    private async Task LoadAsync(CancellationToken token) { (Units, Types, Classes, EntryLocations) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token); }
+    private async Task LoadAsync(CancellationToken token) { (Units, Types, Classes, SelectedEntryLocation) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token); }
 }

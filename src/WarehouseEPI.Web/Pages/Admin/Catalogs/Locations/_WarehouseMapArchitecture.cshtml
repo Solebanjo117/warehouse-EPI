@@ -38,8 +38,9 @@
             }
             else
             {
-                <text><tspan x="0" y="18"
-                      class="architecture-stroke-@item.StrokeToken.ToLowerInvariant() architecture-fill-@item.FillToken.ToLowerInvariant()">@item.Label</tspan></text>
+                @* El <g> abre el marcado: si <text> encabezara el bloque, Razor lo tomaría como
+                   su propia etiqueta de texto y el croquis recibiría la etiqueta sin envoltorio SVG. *@
+                <g><text x="0" y="18" class="architecture-stroke-@item.StrokeToken.ToLowerInvariant() architecture-fill-@item.FillToken.ToLowerInvariant()">@item.Label</text></g>
             }
         </g>
     }

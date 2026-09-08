@@ -11,6 +11,28 @@ public sealed record CreateCycleCountCommand(
     IReadOnlyCollection<short>? RackNumbers = null,
     Guid OperationId = default);
 
+public sealed record CreateCycleCountPlanCommand(Guid ProductId, Guid LocationId, CycleCountFrequency Frequency, DateOnly AnchorDate, Guid ResponsibleUserId);
+public sealed record UpdateCycleCountPlanCommand(Guid Id, CycleCountFrequency Frequency, DateOnly AnchorDate, Guid ResponsibleUserId);
+public sealed record SetCycleCountPlanActiveCommand(Guid Id, bool IsActive, Guid ResponsibleUserId);
+public sealed record ReleaseScheduledCycleCountsCommand(string Pin, IReadOnlyCollection<Guid> PlanIds, Guid OperationId);
+public sealed record CycleCountPlanCatalogFilter(string? Search, bool? IsActive, int Page = 1, int PageSize = 25);
+public sealed record CycleCountPlanCatalogItem(Guid Id, Guid ProductId, string Sku, string? Description, string UnitCode,
+    Guid LocationId, string LocationCode, CycleCountFrequency Frequency, DateOnly AnchorDate, DateOnly NextDueDate,
+    bool IsActive, bool IsBlocked, bool IsInCampaign);
+public sealed record CycleCountCalendarFilter(DateOnly From, DateOnly To, DateOnly Today, bool Overdue = false, int Page = 1, int PageSize = 25);
+public sealed record CycleCountCalendarItem(string RowKey, Guid PlanId, Guid? CampaignId, DateOnly ScheduledFor,
+    string Sku, string? Description, string UnitCode, string LocationCode, CycleCountFrequency Frequency,
+    bool IsHistorical, bool IsActive, bool IsBlocked, bool IsInCampaign, CycleCountLocationStatus? LocationStatus,
+    decimal? CompletedQuantity, DateTimeOffset? CompletedAt);
+public sealed record CycleCountPlanEventItem(CycleCountPlanEventType Type, string ResponsibleName,
+    CycleCountFrequency? PreviousFrequency, CycleCountFrequency? NewFrequency, DateOnly? PreviousAnchorDate,
+    DateOnly? NewAnchorDate, DateOnly? PreviousNextDueDate, DateOnly? NewNextDueDate,
+    bool? PreviousIsActive, bool? NewIsActive, DateTimeOffset RecordedAt);
+public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize)
+{
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling(Total / (double)PageSize));
+}
+
 public sealed record SubmitCycleCountCommand(
     Guid AttemptId,
     Guid OperationId,
@@ -70,6 +92,7 @@ public sealed record CycleCountResult(
     Guid? LocationId = null,
     Guid? AttemptId = null,
     Guid? MovementId = null,
+    Guid? PlanId = null,
     IReadOnlyList<string>? Errors = null,
     IReadOnlyList<SharedLocationConflict>? SharingConflicts = null)
 {

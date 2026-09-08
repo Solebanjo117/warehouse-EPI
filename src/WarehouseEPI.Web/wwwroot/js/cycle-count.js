@@ -394,6 +394,225 @@
     window.addEventListener("pagehide", stopCamera, { once: true });
   }
 
+  // ---- Planes recurrentes: búsqueda seleccionable, HID y cámara ------------------------
+  const planForm = document.querySelector("[data-cycle-plan]");
+  if (planForm) {
+    const lookupUrl = planForm.dataset.lookupUrl;
+    const fields = {};
+
+    const requestJson = async (url, signal) => {
+      const response = await fetch(url, { headers: { Accept: "application/json" }, signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+
+    const closeResults = (field) => {
+      field.results.replaceChildren();
+      field.highlighted = -1;
+      field.input.setAttribute("aria-expanded", "false");
+      field.input.removeAttribute("aria-activedescendant");
+    };
+
+    const announce = (field, message) => { field.feedback.textContent = message; };
+
+    const clearSelection = (field) => {
+      field.id.value = "";
+      field.selected.classList.add("d-none");
+      field.selected.querySelector("[data-cycle-plan-selected-title]").textContent = "";
+      field.selected.querySelector("[data-cycle-plan-selected-detail]").textContent = "";
+      field.selected.querySelector("[data-cycle-plan-selected-meta]").textContent = "";
+    };
+
+    const resultValues = (field, item) => field.type === "product"
+      ? { id: item.id, title: item.sku, detail: item.description || "Sin descripción", meta: item.unitCode }
+      : { id: item.id, title: item.code, detail: item.description || "Sin descripción", meta: "Ubicación" };
+
+    const selectItem = (field, item, message) => {
+      const values = resultValues(field, item);
+      window.clearTimeout(field.timer);
+      field.controller?.abort();
+      field.id.value = values.id;
+      field.input.value = values.title;
+      field.input.setCustomValidity("");
+      field.selected.querySelector("[data-cycle-plan-selected-title]").textContent = values.title;
+      field.selected.querySelector("[data-cycle-plan-selected-detail]").textContent = values.detail;
+      field.selected.querySelector("[data-cycle-plan-selected-meta]").textContent = values.meta;
+      field.selected.classList.remove("d-none");
+      closeResults(field);
+      announce(field, message || `${field.label} seleccionado.`);
+    };
+
+    const setHighlight = (field, index) => {
+      const options = [...field.results.querySelectorAll("[role='option']")];
+      if (options.length === 0) return;
+      field.highlighted = (index + options.length) % options.length;
+      options.forEach((option, optionIndex) => {
+        const active = optionIndex === field.highlighted;
+        option.classList.toggle("active", active);
+        option.setAttribute("aria-selected", String(active));
+      });
+      const active = options[field.highlighted];
+      field.input.setAttribute("aria-activedescendant", active.id);
+      active.scrollIntoView({ block: "nearest" });
+    };
+
+    const renderResults = (field, items) => {
+      closeResults(field);
+      if (items.length === 0) {
+        announce(field, `No se encontraron ${field.type === "product" ? "productos" : "ubicaciones"}.`);
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const values = resultValues(field, item);
+        const option = document.createElement("button");
+        option.type = "button";
+        option.id = `cycle-plan-${field.type}-option-${index}`;
+        option.className = "list-group-item list-group-item-action";
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", "false");
+
+        const title = document.createElement("strong");
+        title.className = "d-block";
+        title.textContent = values.title;
+        const detail = document.createElement("span");
+        detail.className = "small text-body-secondary";
+        detail.textContent = field.type === "product" && item.externalReference
+          ? `${values.detail} · Ref. ${item.externalReference}`
+          : values.detail;
+        option.append(title, detail);
+        option.addEventListener("mousedown", event => event.preventDefault());
+        option.addEventListener("click", () => {
+          selectItem(field, item);
+          field.input.focus();
+        });
+        field.results.append(option);
+      });
+
+      field.input.setAttribute("aria-expanded", "true");
+      announce(field, `${items.length} ${items.length === 1 ? "resultado disponible" : "resultados disponibles"}.`);
+    };
+
+    const search = async (field) => {
+      const query = field.input.value.trim();
+      field.controller?.abort();
+      if (!query) {
+        closeResults(field);
+        announce(field, "Escribe para buscar o usa un lector HID.");
+        return;
+      }
+
+      field.controller = new AbortController();
+      try {
+        const handler = field.type === "product" ? "Products" : "Locations";
+        const items = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler, q: query })}`, field.controller.signal);
+        renderResults(field, items);
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        closeResults(field);
+        announce(field, "No fue posible buscar en la red local. Intenta nuevamente.");
+      }
+    };
+
+    const resolveCode = async (sourceField, code) => {
+      if (!code.trim()) return false;
+      announce(sourceField, "Validando código…");
+      try {
+        const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
+        const expected = resolution?.[sourceField.type];
+        if (expected) {
+          selectItem(sourceField, expected, `${sourceField.label} seleccionado por código.`);
+          return sourceField.input;
+        }
+
+        const otherType = sourceField.type === "product" ? "location" : "product";
+        const other = resolution?.[otherType];
+        if (other && fields[otherType]) {
+          const target = fields[otherType];
+          selectItem(target, other, `${target.label} seleccionado por código.`);
+          announce(sourceField, `El código corresponde a ${target.label.toLowerCase()}; se colocó en el campo correcto.`);
+          return target.input;
+        }
+
+        announce(sourceField, `El código no corresponde a ${sourceField.label.toLowerCase()} activo.`);
+        return false;
+      } catch {
+        announce(sourceField, "No fue posible validar el código en la red local. Intenta nuevamente.");
+        return false;
+      }
+    };
+
+    planForm.querySelectorAll("[data-cycle-plan-field]").forEach((element) => {
+      const type = element.dataset.cyclePlanField;
+      const field = {
+        type,
+        label: type === "product" ? "SKU" : "Ubicación",
+        element,
+        input: element.querySelector("[data-cycle-plan-search]"),
+        id: element.querySelector("[data-cycle-plan-id]"),
+        results: element.querySelector("[data-cycle-plan-results]"),
+        selected: element.querySelector("[data-cycle-plan-selected]"),
+        feedback: element.querySelector("[data-cycle-plan-feedback]"),
+        camera: element.querySelector("[data-cycle-plan-camera]"),
+        highlighted: -1,
+        timer: 0,
+        controller: undefined
+      };
+      fields[type] = field;
+
+      field.input.addEventListener("input", () => {
+        field.controller?.abort();
+        clearSelection(field);
+        field.input.setCustomValidity("");
+        window.clearTimeout(field.timer);
+        field.timer = window.setTimeout(() => void search(field), 250);
+      });
+      field.input.addEventListener("focus", () => {
+        if (!field.id.value && field.input.value.trim() && field.results.childElementCount === 0)
+          void search(field);
+      });
+      field.input.addEventListener("keydown", (event) => {
+        const options = [...field.results.querySelectorAll("[role='option']")];
+        if (event.key === "ArrowDown" && options.length) {
+          event.preventDefault();
+          setHighlight(field, field.highlighted + 1);
+        } else if (event.key === "ArrowUp" && options.length) {
+          event.preventDefault();
+          setHighlight(field, field.highlighted - 1);
+        } else if (event.key === "Escape") {
+          closeResults(field);
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          if (field.highlighted >= 0) options[field.highlighted].click();
+          else void resolveCode(field, field.input.value);
+        }
+      });
+      field.input.addEventListener("blur", () => window.setTimeout(() => closeResults(field), 150));
+      field.camera.addEventListener("click", () => {
+        if (!openCycleScanner(field.camera, value => resolveCode(field, value))) {
+          announce(field, "No fue posible abrir el lector. Escribe el código o usa un lector HID.");
+          field.input.focus();
+        }
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      Object.values(fields).forEach(field => {
+        if (!field.element.contains(event.target)) closeResults(field);
+      });
+    });
+
+    planForm.addEventListener("submit", (event) => {
+      const missing = Object.values(fields).find(field => !field.id.value);
+      if (!missing) return;
+      event.preventDefault();
+      missing.input.setCustomValidity(`Selecciona ${missing.label.toLowerCase()} de los resultados.`);
+      announce(missing, `Selecciona ${missing.label.toLowerCase()} de los resultados antes de guardar.`);
+      missing.input.reportValidity();
+      missing.input.focus();
+    });
+  }
+
   const locationButton = document.querySelector("[data-cycle-scan-location]");
   if (locationButton) {
     const form = locationButton.closest("form");

@@ -726,6 +726,12 @@
     };
 
     const focusNextRequired = () => {
+      const focusLookupInput = (kind) => {
+        const input = lookups[kind]?.input;
+        input?.focus();
+        input?.select();
+      };
+
       if (entryWorkstation) {
         const next = visibleGuidedKinds().find(kind => kind === "exit-mode"
           ? !selectedExitMode()
@@ -738,19 +744,13 @@
         if (next === "quantity") { quantityInput.focus(); quantityInput.select(); return; }
         if (next === "notes") { notesInput?.focus(); return; }
         if (next) {
-          const relationshipPanel = next === primaryLocationKind && productLocations?.length
-            ? lookups.product?.panel : lookups[next]?.panel;
-          const relationshipButton = relationshipPanel?.querySelector("button.relationship-choice");
-          (relationshipButton || lookups[next]?.input)?.focus();
+          focusLookupInput(next);
           return;
         }
       }
       const missing = requiredKinds().find(kind => !selected[kind]);
       if (missing) {
-        const relationshipPanel = entryWorkstation && missing === "destination"
-          ? lookups.product?.panel : lookups[missing]?.panel;
-        const relationshipButton = relationshipPanel?.querySelector("button.relationship-choice");
-        (relationshipButton || lookups[missing]?.input)?.focus();
+        focusLookupInput(missing);
         return;
       }
       quantityInput.focus();

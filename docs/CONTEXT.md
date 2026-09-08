@@ -1442,6 +1442,8 @@ pendientes.
 
 #### Fase 13.5: conteos cíclicos persistentes y ajustes autorizados — implementada; migración y validación física pendientes
 
+- Se agregó programación recurrente por `SKU + ubicación`: frecuencias semanal, quincenal, mensual, trimestral, semestral y anual, calculadas desde una fecha ancla con `WarehouseClock`. El calendario público muestra fecha, SKU, ubicación y estado, pero no existencia esperada; la cantidad se captura ciegamente al contar.
+- `CycleCountScheduling` agrega los planes y su alcance selectivo dentro de campañas liberadas desde calendario. Una campaña manual conserva el alcance completo actual por ubicación. La migración está generada y revisada en código, pero no aplicada a PostgreSQL ni publicada; siguen pendientes pruebas LAN/tablet/HID/cámara.
 - Se incorporó el modelo persistente de campañas `CC-000001`, ubicaciones,
   intentos/reconteos, líneas por producto + ubicación y acciones de auditoría.
   Las campañas y ubicaciones conservan estados explícitos; una ubicación no

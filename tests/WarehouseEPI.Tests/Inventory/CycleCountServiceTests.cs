@@ -333,7 +333,8 @@ public sealed class CycleCountServiceTests
             var user = new User { FullName = "Contador", RoleId = 2, PinLookup = string.Empty, PinHash = string.Empty };
             Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(user, "2468")); db.Users.Add(user); await db.SaveChangesAsync();
             var movements = new InventoryMovementService(db, pinService, TimeProvider.System);
-            return new(db, movements, new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System));
+            var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db));
+            return new(db, movements, new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System, clock));
         }
         public async Task<Product> AddProductAsync(string sku, short baseUnitId = 1) { var item = new Product { Sku = sku, BaseUnitId = baseUnitId }; Db.Products.Add(item); await Db.SaveChangesAsync(); return item; }
         public async Task<short> AddUnitAsync(string code, bool allowsDecimals)

@@ -15,7 +15,7 @@ public sealed class EditModel(
     ProductLocationAssignmentService assignmentService) : PageModel, IProductFormPage
 {
     [BindProperty] public ProductInputModel Input { get; set; } = new();
-    public IReadOnlyList<SelectListItem> Units { get; private set; } = []; public IReadOnlyList<SelectListItem> Types { get; private set; } = []; public IReadOnlyList<SelectListItem> Classes { get; private set; } = []; public IReadOnlyList<SelectListItem> EntryLocations { get; private set; } = [];
+    public IReadOnlyList<SelectListItem> Units { get; private set; } = []; public IReadOnlyList<SelectListItem> Types { get; private set; } = []; public IReadOnlyList<SelectListItem> Classes { get; private set; } = []; public ProductEntryLocationOption? SelectedEntryLocation { get; private set; }
     public IReadOnlyList<LocationAssignmentRow> LocationAssignments { get; private set; } = [];
     public IReadOnlyList<LocationSearchRow> LocationResults { get; private set; } = [];
     public string? LocationSearch { get; private set; }
@@ -58,7 +58,7 @@ public sealed class EditModel(
 
     private async Task LoadAsync(CancellationToken token)
     {
-        (Units, Types, Classes, EntryLocations) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token);
+        (Units, Types, Classes, SelectedEntryLocation) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token);
         LocationAssignments = await dbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.ProductId == Input.Id)
             .OrderByDescending(x => x.IsActive).ThenBy(x => x.Location.RowCode).ThenBy(x => x.Location.RackNumber).ThenBy(x => x.Location.PalletNumber).ThenBy(x => x.Location.Code)
             .Select(x => new LocationAssignmentRow(x.LocationId, x.Location.Code, x.Location.Description, x.Location.IsActive, x.Location.IsBlocked, x.IsActive, x.LocationId == Input.DefaultEntryLocationId)).ToListAsync(token);

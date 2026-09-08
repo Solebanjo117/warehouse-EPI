@@ -11,6 +11,34 @@ namespace WarehouseEPI.Tests.Inventory;
 public sealed class PostgreSqlCycleCountTests(PostgreSqlInventoryFixture fixture)
 {
     [Fact]
+    public async Task Scheduling_migration_audit_and_calendar_projection_work_on_postgresql()
+    {
+        var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        var seed = await fixture.SeedAsync($"PG-PLAN-{suffix}", $"PGP-{suffix}", "5729");
+        var admin = await fixture.AddAdminAsync($"Admin plan {suffix}", "5730");
+        await using var db = fixture.CreateDbContext();
+        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+        var time = TimeProvider.System;
+        var settings = new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db);
+        var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(settings);
+        var movements = new InventoryMovementService(db, pins, time);
+        var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, time, clock);
+        var today = await clock.GetDateAsync(time.GetUtcNow());
+
+        var created = await service.CreatePlanAsync(new(seed.ProductId, seed.LocationId,
+            CycleCountFrequency.Monthly, today, admin.Id));
+        var calendar = await service.GetCalendarAsync(new(
+            new DateOnly(today.Year, today.Month, 1),
+            new DateOnly(today.Year, today.Month, 1).AddMonths(1).AddDays(-1), today));
+
+        Assert.Equal(CycleCountStatus.Success, created.Status);
+        Assert.Contains(calendar.Items, item => item.PlanId == created.PlanId && !item.IsHistorical);
+        Assert.Contains(await db.CycleCountPlanEvents.AsNoTracking().ToListAsync(), item =>
+            item.CycleCountPlanId == created.PlanId && item.ResponsibleUserId == admin.Id && item.Type == CycleCountPlanEventType.Created);
+        Assert.Contains(await db.Database.GetAppliedMigrationsAsync(), item => item.EndsWith("_CycleCountPlanAudit", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Create_page_groups_physical_locations_and_preserves_selection_after_error()
     {
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -25,7 +53,8 @@ public sealed class PostgreSqlCycleCountTests(PostgreSqlInventoryFixture fixture
         await db.SaveChangesAsync();
         var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
         var movements = new InventoryMovementService(db, pins, TimeProvider.System);
-        var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, TimeProvider.System);
+        var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db));
+        var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, TimeProvider.System, clock);
         var page = new CreateModel(db, service);
 
         await page.OnGetAsync(CancellationToken.None);
@@ -69,7 +98,8 @@ public sealed class PostgreSqlCycleCountTests(PostgreSqlInventoryFixture fixture
         await using var db = fixture.CreateDbContext();
         var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
         var movements = new InventoryMovementService(db, pins, TimeProvider.System);
-        var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, TimeProvider.System);
+        var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db));
+        var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, TimeProvider.System, clock);
 
         var created = await service.CreateAsync(new(seed.Pin, "Conteo PostgreSQL", null, [seed.LocationId], OperationId: Guid.NewGuid()));
         Assert.Equal(CycleCountStatus.Success, created.Status);

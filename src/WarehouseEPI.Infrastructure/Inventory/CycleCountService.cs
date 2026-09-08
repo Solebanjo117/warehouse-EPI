@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
@@ -11,10 +12,259 @@ public sealed class CycleCountService(
     UserPinService userPinService,
     InventoryQueryService inventoryQuery,
     InventoryMovementService movementService,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    WarehouseClock warehouseClock)
 {
     private static readonly CycleCountCampaignStatus[] OpenCampaignStatuses =
     [CycleCountCampaignStatus.Draft, CycleCountCampaignStatus.Released, CycleCountCampaignStatus.InProgress, CycleCountCampaignStatus.UnderReview];
+
+    public async Task<PagedResult<CycleCountPlanCatalogItem>> GetPlanCatalogAsync(
+        CycleCountPlanCatalogFilter filter, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, filter.Page);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var query = dbContext.CycleCountPlans.AsNoTracking();
+        if (filter.IsActive is bool isActive) query = query.Where(item => item.IsActive == isActive);
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToUpperInvariant();
+            query = query.Where(item => item.Product.Sku.Contains(search) ||
+                item.Product.Description != null && item.Product.Description.ToUpper().Contains(search) ||
+                item.Location.Code.Contains(search) ||
+                item.Location.Description != null && item.Location.Description.ToUpper().Contains(search));
+        }
+
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderBy(item => item.Product.Sku).ThenBy(item => item.Location.Code).ThenBy(item => item.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(item => new CycleCountPlanCatalogItem(item.Id, item.ProductId, item.Product.Sku, item.Product.Description,
+                item.Product.BaseUnit.Code, item.LocationId, item.Location.Code, item.Frequency, item.AnchorDate,
+                item.NextDueDate, item.IsActive, !item.Product.IsActive || !item.Location.IsActive || !item.Location.IsPhysicallyPresent || item.Location.IsBlocked,
+                item.Dispatches.Any(dispatch => OpenCampaignStatuses.Contains(dispatch.CycleCountLocation.Campaign.Status))))
+            .ToListAsync(cancellationToken);
+        return new(items, total, page, pageSize);
+    }
+
+    public async Task<CycleCountPlanCatalogItem?> GetPlanAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        return await dbContext.CycleCountPlans.AsNoTracking().Where(item => item.Id == id)
+            .Select(item => new CycleCountPlanCatalogItem(item.Id, item.ProductId, item.Product.Sku, item.Product.Description,
+                item.Product.BaseUnit.Code, item.LocationId, item.Location.Code, item.Frequency, item.AnchorDate,
+                item.NextDueDate, item.IsActive, !item.Product.IsActive || !item.Location.IsActive || !item.Location.IsPhysicallyPresent || item.Location.IsBlocked,
+                item.Dispatches.Any(dispatch => OpenCampaignStatuses.Contains(dispatch.CycleCountLocation.Campaign.Status))))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<PagedResult<CycleCountCalendarItem>> GetCalendarAsync(
+        CycleCountCalendarFilter filter, CancellationToken cancellationToken = default)
+    {
+        var page = Math.Max(1, filter.Page);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+        var historicalKeys = dbContext.CycleCountPlannedProducts.AsNoTracking()
+            .Where(item => item.CycleCountPlanId != null && item.ScheduledFor != null && !filter.Overdue &&
+                item.ScheduledFor >= filter.From && item.ScheduledFor <= filter.To)
+            .Select(item => new
+            {
+                RowId = item.Id,
+                IsHistorical = true,
+                PlanId = item.CycleCountPlanId,
+                CampaignId = (Guid?)item.CycleCountLocation.CampaignId,
+                CycleCountLocationId = (Guid?)item.CycleCountLocationId,
+                ScheduledFor = item.ScheduledFor,
+                item.ProductId,
+                LocationId = item.CycleCountLocation.LocationId
+            });
+
+        var pendingKeys = dbContext.CycleCountPlans.AsNoTracking()
+            .Where(item => item.IsActive &&
+                (filter.Overdue ? item.NextDueDate < filter.Today : item.NextDueDate >= filter.From && item.NextDueDate <= filter.To) &&
+                !item.Dispatches.Any(dispatch => OpenCampaignStatuses.Contains(dispatch.CycleCountLocation.Campaign.Status)))
+            .Select(item => new
+            {
+                RowId = item.Id,
+                IsHistorical = false,
+                PlanId = (Guid?)item.Id,
+                CampaignId = (Guid?)null,
+                CycleCountLocationId = (Guid?)null,
+                ScheduledFor = (DateOnly?)item.NextDueDate,
+                item.ProductId,
+                item.LocationId
+            });
+
+        var keys = historicalKeys.Concat(pendingKeys);
+        var total = await keys.CountAsync(cancellationToken);
+        var rows = await (from key in keys
+                          join plan in dbContext.CycleCountPlans.AsNoTracking() on key.PlanId!.Value equals plan.Id
+                          join product in dbContext.Products.AsNoTracking() on key.ProductId equals product.Id
+                          join unit in dbContext.Units.AsNoTracking() on product.BaseUnitId equals unit.Id
+                          join location in dbContext.Locations.AsNoTracking() on key.LocationId equals location.Id
+                          orderby key.ScheduledFor, product.Sku, location.Code, key.RowId
+                          select new CalendarProjection(key.RowId, key.IsHistorical, key.PlanId.GetValueOrDefault(), key.CampaignId,
+                              key.CycleCountLocationId, key.ScheduledFor.GetValueOrDefault(), key.ProductId, product.Sku,
+                              product.Description, unit.Code, location.Code, plan.Frequency, plan.IsActive,
+                              !product.IsActive || !location.IsActive || !location.IsPhysicallyPresent || location.IsBlocked,
+                              plan.Dispatches.Any(dispatch => OpenCampaignStatuses.Contains(dispatch.CycleCountLocation.Campaign.Status))))
+            .Skip((page - 1) * pageSize).Take(pageSize).ToListAsync(cancellationToken);
+
+        var cycleLocationIds = rows.Where(item => item.CycleCountLocationId != null)
+            .Select(item => item.CycleCountLocationId!.Value).Distinct().ToArray();
+        IReadOnlyList<CalendarLocationProjection> historicalStates = cycleLocationIds.Length == 0
+            ? []
+            : await dbContext.CycleCountLocations.AsNoTracking().Where(item => cycleLocationIds.Contains(item.Id))
+                .Select(item => new CalendarLocationProjection(item.Id, item.Status, item.CompletedAt,
+                    OpenCampaignStatuses.Contains(item.Campaign.Status))).ToListAsync(cancellationToken);
+        var completedLocationIds = historicalStates.Where(item => item.Status == CycleCountLocationStatus.Completed)
+            .Select(item => item.Id).ToArray();
+        IReadOnlyList<CountedEntryProjection> countedEntries = completedLocationIds.Length == 0
+            ? []
+            : await dbContext.CycleCountEntries.AsNoTracking()
+                .Where(entry => completedLocationIds.Contains(entry.CycleCountAttempt.CycleCountLocationId) &&
+                    entry.CycleCountAttempt.Status == CycleCountAttemptStatus.Submitted)
+                .Select(entry => new CountedEntryProjection(entry.CycleCountAttempt.CycleCountLocationId,
+                    entry.ProductId, entry.CycleCountAttempt.AttemptNumber, entry.CountedQuantity))
+                .ToListAsync(cancellationToken);
+        return new(rows.Select(item =>
+        {
+            var historicalState = item.CycleCountLocationId is Guid locationId
+                ? historicalStates.Single(state => state.Id == locationId)
+                : null;
+            return new CycleCountCalendarItem((item.IsHistorical ? "H:" : "P:") + item.RowId, item.PlanId, item.CampaignId,
+            item.ScheduledFor, item.Sku, item.Description, item.UnitCode, item.LocationCode, item.Frequency,
+            item.IsHistorical, item.IsActive, item.IsBlocked,
+            item.IsHistorical ? historicalState!.IsInCampaign : item.PlanHasOpenDispatch,
+            historicalState?.Status,
+            historicalState?.Status != CycleCountLocationStatus.Completed ? null : countedEntries
+                .Where(entry => entry.CycleCountLocationId == historicalState.Id && entry.ProductId == item.ProductId)
+                .OrderByDescending(entry => entry.AttemptNumber).Select(entry => entry.CountedQuantity).FirstOrDefault(),
+            historicalState?.CompletedAt);
+        }).ToArray(), total, page, pageSize);
+    }
+
+    public async Task<PagedResult<CycleCountPlanEventItem>> GetPlanEventsAsync(
+        Guid planId, int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var query = dbContext.CycleCountPlanEvents.AsNoTracking().Where(item => item.CycleCountPlanId == planId);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.OrderByDescending(item => item.RecordedAt).ThenByDescending(item => item.Id)
+            .Skip((page - 1) * pageSize).Take(pageSize)
+            .Select(item => new CycleCountPlanEventItem(item.Type,
+                item.ResponsibleUser == null ? "No registrado" : item.ResponsibleUser.FullName,
+                item.PreviousFrequency, item.NewFrequency, item.PreviousAnchorDate, item.NewAnchorDate,
+                item.PreviousNextDueDate, item.NewNextDueDate, item.PreviousIsActive, item.NewIsActive, item.RecordedAt))
+            .ToListAsync(cancellationToken);
+        return new(items, total, page, pageSize);
+    }
+
+    public async Task<CycleCountResult> CreatePlanAsync(CreateCycleCountPlanCommand command, CancellationToken cancellationToken = default)
+    {
+        if (!await IsActiveAdminAsync(command.ResponsibleUserId, cancellationToken)) return new(CycleCountStatus.InvalidState, Errors: ["La sesión administrativa ya no es válida."]);
+        if (command.ProductId == Guid.Empty || command.LocationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["Selecciona producto y ubicación."]);
+        if (!Enum.IsDefined(command.Frequency)) return new(CycleCountStatus.ValidationFailed, Errors: ["Selecciona una frecuencia válida."]);
+        var product = await dbContext.Products.Include(item => item.BaseUnit).SingleOrDefaultAsync(item => item.Id == command.ProductId, cancellationToken);
+        var location = await dbContext.Locations.SingleOrDefaultAsync(item => item.Id == command.LocationId, cancellationToken);
+        if (product is null || location is null) return new(CycleCountStatus.NotFound, Errors: ["El producto o la ubicación ya no existen."]);
+        if (!product.IsActive || !product.BaseUnit.IsActive || !location.IsOperational || !location.TracksInventory)
+            return new(CycleCountStatus.ValidationFailed, Errors: ["El producto y la ubicación deben estar activos y disponibles para inventario."]);
+        if (command.AnchorDate == default) return new(CycleCountStatus.ValidationFailed, Errors: ["La fecha inicial es obligatoria."]);
+        if (await dbContext.CycleCountPlans.AnyAsync(item => item.ProductId == command.ProductId && item.LocationId == command.LocationId, cancellationToken))
+            return new(CycleCountStatus.ValidationFailed, Errors: ["Ya existe un plan para este SKU y ubicación."]);
+        var now = timeProvider.GetUtcNow();
+        var plan = new CycleCountPlan { ProductId = command.ProductId, LocationId = command.LocationId, Frequency = command.Frequency, AnchorDate = command.AnchorDate, NextDueDate = command.AnchorDate, CreatedByUserId = command.ResponsibleUserId, UpdatedByUserId = command.ResponsibleUserId, CreatedAt = now, UpdatedAt = now };
+        dbContext.CycleCountPlans.Add(plan);
+        dbContext.CycleCountPlanEvents.Add(PlanEvent(plan, CycleCountPlanEventType.Created, command.ResponsibleUserId, now,
+            null, plan.Frequency, null, plan.AnchorDate, null, plan.NextDueDate, null, plan.IsActive));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new(CycleCountStatus.Success, PlanId: plan.Id);
+    }
+
+    public async Task<CycleCountResult> UpdatePlanAsync(UpdateCycleCountPlanCommand command, CancellationToken cancellationToken = default)
+    {
+        if (!await IsActiveAdminAsync(command.ResponsibleUserId, cancellationToken)) return new(CycleCountStatus.InvalidState, Errors: ["La sesión administrativa ya no es válida."]);
+        if (!Enum.IsDefined(command.Frequency) || command.AnchorDate == default) return new(CycleCountStatus.ValidationFailed, Errors: ["La frecuencia y la fecha inicial deben ser válidas."]);
+        var plan = await dbContext.CycleCountPlans.SingleOrDefaultAsync(item => item.Id == command.Id, cancellationToken);
+        if (plan is null) return new(CycleCountStatus.NotFound);
+        if (await dbContext.CycleCountPlannedProducts.AnyAsync(item => item.CycleCountPlanId == plan.Id &&
+                OpenCampaignStatuses.Contains(item.CycleCountLocation.Campaign.Status), cancellationToken))
+            return new(CycleCountStatus.InvalidState, Errors: ["No puedes cambiar un plan mientras su ubicación está en campaña."]);
+        if (plan.Frequency == command.Frequency && plan.AnchorDate == command.AnchorDate) return new(CycleCountStatus.Success, PlanId: plan.Id);
+        var previousFrequency = plan.Frequency;
+        var previousAnchor = plan.AnchorDate;
+        var previousDue = plan.NextDueDate;
+        var lastCompletedAt = await dbContext.CycleCountPlannedProducts
+            .Where(item => item.CycleCountPlanId == plan.Id && item.CycleCountLocation.Status == CycleCountLocationStatus.Completed)
+            .Select(item => item.CycleCountLocation.CompletedAt).MaxAsync(cancellationToken);
+        plan.Frequency = command.Frequency;
+        plan.AnchorDate = command.AnchorDate;
+        plan.NextDueDate = lastCompletedAt is DateTimeOffset completedAt
+            ? NextDueAfter(command.AnchorDate, command.Frequency, await warehouseClock.GetDateAsync(completedAt, cancellationToken))
+            : command.AnchorDate;
+        var now = timeProvider.GetUtcNow();
+        plan.UpdatedByUserId = command.ResponsibleUserId;
+        plan.UpdatedAt = now;
+        dbContext.CycleCountPlanEvents.Add(PlanEvent(plan, CycleCountPlanEventType.Updated, command.ResponsibleUserId, now,
+            previousFrequency, plan.Frequency, previousAnchor, plan.AnchorDate, previousDue, plan.NextDueDate, plan.IsActive, plan.IsActive));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new(CycleCountStatus.Success, PlanId: plan.Id);
+    }
+
+    public async Task<CycleCountResult> SetPlanActiveAsync(SetCycleCountPlanActiveCommand command, CancellationToken cancellationToken = default)
+    {
+        if (!await IsActiveAdminAsync(command.ResponsibleUserId, cancellationToken)) return new(CycleCountStatus.InvalidState, Errors: ["La sesión administrativa ya no es válida."]);
+        var plan = await dbContext.CycleCountPlans.SingleOrDefaultAsync(item => item.Id == command.Id, cancellationToken);
+        if (plan is null) return new(CycleCountStatus.NotFound);
+        if (await dbContext.CycleCountPlannedProducts.AnyAsync(item => item.CycleCountPlanId == plan.Id &&
+                OpenCampaignStatuses.Contains(item.CycleCountLocation.Campaign.Status), cancellationToken))
+            return new(CycleCountStatus.InvalidState, Errors: ["No puedes cambiar un plan mientras su ubicación está en campaña."]);
+        if (plan.IsActive == command.IsActive) return new(CycleCountStatus.Success, PlanId: plan.Id);
+        var previous = plan.IsActive;
+        var now = timeProvider.GetUtcNow();
+        plan.IsActive = command.IsActive;
+        plan.UpdatedByUserId = command.ResponsibleUserId;
+        plan.UpdatedAt = now;
+        dbContext.CycleCountPlanEvents.Add(PlanEvent(plan,
+            command.IsActive ? CycleCountPlanEventType.Reactivated : CycleCountPlanEventType.Paused,
+            command.ResponsibleUserId, now, plan.Frequency, plan.Frequency, plan.AnchorDate, plan.AnchorDate,
+            plan.NextDueDate, plan.NextDueDate, previous, plan.IsActive));
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return new(CycleCountStatus.Success, PlanId: plan.Id);
+    }
+
+    public async Task<CycleCountResult> ReleaseScheduledAsync(ReleaseScheduledCycleCountsCommand command, CancellationToken cancellationToken = default)
+    {
+        var user = await AuthenticateAsync(command.Pin, cancellationToken);
+        if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (command.OperationId == Guid.Empty || command.PlanIds.Count == 0) return new(CycleCountStatus.ValidationFailed, Errors: ["Selecciona al menos un conteo programado."]);
+        var existing = await dbContext.CycleCountCampaigns.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == command.OperationId, cancellationToken);
+        if (existing is not null) return new(CycleCountStatus.Success, CampaignId: existing.Id);
+        var today = await warehouseClock.GetDateAsync(timeProvider.GetUtcNow(), cancellationToken);
+        var ids = command.PlanIds.Where(item => item != Guid.Empty).Distinct().ToArray();
+        var plans = await dbContext.CycleCountPlans.Include(item => item.Product).Include(item => item.Location)
+            .Where(item => ids.Contains(item.Id)).ToListAsync(cancellationToken);
+        if (plans.Count != ids.Length || plans.Any(item => !item.IsActive || item.NextDueDate > today)) return new(CycleCountStatus.ValidationFailed, Errors: ["Uno de los conteos ya no está disponible para liberar."]);
+        if (plans.Any(item => !item.Product.IsActive || !item.Location.IsOperational || !item.Location.TracksInventory)) return new(CycleCountStatus.ValidationFailed, Errors: ["Un producto o ubicación del plan está bloqueado o inactivo."]);
+        var locationIds = plans.Select(item => item.LocationId).Distinct().ToArray();
+        await using var transaction = dbContext.Database.IsRelational() ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        if (transaction is not null) await InventoryMovementStore.LockLocationsAsync(locationIds, transaction, cancellationToken);
+        var overlapping = await dbContext.CycleCountLocations.Where(item => locationIds.Contains(item.LocationId) && OpenCampaignStatuses.Contains(item.Campaign.Status)).Select(item => item.Location.Code).Distinct().ToListAsync(cancellationToken);
+        if (overlapping.Count != 0) return new(CycleCountStatus.ValidationFailed, Errors: [$"Estas ubicaciones ya pertenecen a una campaña abierta: {string.Join(", ", overlapping)}."]);
+        var now = timeProvider.GetUtcNow();
+        var campaign = new CycleCountCampaign { OperationId = command.OperationId, Title = $"Programado · {today:dd/MM/yyyy}", Status = CycleCountCampaignStatus.Released, CreatedByUserId = user.Id, LastActionByUserId = user.Id, CreatedAt = now, ReleasedAt = now };
+        dbContext.CycleCountCampaigns.Add(campaign);
+        foreach (var group in plans.GroupBy(item => item.Location).OrderBy(item => item.Key.Code))
+        {
+            var countLocation = new CycleCountLocation { LocationId = group.Key.Id, SortOrder = campaign.Locations.Count + 1, LastActionByUserId = user.Id, CreatedAt = now };
+            foreach (var plan in group.OrderBy(item => item.Product.Sku))
+                countLocation.PlannedProducts.Add(new() { ProductId = plan.ProductId, CycleCountPlanId = plan.Id, ScheduledFor = plan.NextDueDate });
+            campaign.Locations.Add(countLocation);
+        }
+        AddAction(campaign, null, null, CycleCountActionType.Created, user.Id, now, "Campaña liberada desde el calendario programado.");
+        AddAction(campaign, null, null, CycleCountActionType.Released, user.Id, now, null);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        return new(CycleCountStatus.Success, CampaignId: campaign.Id);
+    }
 
     public async Task<CycleCountResult> CreateAsync(CreateCycleCountCommand command, CancellationToken cancellationToken = default)
     {
@@ -99,7 +349,7 @@ public sealed class CycleCountService(
             location.Status is CycleCountLocationStatus.Completed or CycleCountLocationStatus.Cancelled or CycleCountLocationStatus.Counting)
             return new(CycleCountStatus.InvalidState, CampaignId: location.CampaignId, LocationId: locationId);
 
-        var productIds = await GetKnownProductIdsAsync(location.LocationId, cancellationToken);
+        var productIds = await GetCountProductIdsAsync(location.Id, location.LocationId, cancellationToken);
         var products = await dbContext.Products.AsNoTracking().Include(item => item.BaseUnit)
             .Where(item => productIds.Contains(item.Id)).OrderBy(item => item.Sku).ToListAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
@@ -202,7 +452,11 @@ public sealed class CycleCountService(
         var cycleLocation = attempt.CycleCountLocation;
         cycleLocation.Status = hasDifference ? CycleCountLocationStatus.UnderReview : CycleCountLocationStatus.Completed;
         cycleLocation.LastActionByUserId = user.Id;
-        if (!hasDifference) cycleLocation.CompletedAt = attempt.SubmittedAt;
+        if (!hasDifference)
+        {
+            cycleLocation.CompletedAt = attempt.SubmittedAt;
+            await AdvanceScheduledPlansAsync(cycleLocation.Id, attempt.SubmittedAt!.Value, user.Id, cancellationToken);
+        }
         cycleLocation.Campaign.LastActionByUserId = user.Id;
         AddAction(cycleLocation.Campaign, cycleLocation, attempt, CycleCountActionType.AttemptSubmitted, user.Id, attempt.SubmittedAt.Value, null);
         if (!hasDifference) AddAction(cycleLocation.Campaign, cycleLocation, attempt, CycleCountActionType.LocationCompleted, user.Id, attempt.SubmittedAt.Value, "Conteo conciliado sin ajuste.");
@@ -218,7 +472,7 @@ public sealed class CycleCountService(
             .SingleOrDefaultAsync(item => item.Id == cycleCountLocationId && item.CampaignId == campaignId, cancellationToken);
         if (location is null || location.Campaign.Status is CycleCountCampaignStatus.Draft or CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled ||
             location.Status is not (CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)) return null;
-        var productIds = await GetKnownProductIdsAsync(location.LocationId, cancellationToken);
+        var productIds = await GetCountProductIdsAsync(location.Id, location.LocationId, cancellationToken);
         var products = await dbContext.Products.AsNoTracking().Include(item => item.BaseUnit)
             .Where(item => productIds.Contains(item.Id)).OrderBy(item => item.Sku).ToListAsync(cancellationToken);
         var entries = new List<CycleCountPreparationEntry>();
@@ -417,6 +671,7 @@ public sealed class CycleCountService(
         location.AdjustmentMovementId = movementId;
         location.Status = CycleCountLocationStatus.Completed;
         location.CompletedAt = now;
+        await AdvanceScheduledPlansAsync(location.Id, now, user.Id, cancellationToken);
         location.LastActionByUserId = user.Id;
         location.Campaign.LastActionByUserId = user.Id;
         AddAction(location.Campaign, location, attempt, CycleCountActionType.AdjustmentApproved, user.Id, now, Normalize(command.Notes, 500), reviewBatchId: command.ReviewBatchId);
@@ -623,6 +878,92 @@ public sealed class CycleCountService(
         var withBalance = dbContext.InventoryBalances.Where(item => item.LocationId == locationId && item.Quantity != 0).Select(item => item.ProductId);
         return await assigned.Union(withBalance).Distinct().ToListAsync(cancellationToken);
     }
+
+    private async Task<IReadOnlyList<Guid>> GetCountProductIdsAsync(Guid cycleCountLocationId, Guid locationId, CancellationToken cancellationToken)
+    {
+        var planned = await dbContext.CycleCountPlannedProducts.Where(item => item.CycleCountLocationId == cycleCountLocationId)
+            .Select(item => item.ProductId).Distinct().ToListAsync(cancellationToken);
+        return planned.Count != 0 ? planned : await GetKnownProductIdsAsync(locationId, cancellationToken);
+    }
+
+    private async Task AdvanceScheduledPlansAsync(Guid cycleCountLocationId, DateTimeOffset completedAt, Guid responsibleUserId, CancellationToken cancellationToken)
+    {
+        var dispatches = await dbContext.CycleCountPlannedProducts.Include(item => item.CycleCountPlan)
+            .Include(item => item.CycleCountLocation).ThenInclude(item => item.Campaign)
+            .Where(item => item.CycleCountLocationId == cycleCountLocationId && item.CycleCountPlanId != null).ToListAsync(cancellationToken);
+        if (dispatches.Count == 0) return;
+        var completedDate = await warehouseClock.GetDateAsync(completedAt, cancellationToken);
+        foreach (var plan in dispatches.Select(item => item.CycleCountPlan!).DistinctBy(item => item.Id))
+        {
+            var previousDue = plan.NextDueDate;
+            var nextDue = NextDueAfter(plan.AnchorDate, plan.Frequency, completedDate);
+            if (previousDue == nextDue) continue;
+            var now = timeProvider.GetUtcNow();
+            plan.NextDueDate = nextDue;
+            plan.UpdatedByUserId = responsibleUserId;
+            plan.UpdatedAt = now;
+            dbContext.CycleCountPlanEvents.Add(PlanEvent(plan, CycleCountPlanEventType.Advanced, responsibleUserId, now,
+                plan.Frequency, plan.Frequency, plan.AnchorDate, plan.AnchorDate, previousDue, nextDue,
+                plan.IsActive, plan.IsActive, dispatches.First(item => item.CycleCountPlanId == plan.Id).CycleCountLocation.CampaignId,
+                cycleCountLocationId));
+        }
+    }
+
+    private static DateOnly NextDueAfter(DateOnly anchor, CycleCountFrequency frequency, DateOnly completedDate)
+    {
+        var candidate = anchor;
+        var step = 0;
+        while (candidate <= completedDate) candidate = AddFrequency(anchor, frequency, ++step);
+        return candidate;
+    }
+
+    // Se mantiene el cálculo desde el ancla para que 31 de enero vuelva a ser 31 de marzo.
+    private static DateOnly AddFrequency(DateOnly anchor, CycleCountFrequency frequency, int step)
+    {
+        var months = frequency switch { CycleCountFrequency.Monthly => step, CycleCountFrequency.Quarterly => step * 3, CycleCountFrequency.Semiannual => step * 6, CycleCountFrequency.Annual => step * 12, _ => 0 };
+        if (months == 0) return anchor.AddDays((frequency == CycleCountFrequency.Biweekly ? 14 : 7) * step);
+        var target = anchor.AddMonths(months);
+        return target;
+    }
+
+    private async Task<bool> IsActiveAdminAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        return userId != Guid.Empty && await dbContext.Users.AsNoTracking()
+            .AnyAsync(item => item.Id == userId && item.IsActive && item.Role.Code == "ADMIN", cancellationToken);
+    }
+
+    private static CycleCountPlanEvent PlanEvent(CycleCountPlan plan, CycleCountPlanEventType type,
+        Guid? responsibleUserId, DateTimeOffset recordedAt, CycleCountFrequency? previousFrequency,
+        CycleCountFrequency? newFrequency, DateOnly? previousAnchorDate, DateOnly? newAnchorDate,
+        DateOnly? previousNextDueDate, DateOnly? newNextDueDate, bool? previousIsActive, bool? newIsActive,
+        Guid? campaignId = null, Guid? cycleCountLocationId = null) => new()
+        {
+            CycleCountPlan = plan,
+            CycleCountPlanId = plan.Id,
+            Type = type,
+            ResponsibleUserId = responsibleUserId,
+            CampaignId = campaignId,
+            CycleCountLocationId = cycleCountLocationId,
+            PreviousFrequency = previousFrequency,
+            NewFrequency = newFrequency,
+            PreviousAnchorDate = previousAnchorDate,
+            NewAnchorDate = newAnchorDate,
+            PreviousNextDueDate = previousNextDueDate,
+            NewNextDueDate = newNextDueDate,
+            PreviousIsActive = previousIsActive,
+            NewIsActive = newIsActive,
+            RecordedAt = recordedAt
+        };
+
+    private sealed record CalendarProjection(Guid RowId, bool IsHistorical, Guid PlanId, Guid? CampaignId,
+        Guid? CycleCountLocationId, DateOnly ScheduledFor, Guid ProductId, string Sku, string? Description,
+        string UnitCode, string LocationCode, CycleCountFrequency Frequency, bool IsActive, bool IsBlocked,
+        bool PlanHasOpenDispatch);
+
+    private sealed record CalendarLocationProjection(Guid Id, CycleCountLocationStatus Status,
+        DateTimeOffset? CompletedAt, bool IsInCampaign);
+
+    private sealed record CountedEntryProjection(Guid CycleCountLocationId, Guid ProductId, int AttemptNumber, decimal? CountedQuantity);
 
     private async Task<short> UnitIdAsync(Guid productId, CancellationToken cancellationToken) =>
         await dbContext.Products.Where(item => item.Id == productId).Select(item => item.BaseUnitId).SingleAsync(cancellationToken);
