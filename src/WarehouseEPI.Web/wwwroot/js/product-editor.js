@@ -124,6 +124,36 @@
     }
   };
 
+  const resolveLocation = async () => {
+    const code = input.value.trim();
+    if (!code) return;
+
+    controller?.abort();
+    window.clearTimeout(timer);
+    closeResults();
+    controller = new AbortController();
+    announce("Validando ubicación…");
+    try {
+      const parameters = new URLSearchParams({ handler: "ResolveLocation", code });
+      const response = await fetch(`${lookupUrl}?${parameters}`, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        announce("No se encontró una ubicación exacta. Selecciona una de los resultados.");
+        void search();
+        return;
+      }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      selectLocation(await response.json());
+      input.focus();
+    } catch (error) {
+      if (error?.name === "AbortError") return;
+      closeResults();
+      announce("No fue posible buscar en la red local. Intenta nuevamente.");
+    }
+  };
+
   input.addEventListener("input", () => {
     controller?.abort();
     window.clearTimeout(timer);
@@ -150,6 +180,9 @@
     } else if (event.key === "Enter" && highlighted >= 0) {
       event.preventDefault();
       options[highlighted].click();
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      void resolveLocation();
     }
   });
 

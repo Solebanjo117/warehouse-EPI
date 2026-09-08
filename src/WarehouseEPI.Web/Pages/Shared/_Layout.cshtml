@@ -3,10 +3,12 @@
 @{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
     var isAdmin = User.IsInRole("ADMIN");
+    var locationsIndexPage = isAdmin ? "/Admin/Catalogs/Locations/Index" : "/Locations/Index";
     var business = await WarehouseSettings.GetAsync();
     var logoUrl = business.LogoFileName is null ? null : $"/branding/logo?v={business.LogoHash}";
     bool IsCurrent(string page) => currentPage.Equals(page, StringComparison.OrdinalIgnoreCase);
     bool IsSection(string page) => currentPage.StartsWith(page, StringComparison.OrdinalIgnoreCase);
+    var isLocationsSection = IsSection("/Locations") || (isAdmin && IsSection("/Admin/Catalogs/Locations"));
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -128,6 +130,9 @@
 
             <div class="app-nav-group">
                 <div class="app-nav-heading">Inventario</div>
+                <a class="app-nav-link @(isLocationsSection ? "active" : null)" asp-page="@locationsIndexPage" aria-current="@(isLocationsSection ? "page" : null)" title="Ubicaciones">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>
+                </a>
                 <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
                 </a>
@@ -171,9 +176,6 @@
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductClasses") ? "active" : null)" asp-page="/Admin/Catalogs/ProductClasses/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductClasses") ? "page" : null)" title="Clases de producto">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-product-classes" /></svg><span>Clases de producto</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Locations") ? "active" : null)" asp-page="/Admin/Catalogs/Locations/Index" aria-current="@(IsSection("/Admin/Catalogs/Locations") ? "page" : null)" title="Ubicaciones">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Catalogs/Units") ? "active" : null)" asp-page="/Admin/Catalogs/Units/Index" aria-current="@(IsSection("/Admin/Catalogs/Units") ? "page" : null)" title="Unidades de medida">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-units" /></svg><span>Unidades de medida</span>

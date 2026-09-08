@@ -56,7 +56,7 @@
                 }
                 else if (Model.Location is not null)
                 {
-                    <span class="inventory-eyebrow">Ubicación</span><h2 class="h3 mb-1">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@Model.Location.Id">@Model.Location.Code</a> } else { @Model.Location.Code }</h2><p class="mb-0 text-muted">@(Model.Location.Description ?? "Ubicación operativa")</p>
+                    <span class="inventory-eyebrow">Ubicación</span><h2 class="h3 mb-1"><a asp-page="/Locations/Details" asp-route-id="@Model.Location.Id">@Model.Location.Code</a></h2><p class="mb-0 text-muted">@(Model.Location.Description ?? "Ubicación operativa")</p>
                     @if (!Model.Location.IsActive) { <span class="inv-chip is-muted mt-2">Ubicación inactiva</span> }
                     else if (Model.Location.IsBlocked) { <span class="inv-chip is-warning mt-2">Ubicación bloqueada</span> }
                 }
@@ -67,13 +67,13 @@
                 {
                     <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@Model.Product.Id" class="btn btn-outline-primary">Ficha</a>
                     <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-secondary">Movimientos</a>
-                    <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-search="@Model.Product.Sku" asp-route-status="all" asp-route-viewMode="map" class="btn btn-outline-secondary">Croquis</a>
+                    <a asp-page="/Locations/Index" asp-route-search="@Model.Product.Sku" asp-route-status="all" asp-route-viewMode="map" class="btn btn-outline-secondary">Croquis</a>
                 }
                 else if (isAdmin && Model.Location is not null)
                 {
-                    <a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@Model.Location.Id" class="btn btn-outline-primary">Ficha</a>
+                    <a asp-page="/Locations/Details" asp-route-id="@Model.Location.Id" class="btn btn-outline-primary">Ficha</a>
                     <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Location.Code" class="btn btn-outline-secondary">Movimientos</a>
-                    <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-status="all" asp-route-viewMode="map" asp-route-highlightLocationId="@Model.Location.Id" class="btn btn-outline-secondary">Croquis</a>
+                    <a asp-page="/Locations/Index" asp-route-status="all" asp-route-viewMode="map" asp-route-highlightLocationId="@Model.Location.Id" class="btn btn-outline-secondary">Croquis</a>
                 }
                 <a asp-page="Index" class="inventory-identity-reset">Consultar otro código</a>
             </div>
@@ -105,7 +105,7 @@
                 <article class="inventory-position @(highlighted ? "is-highlighted" : null) @(position.IsNegative ? "is-negative" : null)" tabindex="@(highlighted ? "-1" : null)" data-inventory-highlighted="@(highlighted ? "true" : null)">
                     @if (highlighted) { <span class="visually-hidden">Resultado destacado desde Alertas.</span> }
                     <div class="inventory-position-product"><span class="inventory-card-label">Producto</span>@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@position.ProductId" class="fw-bold">@position.ProductSku</a> } else { <strong>@position.ProductSku</strong> }<small>@(position.ProductDescription ?? "Sin descripción")</small>@if (!position.ProductIsActive) { <span class="inv-chip is-muted">Producto inactivo</span> }</div>
-                    <div class="inventory-position-location"><span class="inventory-card-label">Ubicación</span>@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@position.LocationId" class="fw-bold">@position.LocationCode</a> } else { <strong>@position.LocationCode</strong> }<small>@(position.LocationDescription ?? "Ubicación operativa")</small>@if (!position.LocationIsActive) { <span class="inv-chip is-muted">Ubicación inactiva</span> } else if (position.LocationIsBlocked) { <span class="inv-chip is-warning">Ubicación bloqueada</span> }</div>
+                    <div class="inventory-position-location"><span class="inventory-card-label">Ubicación</span><a asp-page="/Locations/Details" asp-route-id="@position.LocationId" class="fw-bold">@position.LocationCode</a><small>@(position.LocationDescription ?? "Ubicación operativa")</small>@if (!position.LocationIsActive) { <span class="inv-chip is-muted">Ubicación inactiva</span> } else if (position.LocationIsBlocked) { <span class="inv-chip is-warning">Ubicación bloqueada</span> }</div>
                     <div class="inventory-position-state"><span class="inventory-card-label">Estado</span>@if (position.HasActiveAssignment && position.Quantity == 0) { <span class="inv-chip is-muted">Asignado · saldo cero</span> } else if (position.HasActiveAssignment) { <span class="inv-state-normal">Asignado · con saldo</span> } else { <span class="inv-chip is-warning">Saldo sin asignación</span> } @if (position.IsNegative) { <span class="inv-chip is-danger">Saldo negativo</span> }</div>
                     <div class="inventory-position-quantity @(position.IsNegative ? "is-negative" : null)"><span class="inventory-card-label">Cantidad</span><strong>@position.Quantity.ToString("0.####") @position.UnitCode</strong></div>
                 </article>

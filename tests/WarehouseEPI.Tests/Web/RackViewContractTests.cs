@@ -5,12 +5,15 @@ public sealed class RackViewContractTests
     [Fact]
     public void Rack_view_exposes_filters_panel_and_progressive_fallback()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "rack-view.js"));
 
         Assert.Contains("asp-route-rackFilter", page, StringComparison.Ordinal);
         Assert.Contains("data-rack-open", page, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"Details\"", page, StringComparison.Ordinal);
+        Assert.Contains("var detailsPage = Model.IsAdministrativeView", page, StringComparison.Ordinal);
+        Assert.Contains("\"/Admin/Catalogs/Locations/Details\"", page, StringComparison.Ordinal);
+        Assert.Contains("\"/Locations/Details\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"@detailsPage\"", page, StringComparison.Ordinal);
         Assert.Contains("data-rack-detail", page, StringComparison.Ordinal);
         Assert.Contains("data-rack-close", page, StringComparison.Ordinal);
         Assert.Contains("event.preventDefault()", script, StringComparison.Ordinal);
@@ -20,7 +23,7 @@ public sealed class RackViewContractTests
     [Fact]
     public void Rack_bays_render_as_elevations_and_reserve_color_for_incidents()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
 
         Assert.Contains("rack-bay-frame", page, StringComparison.Ordinal);
@@ -34,13 +37,14 @@ public sealed class RackViewContractTests
     [Fact]
     public void Admin_table_labels_every_cell_for_the_mobile_fallback()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
 
-        foreach (var label in new[] { "Ubicación", "Posición física", "Productos asignados", "Estado", "Acciones" })
+        foreach (var label in new[] { "Ubicación", "Posición física", "Productos asignados", "Estado" })
         {
             Assert.Contains($"data-label=\"{label}\"", page, StringComparison.Ordinal);
         }
+        Assert.Contains("Model.IsAdministrativeView ? \"Acciones\" : \"Consulta\"", page, StringComparison.Ordinal);
 
         Assert.Contains("location-row-@AdminState(item)", page, StringComparison.Ordinal);
         Assert.Contains("content:attr(data-label)", styles, StringComparison.Ordinal);
@@ -51,7 +55,7 @@ public sealed class RackViewContractTests
     public void Rack_administration_and_views_expose_the_whole_rack_wip_role()
     {
         var edit = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Edit.cshtml"));
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var details = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Details.cshtml"));
         var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260904120000_AllowRackWip.cs"));
 
@@ -69,7 +73,7 @@ public sealed class RackViewContractTests
     [Fact]
     public void Map_rack_wip_uses_the_physical_keypad_and_exact_position_actions()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
 
         Assert.Contains("map-element-detail-wip-rack", page, StringComparison.Ordinal);
@@ -85,6 +89,23 @@ public sealed class RackViewContractTests
         Assert.Contains("Resumen del rack WIP", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Posiciones WIP", page, StringComparison.Ordinal);
         Assert.Contains(".map-element-detail-wip-rack", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Map_search_selects_the_matching_pallet_before_falling_back_to_the_first_position()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js"));
+
+        Assert.Contains("data-map-position-match=\"@Model.MapMatches.Contains(position.LocationId).ToString().ToLowerInvariant()\"", page, StringComparison.Ordinal);
+        var highlightedSelection = script.IndexOf("const highlightedPosition", StringComparison.Ordinal);
+        var matchedSelection = script.IndexOf("const matchedPosition", StringComparison.Ordinal);
+        var fallbackSelection = script.IndexOf("highlightedPosition || matchedPosition ||", StringComparison.Ordinal);
+
+        Assert.True(highlightedSelection >= 0);
+        Assert.True(matchedSelection > highlightedSelection);
+        Assert.True(fallbackSelection > matchedSelection);
+        Assert.Contains("[data-map-position-match='true']", script, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -105,11 +126,11 @@ public sealed class RackViewContractTests
     [Fact]
     public void Map_areas_expose_the_area_editor_for_wip_and_general_roles()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
 
-        Assert.Contains("asp-page=\"Area\" asp-route-locationId=\"@destinationId\"", page, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"Area\" asp-route-locationId=\"@position.LocationId\"", page, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"Rack/Edit\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Area\" asp-route-locationId=\"@destinationId\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Area\" asp-route-locationId=\"@position.LocationId\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Rack/Edit\"", page, StringComparison.Ordinal);
         Assert.Contains(">Editar área</a>", page, StringComparison.Ordinal);
     }
 

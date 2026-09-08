@@ -102,7 +102,8 @@ public sealed class WarehouseMapEditorContractTests
     [Fact]
     public void Query_and_editor_share_the_persisted_architecture_renderer()
     {
-        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"))
+            + File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Index.cshtml"));
         var editor = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
         var renderer = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "_WarehouseMapArchitecture.cshtml"));
         var fallback = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "images", "warehouse-floor-base.svg"));
@@ -223,8 +224,9 @@ public sealed class WarehouseMapEditorContractTests
     public void Phase_1194_adds_private_reference_storage_and_keeps_query_bundle_lightweight()
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
-        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
-        var queryModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
+        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"))
+            + File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Index.cshtml"));
+        var queryModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationIndexPageModel.cs"));
         var editorScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
         var referenceScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-reference.js"));
         var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260825093000_AddWarehouseMapReferenceImages.cs"));
@@ -264,7 +266,7 @@ public sealed class WarehouseMapEditorContractTests
     public void Map_canvas_is_persisted_rendered_dynamically_and_resized_with_pointer_or_keyboard()
     {
         var editorPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
-        var queryPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var queryPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var editorScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
         var referenceScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-reference.js"));
         var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260831183516_AddWarehouseMapCanvasDimensions.cs"));
@@ -328,8 +330,8 @@ public sealed class WarehouseMapEditorContractTests
     [Fact]
     public void Map_wip_panel_renders_current_inventory_and_recent_issues_without_inventory_controls()
     {
-        var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationIndexPageModel.cs"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
 
         Assert.Contains("element.IsWip", pageModel, StringComparison.Ordinal);
         Assert.Contains("GetRecentIssuesAsync", pageModel, StringComparison.Ordinal);

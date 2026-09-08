@@ -9,7 +9,7 @@ namespace WarehouseEPI.Tests.Web;
 public sealed class ProductDefaultEntryLocationTests
 {
     [Fact]
-    public void Product_form_uses_a_bounded_accessible_location_lookup()
+    public void Product_form_supports_keyboard_selection_and_exact_location_resolution()
     {
         var page = File.ReadAllText(RepositoryPath(
             "src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "_ProductForm.cshtml"));
@@ -21,9 +21,14 @@ public sealed class ProductDefaultEntryLocationTests
         Assert.Contains("role=\"listbox\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("asp-items=\"Model.EntryLocations\"", page, StringComparison.Ordinal);
         Assert.Contains("handler: \"Locations\"", script, StringComparison.Ordinal);
+        Assert.Contains("handler: \"ResolveLocation\"", script, StringComparison.Ordinal);
         Assert.Contains("window.setTimeout(() => void search(), 250)", script, StringComparison.Ordinal);
         Assert.Contains("event.key === \"ArrowDown\"", script, StringComparison.Ordinal);
         Assert.Contains("event.key === \"Escape\"", script, StringComparison.Ordinal);
+        Assert.Contains("event.key === \"Enter\" && highlighted >= 0", script, StringComparison.Ordinal);
+        Assert.Contains("void resolveLocation();", script, StringComparison.Ordinal);
+        Assert.Contains("response.status === 404", script, StringComparison.Ordinal);
+        Assert.Contains("No se encontró una ubicación exacta", script, StringComparison.Ordinal);
         Assert.Contains("Selecciona una ubicación de los resultados", script, StringComparison.Ordinal);
         Assert.Contains("clearSelection(true)", script, StringComparison.Ordinal);
     }

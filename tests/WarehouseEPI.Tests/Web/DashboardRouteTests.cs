@@ -77,8 +77,14 @@ public sealed class DashboardRouteTests
         Assert.DoesNotContain("jsdelivr", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-dashboard-range=\"14\"", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-range=\"7\"", page, StringComparison.Ordinal);
+        Assert.True(
+            page.IndexOf("data-dashboard-range=\"7\"", StringComparison.Ordinal)
+            < page.IndexOf("data-dashboard-range=\"14\"", StringComparison.Ordinal));
+        Assert.Contains("Actividad del almacén", page, StringComparison.Ordinal);
+        Assert.Contains("data-dashboard-period-label", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-summary", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-detail", page, StringComparison.Ordinal);
+        Assert.Contains("data-dashboard-detail-empty", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-detail-link", page, StringComparison.Ordinal);
         Assert.Contains("aria-describedby=\"dashboard-chart-detail\"", page, StringComparison.Ordinal);
         Assert.Contains("data-warehouse-date", page, StringComparison.Ordinal);
@@ -116,7 +122,12 @@ public sealed class DashboardRouteTests
         Assert.Contains("tooltip", script, StringComparison.Ordinal);
         Assert.Contains("dashboardColumnHighlight", script, StringComparison.Ordinal);
         Assert.Contains("dashboardStackTotals", script, StringComparison.Ordinal);
-        Assert.Contains("maxBarThickness: 42", script, StringComparison.Ordinal);
+        Assert.Contains("maxBarThickness: 36", script, StringComparison.Ordinal);
+        Assert.Contains("getValueForPixel", script, StringComparison.Ordinal);
+        Assert.Contains("Sin actividad en el período", script, StringComparison.Ordinal);
+        Assert.Contains("[text(point.dayLabel), \"Hoy\"]", script, StringComparison.Ordinal);
+        Assert.Contains("chart.tooltip.setActiveElements([]", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("context.fillRect", script, StringComparison.Ordinal);
         Assert.Contains("cornerRadius: 10", script, StringComparison.Ordinal);
         Assert.Contains("ArrowLeft", script, StringComparison.Ordinal);
         Assert.Contains("aria-busy", script, StringComparison.Ordinal);

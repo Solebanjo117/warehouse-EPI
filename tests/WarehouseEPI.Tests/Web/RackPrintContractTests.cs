@@ -5,13 +5,16 @@ public sealed class RackPrintContractTests
     [Fact]
     public void Croquis_and_rack_view_link_to_a_printable_rack_sheet()
     {
-        var index = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Print.cshtml"));
-        var model = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Print.cshtml.cs"));
+        var index = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Rack", "_RackPrint.cshtml"));
+        var model = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Rack", "RackPrintPageModel.cs"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "rack-print.css"));
         var siteScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "site.js"));
 
-        Assert.Contains("asp-page=\"Rack/Print\"", index, StringComparison.Ordinal);
+        Assert.Contains("var printPage = Model.IsAdministrativeView", index, StringComparison.Ordinal);
+        Assert.Contains("\"/Admin/Catalogs/Locations/Rack/Print\"", index, StringComparison.Ordinal);
+        Assert.Contains("\"/Locations/Rack/Print\"", index, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"@printPage\"", index, StringComparison.Ordinal);
         Assert.Contains("asp-route-rowCode", index, StringComparison.Ordinal);
         Assert.Contains("asp-route-rackNumber", index, StringComparison.Ordinal);
         Assert.Contains("data-print-page", page, StringComparison.Ordinal);
@@ -33,7 +36,7 @@ public sealed class RackPrintContractTests
     [Fact]
     public void Rack_sheet_is_a_verification_instrument_with_one_layout_for_screen_and_paper()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Print.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Rack", "_RackPrint.cshtml"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "rack-print.css"));
 
         // Cada posición ofrece dónde marcar el recorrido, porque el pie pide firma.
@@ -51,7 +54,7 @@ public sealed class RackPrintContractTests
     [Fact]
     public void Sheet_survives_the_global_print_rule_that_hides_header_and_footer_elements()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Print.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Rack", "_RackPrint.cshtml"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "rack-print.css"));
         var siteStyles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
 

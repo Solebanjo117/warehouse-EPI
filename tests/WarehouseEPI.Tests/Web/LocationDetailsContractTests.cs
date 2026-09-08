@@ -6,7 +6,7 @@ public sealed class LocationDetailsContractTests
     public void Location_detail_exposes_inventory_relationships_current_position_and_responsive_rack_cards()
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Details.cshtml"));
-        var content = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "_LocationRackPositionContent.cshtml"));
+        var content = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationRackPositionContent.cshtml"));
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
 
         Assert.Contains("Posiciones del rack", page, StringComparison.Ordinal);

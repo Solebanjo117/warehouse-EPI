@@ -169,13 +169,13 @@
                             if (item.IsCurrent)
                             {
                                 <div class="@classes" aria-label="Ubicación actual: @accessibleSummary" aria-current="location">
-                                    <partial name="_LocationRackPositionContent" model="item" />
+                                    <partial name="/Pages/Locations/_LocationRackPositionContent.cshtml" model="item" />
                                 </div>
                             }
                             else
                             {
                                 <a asp-page="Details" asp-route-id="@item.Id" class="@classes" aria-label="Abrir @accessibleSummary">
-                                    <partial name="_LocationRackPositionContent" model="item" />
+                                    <partial name="/Pages/Locations/_LocationRackPositionContent.cshtml" model="item" />
                                 </a>
                             }
                         }

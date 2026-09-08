@@ -5,13 +5,13 @@ public sealed class RackOperationsContractTests
     [Fact]
     public void Croquis_exposes_prefilled_operations_and_reversible_rack_editor()
     {
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         Assert.Contains("Nueva operación", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-sourceLocationId", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-destinationLocationId", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-productId", page, StringComparison.Ordinal);
         Assert.Contains("Surtir a este WIP", page, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"Rack/Edit\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Rack/Edit\"", page, StringComparison.Ordinal);
     }
 
     [Fact]

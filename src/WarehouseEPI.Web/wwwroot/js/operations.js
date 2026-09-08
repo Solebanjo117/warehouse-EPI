@@ -571,7 +571,7 @@
         panel.replaceChildren();
         panel.classList.remove("d-none");
         addRelationshipMessage(panel,
-          "Sin ubicaciones asociadas ni saldo. Escanea una ubicación; se asociará al confirmar.");
+          "Sin ubicaciones con saldo. Escanea o escribe una ubicación.");
         return;
       }
 
@@ -581,7 +581,7 @@
         productLocations.length === 1 ? "Ubicación relacionada" : "Ubicaciones relacionadas; elige una",
         productLocations,
         "location",
-        (item) => void applySelection(primaryLocationKind, item, true),
+        (item) => void applySelection(primaryLocationKind, item, true).then(focusNextRequired),
         selectedLocation?.id);
       if (selectedLocation && !productLocations.some(item => item.id === selectedLocation.id))
         addRelationshipMessage(panel, "Esta pareja se asociará al confirmar con NIP.", "text-primary");
@@ -597,7 +597,7 @@
         panel.replaceChildren();
         panel.classList.remove("d-none");
         addRelationshipMessage(panel,
-          "Sin productos asociados ni saldo. El producto se asociará al confirmar.");
+          "Sin productos con saldo. Busca o escanea un producto; se asociará al confirmar.");
         return;
       }
 
@@ -607,7 +607,7 @@
         items.length === 1 ? "Producto relacionado" : "Productos relacionados; elige uno",
         items,
         "product",
-        selectable ? (item) => void applySelection("product", item, true) : null,
+        selectable ? (item) => void applySelection("product", item, true).then(focusNextRequired) : null,
         selected.product?.id);
       if (selected.product && !items.some(item => item.id === selected.product.id))
         addRelationshipMessage(panel, "El producto seleccionado se asociará aquí al confirmar con NIP.", "text-primary");
@@ -624,7 +624,7 @@
     const loadProductLocations = async () => {
       if (!selected.product) return;
       const productId = selected.product.id;
-      const params = new URLSearchParams({ handler: "ProductLocations", productId });
+      const params = new URLSearchParams({ handler: "ProductLocations", productId, operation });
       const items = await requestJson(`${lookupUrl}?${params}`);
       if (selected.product?.id !== productId || !items) return;
       productLocations = items;
@@ -651,7 +651,7 @@
       if (selected[kind]?.id !== locationId || !items) return;
       locationProducts[kind] = items;
       renderLocationRelationships(kind);
-      if (canSelectProductFrom(kind) && !selected.product && items.length === 1)
+      if (operation !== "entry" && canSelectProductFrom(kind) && !selected.product && items.length === 1)
         await applySelection("product", items[0], true);
     };
 
@@ -725,6 +725,13 @@
       refreshPreview();
     };
 
+    const nextRequiredKind = () => entryWorkstation
+      ? visibleGuidedKinds().find(kind => kind === "exit-mode"
+        ? !selectedExitMode()
+        : kind === "quantity" ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
+          : kind === "notes" ? !notesInput?.value.trim() : !selected[kind])
+      : requiredKinds().find(kind => !selected[kind]);
+
     const focusNextRequired = () => {
       const focusLookupInput = (kind) => {
         const input = lookups[kind]?.input;
@@ -733,10 +740,7 @@
       };
 
       if (entryWorkstation) {
-        const next = visibleGuidedKinds().find(kind => kind === "exit-mode"
-          ? !selectedExitMode()
-          : kind === "quantity" ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
-            : kind === "notes" ? !notesInput?.value.trim() : !selected[kind]);
+        const next = nextRequiredKind();
         if (next === "exit-mode") {
           (exitModePicker?.querySelector("input:checked") || exitModePicker?.querySelector("input"))?.focus();
           return;
@@ -748,7 +752,7 @@
           return;
         }
       }
-      const missing = requiredKinds().find(kind => !selected[kind]);
+      const missing = nextRequiredKind();
       if (missing) {
         focusLookupInput(missing);
         return;
@@ -920,6 +924,23 @@
     }
 
     operationShell.querySelectorAll("[data-lookup-field]").forEach(setupLookup);
+    if (entryWorkstation) {
+      window.WarehouseEpiHidCapture?.listen({
+        root: operationShell,
+        isEnabled: () => {
+          const targetKind = nextRequiredKind();
+          return Boolean(lookups[targetKind] && !selected[targetKind]);
+        },
+        onScan: async (code) => {
+          const targetKind = nextRequiredKind();
+          const lookup = lookups[targetKind];
+          if (!lookup || selected[targetKind]) return;
+          lookup.input.value = code;
+          lookup.results.replaceChildren();
+          await resolveLookupCode(targetKind, code, true);
+        }
+      });
+    }
     const refreshExitMode = () => {
       const destinationStep = operationShell.querySelector("[data-wip-destination-step]");
       const isWip = isWipExit();
@@ -978,7 +999,7 @@
     const reviewButton = operationShell.querySelector("[data-review-button]");
     const modalElement = document.getElementById("confirm-operation");
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-    reviewButton.addEventListener("click", () => {
+    const openConfirmation = () => {
       const pinInput = operationShell.querySelector("[data-pin-input]");
       pinInput.required = false;
       if (operation === "exit" && !selectedExitMode()) {
@@ -1011,6 +1032,21 @@
       pinInput.required = true;
       modal.show();
       modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
+    };
+    reviewButton.addEventListener("click", openConfirmation);
+    quantityInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      if (!quantityInput.checkValidity()) {
+        quantityInput.reportValidity();
+        return;
+      }
+      const next = nextRequiredKind();
+      if (next) {
+        focusNextRequired();
+        return;
+      }
+      openConfirmation();
     });
 
     form.addEventListener("submit", () => {

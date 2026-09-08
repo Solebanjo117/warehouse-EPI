@@ -245,6 +245,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     public async Task<IReadOnlyList<OperationalProductLocationResult>> GetProductLocationsAsync(
         Guid productId,
+        bool includeDefaultEntryAtZero = false,
         CancellationToken cancellationToken = default)
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
@@ -278,7 +279,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 balance.Product.DefaultEntryLocationId == balance.LocationId))
             .ToListAsync(cancellationToken);
 
-        return MergeProductLocations(assignments, balances);
+        return MergeProductLocations(assignments, balances, includeDefaultEntryAtZero);
     }
 
     public async Task<IReadOnlyList<OperationalLocationProductResult>> GetLocationProductsAsync(
@@ -401,7 +402,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     private static IReadOnlyList<OperationalProductLocationResult> MergeProductLocations(
         IEnumerable<OperationalProductLocationResult> assignments,
-        IEnumerable<OperationalProductLocationResult> balances)
+        IEnumerable<OperationalProductLocationResult> balances,
+        bool includeDefaultEntryAtZero)
     {
         var results = assignments.ToDictionary(item => item.Id);
         foreach (var balance in balances)
@@ -412,7 +414,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         }
 
         return results.Values
-            .Where(item => item.HasActiveAssignment || item.Quantity != 0)
+            .Where(item => item.Quantity != 0 || includeDefaultEntryAtZero && item.IsDefaultEntry)
             .Select(item => item with { HasNonZeroBalance = item.Quantity != 0 })
             .OrderBy(item => item.Code, StringComparer.Ordinal)
             .ToArray();
@@ -431,7 +433,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         }
 
         return results.Values
-            .Where(item => item.HasActiveAssignment || item.Quantity != 0)
+            .Where(item => item.Quantity != 0)
             .Select(item => item with { HasNonZeroBalance = item.Quantity != 0 })
             .OrderBy(item => item.Sku, StringComparer.Ordinal)
             .ToArray();
