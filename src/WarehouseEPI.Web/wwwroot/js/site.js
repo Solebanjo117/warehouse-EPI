@@ -69,7 +69,7 @@
   cameraScanner?.addEventListener("show.bs.modal", () => body.classList.add("camera-active"));
   cameraScanner?.addEventListener("hidden.bs.modal", () => body.classList.remove("camera-active"));
 
-  document.querySelectorAll("[data-print-validation]").forEach((button) => {
+  document.querySelectorAll("[data-print-validation], [data-print-page]").forEach((button) => {
     button.addEventListener("click", () => window.print());
   });
 

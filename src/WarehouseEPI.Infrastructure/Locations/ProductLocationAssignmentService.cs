@@ -14,7 +14,8 @@ public enum ProductLocationAssignmentResult
     LocationInactive,
     LocationBlocked,
     LocationDoesNotTrackInventory,
-    AssignmentNotFound
+    AssignmentNotFound,
+    SuccessDefaultEntryCleared
 }
 
 public sealed class ProductLocationAssignmentService(WarehouseDbContext dbContext)
@@ -70,7 +71,13 @@ public sealed class ProductLocationAssignmentService(WarehouseDbContext dbContex
 
         assignment.IsActive = false;
         assignment.UpdatedAt = DateTimeOffset.UtcNow;
+        var clearedDefault = await dbContext.Products.SingleOrDefaultAsync(product =>
+            product.Id == productId && product.DefaultEntryLocationId == locationId, cancellationToken);
+        if (clearedDefault is not null)
+            clearedDefault.DefaultEntryLocationId = null;
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ProductLocationAssignmentResult.Success;
+        return clearedDefault is null
+            ? ProductLocationAssignmentResult.Success
+            : ProductLocationAssignmentResult.SuccessDefaultEntryCleared;
     }
 }

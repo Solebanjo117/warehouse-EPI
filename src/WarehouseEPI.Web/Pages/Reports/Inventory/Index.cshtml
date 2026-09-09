@@ -36,7 +36,7 @@
         @if (isAdmin)
         {
             <a asp-page="/Admin/Inventory/Alerts">Alertas administrativas</a>
-            <a asp-page="/Admin/Catalogs/Locations/Index">Ubicaciones</a>
+            <a asp-page="/Locations/Index">Ubicaciones</a>
             <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
         }
     </aside>
@@ -73,7 +73,7 @@
                 @if (Model.Occupancy.Rows.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">No hay posiciones físicas de rack.</td></tr> }
                 @foreach (var row in Model.Occupancy.Rows)
                 {
-                    <tr><th scope="row">@row.RowCode</th><td>@row.Summary.TotalStoragePositions</td><td>@row.Summary.OccupiedCount</td><td>@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)">@row.Summary.NegativeCount</td><td>@row.Summary.BlockedCount</td><td>@row.Summary.InactiveCount</td><td><span class="analytics-utilization-cell"><strong>@row.Summary.UtilizationPercentage.ToString("0.##")%</strong><span class="analytics-utilization-bar" aria-hidden="true"><span style="@($"--analytics-share: {Math.Clamp((int)Math.Round(row.Summary.UtilizationPercentage), 0, 100)}%")"></span></span></span></td><td class="text-end">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" class="btn btn-outline-primary btn-sm">Ver racks</a> }</td></tr>
+                    <tr><th scope="row">@row.RowCode</th><td>@row.Summary.TotalStoragePositions</td><td>@row.Summary.OccupiedCount</td><td>@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)">@row.Summary.NegativeCount</td><td>@row.Summary.BlockedCount</td><td>@row.Summary.InactiveCount</td><td><span class="analytics-utilization-cell"><strong>@row.Summary.UtilizationPercentage.ToString("0.##")%</strong><span class="analytics-utilization-bar" aria-hidden="true"><span style="@($"--analytics-share: {Math.Clamp((int)Math.Round(row.Summary.UtilizationPercentage), 0, 100)}%")"></span></span></span></td><td class="text-end"><a asp-page="/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" asp-route-status="all" class="btn btn-outline-primary btn-sm">Ver racks</a></td></tr>
                 }
                 </tbody>
             </table>

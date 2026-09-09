@@ -37,6 +37,8 @@ public abstract class OperationPageModel(
         CancellationToken cancellationToken)
     {
         Input.OperationId = Guid.NewGuid();
+        if (MovementType != InventoryMovementType.Adjustment)
+            Input.Quantity = 0m;
         if (this is ExitModel)
             Input.ExitMode = mode?.ToLowerInvariant() switch
             {
@@ -141,17 +143,26 @@ public abstract class OperationPageModel(
         if (string.IsNullOrWhiteSpace(Input.Pin))
             ModelState.AddModelError(string.Empty, "Introduce el NIP para confirmar.");
 
-        if (MovementType != InventoryMovementType.Adjustment && Input.Quantity <= 0)
-            ModelState.AddModelError("Input.Quantity", "La cantidad debe ser mayor que cero.");
-        if (decimal.Round(Input.Quantity, 4) != Input.Quantity)
-            ModelState.AddModelError("Input.Quantity", "La cantidad admite como máximo cuatro decimales.");
+        if (Input.Quantity is not decimal quantity)
+        {
+            ModelState.AddModelError("Input.Quantity", MovementType == InventoryMovementType.Adjustment
+                ? "Captura el conteo final."
+                : "Captura la cantidad.");
+        }
+        else
+        {
+            if (MovementType != InventoryMovementType.Adjustment && quantity <= 0)
+                ModelState.AddModelError("Input.Quantity", "La cantidad debe ser mayor que cero.");
+            if (decimal.Round(quantity, 4) != quantity)
+                ModelState.AddModelError("Input.Quantity", "La cantidad admite como máximo cuatro decimales.");
+        }
 
         if (this is ExitModel)
         {
             if (Input.ExitMode is null)
                 ModelState.AddModelError("Input.ExitMode", "Selecciona el tipo de salida.");
             else if (Input.ExitMode == ExitMode.General && Input.DestinationLocationId is not null)
-                ModelState.AddModelError("Input.DestinationLocationId", "La salida general no utiliza un rack WIP destino.");
+                ModelState.AddModelError("Input.DestinationLocationId", "La salida general no utiliza una ubicación WIP destino.");
         }
 
         switch (CommandMovementType)
@@ -180,7 +191,7 @@ public abstract class OperationPageModel(
                 break;
         }
         if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.DestinationLocationId is null)
-            ModelState.AddModelError("Input.DestinationLocationId", "Selecciona el rack WIP destino.");
+            ModelState.AddModelError("Input.DestinationLocationId", "Selecciona la ubicación WIP destino.");
     }
 
     private async Task LoadSelectionAsync(CancellationToken cancellationToken)
@@ -208,7 +219,7 @@ public abstract class OperationPageModel(
                 ModelState.AddModelError("Input.DestinationLocationId", "La ubicación destino no está disponible.");
             else if (MovementPurpose == InventoryMovementPurpose.ProductionIssue &&
                 SelectedDestination.OperationalRole != LocationOperationalRole.Wip)
-                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona un rack WIP.");
+                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona una ubicación WIP.");
         }
         if (Input.LocationId is Guid locationId)
         {
@@ -230,15 +241,15 @@ public abstract class OperationPageModel(
     private InventoryMovementLineCommand BuildLine() => CommandMovementType switch
     {
         InventoryMovementType.Entry => new(
-            Input.ProductId!.Value, Input.Quantity, DestinationLocationId: Input.DestinationLocationId),
+            Input.ProductId!.Value, Input.Quantity!.Value, DestinationLocationId: Input.DestinationLocationId),
         InventoryMovementType.Exit => new(
-            Input.ProductId!.Value, Input.Quantity, SourceLocationId: Input.SourceLocationId),
+            Input.ProductId!.Value, Input.Quantity!.Value, SourceLocationId: Input.SourceLocationId),
         InventoryMovementType.Transfer => new(
-            Input.ProductId!.Value, Input.Quantity,
+            Input.ProductId!.Value, Input.Quantity!.Value,
             SourceLocationId: Input.SourceLocationId,
             DestinationLocationId: Input.DestinationLocationId),
         InventoryMovementType.Adjustment => new(
-            Input.ProductId!.Value, Input.Quantity,
+            Input.ProductId!.Value, Input.Quantity!.Value,
             LocationId: Input.LocationId,
             ExpectedBalanceVersion: Input.ExpectedBalanceVersion),
         _ => throw new InvalidOperationException("Tipo de operación no soportado.")
@@ -270,7 +281,7 @@ public abstract class OperationPageModel(
         public Guid? LocationId { get; set; }
         public ExitMode? ExitMode { get; set; }
         public uint? ExpectedBalanceVersion { get; set; }
-        public decimal Quantity { get; set; }
+        public decimal? Quantity { get; set; }
         [StringLength(120)] public string? Reference { get; set; }
         [StringLength(500)] public string? Notes { get; set; }
         public string Pin { get; set; } = string.Empty;

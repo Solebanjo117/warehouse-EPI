@@ -1,12 +1,14 @@
-@using WarehouseEPI.Infrastructure.Settings
+﻿@using WarehouseEPI.Infrastructure.Settings
 @inject WarehouseSettingsService WarehouseSettings
 @{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
     var isAdmin = User.IsInRole("ADMIN");
+    var locationsIndexPage = isAdmin ? "/Admin/Catalogs/Locations/Index" : "/Locations/Index";
     var business = await WarehouseSettings.GetAsync();
     var logoUrl = business.LogoFileName is null ? null : $"/branding/logo?v={business.LogoHash}";
     bool IsCurrent(string page) => currentPage.Equals(page, StringComparison.OrdinalIgnoreCase);
     bool IsSection(string page) => currentPage.StartsWith(page, StringComparison.OrdinalIgnoreCase);
+    var isLocationsSection = IsSection("/Locations") || (isAdmin && IsSection("/Admin/Catalogs/Locations"));
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -43,8 +45,8 @@
         <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
         <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
         <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5m3-4 4-4-4-4m4 4H9" /></symbol>
+        <symbol id="icon-camera" viewBox="0 0 24 24"><path d="M4 8h3.2l1.6-2.5h6.4L16.8 8H20v11H4zm8 9a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8" /></symbol>
         <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6" /></symbol>
-        <symbol id="icon-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13.5" r="3.5" /></symbol>
         <symbol id="icon-lock" viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3M5.5 11h13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z" /></symbol>
     </svg>
 
@@ -129,6 +131,9 @@
 
             <div class="app-nav-group">
                 <div class="app-nav-heading">Inventario</div>
+                <a class="app-nav-link @(isLocationsSection ? "active" : null)" asp-page="@locationsIndexPage" aria-current="@(isLocationsSection ? "page" : null)" title="Ubicaciones">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>
+                </a>
                 <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
                 </a>
@@ -172,9 +177,6 @@
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductClasses") ? "active" : null)" asp-page="/Admin/Catalogs/ProductClasses/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductClasses") ? "page" : null)" title="Clases de producto">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-product-classes" /></svg><span>Clases de producto</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Locations") ? "active" : null)" asp-page="/Admin/Catalogs/Locations/Index" aria-current="@(IsSection("/Admin/Catalogs/Locations") ? "page" : null)" title="Ubicaciones">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Catalogs/Units") ? "active" : null)" asp-page="/Admin/Catalogs/Units/Index" aria-current="@(IsSection("/Admin/Catalogs/Units") ? "page" : null)" title="Unidades de medida">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-units" /></svg><span>Unidades de medida</span>

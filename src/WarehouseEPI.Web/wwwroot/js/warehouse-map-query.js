@@ -7,6 +7,7 @@
   const MIN_ZOOM = 1;
   const MAX_ZOOM = 4;
   const ZOOM_STEP = 1.25;
+  const highlightedLocationId = mapRoot.dataset.highlightLocation;
   let zoom = MIN_ZOOM;
   const applyZoom = (nextZoom, reset = false) => {
     if (!svg || !viewport) return;
@@ -29,7 +30,12 @@
     mapRoot.querySelectorAll("[data-map-open]").forEach((item) => item.classList.toggle("is-selected", item.dataset.mapOpen === id));
     if (placeholder) placeholder.hidden = true;
     const panel = mapRoot.querySelector(`[data-map-detail="${CSS.escape(id)}"]`);
-    panel?.querySelector("[data-map-position]")?.click(); panel?.scrollIntoView({ block: "nearest" });
+    const highlightedPosition = highlightedLocationId
+      ? panel?.querySelector(`[data-map-position="${CSS.escape(highlightedLocationId)}"]`)
+      : null;
+    const matchedPosition = panel?.querySelector("[data-map-position-match='true']");
+    (highlightedPosition || matchedPosition || panel?.querySelector("[data-map-position]"))?.click();
+    panel?.scrollIntoView({ block: "nearest" });
   };
   mapRoot.querySelectorAll("[data-map-open]").forEach((item) => {
     item.addEventListener("click", () => open(item.dataset.mapOpen));
@@ -45,8 +51,4 @@
   document.querySelector("[data-map-zoom='out']")?.addEventListener("click", () => applyZoom(zoom / ZOOM_STEP));
   document.querySelector("[data-map-fit]")?.addEventListener("click", () => applyZoom(MIN_ZOOM, true));
   mapRoot.querySelector("[data-map-target='true']")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  const highlightedLocationId = mapRoot.dataset.highlightLocation;
-  if (highlightedLocationId) {
-    mapRoot.querySelector(`[data-map-position="${CSS.escape(highlightedLocationId)}"]`)?.click();
-  }
 })();

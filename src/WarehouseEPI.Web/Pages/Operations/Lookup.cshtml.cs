@@ -38,11 +38,18 @@ public sealed class LookupModel(
     public async Task<IActionResult> OnGetResolveInventoryCodeAsync(string? code, CancellationToken cancellationToken) =>
         new JsonResult(await operationalQuery.ResolveInventoryCodeAsync(code, cancellationToken));
 
-    public async Task<IActionResult> OnGetProductLocationsAsync(Guid productId, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnGetProductLocationsAsync(
+        Guid productId,
+        string? operation,
+        CancellationToken cancellationToken)
     {
         if (productId == Guid.Empty)
             return BadRequest();
-        return new JsonResult(await operationalQuery.GetProductLocationsAsync(productId, cancellationToken));
+        var includeDefaultEntryAtZero = string.Equals(operation, "entry", StringComparison.OrdinalIgnoreCase);
+        return new JsonResult(await operationalQuery.GetProductLocationsAsync(
+            productId,
+            includeDefaultEntryAtZero,
+            cancellationToken));
     }
 
     public async Task<IActionResult> OnGetLocationProductsAsync(Guid locationId, CancellationToken cancellationToken)

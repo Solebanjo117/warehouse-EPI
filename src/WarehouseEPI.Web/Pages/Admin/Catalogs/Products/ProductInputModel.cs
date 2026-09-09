@@ -9,7 +9,14 @@ public interface IProductFormPage
     IReadOnlyList<SelectListItem> Units { get; }
     IReadOnlyList<SelectListItem> Types { get; }
     IReadOnlyList<SelectListItem> Classes { get; }
+    ProductEntryLocationOption? SelectedEntryLocation { get; }
 }
+
+public sealed record ProductEntryLocationOption(
+    Guid Id,
+    string Code,
+    string? Description,
+    bool IsAvailable);
 
 public sealed class ProductInputModel
 {
@@ -26,5 +33,6 @@ public sealed class ProductInputModel
     public short BaseUnitId { get; set; }
     [Range(typeof(decimal), "0", "99999999999999.9999", ErrorMessage = "El stock mínimo debe ser mayor o igual que cero.")]
     public decimal MinimumStock { get; set; }
+    public Guid? DefaultEntryLocationId { get; set; }
     public bool IsActive { get; set; } = true;
 }

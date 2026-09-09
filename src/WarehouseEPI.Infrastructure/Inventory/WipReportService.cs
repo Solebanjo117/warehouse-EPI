@@ -225,12 +225,20 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
         Guid wipAreaId,
         int take = 10,
         CancellationToken cancellationToken = default)
+        => await GetRecentIssuesAsync([wipAreaId], take, cancellationToken);
+
+    public async Task<IReadOnlyList<WipIssueRow>> GetRecentIssuesAsync(
+        IReadOnlyCollection<Guid> wipAreaIds,
+        int take = 10,
+        CancellationToken cancellationToken = default)
     {
-        if (wipAreaId == Guid.Empty)
+        var ids = wipAreaIds.Where(id => id != Guid.Empty).Distinct().ToArray();
+        if (ids.Length == 0)
             return [];
 
         var rows = (await LoadRowsAsync(
-                new(null, null, WipAreaId: wipAreaId),
+                new(null, null),
+                wipAreaIds: ids,
                 cancellationToken: cancellationToken))
             .OrderByDescending(item => item.OccurredAt)
             .ThenByDescending(item => item.MovementId)
@@ -262,7 +270,8 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
 
     public async Task<WipIssueRow?> GetIssueAsync(Guid movementLineId, CancellationToken cancellationToken = default)
     {
-        var row = (await LoadRowsAsync(new(null, null), movementLineId, cancellationToken)).SingleOrDefault();
+        var row = (await LoadRowsAsync(new(null, null), movementLineId,
+            cancellationToken: cancellationToken)).SingleOrDefault();
         return row is null ? null : row with
         {
             OccurredAt = await warehouseClock.ConvertAsync(row.OccurredAt, cancellationToken)
@@ -322,9 +331,10 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
     private async Task<IReadOnlyList<WipIssueRow>> LoadRowsAsync(
         WipReportFilter filter,
         Guid? movementLineId = null,
+        IReadOnlyCollection<Guid>? wipAreaIds = null,
         CancellationToken cancellationToken = default)
     {
-        var issueRows = await Query(filter, movementLineId).ToListAsync(cancellationToken);
+        var issueRows = await Query(filter, movementLineId, wipAreaIds).ToListAsync(cancellationToken);
         if (issueRows.Count == 0)
             return [];
 
@@ -378,10 +388,12 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
         return rows.ToArray();
     }
 
-    private IQueryable<WipIssueBaseRow> Query(WipReportFilter filter, Guid? movementLineId)
+    private IQueryable<WipIssueBaseRow> Query(WipReportFilter filter, Guid? movementLineId,
+        IReadOnlyCollection<Guid>? wipAreaIds)
     {
         var query = dbContext.InventoryMovementLines.AsNoTracking()
-            .Where(line => line.Movement.Type == InventoryMovementType.Exit &&
+            .Where(line => (line.Movement.Type == InventoryMovementType.Exit ||
+                    line.Movement.Type == InventoryMovementType.Transfer) &&
                 line.Movement.Purpose == InventoryMovementPurpose.ProductionIssue &&
                 line.Movement.OperationalAreaId != null &&
                 !dbContext.InventoryMovementCorrections.Any(correction => correction.OriginalMovementId == line.MovementId));
@@ -389,6 +401,9 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
         if (filter.From is not null) query = query.Where(line => line.Movement.OccurredAt >= filter.From);
         if (filter.To is not null) query = query.Where(line => line.Movement.OccurredAt < filter.To);
         if (filter.WipAreaId is not null) query = query.Where(line => line.Movement.OperationalAreaId == filter.WipAreaId);
+        if (wipAreaIds is { Count: > 0 })
+            query = query.Where(line => line.Movement.OperationalAreaId != null &&
+                wipAreaIds.Contains(line.Movement.OperationalAreaId.Value));
         if (filter.ResponsibleUserId is not null) query = query.Where(line => line.Movement.ResponsibleUserId == filter.ResponsibleUserId);
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {

@@ -8,7 +8,7 @@
 <div class="inventory-analytics cycle-count-workspace">
     <header class="inventory-page-header analytics-header">
         <div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Conteos cíclicos</h1><p class="text-muted mb-0">Organiza conteos ciegos por ubicación y revisa las diferencias sin detener el almacén.</p></div>
-        <a asp-page="Create" class="btn btn-primary cycle-primary-action">Nueva campaña</a>
+        <div class="d-flex gap-2 flex-wrap"><a asp-page="Calendar" class="btn btn-outline-primary">Calendario</a><a asp-page="Create" class="btn btn-primary cycle-primary-action">Nueva campaña</a></div>
     </header>
 
     @if (Model.Attention is not null)

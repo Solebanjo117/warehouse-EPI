@@ -11,6 +11,8 @@
   const opacity = editor.querySelector("[data-reference-opacity]");
   const visibility = editor.querySelector("[data-reference-visible]");
   const scaleField = editor.querySelector("[data-editor-scale]");
+  const canvasWidthField = editor.querySelector("[data-editor-canvas-width]");
+  const canvasHeightField = editor.querySelector("[data-editor-canvas-height]");
   const visibilityKey = "warehouseEpi.mapEditor.referenceVisible.v1";
   let previewUrl = "";
   let interaction = null;
@@ -26,6 +28,8 @@
   const set = (item, name, value) => { item[name] = value; const lower = name[0].toLowerCase() + name.slice(1); if (lower in item) delete item[lower]; };
   const sync = () => { if (field) field.value = JSON.stringify(states); };
   const pushUndo = () => editor.dispatchEvent(new CustomEvent("warehouse-map:push-undo"));
+  const canvasWidth = () => Number(canvasWidthField?.value) || 1600;
+  const canvasHeight = () => Number(canvasHeightField?.value) || 900;
   const canvasPoint = (event) => {
     const box = svg.getBoundingClientRect(); const view = svg.viewBox.baseVal;
     return { x: view.x + (event.clientX - box.left) * view.width / box.width, y: view.y + (event.clientY - box.top) * view.height / box.height };
@@ -34,12 +38,12 @@
   const clampGeometry = (item) => {
     const rotated = [90, 270].includes(Number(read(item, "Rotation", 0)));
     let width = Math.max(20, Number(read(item, "Width", 20))); let height = Math.max(20, Number(read(item, "Height", 20)));
-    const factor = Math.min(1, (rotated ? 900 : 1600) / width, (rotated ? 1600 : 900) / height);
+    const factor = Math.min(1, (rotated ? canvasHeight() : canvasWidth()) / width, (rotated ? canvasWidth() : canvasHeight()) / height);
     width *= factor; height *= factor;
     set(item, "Width", width); set(item, "Height", height);
     let centerX = Number(read(item, "X", 0)) + width / 2; let centerY = Number(read(item, "Y", 0)) + height / 2;
     const halfWidth = (rotated ? height : width) / 2; const halfHeight = (rotated ? width : height) / 2;
-    centerX = Math.max(halfWidth, Math.min(1600 - halfWidth, centerX)); centerY = Math.max(halfHeight, Math.min(900 - halfHeight, centerY));
+    centerX = Math.max(halfWidth, Math.min(canvasWidth() - halfWidth, centerX)); centerY = Math.max(halfHeight, Math.min(canvasHeight() - halfHeight, centerY));
     set(item, "X", centerX - width / 2); set(item, "Y", centerY - height / 2);
   };
   const calibrationInches = () => {
@@ -147,7 +151,7 @@
     if (interaction.kind === "move") { set(item, "X", interaction.x + current.x - interaction.start.x); set(item, "Y", interaction.y + current.y - interaction.start.y); }
     else {
       let width = Math.max(20, interaction.width + current.x - interaction.start.x); let height = width / interaction.ratio;
-      if (height > 900 - interaction.y) { height = 900 - interaction.y; width = height * interaction.ratio; }
+      if (height > canvasHeight() - interaction.y) { height = canvasHeight() - interaction.y; width = height * interaction.ratio; }
       set(item, "Width", width); set(item, "Height", height);
     }
     clampGeometry(item); if (interaction.kind === "resize") updateScaleFromReference(item); scheduleRender();
@@ -163,7 +167,7 @@
       pushUndo(); if (tokenField?.value && states.length) states = states.slice(0, -1);
       const current = active(); if (current) set(current, "IsArchived", true);
       const ratio = data.pixelWidth / data.pixelHeight; let width = Math.min(1500, 800 * ratio); let height = width / ratio; if (height > 800) { height = 800; width = height * ratio; }
-      states.push({ Id: data.id, OriginalFileName: data.originalFileName, StoredFileName: data.storedFileName, ContentType: data.contentType, Sha256: data.sha256, PixelWidth: data.pixelWidth, PixelHeight: data.pixelHeight, X: (1600 - width) / 2, Y: (900 - height) / 2, Width: width, Height: height, Rotation: 0, Opacity: .35, IsLocked: true, IsArchived: false, CalibrationAX: null, CalibrationAY: null, CalibrationBX: null, CalibrationBY: null, CalibrationDistanceInches: null });
+      states.push({ Id: data.id, OriginalFileName: data.originalFileName, StoredFileName: data.storedFileName, ContentType: data.contentType, Sha256: data.sha256, PixelWidth: data.pixelWidth, PixelHeight: data.pixelHeight, X: (canvasWidth() - width) / 2, Y: (canvasHeight() - height) / 2, Width: width, Height: height, Rotation: 0, Opacity: .35, IsLocked: true, IsArchived: false, CalibrationAX: null, CalibrationAY: null, CalibrationBX: null, CalibrationBY: null, CalibrationDistanceInches: null });
       if (tokenField) tokenField.value = data.token; previewUrl = data.previewUrl; visibility.checked = true; sync(); render(); renderArchived(); status.textContent = "Fondo preparado. Revisa sus cambios antes de guardarlo.";
     } catch (error) { status.textContent = error.message; } finally { button.disabled = false; button.textContent = "Preparar fondo"; }
   });
@@ -171,8 +175,8 @@
   opacity?.addEventListener("input", () => { const item = active(); if (!item) return; set(item, "Opacity", Number(opacity.value)); sync(); scheduleRender(); });
   visibility?.addEventListener("change", () => { localStorage.setItem(visibilityKey, String(visibility.checked)); render(); });
   editor.querySelector("[data-reference-lock]")?.addEventListener("click", () => { const item = active(); if (!item) return; pushUndo(); set(item, "IsLocked", !read(item, "IsLocked", true)); sync(); render(); });
-  editor.querySelector("[data-reference-rotate]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; const rotation = (Number(read(item, "Rotation")) + 90) % 360; const rotated = [90, 270].includes(rotation); if ((rotated && (read(item, "Width") > 900 || read(item, "Height") > 1600)) || (!rotated && (read(item, "Width") > 1600 || read(item, "Height") > 900))) { status.textContent = "Redimensiona el fondo antes de girarlo para mantenerlo dentro del lienzo."; return; } pushUndo(); set(item, "Rotation", rotation); clampGeometry(item); sync(); render(); });
-  editor.querySelector("[data-reference-fit]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; pushUndo(); const ratio = read(item, "PixelWidth") / read(item, "PixelHeight"); let width = 1600; let height = width / ratio; if (height > 900) { height = 900; width = height * ratio; } set(item, "X", (1600 - width) / 2); set(item, "Y", (900 - height) / 2); set(item, "Width", width); set(item, "Height", height); clampGeometry(item); updateScaleFromReference(item); sync(); render(); });
+  editor.querySelector("[data-reference-rotate]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; const rotation = (Number(read(item, "Rotation")) + 90) % 360; const rotated = [90, 270].includes(rotation); if ((rotated && (read(item, "Width") > canvasHeight() || read(item, "Height") > canvasWidth())) || (!rotated && (read(item, "Width") > canvasWidth() || read(item, "Height") > canvasHeight()))) { status.textContent = "Redimensiona el fondo antes de girarlo para mantenerlo dentro del lienzo."; return; } pushUndo(); set(item, "Rotation", rotation); clampGeometry(item); sync(); render(); });
+  editor.querySelector("[data-reference-fit]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; pushUndo(); const ratio = read(item, "PixelWidth") / read(item, "PixelHeight"); let width = canvasWidth(); let height = width / ratio; if (height > canvasHeight()) { height = canvasHeight(); width = height * ratio; } set(item, "X", (canvasWidth() - width) / 2); set(item, "Y", (canvasHeight() - height) / 2); set(item, "Width", width); set(item, "Height", height); clampGeometry(item); updateScaleFromReference(item); sync(); render(); });
   editor.querySelector("[data-reference-calibrate]")?.addEventListener("click", () => { const item = active(); if (!item) return; if (read(item, "IsLocked", true)) { status.textContent = "Desbloquea el fondo antes de calibrarlo."; return; } pushUndo(); calibrating = true; calibrationPoints = []; status.textContent = "Marca dos puntos sobre el fondo."; });
   editor.querySelector("[data-reference-unlink-calibration]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; pushUndo(); ["CalibrationAX", "CalibrationAY", "CalibrationBX", "CalibrationBY", "CalibrationDistanceInches"].forEach((name) => set(item, name, null)); sync(); render(); status.textContent = "La escala del plano se conserva, pero ya no está vinculada al fondo."; });
   editor.querySelector("[data-reference-archive]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) { status.textContent = "Desbloquea el fondo antes de archivarlo."; return; } pushUndo(); if (tokenField?.value && states.at(-1) === item) { states.pop(); tokenField.value = ""; previewUrl = ""; sync(); render(); renderArchived(); status.textContent = "El fondo nuevo se descartó antes de guardarlo."; return; } set(item, "IsArchived", true); sync(); render(); renderArchived(); status.textContent = "Fondo archivado de forma reversible. Guarda la revisión para publicarlo."; });
@@ -182,5 +186,6 @@
   const initialGroup = svg.querySelector("[data-editor-reference-image]"); if (initialGroup) wireGroup(initialGroup);
   editor.addEventListener("warehouse-map:clear-reference-selection", () => svg.querySelector("[data-editor-reference-image]")?.classList.remove("is-selected"));
   editor.addEventListener("warehouse-map:restore-references", (event) => { try { states = JSON.parse(event.detail?.references || "[]"); } catch { states = []; } previewUrl = event.detail?.token ? `${location.pathname}?handler=ReferencePreview&token=${encodeURIComponent(event.detail.token)}` : ""; render(); renderArchived(); });
+  editor.addEventListener("warehouse-map:canvas-changed", render);
   render(); renderArchived();
 })();

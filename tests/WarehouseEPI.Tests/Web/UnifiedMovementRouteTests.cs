@@ -57,6 +57,29 @@ public sealed class UnifiedMovementRouteTests
     }
 
     [Fact]
+    public void Movement_detail_is_the_professional_printable_traceability_record()
+    {
+        var detail = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Details.cshtml");
+        var detailModel = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Details.cshtml.cs");
+        var styles = Read("src", "WarehouseEPI.Web", "wwwroot", "css", "movement-details.css");
+        var program = Read("src", "WarehouseEPI.Web", "Program.cs");
+
+        Assert.Contains("MovementTraceabilityService", detailModel, StringComparison.Ordinal);
+        Assert.Contains("WarehouseSettingsService", detailModel, StringComparison.Ordinal);
+        Assert.Contains("[Authorize(Policy = \"AdminOnly\")]", detailModel, StringComparison.Ordinal);
+        Assert.Contains("data-movement-traceability", detail, StringComparison.Ordinal);
+        Assert.Contains("data-print-page", detail, StringComparison.Ordinal);
+        Assert.Contains("Eventos relacionados", detail, StringComparison.Ordinal);
+        Assert.Contains("No existen eventos adicionales relacionados", detail, StringComparison.Ordinal);
+        Assert.Contains("d-print-none", detail, StringComparison.Ordinal);
+        Assert.Contains("movement-details.css", detail, StringComparison.Ordinal);
+        Assert.Contains("@page { size: Letter portrait;", styles, StringComparison.Ordinal);
+        Assert.Contains(".movement-detail-header { display: flex !important;", styles, StringComparison.Ordinal);
+        Assert.Contains(".movement-line-header { display: flex !important;", styles, StringComparison.Ordinal);
+        Assert.Contains("AddScoped<MovementTraceabilityService>()", program, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Current_entry_movements_expose_a_pallet_plate_action_without_adding_it_to_audit_rows()
     {
         var index = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Index.cshtml");

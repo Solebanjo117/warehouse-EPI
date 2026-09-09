@@ -19,7 +19,14 @@
         <p class="text-body-secondary mb-0">
             @if (Model.Location.OperationalRole == WarehouseEPI.Core.Entities.LocationOperationalRole.Wip)
             {
-                <text>Rack WIP completo</text>
+                @if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
+                {
+                    <text>Rack @Model.Location.RowCode-@Model.Location.RackNumber WIP · Pallet @Model.Location.PalletNumber</text>
+                }
+                else
+                {
+                    <text>Área WIP</text>
+                }
             }
             else if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
             {
@@ -35,6 +42,10 @@
         @if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
         {
             <a asp-page="Rack/Edit" asp-route-rowCode="@Model.Location.RowCode" asp-route-rackNumber="@Model.Location.RackNumber" class="btn btn-outline-primary">Editar rack</a>
+        }
+        else
+        {
+            <a asp-page="Area" asp-route-locationId="@Model.Location.Id" class="btn btn-outline-primary">Editar área</a>
         }
         <a asp-page="Index" asp-route-viewMode="map" asp-route-highlightLocationId="@Model.Location.Id" class="btn btn-primary">Ver en croquis</a>
         <a asp-page="Index" asp-route-viewMode="table" class="btn btn-outline-secondary">Ubicaciones</a>
@@ -158,13 +169,13 @@
                             if (item.IsCurrent)
                             {
                                 <div class="@classes" aria-label="Ubicación actual: @accessibleSummary" aria-current="location">
-                                    <partial name="_LocationRackPositionContent" model="item" />
+                                    <partial name="/Pages/Locations/_LocationRackPositionContent.cshtml" model="item" />
                                 </div>
                             }
                             else
                             {
                                 <a asp-page="Details" asp-route-id="@item.Id" class="@classes" aria-label="Abrir @accessibleSummary">
-                                    <partial name="_LocationRackPositionContent" model="item" />
+                                    <partial name="/Pages/Locations/_LocationRackPositionContent.cshtml" model="item" />
                                 </a>
                             }
                         }

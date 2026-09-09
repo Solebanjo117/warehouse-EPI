@@ -12,7 +12,10 @@ public sealed record OperationalProductResult(
     string? ExternalReference,
     string UnitCode,
     bool AllowsDecimals,
-    bool IsActive = true);
+    bool IsActive = true,
+    Guid? DefaultEntryLocationId = null,
+    string? DefaultEntryLocationCode = null,
+    bool IsDefaultEntryLocationAvailable = false);
 
 public sealed record OperationalLocationResult(
     Guid Id,
@@ -41,7 +44,8 @@ public sealed record OperationalProductLocationResult(
     bool HasActiveAssignment,
     bool HasNonZeroBalance,
     bool TracksInventory = true,
-    bool IsWip = false);
+    bool IsWip = false,
+    bool IsDefaultEntry = false);
 
 public sealed record OperationalLocationProductResult(
     Guid Id,
@@ -241,6 +245,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     public async Task<IReadOnlyList<OperationalProductLocationResult>> GetProductLocationsAsync(
         Guid productId,
+        bool includeDefaultEntryAtZero = false,
         CancellationToken cancellationToken = default)
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
@@ -255,7 +260,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 true,
                 false,
                 true,
-                assignment.Location.OperationalRole == LocationOperationalRole.Wip))
+                assignment.Location.OperationalRole == LocationOperationalRole.Wip,
+                assignment.Product.DefaultEntryLocationId == assignment.LocationId))
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
@@ -269,10 +275,11 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                 false,
                 true,
                 true,
-                balance.Location.OperationalRole == LocationOperationalRole.Wip))
+                balance.Location.OperationalRole == LocationOperationalRole.Wip,
+                balance.Product.DefaultEntryLocationId == balance.LocationId))
             .ToListAsync(cancellationToken);
 
-        return MergeProductLocations(assignments, balances);
+        return MergeProductLocations(assignments, balances, includeDefaultEntryAtZero);
     }
 
     public async Task<IReadOnlyList<OperationalLocationProductResult>> GetLocationProductsAsync(
@@ -381,7 +388,13 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             product.ExternalReference,
             product.BaseUnit.Code,
             product.BaseUnit.AllowsDecimals,
-            product.IsActive);
+            product.IsActive,
+            product.DefaultEntryLocationId,
+            product.DefaultEntryLocation == null ? null : product.DefaultEntryLocation.Code,
+            product.DefaultEntryLocationId != null && product.DefaultEntryLocation != null &&
+                product.DefaultEntryLocation.IsPhysicallyPresent && product.DefaultEntryLocation.IsActive &&
+                !product.DefaultEntryLocation.IsBlocked && product.LocationAssignments.Any(assignment =>
+                    assignment.LocationId == product.DefaultEntryLocationId && assignment.IsActive));
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
         location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked,
@@ -389,7 +402,8 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     private static IReadOnlyList<OperationalProductLocationResult> MergeProductLocations(
         IEnumerable<OperationalProductLocationResult> assignments,
-        IEnumerable<OperationalProductLocationResult> balances)
+        IEnumerable<OperationalProductLocationResult> balances,
+        bool includeDefaultEntryAtZero)
     {
         var results = assignments.ToDictionary(item => item.Id);
         foreach (var balance in balances)
@@ -400,7 +414,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         }
 
         return results.Values
-            .Where(item => item.HasActiveAssignment || item.Quantity != 0)
+            .Where(item => item.Quantity != 0 || includeDefaultEntryAtZero && item.IsDefaultEntry)
             .Select(item => item with { HasNonZeroBalance = item.Quantity != 0 })
             .OrderBy(item => item.Code, StringComparer.Ordinal)
             .ToArray();
@@ -419,7 +433,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         }
 
         return results.Values
-            .Where(item => item.HasActiveAssignment || item.Quantity != 0)
+            .Where(item => item.Quantity != 0)
             .Select(item => item with { HasNonZeroBalance = item.Quantity != 0 })
             .OrderBy(item => item.Sku, StringComparer.Ordinal)
             .ToArray();

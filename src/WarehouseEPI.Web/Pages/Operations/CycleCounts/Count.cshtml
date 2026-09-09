@@ -33,6 +33,19 @@
         return;
     }
 
+    <div class="cycle-operator-strip @(Model.OperatorSession is null ? "needs-operator" : null)">
+        @if (Model.OperatorSession is not null)
+        {
+            <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg>
+            <span><strong>Contando como @Model.OperatorSession.UserName</strong><small>La sesión se renueva mientras continúes capturando.</small></span>
+        }
+        else
+        {
+            <svg class="app-icon" aria-hidden="true"><use href="#icon-lock" /></svg>
+            <span><strong>Identificación pendiente</strong><small>Ingresa tu NIP al registrar; la captura no se perderá.</small></span>
+        }
+    </div>
+
     <p class="cycle-blind-note">
         <svg class="app-icon" aria-hidden="true"><use href="#icon-lock" /></svg>
         <span>Existencia esperada oculta. Captura lo que cuentes físicamente, incluso si es cero.</span>
@@ -40,6 +53,7 @@
 
     <form method="post">
         <input asp-for="Input.PreparationToken" type="hidden" value="@Model.PreparationToken" />
+        <input asp-for="Input.AttemptId" type="hidden" />
         <input asp-for="Input.OperationId" type="hidden" value="@(Model.Input.OperationId == Guid.Empty ? Guid.NewGuid() : Model.Input.OperationId)" />
         <input type="hidden" name="id" value="@Model.CampaignId" />
         <input type="hidden" name="locationId" value="@Model.LocationId" />
@@ -52,10 +66,7 @@
                 <section class="entry-step cycle-count-step @(missing ? "is-missing" : null)" data-cycle-product="@entry.Sku">
                     <header class="entry-step-header">
                         <span class="entry-step-number" aria-hidden="true">@(index + 1)</span>
-                        <div>
-                            <h2 class="h5 mb-0">@entry.Sku</h2>
-                            <span class="entry-step-status" data-cycle-step-status>Pendiente</span>
-                        </div>
+                        <div><h2 class="h5 mb-0">@entry.Sku</h2><span class="entry-step-status" data-cycle-step-status>Pendiente</span></div>
                     </header>
                     <div class="entry-step-body">
                         <p class="cycle-count-description">@(entry.Description ?? "Sin descripción")</p>
@@ -101,14 +112,12 @@
                 <input asp-for="Input.IsLocationEmpty" class="form-check-input" data-cycle-empty-location />
                 <label asp-for="Input.IsLocationEmpty" class="form-check-label">La ubicación está vacía</label>
             </div>
-            <p class="text-body-secondary mb-0">
-                Se registrará 0 en @(productCount == 1 ? "la línea" : $"las {productCount} líneas"). Puedes desmarcarlo antes de confirmar.
-            </p>
+            <p class="text-body-secondary mb-0">Se registrará 0 en @(productCount == 1 ? "la línea" : $"las {productCount} líneas"). Puedes desmarcarlo antes de confirmar.</p>
         </section>
 
         <div class="operation-actions">
-            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="btn btn-outline-secondary btn-lg">Cancelar</a>
-            <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-cycle-review>Registrar conteo</button>
+            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="btn btn-outline-secondary btn-lg">Volver a campaña</a>
+            <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-cycle-review>Registrar y escanear siguiente</button>
         </div>
 
         <div class="modal fade" id="confirm-cycle-count" tabindex="-1" aria-labelledby="confirm-cycle-count-title" aria-hidden="true">
@@ -120,15 +129,23 @@
                     </div>
                     <div class="modal-body">
                         <div class="confirmation-summary mb-3" data-cycle-confirmation></div>
-                        <label asp-for="Input.Pin" class="form-label fw-semibold">NIP del responsable</label>
-                        <input asp-for="Input.Pin" value="" class="form-control form-control-lg pin-input"
-                               type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8"
-                               autocomplete="off" data-cycle-pin />
-                        <p class="small text-muted mt-2 mb-0">El NIP se usa solo para esta operación y no se conservará.</p>
+                        @if (Model.RequireOperatorPin)
+                        {
+                            <label asp-for="Input.Pin" class="form-label fw-semibold">NIP del responsable</label>
+                            <input asp-for="Input.Pin" value="" class="form-control form-control-lg pin-input"
+                                   type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8"
+                                   autocomplete="off" data-cycle-pin required />
+                            <p class="small text-muted mt-2 mb-0">Se iniciará una sesión para esta campaña. El NIP no se conservará.</p>
+                        }
+                        else
+                        {
+                            <p class="mb-0"><strong>Responsable:</strong> @Model.OperatorSession!.UserName</p>
+                            <p class="small text-muted mt-2 mb-0">No necesitas capturar nuevamente el NIP.</p>
+                        }
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Volver</button>
-                        <button type="submit" class="btn btn-primary btn-lg" data-cycle-submit>Registrar conteo</button>
+                        <button type="submit" class="btn btn-primary btn-lg" data-cycle-submit>Registrar y continuar</button>
                     </div>
                 </div>
             </div>
@@ -136,9 +153,8 @@
     </form>
 
     <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="Escanear producto">
-        <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
-        <span>Escanear producto</span>
+        <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg><span>Escanear producto</span>
     </button>
-    <input class="visually-hidden" data-cycle-scan-photo type="file" accept="image/*" capture="environment" />
+    <partial name="_CameraScanner" />
 </div>
 @section Scripts { <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }

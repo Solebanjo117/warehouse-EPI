@@ -15,7 +15,7 @@ public sealed record OperationalExceptionFilter(
 
 public sealed record OperationalExceptionListItemDto(
     Guid Id, OperationalExceptionCategory Category, OperationalExceptionSeverity Severity,
-    OperationalExceptionStatus Status, string PrimaryText, string SecondaryText, string? ValueText,
+    OperationalExceptionStatus Status, string PrimaryText, string SecondaryText, string ReasonText, string? ValueText,
     string TargetUrl, Guid? AssignedUserId, string? AssignedUserName, DateTimeOffset FirstDetectedAt, DateTimeOffset LastDetectedAt,
     DateTimeOffset? ResolvedAt, uint Version);
 
@@ -82,6 +82,7 @@ public sealed class OperationalExceptionService(
                         CycleCountLocationId = condition.CycleCountLocationId,
                         PrimaryText = Fit(condition.PrimaryText, 160),
                         SecondaryText = Fit(condition.SecondaryText, 200),
+                        ReasonText = Fit(condition.ReasonText, 500),
                         ValueText = FitOptional(condition.ValueText, 200),
                         TargetUrl = Fit(condition.TargetUrl, 1000),
                         FirstDetectedAt = now,
@@ -160,7 +161,7 @@ public sealed class OperationalExceptionService(
             .ThenBy(item => item.FirstDetectedAt).ThenBy(item => item.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(item => new OperationalExceptionListItemDto(item.Id, item.Category, item.Severity, item.Status,
-                item.PrimaryText, item.SecondaryText, item.ValueText, item.TargetUrl,
+                item.PrimaryText, item.SecondaryText, item.ReasonText, item.ValueText, item.TargetUrl,
                 item.AssignedUserId, item.AssignedUser == null ? null : item.AssignedUser.FullName, item.FirstDetectedAt, item.LastDetectedAt,
                 item.ResolvedAt, item.Version)).ToListAsync(cancellationToken);
         return new(rows, total, page, pageSize, summary?.New ?? 0, summary?.InProgress ?? 0, summary?.Waiting ?? 0, summary?.Critical ?? 0);
@@ -172,11 +173,14 @@ public sealed class OperationalExceptionService(
             .Select(entry => new
             {
                 Case = new OperationalExceptionListItemDto(entry.Id, entry.Category, entry.Severity, entry.Status,
-                    entry.PrimaryText, entry.SecondaryText, entry.ValueText, entry.TargetUrl,
+                    entry.PrimaryText, entry.SecondaryText, entry.ReasonText, entry.ValueText, entry.TargetUrl,
                     entry.AssignedUserId, entry.AssignedUser == null ? null : entry.AssignedUser.FullName, entry.FirstDetectedAt, entry.LastDetectedAt,
                     entry.ResolvedAt, entry.Version),
                 entry.ProductId, entry.LocationId, entry.CycleCountLocationId,
-                Events = entry.Events.OrderBy(history => history.RecordedAt).ThenBy(history => history.Id).Select(history =>
+                Events = entry.Events.OrderByDescending(history => history.RecordedAt)
+                    .ThenByDescending(history => history.Type == OperationalExceptionEventType.AutoResolved ? 2 :
+                        history.Type == OperationalExceptionEventType.TriageUpdated ? 1 : 0)
+                    .ThenByDescending(history => history.Id).Select(history =>
                     new OperationalExceptionEventDto(history.Type, history.PreviousStatus, history.CurrentStatus,
                         history.PreviousAssignedUser == null ? null : history.PreviousAssignedUser.FullName,
                         history.CurrentAssignedUser == null ? null : history.CurrentAssignedUser.FullName,
@@ -241,14 +245,16 @@ public sealed class OperationalExceptionService(
     {
         var primaryText = Fit(condition.PrimaryText, 160);
         var secondaryText = Fit(condition.SecondaryText, 200);
+        var reasonText = Fit(condition.ReasonText, 500);
         var valueText = FitOptional(condition.ValueText, 200);
         var targetUrl = Fit(condition.TargetUrl, 1000);
         var changed = exceptionCase.Severity != condition.Severity || exceptionCase.PrimaryText != primaryText ||
-            exceptionCase.SecondaryText != secondaryText || exceptionCase.ValueText != valueText ||
+            exceptionCase.SecondaryText != secondaryText || exceptionCase.ReasonText != reasonText || exceptionCase.ValueText != valueText ||
             exceptionCase.TargetUrl != targetUrl;
         exceptionCase.Severity = condition.Severity;
         exceptionCase.PrimaryText = primaryText;
         exceptionCase.SecondaryText = secondaryText;
+        exceptionCase.ReasonText = reasonText;
         exceptionCase.ValueText = valueText;
         exceptionCase.TargetUrl = targetUrl;
         exceptionCase.LastDetectedAt = now;

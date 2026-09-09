@@ -194,6 +194,128 @@ public sealed class CycleCountServiceTests
         Assert.Single(await fixture.Db.CycleCountAttempts.ToListAsync());
     }
 
+    [Fact]
+    public async Task Two_prepared_operators_cannot_submit_the_same_location_twice()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("COUNT-CONCURRENT");
+        var location = await fixture.AddLocationAsync("D-2-1");
+        await fixture.EnterAsync(product.Id, location.Id, 3m);
+        var (campaignId, countLocationId) = await fixture.CreateReleasedLocationAsync(location.Id);
+        var firstPreparation = await fixture.CycleCounts.PrepareAsync(campaignId, countLocationId);
+        var secondPreparation = await fixture.CycleCounts.PrepareAsync(campaignId, countLocationId);
+
+        var first = await fixture.CycleCounts.SubmitPreparedAsync(new(firstPreparation!, Guid.NewGuid(), fixture.Pin, [new(product.Id, 3m)]));
+        var second = await fixture.CycleCounts.SubmitPreparedAsync(new(secondPreparation!, Guid.NewGuid(), fixture.Pin, [new(product.Id, 3m)]));
+
+        Assert.Equal(CycleCountStatus.Success, first.Status);
+        Assert.Equal(CycleCountStatus.InvalidState, second.Status);
+        Assert.Single(await fixture.Db.CycleCountAttempts.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Draft_campaign_cannot_be_prepared_through_a_direct_url()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var location = await fixture.AddLocationAsync("D-2-2");
+        var created = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Aún en borrador", null, [location.Id], OperationId: Guid.NewGuid()));
+        var detail = await fixture.CycleCounts.GetCampaignAsync(created.CampaignId!.Value);
+
+        var preparation = await fixture.CycleCounts.PrepareAsync(created.CampaignId.Value, Assert.Single(detail!.Locations).Id);
+
+        Assert.Null(preparation);
+        Assert.Empty(await fixture.Db.CycleCountAttempts.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Batch_review_applies_valid_adjustments_and_leaves_changed_balances_stale()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var firstProduct = await fixture.AddProductAsync("COUNT-BATCH-ONE");
+        var secondProduct = await fixture.AddProductAsync("COUNT-BATCH-TWO");
+        var firstLocation = await fixture.AddLocationAsync("E-1-1");
+        var secondLocation = await fixture.AddLocationAsync("E-1-2");
+        await fixture.EnterAsync(firstProduct.Id, firstLocation.Id, 5m);
+        await fixture.EnterAsync(secondProduct.Id, secondLocation.Id, 8m);
+        var created = await fixture.CycleCounts.CreateAsync(new(fixture.Pin, "Revisión agrupada", null, [firstLocation.Id, secondLocation.Id], OperationId: Guid.NewGuid()));
+        Assert.Equal(CycleCountStatus.Success, created.Status);
+        Assert.Equal(CycleCountStatus.Success, (await fixture.CycleCounts.ReleaseAsync(created.CampaignId!.Value, Guid.NewGuid(), fixture.Pin)).Status);
+        var detail = await fixture.CycleCounts.GetCampaignAsync(created.CampaignId.Value);
+        var firstCountLocation = detail!.Locations.Single(item => item.LocationId == firstLocation.Id);
+        var secondCountLocation = detail.Locations.Single(item => item.LocationId == secondLocation.Id);
+        var firstAttempt = await fixture.CycleCounts.StartAttemptAsync(firstCountLocation.Id, Guid.NewGuid(), fixture.Pin);
+        var secondAttempt = await fixture.CycleCounts.StartAttemptAsync(secondCountLocation.Id, Guid.NewGuid(), fixture.Pin);
+        await fixture.CycleCounts.SubmitAsync(new(firstAttempt.AttemptId!.Value, Guid.NewGuid(), fixture.Pin, [new(firstProduct.Id, 4m)]));
+        await fixture.CycleCounts.SubmitAsync(new(secondAttempt.AttemptId!.Value, Guid.NewGuid(), fixture.Pin, [new(secondProduct.Id, 7m)]));
+        await fixture.EnterAsync(secondProduct.Id, secondLocation.Id, 1m);
+
+        var result = await fixture.CycleCounts.ReviewBatchAsync(new(created.CampaignId.Value, Guid.NewGuid(), fixture.Pin,
+        [
+            new(firstCountLocation.Id, Guid.NewGuid(), CycleCountReviewDecision.Approve, CycleCountAdjustmentReason.Unknown),
+            new(secondCountLocation.Id, Guid.NewGuid(), CycleCountReviewDecision.Approve, CycleCountAdjustmentReason.Unknown)
+        ]));
+
+        Assert.Equal(CycleCountStatus.Success, result.Status);
+        Assert.Equal(CycleCountStatus.Success, result.Items.Single(item => item.LocationId == firstCountLocation.Id).Status);
+        Assert.Equal(CycleCountStatus.BalanceChanged, result.Items.Single(item => item.LocationId == secondCountLocation.Id).Status);
+        var refreshed = await fixture.CycleCounts.GetCampaignAsync(created.CampaignId.Value);
+        Assert.Equal(CycleCountLocationStatus.Completed, refreshed!.Locations.Single(item => item.Id == firstCountLocation.Id).Status);
+        Assert.Equal(CycleCountLocationStatus.Stale, refreshed.Locations.Single(item => item.Id == secondCountLocation.Id).Status);
+    }
+
+    [Fact]
+    public async Task Batch_review_previews_and_accepts_explicit_shared_location_approval()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var existing = await fixture.AddProductAsync("COUNT-SHARED-EXISTING");
+        var unexpected = await fixture.AddProductAsync("COUNT-SHARED-NEW");
+        var location = await fixture.AddLocationAsync("E-2-1");
+        await fixture.EnterAsync(existing.Id, location.Id, 2m);
+        var (campaignId, countLocationId, attemptId) = await fixture.CreateReleasedAttemptAsync(location.Id);
+        var submitted = await fixture.CycleCounts.SubmitAsync(new(attemptId, Guid.NewGuid(), fixture.Pin,
+            [new(existing.Id, 2m), new(unexpected.Id, 1m)]));
+        Assert.Equal(CycleCountStatus.Success, submitted.Status);
+
+        var conflict = Assert.Single(await fixture.CycleCounts.GetReviewSharingConflictsAsync(countLocationId));
+        Assert.Equal(unexpected.Id, conflict.ProductId);
+        Assert.Contains(existing.Sku, conflict.ExistingProductSkus);
+
+        var result = await fixture.CycleCounts.ReviewBatchAsync(new(campaignId, Guid.NewGuid(), fixture.Pin,
+        [
+            new(countLocationId, Guid.NewGuid(), CycleCountReviewDecision.Approve, CycleCountAdjustmentReason.WrongLocation,
+                ApprovedSharedAssignments: [new(unexpected.Id, location.Id)])
+        ]));
+
+        Assert.Equal(CycleCountStatus.Success, Assert.Single(result.Items).Status);
+        Assert.Equal(CycleCountLocationStatus.Completed, Assert.Single((await fixture.CycleCounts.GetCampaignAsync(campaignId))!.Locations).Status);
+        Assert.Equal(1m, (await new InventoryQueryService(fixture.Db).GetBalanceAsync(unexpected.Id, location.Id)).Quantity);
+    }
+
+    [Fact]
+    public async Task Batch_review_can_send_a_difference_to_recount()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("COUNT-BATCH-RECOUNT");
+        var location = await fixture.AddLocationAsync("E-2-2");
+        await fixture.EnterAsync(product.Id, location.Id, 4m);
+        var (campaignId, countLocationId, attemptId) = await fixture.CreateReleasedAttemptAsync(location.Id);
+        await fixture.CycleCounts.SubmitAsync(new(attemptId, Guid.NewGuid(), fixture.Pin, [new(product.Id, 3m)]));
+
+        var batchOperationId = Guid.NewGuid();
+        var decisionOperationId = Guid.NewGuid();
+        var command = new ApproveCycleCountBatchCommand(campaignId, batchOperationId, fixture.Pin,
+            [new(countLocationId, decisionOperationId, CycleCountReviewDecision.Recount, Notes: "Verificar físicamente")]);
+        var result = await fixture.CycleCounts.ReviewBatchAsync(command);
+        var repeated = await fixture.CycleCounts.ReviewBatchAsync(command);
+
+        Assert.Equal(CycleCountStatus.Success, Assert.Single(result.Items).Status);
+        Assert.Equal(result.ReviewBatchId, repeated.ReviewBatchId);
+        Assert.Empty(repeated.Items);
+        Assert.Equal(CycleCountLocationStatus.RecountRequested, Assert.Single((await fixture.CycleCounts.GetCampaignAsync(campaignId))!.Locations).Status);
+        Assert.Contains(await fixture.Db.CycleCountActions.ToListAsync(), item => item.Type == CycleCountActionType.RecountRequested && item.ReviewBatchId == result.ReviewBatchId);
+        Assert.Single(await fixture.Db.CycleCountReviewBatches.ToListAsync());
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private const string LookupKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
@@ -211,7 +333,8 @@ public sealed class CycleCountServiceTests
             var user = new User { FullName = "Contador", RoleId = 2, PinLookup = string.Empty, PinHash = string.Empty };
             Assert.Equal(PinAssignmentResult.Success, await pinService.AssignAsync(user, "2468")); db.Users.Add(user); await db.SaveChangesAsync();
             var movements = new InventoryMovementService(db, pinService, TimeProvider.System);
-            return new(db, movements, new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System));
+            var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db));
+            return new(db, movements, new CycleCountService(db, pinService, new InventoryQueryService(db), movements, TimeProvider.System, clock));
         }
         public async Task<Product> AddProductAsync(string sku, short baseUnitId = 1) { var item = new Product { Sku = sku, BaseUnitId = baseUnitId }; Db.Products.Add(item); await Db.SaveChangesAsync(); return item; }
         public async Task<short> AddUnitAsync(string code, bool allowsDecimals)

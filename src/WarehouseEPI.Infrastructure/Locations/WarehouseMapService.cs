@@ -19,20 +19,23 @@ public sealed record WarehouseMapReferenceImageState(Guid Id, string OriginalFil
     string ContentType, string Sha256, int PixelWidth, int PixelHeight, decimal X, decimal Y, decimal Width,
     decimal Height, short Rotation, decimal Opacity, bool IsLocked, bool IsArchived, decimal? CalibrationAX,
     decimal? CalibrationAY, decimal? CalibrationBX, decimal? CalibrationBY, decimal? CalibrationDistanceInches);
-public sealed record WarehouseMapView(int Version, uint RowVersion, bool IsInitialized, IReadOnlyList<WarehouseMapElementView> Elements, IReadOnlyList<WarehouseMapElementView> Unplaced, int Available, int Blocked, int Inactive, int WithInventory, int Negative, IReadOnlyList<WarehouseMapLayerView> Layers, IReadOnlyList<WarehouseMapArchitecturalElementView> Architecture, IReadOnlyList<WarehouseMapArchitecturalElementView> ArchivedArchitecture, bool UsesLegacyArchitecture, decimal? ScaleUnitsPerInch, string MeasurementSystem, WarehouseMapReferenceImageState? ActiveReference = null, IReadOnlyList<WarehouseMapReferenceImageState>? ArchivedReferences = null);
+public sealed record WarehouseMapView(int Version, uint RowVersion, bool IsInitialized, IReadOnlyList<WarehouseMapElementView> Elements, IReadOnlyList<WarehouseMapElementView> Unplaced, int Available, int Blocked, int Inactive, int WithInventory, int Negative, IReadOnlyList<WarehouseMapLayerView> Layers, IReadOnlyList<WarehouseMapArchitecturalElementView> Architecture, IReadOnlyList<WarehouseMapArchitecturalElementView> ArchivedArchitecture, bool UsesLegacyArchitecture, decimal? ScaleUnitsPerInch, string MeasurementSystem, WarehouseMapReferenceImageState? ActiveReference = null, IReadOnlyList<WarehouseMapReferenceImageState>? ArchivedReferences = null, decimal CanvasWidth = 1600m, decimal CanvasHeight = 900m);
 public sealed record WarehouseMapGeometry(Guid Id, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible);
-public sealed record WarehouseMapSaveCommand(Guid OperationId, Guid RequestedByUserId, string Pin, string? Reason, IReadOnlyList<WarehouseMapGeometry> Elements, IReadOnlyList<WarehouseMapLayerState> Layers, IReadOnlyList<WarehouseMapArchitectureItem> Architecture, decimal? ScaleUnitsPerInch = null, string MeasurementSystem = "IMPERIAL", IReadOnlyList<WarehouseMapReferenceImageState>? References = null);
+public sealed record WarehouseMapSaveCommand(Guid OperationId, Guid RequestedByUserId, string Pin, string? Reason, IReadOnlyList<WarehouseMapGeometry> Elements, IReadOnlyList<WarehouseMapLayerState> Layers, IReadOnlyList<WarehouseMapArchitectureItem> Architecture, decimal? ScaleUnitsPerInch = null, string MeasurementSystem = "IMPERIAL", IReadOnlyList<WarehouseMapReferenceImageState>? References = null, decimal CanvasWidth = 1600m, decimal CanvasHeight = 900m);
 public enum WarehouseMapSaveStatus { Success, InvalidPin, Unauthorized, ValidationFailed, Conflict, IdempotencyConflict, NotInitialized }
 public sealed record WarehouseMapSaveResult(WarehouseMapSaveStatus Status, int Version = 0, IReadOnlyList<string>? Errors = null) { public IReadOnlyList<string> ValidationErrors => Errors ?? []; }
 public sealed record WarehouseMapRevisionView(Guid Id, int PreviousVersion, int NewVersion, string? Reason, string RequestedBy, string AuthorizedBy, DateTimeOffset RecordedAt, int SchemaVersion, string Summary);
 public sealed record WarehouseMapReviewWarning(string Code, string Message, IReadOnlyList<Guid> ElementIds);
-public sealed record WarehouseMapReviewSummary(int OperationalModified, int LayerLocksChanged, int Added, int Modified, int Archived, int Restored, bool ScaleChanged, bool MeasurementSystemChanged, int ReferenceAdded = 0, int ReferenceModified = 0, int ReferenceArchived = 0, int ReferenceRestored = 0);
+public sealed record WarehouseMapReviewSummary(int OperationalModified, int LayerLocksChanged, int Added, int Modified, int Archived, int Restored, bool ScaleChanged, bool MeasurementSystemChanged, int ReferenceAdded = 0, int ReferenceModified = 0, int ReferenceArchived = 0, int ReferenceRestored = 0, bool CanvasChanged = false, decimal PreviousCanvasWidth = 1600m, decimal PreviousCanvasHeight = 900m, decimal CanvasWidth = 1600m, decimal CanvasHeight = 900m);
 public sealed record WarehouseMapReviewResult(IReadOnlyList<string> Errors, IReadOnlyList<WarehouseMapReviewWarning> Warnings, WarehouseMapReviewSummary Summary);
 
 public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinService? pins = null, TimeProvider? timeProvider = null)
 {
-    public const decimal CanvasWidth = 1600m;
-    public const decimal CanvasHeight = 900m;
+    public const decimal DefaultCanvasWidth = 1600m;
+    public const decimal DefaultCanvasHeight = 900m;
+    public const decimal MaximumCanvasWidth = 6400m;
+    public const decimal MaximumCanvasHeight = 3600m;
+    public const decimal CanvasGridStep = 25m;
 
     public Task<WarehouseMapView> GetAsync(bool includeProposal, CancellationToken token = default) =>
         GetAsync(includeProposal, includeReferences: true, token);
@@ -70,7 +73,7 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var layerViews = layers.OrderBy(item => item.SortOrder).Select(item => new WarehouseMapLayerView(item.Id,
             WarehouseMapArchitectureCatalog.Code(item.Code), item.Name, item.SortOrder, item.IsLocked,
             item.Code == WarehouseMapLayerCode.Operations ? elements.Count : architecture.Count(value => value.LayerId == item.Id && !value.IsArchived))).ToArray();
-        return new(layout?.Version ?? 0, layout?.RowVersion ?? 0, layout is not null && stored.Count != 0, views.Where(item => item.IsVisible).ToArray(), views.Where(item => !item.IsVisible).ToArray(), locations.Values.Count(item => item.IsActive && !item.IsBlocked), locations.Values.Count(item => item.IsActive && item.IsBlocked), locations.Values.Count(item => !item.IsActive), locations.Values.Count(item => item.HasInventory), locations.Values.Count(item => item.HasNegative), layerViews, architectureViews, archivedArchitectureViews, usesLegacyArchitecture, layout?.ScaleUnitsPerInch, layout?.MeasurementSystem == WarehouseMapMeasurementSystem.Metric ? "METRIC" : "IMPERIAL", references.Where(item => !item.IsArchived).Select(ToReferenceState).SingleOrDefault(), references.Where(item => item.IsArchived).Select(ToReferenceState).ToArray());
+        return new(layout?.Version ?? 0, layout?.RowVersion ?? 0, layout is not null && stored.Count != 0, views.Where(item => item.IsVisible).ToArray(), views.Where(item => !item.IsVisible).ToArray(), locations.Values.Count(item => item.IsActive && !item.IsBlocked), locations.Values.Count(item => item.IsActive && item.IsBlocked), locations.Values.Count(item => !item.IsActive), locations.Values.Count(item => item.HasInventory), locations.Values.Count(item => item.HasNegative), layerViews, architectureViews, archivedArchitectureViews, usesLegacyArchitecture, layout?.ScaleUnitsPerInch, layout?.MeasurementSystem == WarehouseMapMeasurementSystem.Metric ? "METRIC" : "IMPERIAL", references.Where(item => !item.IsArchived).Select(ToReferenceState).SingleOrDefault(), references.Where(item => item.IsArchived).Select(ToReferenceState).ToArray(), layout?.CanvasWidth ?? DefaultCanvasWidth, layout?.CanvasHeight ?? DefaultCanvasHeight);
     }
 
     public async Task<WarehouseMapReferenceImageState?> GetReferenceAsync(Guid id, CancellationToken token = default) =>
@@ -112,13 +115,15 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var submittedReferences = command.References ?? [];
         var errors = Validate(command.OperationId, command.RequestedByUserId, command.Reason, command.Elements,
             command.Layers, command.Architecture, command.ScaleUnitsPerInch, command.MeasurementSystem,
-            submittedReferences);
+            submittedReferences, command.CanvasWidth, command.CanvasHeight);
         var requester = await dbContext.Users.AsNoTracking().Include(item => item.Role)
             .SingleOrDefaultAsync(item => item.Id == command.RequestedByUserId, token);
         if (requester is null || !requester.IsActive || requester.Role.Code != "ADMIN")
             errors.Add("La sesión ADMIN ya no es válida.");
         var layout = await dbContext.WarehouseMapLayouts.AsNoTracking().SingleOrDefaultAsync(item => item.Id == 1, token);
         if (layout is null) errors.Add("Primero confirma la distribución inicial.");
+        else if (command.CanvasWidth < layout.CanvasWidth || command.CanvasHeight < layout.CanvasHeight)
+            errors.Add("El lienzo solo puede agrandarse; conserva al menos las dimensiones publicadas.");
         var layers = await dbContext.WarehouseMapLayers.AsNoTracking().Where(item => item.LayoutId == 1)
             .OrderBy(item => item.SortOrder).ToListAsync(token);
         var architecture = await dbContext.WarehouseMapArchitecturalElements.AsNoTracking().Where(item => item.LayoutId == 1)
@@ -134,11 +139,12 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             if (references.Any(item => !submittedReferenceIds.Contains(item.Id)))
                 errors.Add("Todas las referencias guardadas, incluso las archivadas, deben conservarse.");
             errors.AddRange(ValidateReferenceSubmission(submittedReferences, references.ToDictionary(item => item.Id),
-                command.ScaleUnitsPerInch));
+                command.ScaleUnitsPerInch, command.CanvasWidth, command.CanvasHeight));
             if (layers.Count != 0)
             {
                 var layerByCode = layers.ToDictionary(item => WarehouseMapArchitectureCatalog.Code(item.Code));
-                errors.AddRange(ValidateArchitectureDefinitions(architecture, layers));
+                errors.AddRange(ValidateArchitectureDefinitions(architecture, layers,
+                    command.CanvasWidth, command.CanvasHeight));
                 errors.AddRange(ValidateArchitectureSubmission(command.Architecture,
                     architecture.ToDictionary(item => item.Id), layerByCode, command.Layers));
             }
@@ -171,10 +177,12 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         return new([], warnings, new(operationalModified, layerLocksChanged, added, modified, archived, restored,
             layout!.ScaleUnitsPerInch != command.ScaleUnitsPerInch,
             (layout.MeasurementSystem == WarehouseMapMeasurementSystem.Metric ? "METRIC" : "IMPERIAL") != command.MeasurementSystem,
-            referenceAdded, referenceModified, referenceArchived, referenceRestored));
+            referenceAdded, referenceModified, referenceArchived, referenceRestored,
+            layout.CanvasWidth != command.CanvasWidth || layout.CanvasHeight != command.CanvasHeight,
+            layout.CanvasWidth, layout.CanvasHeight, command.CanvasWidth, command.CanvasHeight));
     }
 
-    public async Task<WarehouseMapSaveResult> InitializeAsync(Guid operationId, Guid requestedByUserId, string pin, string? reason, IReadOnlyList<WarehouseMapGeometry>? geometry = null, IReadOnlyList<WarehouseMapLayerState>? layers = null, IReadOnlyList<WarehouseMapArchitectureItem>? architecture = null, decimal? scaleUnitsPerInch = null, string measurementSystem = "IMPERIAL", CancellationToken token = default)
+    public async Task<WarehouseMapSaveResult> InitializeAsync(Guid operationId, Guid requestedByUserId, string pin, string? reason, IReadOnlyList<WarehouseMapGeometry>? geometry = null, IReadOnlyList<WarehouseMapLayerState>? layers = null, IReadOnlyList<WarehouseMapArchitectureItem>? architecture = null, decimal? scaleUnitsPerInch = null, string measurementSystem = "IMPERIAL", decimal canvasWidth = DefaultCanvasWidth, decimal canvasHeight = DefaultCanvasHeight, CancellationToken token = default)
     {
         var proposal = await BuildProposalAsync(token);
         var geometries = geometry?.ToArray() ?? proposal.Select(ToGeometry).ToArray();
@@ -187,25 +195,26 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var architectureItems = architecture?.ToArray() ?? initialArchitecture
             .Select(item => WarehouseMapArchitectureCatalog.ToItem(item, initialLayerCodes[item.LayerId])).ToArray();
         return await SaveCoreAsync(operationId, requestedByUserId, pin, reason, geometries, layerStates,
-            architectureItems, scaleUnitsPerInch, measurementSystem, true, token, proposal, initialLayers, initialArchitecture);
+            architectureItems, scaleUnitsPerInch, measurementSystem, canvasWidth, canvasHeight, true, token,
+            proposal, initialLayers, initialArchitecture);
     }
 
     public Task<WarehouseMapSaveResult> SaveAsync(WarehouseMapSaveCommand command, CancellationToken token = default) =>
         SaveCoreAsync(command.OperationId, command.RequestedByUserId, command.Pin, command.Reason, command.Elements,
-            command.Layers, command.Architecture, command.ScaleUnitsPerInch, command.MeasurementSystem, false, token,
-            referenceStates: command.References ?? []);
+            command.Layers, command.Architecture, command.ScaleUnitsPerInch, command.MeasurementSystem,
+            command.CanvasWidth, command.CanvasHeight, false, token, referenceStates: command.References ?? []);
 
     private async Task<WarehouseMapSaveResult> SaveCoreAsync(Guid operationId, Guid requestedByUserId, string pin,
         string? reason, IReadOnlyList<WarehouseMapGeometry> geometries, IReadOnlyList<WarehouseMapLayerState> layerStates,
         IReadOnlyList<WarehouseMapArchitectureItem> architectureItems, decimal? scaleUnitsPerInch,
-        string measurementSystem, bool initialize, CancellationToken token,
+        string measurementSystem, decimal canvasWidth, decimal canvasHeight, bool initialize, CancellationToken token,
         List<WarehouseMapElement>? initialElements = null, List<WarehouseMapLayer>? initialLayers = null,
         List<WarehouseMapArchitecturalElement>? initialArchitecture = null,
         IReadOnlyList<WarehouseMapReferenceImageState>? referenceStates = null)
     {
         referenceStates ??= [];
         var errors = Validate(operationId, requestedByUserId, reason, geometries, layerStates, architectureItems,
-            scaleUnitsPerInch, measurementSystem, referenceStates);
+            scaleUnitsPerInch, measurementSystem, referenceStates, canvasWidth, canvasHeight);
         if (errors.Count != 0) return new(WarehouseMapSaveStatus.ValidationFailed, Errors: errors);
         var requester = await dbContext.Users.AsNoTracking().Include(item => item.Role).SingleOrDefaultAsync(item => item.Id == requestedByUserId, token);
         if (requester is null || !requester.IsActive || requester.Role.Code != "ADMIN") return new(WarehouseMapSaveStatus.Unauthorized);
@@ -220,7 +229,9 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             Architecture = architectureItems.OrderBy(item => item.Id),
             References = referenceStates.OrderBy(item => item.Id),
             ScaleUnitsPerInch = scaleUnitsPerInch,
-            MeasurementSystem = measurementSystem
+            MeasurementSystem = measurementSystem,
+            CanvasWidth = canvasWidth,
+            CanvasHeight = canvasHeight
         });
         var fingerprint = Hash($"{requestedByUserId:N}|{authorized.Id:N}|{normalizedReason}|{payload}");
         var existingRevision = await dbContext.WarehouseMapRevisions.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == operationId, token);
@@ -245,6 +256,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             {
                 Id = 1,
                 Version = 0,
+                CanvasWidth = canvasWidth,
+                CanvasHeight = canvasHeight,
                 ScaleUnitsPerInch = scaleUnitsPerInch,
                 MeasurementSystem = ParseMeasurementSystem(measurementSystem)
             };
@@ -260,6 +273,9 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         else if (layout is null) return new(WarehouseMapSaveStatus.NotInitialized);
         else
         {
+            if (canvasWidth < layout.CanvasWidth || canvasHeight < layout.CanvasHeight)
+                return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version,
+                    ["El lienzo solo puede agrandarse; conserva al menos las dimensiones publicadas."]);
             if (useDirectUpdates)
             {
                 layout.Elements = await dbContext.WarehouseMapElements.AsNoTracking().Where(item => item.LayoutId == 1).ToListAsync(token);
@@ -323,7 +339,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version,
                 ["No se pueden eliminar elementos arquitectónicos que ya fueron guardados."]);
 
-        var architectureDefinitionErrors = ValidateArchitectureDefinitions(architecturalElements, mapLayers);
+        var architectureDefinitionErrors = ValidateArchitectureDefinitions(architecturalElements, mapLayers,
+            canvasWidth, canvasHeight);
         if (architectureDefinitionErrors.Count != 0)
             return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version, architectureDefinitionErrors);
         var architectureSubmissionErrors = ValidateArchitectureSubmission(
@@ -336,7 +353,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         if (referenceById.Keys.Except(submittedReferenceIds).Any())
             return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version,
                 ["No se pueden eliminar referencias que ya fueron guardadas."]);
-        var referenceErrors = ValidateReferenceSubmission(referenceStates, referenceById, scaleUnitsPerInch);
+        var referenceErrors = ValidateReferenceSubmission(referenceStates, referenceById, scaleUnitsPerInch,
+            canvasWidth, canvasHeight);
         if (referenceErrors.Count != 0)
             return new(WarehouseMapSaveStatus.ValidationFailed, layout.Version, referenceErrors);
 
@@ -347,6 +365,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             .Select(item => WarehouseMapArchitectureCatalog.ToItem(item, layerCodesById[item.LayerId])).ToArray();
         var beforeScale = layout.ScaleUnitsPerInch;
         var beforeMeasurementSystem = layout.MeasurementSystem == WarehouseMapMeasurementSystem.Metric ? "METRIC" : "IMPERIAL";
+        var beforeCanvasWidth = layout.CanvasWidth;
+        var beforeCanvasHeight = layout.CanvasHeight;
         var beforeReferences = referenceImages.OrderBy(item => item.Id).Select(ToReferenceState).ToArray();
         foreach (var geometry in geometries)
         {
@@ -401,9 +421,16 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var recordedAt = (timeProvider ?? TimeProvider.System).GetUtcNow();
         var changes = JsonSerializer.Serialize(new
         {
-            SchemaVersion = 5,
+            SchemaVersion = 6,
             Operational = new { Before = before, After = geometries.OrderBy(item => item.Id) },
             Layers = new { Before = beforeLayers, After = layerStates.OrderBy(item => item.Code) },
+            Canvas = new
+            {
+                BeforeWidth = beforeCanvasWidth,
+                BeforeHeight = beforeCanvasHeight,
+                AfterWidth = canvasWidth,
+                AfterHeight = canvasHeight
+            },
             Scale = new
             {
                 BeforeUnitsPerInch = beforeScale,
@@ -435,6 +462,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             layout.Version = newVersion;
             layout.UpdatedAt = recordedAt;
             layout.UpdatedByUserId = authorized.Id;
+            layout.CanvasWidth = canvasWidth;
+            layout.CanvasHeight = canvasHeight;
             layout.ScaleUnitsPerInch = scaleUnitsPerInch;
             layout.MeasurementSystem = ParseMeasurementSystem(measurementSystem);
         }
@@ -526,6 +555,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
                 .SetProperty(item => item.Version, newVersion)
                 .SetProperty(item => item.UpdatedAt, recordedAt)
                 .SetProperty(item => item.UpdatedByUserId, authorized.Id)
+                .SetProperty(item => item.CanvasWidth, canvasWidth)
+                .SetProperty(item => item.CanvasHeight, canvasHeight)
                 .SetProperty(item => item.ScaleUnitsPerInch, scaleUnitsPerInch)
                 .SetProperty(item => item.MeasurementSystem, ParseMeasurementSystem(measurementSystem)), token);
             if (layoutAffected != 1) return new(WarehouseMapSaveStatus.NotInitialized);
@@ -622,15 +653,18 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
     private static List<string> Validate(Guid operationId, Guid userId, string? reason,
         IReadOnlyList<WarehouseMapGeometry> elements, IReadOnlyList<WarehouseMapLayerState> layers,
         IReadOnlyList<WarehouseMapArchitectureItem> architecture, decimal? scaleUnitsPerInch,
-        string measurementSystem, IReadOnlyList<WarehouseMapReferenceImageState> references)
+        string measurementSystem, IReadOnlyList<WarehouseMapReferenceImageState> references,
+        decimal canvasWidth, decimal canvasHeight)
     {
         var errors = new List<string>();
         if (operationId == Guid.Empty || userId == Guid.Empty) errors.Add("La operación y el solicitante son obligatorios.");
         if ((reason?.Trim().Length ?? 0) > 500) errors.Add("El motivo admite hasta 500 caracteres.");
+        if (!ValidCanvas(canvasWidth, canvasHeight))
+            errors.Add("El lienzo debe medir entre 1600 × 900 y 6400 × 3600, en incrementos de 25 unidades.");
         if (elements.Count is 0 or > 1000 || elements.Select(item => item.Id).Distinct().Count() != elements.Count)
             errors.Add("La colección de elementos no es válida.");
         if (elements.Any(item => item.X < 0 || item.Y < 0 || item.Width < 10 || item.Height < 10
-            || item.X + item.Width > CanvasWidth || item.Y + item.Height > CanvasHeight
+            || item.X + item.Width > canvasWidth || item.Y + item.Height > canvasHeight
             || item.Rotation is not (0 or 90 or 180 or 270)))
             errors.Add("La geometría debe permanecer dentro del croquis y usar rotaciones de 90°.");
 
@@ -640,7 +674,7 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             errors.Add("La colección de capas no es válida.");
         if (architecture.Count is 0 or > 500 || architecture.Select(item => item.Id).Distinct().Count() != architecture.Count)
             errors.Add("La colección arquitectónica no es válida.");
-        if (architecture.Any(item => !ValidArchitectureGeometry(item)))
+        if (architecture.Any(item => !ValidArchitectureGeometry(item, canvasWidth, canvasHeight)))
             errors.Add("La geometría arquitectónica debe permanecer dentro del croquis y conservar su forma.");
         if (scaleUnitsPerInch is <= 0 or > 100000)
             errors.Add("La escala debe ser positiva y pertenecer al rango permitido.");
@@ -682,12 +716,12 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
     private static List<string> ValidateReferenceSubmission(
         IReadOnlyList<WarehouseMapReferenceImageState> submitted,
         IReadOnlyDictionary<Guid, WarehouseMapReferenceImage> current,
-        decimal? scaleUnitsPerInch)
+        decimal? scaleUnitsPerInch, decimal canvasWidth, decimal canvasHeight)
     {
         var errors = new List<string>();
         foreach (var item in submitted)
         {
-            if (!ValidReference(item))
+            if (!ValidReference(item, canvasWidth, canvasHeight))
             {
                 errors.Add("Una referencia contiene archivo, geometría o calibración inválidos.");
                 continue;
@@ -721,7 +755,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         return errors.Distinct(StringComparer.Ordinal).ToList();
     }
 
-    private static bool ValidReference(WarehouseMapReferenceImageState item)
+    private static bool ValidReference(WarehouseMapReferenceImageState item,
+        decimal canvasWidth, decimal canvasHeight)
     {
         var calibration = new[] { item.CalibrationAX, item.CalibrationAY, item.CalibrationBX,
             item.CalibrationBY, item.CalibrationDistanceInches };
@@ -744,7 +779,7 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var centerX = item.X + item.Width / 2;
         var centerY = item.Y + item.Height / 2;
         return centerX - halfWidth >= 0 && centerY - halfHeight >= 0
-            && centerX + halfWidth <= CanvasWidth && centerY + halfHeight <= CanvasHeight;
+            && centerX + halfWidth <= canvasWidth && centerY + halfHeight <= canvasHeight;
     }
 
     private static string Extension(string contentType) => contentType switch
@@ -756,7 +791,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
     };
 
 
-    private static bool ValidArchitectureGeometry(WarehouseMapArchitectureItem item)
+    private static bool ValidArchitectureGeometry(WarehouseMapArchitectureItem item,
+        decimal canvasWidth, decimal canvasHeight)
     {
         if (item.Id == Guid.Empty || item.Width < 1 || item.Height < 1
             || item.Rotation is not (0 or 90 or 180 or 270) || item.CornerRadius < 0
@@ -778,12 +814,18 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             };
             var x = item.X + transformed.X;
             var y = item.Y + transformed.Y;
-            return x >= 0 && y >= 0 && x <= CanvasWidth && y <= CanvasHeight;
+            return x >= 0 && y >= 0 && x <= canvasWidth && y <= canvasHeight;
         });
     }
 
+    private static bool ValidCanvas(decimal width, decimal height) =>
+        width is >= DefaultCanvasWidth and <= MaximumCanvasWidth
+        && height is >= DefaultCanvasHeight and <= MaximumCanvasHeight
+        && width % CanvasGridStep == 0 && height % CanvasGridStep == 0;
+
     private static List<string> ValidateArchitectureDefinitions(
-        IReadOnlyList<WarehouseMapArchitecturalElement> elements, IReadOnlyList<WarehouseMapLayer> layers)
+        IReadOnlyList<WarehouseMapArchitecturalElement> elements, IReadOnlyList<WarehouseMapLayer> layers,
+        decimal canvasWidth, decimal canvasHeight)
     {
         var errors = new List<string>();
         var layerIds = layers.Select(item => item.Id).ToHashSet();
@@ -791,12 +833,11 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             errors.Add("Un elemento arquitectónico no pertenece a una capa válida.");
         if (elements.Any(item => item.Label?.Length > 120))
             errors.Add("Los textos arquitectónicos admiten hasta 120 caracteres.");
-        if (elements.Any(item => !WarehouseMapArchitectureCatalog.StyleTokens.Contains(item.StrokeToken)
-            || !WarehouseMapArchitectureCatalog.StyleTokens.Contains(item.FillToken)
-            || item.StrokeWidth is < 0 or > 12))
-            errors.Add("El estilo arquitectónico no pertenece al catálogo permitido.");
         foreach (var item in elements)
         {
+            if (!ValidArchitectureStyle(item.StrokeToken, item.FillToken, item.StrokeWidth))
+                errors.Add(ArchitectureStyleError(item.Id, item.Label, item.StrokeToken, item.FillToken,
+                    item.StrokeWidth));
             WarehouseMapStoredGeometry geometry;
             try { geometry = WarehouseMapArchitectureCatalog.ReadGeometry(item); }
             catch (JsonException) { errors.Add("Un elemento arquitectónico contiene geometría JSON inválida."); continue; }
@@ -806,7 +847,8 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
                 geometry.X, geometry.Y, geometry.Width, geometry.Height, geometry.Rotation,
                 geometry.CornerRadius, geometry.Points, item.StrokeToken, item.FillToken, item.StrokeWidth,
                 item.IsDashed, item.ZIndex, item.IsLocked, item.GroupId, item.IsArchived);
-            if (!ValidArchitectureGeometry(posted)) errors.Add("Un elemento arquitectónico contiene geometría inválida.");
+            if (!ValidArchitectureGeometry(posted, canvasWidth, canvasHeight))
+                errors.Add("Un elemento arquitectónico contiene geometría inválida.");
             if (item.Kind == WarehouseMapArchitecturalElementKind.Polyline && geometry.Points.Count is < 2 or > 64)
                 errors.Add("Una polilínea arquitectónica debe contener entre 2 y 64 puntos.");
             if (item.Kind != WarehouseMapArchitecturalElementKind.Polyline && geometry.Points.Count != 0)
@@ -838,10 +880,9 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             if (item.Label?.Trim().Length > 120
                 || kind == WarehouseMapArchitecturalElementKind.Text && string.IsNullOrWhiteSpace(item.Label))
                 errors.Add("Los textos arquitectónicos son obligatorios y admiten hasta 120 caracteres.");
-            if (!WarehouseMapArchitectureCatalog.StyleTokens.Contains(item.StrokeToken)
-                || !WarehouseMapArchitectureCatalog.StyleTokens.Contains(item.FillToken)
-                || item.StrokeWidth is < 0 or > 12)
-                errors.Add("El estilo arquitectónico no pertenece al catálogo permitido.");
+            if (!ValidArchitectureStyle(item.StrokeToken, item.FillToken, item.StrokeWidth))
+                errors.Add(ArchitectureStyleError(item.Id, item.Label, item.StrokeToken, item.FillToken,
+                    item.StrokeWidth));
             if (kind == WarehouseMapArchitecturalElementKind.Polyline && item.Points.Count is < 2 or > 64)
                 errors.Add("Una polilínea arquitectónica debe contener entre 2 y 64 puntos.");
             if (kind != WarehouseMapArchitecturalElementKind.Polyline && item.Points.Count != 0)
@@ -869,6 +910,19 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             }
         }
         return errors.Distinct(StringComparer.Ordinal).ToList();
+    }
+
+    private static bool ValidArchitectureStyle(string strokeToken, string fillToken, decimal strokeWidth) =>
+        WarehouseMapArchitectureCatalog.StyleTokens.Contains(strokeToken)
+        && WarehouseMapArchitectureCatalog.StyleTokens.Contains(fillToken)
+        && strokeWidth is >= 0 and <= 12;
+
+    private static string ArchitectureStyleError(Guid id, string? label, string strokeToken,
+        string fillToken, decimal strokeWidth)
+    {
+        var identifier = string.IsNullOrWhiteSpace(label) ? id.ToString() : $"{label.Trim()} ({id})";
+        return $"El estilo arquitectónico de {identifier} no pertenece al catálogo permitido: "
+            + $"trazo '{strokeToken}', relleno '{fillToken}', grosor {strokeWidth:0.##}.";
     }
 
     private static bool Compatible(string layerCode, WarehouseMapArchitecturalElementKind kind) => layerCode switch
@@ -989,6 +1043,15 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             using var document = JsonDocument.Parse(changesJson);
             var root = document.RootElement;
             var schema = root.TryGetProperty("SchemaVersion", out var schemaValue) ? schemaValue.GetInt32() : 1;
+            if (root.TryGetProperty("Action", out var action))
+            {
+                if (action.GetString() == "DELETE_AREA" &&
+                    root.TryGetProperty("DeletedLocation", out var deletedLocation) &&
+                    deletedLocation.TryGetProperty("Code", out var deletedAreaCode))
+                    return (schema, $"Área {deletedAreaCode.GetString()} eliminada definitivamente del catálogo y del croquis.");
+                if (action.GetString() == "DELETE_RACK" && root.TryGetProperty("RackCode", out var deletedRackCode))
+                    return (schema, $"Rack {deletedRackCode.GetString()} eliminado definitivamente del catálogo y del croquis.");
+            }
             if (schema < 4 || !root.TryGetProperty("Architecture", out var architecture))
                 return (schema, "La revisión histórica completa permanece disponible en la auditoría.");
             static int Count(JsonElement parent, string name) =>
@@ -1000,7 +1063,12 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             var archived = Count(architecture, "Archived");
             var restored = Count(architecture, "Restored");
             if (schema >= 5 && root.TryGetProperty("References", out var references))
-                return (schema, $"Arquitectura: {added} altas, {modified} modificaciones, {archived} archivados y {restored} restaurados. Referencias: {Count(references, "Added")} altas, {Count(references, "Modified")} modificaciones, {Count(references, "Archived")} archivadas y {Count(references, "Restored")} restauradas.");
+            {
+                var canvasSummary = schema >= 6 && root.TryGetProperty("Canvas", out var canvas)
+                    ? $" Lienzo: {canvas.GetProperty("BeforeWidth").GetDecimal():0} × {canvas.GetProperty("BeforeHeight").GetDecimal():0} a {canvas.GetProperty("AfterWidth").GetDecimal():0} × {canvas.GetProperty("AfterHeight").GetDecimal():0}."
+                    : string.Empty;
+                return (schema, $"Arquitectura: {added} altas, {modified} modificaciones, {archived} archivados y {restored} restaurados. Referencias: {Count(references, "Added")} altas, {Count(references, "Modified")} modificaciones, {Count(references, "Archived")} archivadas y {Count(references, "Restored")} restauradas.{canvasSummary}");
+            }
             return (schema, $"Arquitectura: {added} altas, {modified} modificaciones, {archived} archivados y {restored} restaurados.");
         }
         catch (JsonException)

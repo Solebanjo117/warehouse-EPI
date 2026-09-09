@@ -104,6 +104,10 @@
                                     <span class="text-body-secondary">@(item.Description ?? "Sin descripción")</span>
                                 </div>
                                 <div class="product-editor-list-status">
+                                    @if (item.IsDefaultEntry)
+                                    {
+                                        <span class="badge text-bg-primary">Principal de entrada</span>
+                                    }
                                     @if (!item.IsActive)
                                     {
                                         <span class="badge text-bg-secondary">Asignación inactiva</span>
@@ -149,4 +153,5 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/product-editor.js" asp-append-version="true" defer></script>
 }

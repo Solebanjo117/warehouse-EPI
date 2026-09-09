@@ -10,7 +10,21 @@ namespace WarehouseEPI.Web.Pages.Admin.Labels.Templates;
 public sealed class IndexModel(LabelTemplateService templates) : PageModel
 {
     public IReadOnlyList<LabelTemplateAdminRow> Rows { get; private set; } = [];
+    public IReadOnlyList<TemplateGroup> Groups { get; private set; } = [];
     public IReadOnlyList<LabelSizeDefinition> Sizes => LabelSizeRegistry.All;
+
+    /// <summary>
+    /// Una plantilla vista como la administra el servicio: la versión que imprime
+    /// hoy, la única editable que puede existir y el resto como historial.
+    /// </summary>
+    public sealed record TemplateGroup(
+        Guid TemplateId,
+        string Code,
+        string Name,
+        LabelTemplateKind Kind,
+        LabelTemplateAdminRow? Current,
+        LabelTemplateAdminRow? Editable,
+        IReadOnlyList<LabelTemplateAdminRow> History);
 
     [BindProperty] public CreateInput Create { get; set; } = new();
     [BindProperty] public string RetireReason { get; set; } = string.Empty;
@@ -57,6 +71,21 @@ public sealed class IndexModel(LabelTemplateService templates) : PageModel
         return Page();
     }
 
-    private async Task LoadAsync(CancellationToken token) => Rows = await templates.GetAdminRowsAsync(token);
+    private async Task LoadAsync(CancellationToken token)
+    {
+        Rows = await templates.GetAdminRowsAsync(token);
+        Groups = [.. Rows
+            .GroupBy(row => row.TemplateId)
+            .Select(group =>
+            {
+                var versions = group.OrderByDescending(row => row.Version).ToList();
+                var current = versions.Find(row => row.IsCurrent);
+                var editable = versions.Find(row => row.Status is LabelTemplateStatus.Draft or LabelTemplateStatus.InValidation);
+                var history = versions.Where(row => row != current && row != editable).ToList();
+                var latest = versions[0];
+                return new TemplateGroup(group.Key, latest.Code, latest.Name, latest.Kind, current, editable, history);
+            })
+            .OrderBy(group => group.Code, StringComparer.Ordinal)];
+    }
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;
 }

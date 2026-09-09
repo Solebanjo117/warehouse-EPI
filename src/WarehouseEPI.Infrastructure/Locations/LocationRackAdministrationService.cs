@@ -12,26 +12,42 @@ using WarehouseEPI.Infrastructure.Security;
 namespace WarehouseEPI.Infrastructure.Locations;
 
 public sealed record LocationRackEditCommand(Guid OperationId, Guid RequestedByUserId, string RowCode,
-    short RackNumber, IReadOnlyCollection<short> PresentPallets, string? Reason, string? Pin);
+    short RackNumber, LocationOperationalRole OperationalRole,
+    IReadOnlyCollection<short> PresentPallets, string? Reason, string? Pin);
 
 public sealed record LocationRackPositionState(Guid? Id, short PalletNumber, string Code,
     bool Exists, bool IsPhysicallyPresent, bool IsActive, bool IsBlocked, bool HasBalance,
     bool HasActiveAssignments);
 
 public sealed record LocationRackEditView(string RowCode, short RackNumber,
-    IReadOnlyList<LocationRackPositionState> Positions, IReadOnlyList<LocationRackRevisionView> Revisions);
+    LocationOperationalRole OperationalRole, IReadOnlyList<LocationRackPositionState> Positions,
+    IReadOnlyList<LocationRackRevisionView> Revisions, LocationRackDeletionState Deletion);
+
+public sealed record LocationRackDeletionState(bool CanDelete, IReadOnlyList<string> Blockers);
+
+public sealed record LocationRackDeleteCommand(Guid OperationId, Guid RequestedByUserId, string RowCode,
+    short RackNumber, string? Reason, string? Pin, string? ConfirmationCode);
 
 public sealed record LocationRackRevisionView(Guid Id, string Reason, string RequestedBy,
     string AuthorizedBy, DateTimeOffset RecordedAt, string BeforeJson, string AfterJson);
 
 public sealed record LocationRackEditSummary(IReadOnlyList<string> Added, IReadOnlyList<string> Restored,
-    IReadOnlyList<string> Retired);
+    IReadOnlyList<string> Retired, LocationOperationalRole PreviousOperationalRole,
+    LocationOperationalRole RequestedOperationalRole)
+{
+    public bool OperationalRoleChanged => PreviousOperationalRole != RequestedOperationalRole;
+}
 
 public sealed record LocationRackReviewResult(IReadOnlyList<string> Errors, LocationRackEditSummary Summary);
 
 public enum LocationRackSaveStatus { Success, ValidationFailed, Unauthorized, InvalidPin, IdempotencyConflict, NotFound }
 
 public sealed record LocationRackSaveResult(LocationRackSaveStatus Status,
+    IReadOnlyList<string>? Errors = null);
+
+public enum LocationRackDeleteStatus { Success, ValidationFailed, Unauthorized, InvalidPin, IdempotencyConflict, NotFound }
+
+public sealed record LocationRackDeleteResult(LocationRackDeleteStatus Status,
     IReadOnlyList<string>? Errors = null);
 
 public sealed class LocationRackAdministrationService(
@@ -54,7 +70,8 @@ public sealed class LocationRackAdministrationService(
                 item.RequestedByUser.FullName, item.AuthorizedByUser.FullName, item.RecordedAt,
                 item.BeforeJson, item.AfterJson))
             .ToListAsync(token);
-        return new(row, rackNumber, states, revisions);
+        var deletion = await GetDeletionStateAsync(locations, token);
+        return new(row, rackNumber, RackOperationalRole(locations), states, revisions, deletion);
     }
 
     public async Task<LocationRackReviewResult> ReviewAsync(LocationRackEditCommand command,
@@ -69,7 +86,7 @@ public sealed class LocationRackAdministrationService(
         if (locations.Count == 0) errors.Add("El rack no existe.");
         var desired = command.PresentPallets.ToHashSet();
         errors.AddRange(await ValidateRetirementsAsync(locations, desired, token));
-        var summary = BuildSummary(row, command.RackNumber, locations, desired);
+        var summary = BuildSummary(row, command.RackNumber, locations, desired, command.OperationalRole);
         return new(errors.Distinct(StringComparer.Ordinal).ToArray(), summary);
     }
 
@@ -92,6 +109,7 @@ public sealed class LocationRackAdministrationService(
             AuthorizedByUserId = authorized.Id,
             RowCode = row,
             command.RackNumber,
+            command.OperationalRole,
             PresentPallets = desired,
             Reason = reason
         }));
@@ -143,6 +161,7 @@ public sealed class LocationRackAdministrationService(
                     RowCode = row,
                     RackNumber = command.RackNumber,
                     PalletNumber = pallet,
+                    OperationalRole = command.OperationalRole,
                     IsPhysicallyPresent = true,
                     IsActive = true,
                     UpdatedAt = now
@@ -162,6 +181,12 @@ public sealed class LocationRackAdministrationService(
                 location.IsActive = false;
                 location.IsBlocked = false;
                 location.BlockReason = null;
+                location.UpdatedAt = now;
+            }
+
+            if (location.OperationalRole != command.OperationalRole)
+            {
+                location.OperationalRole = command.OperationalRole;
                 location.UpdatedAt = now;
             }
         }
@@ -198,6 +223,146 @@ public sealed class LocationRackAdministrationService(
                 ["El rack cambió al mismo tiempo. Revisa nuevamente antes de guardar."]);
         }
         return new(LocationRackSaveStatus.Success);
+    }
+
+    public async Task<LocationRackDeleteResult> DeleteAsync(LocationRackDeleteCommand command,
+        CancellationToken token = default)
+    {
+        var errors = ValidateDeleteCommand(command);
+        if (errors.Count != 0) return new(LocationRackDeleteStatus.ValidationFailed, errors);
+        var requester = await LoadAdminAsync(command.RequestedByUserId, token);
+        if (requester is null) return new(LocationRackDeleteStatus.Unauthorized);
+        var authorized = await pins.AuthenticateAsync(command.Pin ?? string.Empty, token);
+        if (authorized is null || authorized.Role.Code != "ADMIN") return new(LocationRackDeleteStatus.InvalidPin);
+
+        var row = LocationNormalization.NormalizeRowCode(command.RowCode);
+        var reason = command.Reason!.Trim();
+        var rackCode = $"{row}-{command.RackNumber}";
+        var fingerprint = Hash(JsonSerializer.Serialize(new
+        {
+            Action = "DELETE_RACK",
+            command.RequestedByUserId,
+            AuthorizedByUserId = authorized.Id,
+            RowCode = row,
+            command.RackNumber,
+            Reason = reason,
+            ConfirmationCode = rackCode
+        }));
+
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, token)
+            : null;
+        if (dbContext.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+        {
+            await dbContext.Locations.FromSqlInterpolated(
+                $"SELECT * FROM locations WHERE row_code = {row} AND rack_number = {command.RackNumber} FOR UPDATE")
+                .LoadAsync(token);
+            await dbContext.WarehouseMapLayouts.FromSqlInterpolated(
+                $"SELECT * FROM warehouse_map_layouts WHERE id = {1} FOR UPDATE").LoadAsync(token);
+        }
+
+        var existingRevision = await dbContext.LocationRackRevisions.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationId == command.OperationId, token);
+        if (existingRevision is not null)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(token);
+            return new(existingRevision.RequestFingerprint == fingerprint
+                ? LocationRackDeleteStatus.Success
+                : LocationRackDeleteStatus.IdempotencyConflict);
+        }
+
+        var locations = await LoadRackAsync(row, command.RackNumber, true, token);
+        if (locations.Count == 0)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(token);
+            return new(LocationRackDeleteStatus.NotFound);
+        }
+        var deletion = await GetDeletionStateAsync(locations, token);
+        if (!deletion.CanDelete)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(token);
+            return new(LocationRackDeleteStatus.ValidationFailed, deletion.Blockers);
+        }
+
+        var now = timeProvider.GetUtcNow();
+        var mapElements = await dbContext.WarehouseMapElements
+            .Where(item => item.Kind == WarehouseMapElementKind.Rack && item.RowCode == row &&
+                item.RackNumber == command.RackNumber).ToListAsync(token);
+        var before = SerializeState(locations);
+        dbContext.LocationRackRevisions.Add(new LocationRackRevision
+        {
+            OperationId = command.OperationId,
+            RequestFingerprint = fingerprint,
+            RowCode = row,
+            RackNumber = command.RackNumber,
+            Reason = reason,
+            BeforeJson = before,
+            AfterJson = JsonSerializer.Serialize(new
+            {
+                Deleted = true,
+                RackCode = rackCode,
+                RemovedLocationIds = locations.Select(item => item.Id),
+                RemovedMapElementIds = mapElements.Select(item => item.Id)
+            }),
+            RequestedByUserId = requester.Id,
+            AuthorizedByUserId = authorized.Id,
+            RecordedAt = now
+        });
+
+        if (mapElements.Count != 0)
+        {
+            var layout = await dbContext.WarehouseMapLayouts.SingleOrDefaultAsync(item => item.Id == 1, token);
+            if (layout is not null)
+            {
+                var previousVersion = layout.Version;
+                layout.Version++;
+                layout.UpdatedAt = now;
+                layout.UpdatedByUserId = authorized.Id;
+                dbContext.WarehouseMapRevisions.Add(new WarehouseMapRevision
+                {
+                    OperationId = command.OperationId,
+                    RequestFingerprint = fingerprint,
+                    PreviousVersion = previousVersion,
+                    NewVersion = layout.Version,
+                    Reason = reason,
+                    ChangesJson = JsonSerializer.Serialize(new
+                    {
+                        SchemaVersion = 6,
+                        Action = "DELETE_RACK",
+                        RackCode = rackCode,
+                        Removed = mapElements.Select(item => new
+                        {
+                            item.Id, item.RowCode, item.RackNumber, item.X, item.Y,
+                            item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible
+                        })
+                    }),
+                    RequestedByUserId = requester.Id,
+                    AuthorizedByUserId = authorized.Id,
+                    RecordedAt = now
+                });
+            }
+            dbContext.WarehouseMapElements.RemoveRange(mapElements);
+        }
+        dbContext.Locations.RemoveRange(locations);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(token);
+            if (transaction is not null) await transaction.CommitAsync(token);
+        }
+        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(token);
+            return new(LocationRackDeleteStatus.ValidationFailed,
+                ["El rack cambió al mismo tiempo. Revisa nuevamente antes de eliminar."]);
+        }
+        catch (DbUpdateException)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(token);
+            return new(LocationRackDeleteStatus.ValidationFailed,
+                ["El rack recibió un registro relacionado y ya no puede eliminarse."]);
+        }
+        return new(LocationRackDeleteStatus.Success);
     }
 
     private async Task<List<Location>> LoadRackAsync(string row, short rack, bool tracking,
@@ -261,6 +426,37 @@ public sealed class LocationRackAdministrationService(
         return errors;
     }
 
+    private async Task<LocationRackDeletionState> GetDeletionStateAsync(IReadOnlyList<Location> locations,
+        CancellationToken token)
+    {
+        var ids = locations.Select(item => item.Id).ToArray();
+        var blockers = new List<string>();
+        if (await dbContext.ProductLocationAssignments.AsNoTracking().AnyAsync(item => ids.Contains(item.LocationId), token))
+            blockers.Add("Tiene productos asignados, incluso si la asignación ya está inactiva.");
+        if (await dbContext.InventoryBalances.AsNoTracking().AnyAsync(item => ids.Contains(item.LocationId), token))
+            blockers.Add("Tiene registros de existencias, incluso si el saldo actual es cero.");
+        if (await dbContext.InventoryMovementLines.AsNoTracking().AnyAsync(item =>
+                (item.SourceLocationId.HasValue && ids.Contains(item.SourceLocationId.Value)) ||
+                (item.DestinationLocationId.HasValue && ids.Contains(item.DestinationLocationId.Value)), token) ||
+            await dbContext.InventoryMovements.AsNoTracking().AnyAsync(item =>
+                item.OperationalAreaId.HasValue && ids.Contains(item.OperationalAreaId.Value), token))
+            blockers.Add("Tiene movimientos de inventario o actividad WIP.");
+        if (await dbContext.InventoryBalanceChanges.AsNoTracking().AnyAsync(item => ids.Contains(item.LocationId), token))
+            blockers.Add("Tiene historial de cambios de saldo.");
+        if (await dbContext.CycleCountLocations.AsNoTracking().AnyAsync(item => ids.Contains(item.LocationId), token))
+            blockers.Add("Fue incluido en uno o más conteos cíclicos.");
+        if (await dbContext.OperationalExceptionCases.AsNoTracking().AnyAsync(item =>
+                item.LocationId.HasValue && ids.Contains(item.LocationId.Value), token))
+            blockers.Add("Tiene incidencias operativas relacionadas.");
+        if (await dbContext.WipDispositions.AsNoTracking().AnyAsync(item =>
+                item.DestinationLocationId.HasValue && ids.Contains(item.DestinationLocationId.Value), token))
+            blockers.Add("Tiene devoluciones o disposiciones WIP relacionadas.");
+        if (await dbContext.WarehouseMapElements.AsNoTracking().AnyAsync(item =>
+                item.LocationId.HasValue && ids.Contains(item.LocationId.Value), token))
+            blockers.Add("Una posición está ligada directamente a un elemento del croquis.");
+        return new(blockers.Count == 0, blockers);
+    }
+
     private async Task<User?> LoadAdminAsync(Guid id, CancellationToken token) =>
         await dbContext.Users.AsNoTracking().Include(item => item.Role)
             .SingleOrDefaultAsync(item => item.Id == id && item.IsActive && item.Role.Code == "ADMIN", token);
@@ -273,6 +469,8 @@ public sealed class LocationRackAdministrationService(
         if (command.RequestedByUserId == Guid.Empty) errors.Add("La sesión ADMIN no es válida.");
         if (!LocationNormalization.IsValidRowCode(row) || command.RackNumber <= 0)
             errors.Add("La fila o el rack no son válidos.");
+        if (command.OperationalRole is not (LocationOperationalRole.Storage or LocationOperationalRole.Wip))
+            errors.Add("La función del rack debe ser Almacenamiento o WIP.");
         if (command.PresentPallets.Count is < 1 or > 9 || command.PresentPallets.Distinct().Count() != command.PresentPallets.Count ||
             command.PresentPallets.Any(item => item is < 1 or > 9))
             errors.Add("Selecciona entre una y nueve posiciones distintas.");
@@ -282,14 +480,32 @@ public sealed class LocationRackAdministrationService(
         return errors;
     }
 
+    private static List<string> ValidateDeleteCommand(LocationRackDeleteCommand command)
+    {
+        var errors = new List<string>();
+        var row = LocationNormalization.NormalizeRowCode(command.RowCode);
+        if (command.OperationId == Guid.Empty) errors.Add("La operación no es válida.");
+        if (command.RequestedByUserId == Guid.Empty) errors.Add("La sesión ADMIN no es válida.");
+        if (!LocationNormalization.IsValidRowCode(row) || command.RackNumber <= 0)
+            errors.Add("La fila o el rack no son válidos.");
+        var reason = command.Reason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
+            errors.Add("Escribe un motivo de hasta 500 caracteres.");
+        var expectedCode = $"{row}-{command.RackNumber}";
+        if (!string.Equals(command.ConfirmationCode?.Trim(), expectedCode, StringComparison.OrdinalIgnoreCase))
+            errors.Add($"Escribe {expectedCode} para confirmar la eliminación definitiva.");
+        return errors;
+    }
+
     private static LocationRackEditSummary BuildSummary(string row, short rack,
-        IReadOnlyList<Location> locations, IReadOnlySet<short> desired)
+        IReadOnlyList<Location> locations, IReadOnlySet<short> desired,
+        LocationOperationalRole requestedOperationalRole)
     {
         var byPallet = locations.ToDictionary(item => item.PalletNumber!.Value);
         var added = desired.Where(item => !byPallet.ContainsKey(item)).Select(item => LocationNormalization.BuildRackCode(row, rack, item)).Order().ToArray();
         var restored = desired.Where(item => byPallet.TryGetValue(item, out var location) && !location.IsPhysicallyPresent).Select(item => byPallet[item].Code).Order().ToArray();
         var retired = locations.Where(item => item.IsPhysicallyPresent && !desired.Contains(item.PalletNumber!.Value)).Select(item => item.Code).Order().ToArray();
-        return new(added, restored, retired);
+        return new(added, restored, retired, RackOperationalRole(locations), requestedOperationalRole);
     }
 
     private static string SerializeState(IEnumerable<Location> locations) => JsonSerializer.Serialize(
@@ -298,12 +514,19 @@ public sealed class LocationRackAdministrationService(
             item.Id,
             item.Code,
             item.PalletNumber,
+            item.OperationalRole,
             item.IsPhysicallyPresent,
             item.IsActive,
             item.IsBlocked,
             item.BlockReason
         }));
 
-    private static LocationRackEditSummary EmptySummary() => new([], [], []);
+    private static LocationOperationalRole RackOperationalRole(IReadOnlyList<Location> locations) =>
+        locations.Count > 0 && locations.All(item => item.OperationalRole == LocationOperationalRole.Wip)
+            ? LocationOperationalRole.Wip
+            : LocationOperationalRole.Storage;
+
+    private static LocationRackEditSummary EmptySummary() => new([], [], [],
+        LocationOperationalRole.Storage, LocationOperationalRole.Storage);
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
 }

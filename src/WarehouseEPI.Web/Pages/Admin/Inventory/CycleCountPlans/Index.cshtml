@@ -1,0 +1,176 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Inventory.CycleCountPlans.IndexModel
+@using WarehouseEPI.Web.Pages.Operations.CycleCounts
+@{
+    ViewData["Title"] = "Planes de conteo";
+}
+
+<div class="inventory-analytics">
+    <header class="inventory-page-header analytics-header">
+        <div>
+            <span class="eyebrow">Administración</span>
+            <h1 class="h2 mb-1">Planes de conteo recurrente</h1>
+            <p class="text-muted mb-0">Programa un SKU por ubicación sin exponer la existencia esperada.</p>
+        </div>
+        <a asp-page="/Operations/CycleCounts/Calendar" class="btn btn-outline-primary">Ver calendario</a>
+    </header>
+
+    @if (Model.Error is not null)
+    {
+        <div class="alert alert-danger" role="alert">@Model.Error</div>
+    }
+
+    <form method="post" asp-page-handler="Create" class="analytics-filter-card mb-4"
+          data-cycle-plan data-lookup-url="@Url.Page("/Operations/Lookup")">
+        <h2 class="h5 mb-3">Nuevo plan</h2>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <div class="row g-3">
+            <div class="col-lg-6">
+                <div class="lookup-field" data-cycle-plan-field="product">
+                    <input asp-for="Input.ProductId" type="hidden" data-cycle-plan-id />
+                    <label for="cycle-plan-product-search" class="form-label">SKU</label>
+                    <div class="input-group input-group-lg">
+                        <input id="cycle-plan-product-search" name="ProductSearch" value="@Model.ProductSearch"
+                               class="form-control" type="search" autocomplete="off" autocapitalize="characters"
+                               placeholder="Busca por SKU, descripción o código"
+                               role="combobox" aria-autocomplete="list" aria-expanded="false"
+                               aria-controls="cycle-plan-product-results" aria-describedby="cycle-plan-product-feedback"
+                               data-cycle-plan-search />
+                        <button type="button" class="btn btn-outline-secondary" data-cycle-plan-camera
+                                aria-label="Escanear producto con cámara">
+                            <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
+                        </button>
+                    </div>
+                    <div id="cycle-plan-product-results" class="lookup-results list-group" role="listbox"
+                         data-cycle-plan-results></div>
+                    <div class="selected-record @(Model.SelectedProduct is null ? "d-none" : null)" data-cycle-plan-selected>
+                        <strong data-cycle-plan-selected-title>@Model.SelectedProduct?.Sku</strong>
+                        <span data-cycle-plan-selected-detail>@Model.SelectedProduct?.Description</span>
+                        <small data-cycle-plan-selected-meta>@Model.SelectedProduct?.UnitCode</small>
+                    </div>
+                    <p id="cycle-plan-product-feedback" class="form-text mb-0" role="status" aria-live="polite"
+                       data-cycle-plan-feedback>Escribe para buscar o usa un lector HID.</p>
+                    <span asp-validation-for="Input.ProductId" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="lookup-field" data-cycle-plan-field="location">
+                    <input asp-for="Input.LocationId" type="hidden" data-cycle-plan-id />
+                    <label for="cycle-plan-location-search" class="form-label">Ubicación</label>
+                    <div class="input-group input-group-lg">
+                        <input id="cycle-plan-location-search" name="LocationSearch" value="@Model.LocationSearch"
+                               class="form-control" type="search" autocomplete="off" autocapitalize="characters"
+                               placeholder="Busca por código o descripción"
+                               role="combobox" aria-autocomplete="list" aria-expanded="false"
+                               aria-controls="cycle-plan-location-results" aria-describedby="cycle-plan-location-feedback"
+                               data-cycle-plan-search />
+                        <button type="button" class="btn btn-outline-secondary" data-cycle-plan-camera
+                                aria-label="Escanear ubicación con cámara">
+                            <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
+                        </button>
+                    </div>
+                    <div id="cycle-plan-location-results" class="lookup-results list-group" role="listbox"
+                         data-cycle-plan-results></div>
+                    <div class="selected-record @(Model.SelectedLocation is null ? "d-none" : null)" data-cycle-plan-selected>
+                        <strong data-cycle-plan-selected-title>@Model.SelectedLocation?.Code</strong>
+                        <span data-cycle-plan-selected-detail>@Model.SelectedLocation?.Description</span>
+                        <small data-cycle-plan-selected-meta>Ubicación</small>
+                    </div>
+                    <p id="cycle-plan-location-feedback" class="form-text mb-0" role="status" aria-live="polite"
+                       data-cycle-plan-feedback>Escribe para buscar o usa un lector HID.</p>
+                    <span asp-validation-for="Input.LocationId" class="text-danger"></span>
+                </div>
+            </div>
+
+            <div class="col-sm-6 col-lg-4">
+                <label asp-for="Input.Frequency" class="form-label">Frecuencia</label>
+                <select asp-for="Input.Frequency" asp-items="Model.FrequencyOptions" class="form-select form-select-lg"></select>
+                <span asp-validation-for="Input.Frequency" class="text-danger"></span>
+            </div>
+            <div class="col-sm-6 col-lg-4">
+                <label asp-for="Input.AnchorDate" class="form-label">Fecha inicial</label>
+                <input asp-for="Input.AnchorDate" class="form-control form-control-lg" type="date" required />
+                <span asp-validation-for="Input.AnchorDate" class="text-danger"></span>
+            </div>
+            <div class="col-lg-4 d-grid align-self-end">
+                <button class="btn btn-primary btn-lg">Guardar plan</button>
+            </div>
+        </div>
+    </form>
+
+    <form method="get" class="analytics-filter-card analytics-filter-form mb-3">
+        <div class="flex-grow-1">
+            <label for="plan-search" class="form-label">Buscar planes</label>
+            <input id="plan-search" asp-for="Search" class="form-control" placeholder="SKU, descripción o ubicación" />
+        </div>
+        <div>
+            <label asp-for="Status" class="form-label">Estado</label>
+            <select asp-for="Status" class="form-select">
+                <option value="all">Todos</option>
+                <option value="active">Activos</option>
+                <option value="paused">Pausados</option>
+            </select>
+        </div>
+        <div class="analytics-filter-actions"><button class="btn btn-outline-primary">Aplicar filtros</button></div>
+    </form>
+
+    <div class="table-responsive analytics-table">
+        <table class="table align-middle">
+            <thead><tr><th>SKU</th><th>Ubicación</th><th>Frecuencia</th><th>Próxima fecha</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+            @foreach (var item in Model.Plans)
+            {
+                <tr>
+                    <td><strong>@item.Sku</strong><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción")</small></td>
+                    <td>@item.LocationCode</td>
+                    <td>@CycleCountPlanPresentation.FrequencyLabel(item.Frequency)</td>
+                    <td>@item.NextDueDate.ToString("dd/MM/yyyy")</td>
+                    <td>
+                        @if (!item.IsActive) { <span class="badge text-bg-secondary">Pausado</span> }
+                        else if (item.IsBlocked) { <span class="badge text-bg-danger">Bloqueado</span> }
+                        else { <span class="badge text-bg-success">Activo</span> }
+                    </td>
+                    <td class="text-end">
+                        <div class="d-flex justify-content-end gap-2 flex-wrap">
+                        <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Editar</a>
+                        <a asp-page="History" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">Historial</a>
+                        <form method="post" asp-page-handler="Toggle" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-pageNumber="@Model.PageNumber">
+                            <input type="hidden" name="id" value="@item.Id" />
+                            <input type="hidden" name="active" value="@(!item.IsActive)" />
+                            <button class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Pausar" : "Reactivar")</button>
+                        </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            @if (Model.Plans.Count == 0)
+            {
+                <tr><td colspan="6" class="text-center text-body-secondary py-4">Aún no hay planes. Crea el primero para verlo en el calendario.</td></tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    @if (Model.Result.TotalPages > 1)
+    {
+        <nav aria-label="Páginas de planes" class="mt-3">
+            <ul class="pagination justify-content-center">
+                @for (var p = 1; p <= Model.Result.TotalPages; p++)
+                {
+                    <li class="page-item @(p == Model.Result.Page ? "active" : null)">
+                        <a class="page-link" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-pageNumber="@p">@p</a>
+                    </li>
+                }
+            </ul>
+        </nav>
+    }
+</div>
+
+<partial name="/Pages/Operations/CycleCounts/_CameraScanner.cshtml" />
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
+    <script src="~/js/cycle-count.js" asp-append-version="true" defer></script>
+}

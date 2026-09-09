@@ -5,15 +5,25 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Reporting;
+using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.Alerts;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class DetailsModel(OperationalExceptionService exceptions) : PageModel
+public sealed class DetailsModel(
+    OperationalExceptionService exceptions,
+    WarehouseClock warehouseClock,
+    TimeProvider timeProvider) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public OperationalExceptionDetailDto? Exception { get; private set; }
     public IReadOnlyList<OperationalExceptionAssigneeDto> Assignees { get; private set; } = [];
+    public IReadOnlyList<LocalizedEvent> History { get; private set; } = [];
+    public DateTimeOffset FirstDetectedAt { get; private set; }
+    public DateTimeOffset LastDetectedAt { get; private set; }
+    public DateTimeOffset? ResolvedAt { get; private set; }
+    public string FirstDetectedRelative { get; private set; } = string.Empty;
+    public string LastDetectedRelative { get; private set; } = string.Empty;
     public string? Error { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -42,6 +52,22 @@ public sealed class DetailsModel(OperationalExceptionService exceptions) : PageM
     {
         Exception = await exceptions.GetDetailAsync(id, cancellationToken);
         Assignees = await exceptions.GetAssignableUsersAsync(cancellationToken);
+        if (Exception is not null)
+        {
+            var now = timeProvider.GetUtcNow();
+            FirstDetectedAt = await warehouseClock.ConvertAsync(Exception.Case.FirstDetectedAt, cancellationToken);
+            LastDetectedAt = await warehouseClock.ConvertAsync(Exception.Case.LastDetectedAt, cancellationToken);
+            ResolvedAt = Exception.Case.ResolvedAt is DateTimeOffset resolvedAt
+                ? await warehouseClock.ConvertAsync(resolvedAt, cancellationToken)
+                : null;
+            FirstDetectedRelative = RelativeTime(Exception.Case.FirstDetectedAt, now);
+            LastDetectedRelative = RelativeTime(Exception.Case.LastDetectedAt, now);
+
+            var history = new List<LocalizedEvent>(Exception.Events.Count);
+            foreach (var item in Exception.Events)
+                history.Add(new(item, await warehouseClock.ConvertAsync(item.RecordedAt, cancellationToken)));
+            History = history;
+        }
         if (Exception is not null && Input.OperationId == Guid.Empty)
         {
             Input.OperationId = Guid.NewGuid();
@@ -50,6 +76,19 @@ public sealed class DetailsModel(OperationalExceptionService exceptions) : PageM
             Input.Version = Exception.Case.Version;
         }
     }
+
+    private static string RelativeTime(DateTimeOffset instant, DateTimeOffset now)
+    {
+        var elapsed = now - instant;
+        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+        if (elapsed < TimeSpan.FromMinutes(1)) return "hace menos de un minuto";
+        if (elapsed < TimeSpan.FromHours(1)) return $"hace {(int)elapsed.TotalMinutes} min";
+        if (elapsed < TimeSpan.FromDays(1)) return $"hace {(int)elapsed.TotalHours} h";
+        var days = (int)elapsed.TotalDays;
+        return days == 1 ? "hace 1 día" : $"hace {days} días";
+    }
+
+    public sealed record LocalizedEvent(OperationalExceptionEventDto Event, DateTimeOffset RecordedAt);
 
     public sealed class InputModel
     {

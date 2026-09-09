@@ -250,6 +250,7 @@ public sealed record OperationalAlertConditionDto(
     string ConditionKey,
     string PrimaryText,
     string SecondaryText,
+    string ReasonText,
     string? ValueText,
     string TargetUrl,
     Guid? ProductId,
