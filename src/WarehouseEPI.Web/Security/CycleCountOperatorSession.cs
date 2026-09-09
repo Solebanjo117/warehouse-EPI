@@ -36,7 +36,10 @@ public sealed class CycleCountOperatorSession(
         Clear(context);
         var now = timeProvider.GetUtcNow();
         var ticket = new Ticket(Guid.NewGuid(), user.Id, user.FullName, campaignId, now, now, now.Add(AbsoluteLifetime));
-        cache.Set(CacheKey(ticket.SessionId), true, ticket.AbsoluteExpiresAt);
+        // MemoryCache evalúa las fechas absolutas con su propio reloj. La entrada usa una
+        // duración relativa y el ticket, basado en el reloj inyectado, conserva los límites
+        // exactos de inactividad y duración absoluta en GetAsync.
+        cache.Set(CacheKey(ticket.SessionId), true, AbsoluteLifetime);
         WriteCookie(context, ticket);
         return View(ticket, now);
     }

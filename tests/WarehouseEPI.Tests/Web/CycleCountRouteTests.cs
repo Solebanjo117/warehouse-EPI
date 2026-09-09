@@ -393,6 +393,55 @@ public sealed class CycleCountRouteTests
         throw new DirectoryNotFoundException("No se encontró la raíz del repositorio.");
     }
 
+    [Fact]
+    public void Printable_sheet_binds_its_print_button_from_the_external_script()
+    {
+        var print = File.ReadAllText(RepositoryFile("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts", "Print.cshtml"));
+        var script = File.ReadAllText(RepositoryFile("src", "WarehouseEPI.Web", "wwwroot", "js", "cycle-count.js"));
+
+        Assert.Contains("data-cycle-print", print, StringComparison.Ordinal);
+        Assert.DoesNotContain("onclick", print, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("javascript:", print, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[data-cycle-print]", script, StringComparison.Ordinal);
+        Assert.Contains("window.print()", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Blind_capture_is_a_touch_station_that_preserves_the_guided_session_contract()
+    {
+        var count = File.ReadAllText(RepositoryFile("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts", "Count.cshtml"));
+        var review = File.ReadAllText(RepositoryFile("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts", "Review.cshtml"));
+        var script = File.ReadAllText(RepositoryFile("src", "WarehouseEPI.Web", "wwwroot", "js", "cycle-count.js"));
+
+        // Registro operativo, no de consulta: bloques táctiles en vez de tabla analítica.
+        Assert.Contains("cycle-count-workspace", count, StringComparison.Ordinal);
+        Assert.Contains("entry-step", count, StringComparison.Ordinal);
+        Assert.Contains("input-group-lg", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("analytics-filter-card", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("table-responsive", count, StringComparison.Ordinal);
+
+        // El NIP se pide en la confirmación únicamente cuando la sesión temporal lo requiere.
+        Assert.Contains("confirm-cycle-count", count, StringComparison.Ordinal);
+        Assert.Contains("pin-input", count, StringComparison.Ordinal);
+        Assert.Contains("Contando como", count, StringComparison.Ordinal);
+
+        // El flujo continúa con la siguiente ubicación sin aprobar ajustes individualmente.
+        Assert.Contains("Registrar y escanear siguiente", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("Enviar conteo", count, StringComparison.Ordinal);
+        Assert.Contains("Las decisiones se autorizan juntas al finalizar la campaña.", review, StringComparison.Ordinal);
+
+        // La ceguera sigue siendo del servidor y los enganches del script no se rompen.
+        Assert.DoesNotContain("ExpectedQuantity", count, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-product", count, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-quantity", count, StringComparison.Ordinal);
+        Assert.Contains("data-cycle-unexpected-row", count, StringComparison.Ordinal);
+        Assert.Contains("[data-cycle-empty-location]", script, StringComparison.Ordinal);
+        Assert.Contains("_CameraScanner", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-cycle-scan-photo", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("📷", count, StringComparison.Ordinal);
+        Assert.DoesNotContain("📷", script, StringComparison.Ordinal);
+    }
+
     private static string RepositoryDirectory(params string[] parts) =>
         Path.GetDirectoryName(RepositoryFile([.. parts, "Index.cshtml"]))!;
 }
