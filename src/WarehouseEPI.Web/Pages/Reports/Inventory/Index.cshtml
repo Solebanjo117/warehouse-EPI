@@ -1,11 +1,28 @@
 @page "/Reports/Inventory"
 @model WarehouseEPI.Web.Pages.Reports.Inventory.IndexModel
+@using WarehouseEPI.Infrastructure.Reporting
 @{
     ViewData["Title"] = "Analítica de inventario";
     var isAdmin = User.IsInRole("ADMIN");
-    var page = Model.View == "activity" ? Model.Activity.PageNumber : Model.Stagnant.PageNumber;
-    var totalPages = Model.View == "activity" ? Model.Activity.TotalPages : Model.Stagnant.TotalPages;
-    var stagnantCategory = Model.StagnantCategoryFilter is null ? null : "90plus";
+    var page = Model.View switch
+    {
+        "activity" => Model.Activity.PageNumber,
+        "stagnant" => Model.Stagnant.PageNumber,
+        "lot-aging" => Model.LotAging.Page.PageNumber,
+        "coverage" => Model.Coverage.Page.PageNumber,
+        _ => 1
+    };
+    var totalPages = Model.View switch
+    {
+        "activity" => Model.Activity.TotalPages,
+        "stagnant" => Model.Stagnant.TotalPages,
+        "lot-aging" => Model.LotAging.Page.TotalPages,
+        "coverage" => Model.Coverage.Page.TotalPages,
+        _ => 1
+    };
+    var stagnantCategory = Model.StagnantCategory;
+    var ageBucket = Model.AgeBucket?.ToString().ToLowerInvariant();
+    var coverageClass = Model.CoverageClass?.ToString().ToLowerInvariant();
 }
 
 @section Styles {
@@ -17,7 +34,7 @@
         <div>
             <span class="eyebrow">Reportes LAN</span>
             <h1 class="h2 mb-1">Analítica de inventario</h1>
-            <p class="text-muted mb-0">Capacidad basada en saldo real, actividad de salidas, existencia estancada y excepciones accionables.</p>
+            <p class="text-muted mb-0">Capacidad basada en saldo real, actividad de salidas, existencia estancada, antigüedad de lotes, cobertura y excepciones.</p>
         </div>
         <a class="btn btn-outline-primary"
            asp-route-view="@Model.View"
@@ -26,6 +43,9 @@
            asp-route-status="@Model.Status"
            asp-route-search="@Model.Search"
            asp-route-unitId="@Model.UnitId"
+           asp-route-stagnantCategory="@stagnantCategory"
+           asp-route-ageBucket="@ageBucket"
+           asp-route-coverageClass="@coverageClass"
            asp-route-pageNumber="@(Model.View == "exceptions" ? Model.ExceptionPageNumber : page)"
            asp-route-refresh="true">Actualizar ahora</a>
     </header>
@@ -36,7 +56,7 @@
         @if (isAdmin)
         {
             <a asp-page="/Admin/Inventory/Alerts">Alertas administrativas</a>
-            <a asp-page="/Locations/Index">Ubicaciones</a>
+            <a asp-page="/Admin/Catalogs/Locations/Index">Ubicaciones</a>
             <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
         }
     </aside>
@@ -44,7 +64,9 @@
     <nav class="inventory-filter-tabs analytics-tabs" aria-label="Vista analítica">
         <a class="@(Model.View == "occupancy" ? "active" : null)" aria-current="@(Model.View == "occupancy" ? "page" : null)" asp-route-view="occupancy">Ocupación</a>
         <a class="@(Model.View == "activity" ? "active" : null)" aria-current="@(Model.View == "activity" ? "page" : null)" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">Actividad de salidas</a>
-        <a class="@(Model.View == "stagnant" ? "active" : null)" aria-current="@(Model.View == "stagnant" ? "page" : null)" asp-route-view="stagnant" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">Estancamiento</a>
+        <a class="@(Model.View == "stagnant" ? "active" : null)" aria-current="@(Model.View == "stagnant" ? "page" : null)" asp-route-view="stagnant" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory">Estancamiento</a>
+        <a class="@(Model.View == "lot-aging" ? "active" : null)" aria-current="@(Model.View == "lot-aging" ? "page" : null)" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket">Antigüedad de lotes</a>
+        <a class="@(Model.View == "coverage" ? "active" : null)" aria-current="@(Model.View == "coverage" ? "page" : null)" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass">Cobertura por consumo</a>
         <a class="@(Model.View == "exceptions" ? "active" : null)" aria-current="@(Model.View == "exceptions" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search">Excepciones</a>
     </nav>
 
@@ -66,6 +88,13 @@
                 <article><strong>@summary.InactiveCount</strong><span>Inactivas</span></article>
             </section>
         </div>
+        @if (isAdmin)
+        {
+            <div class="d-flex justify-content-end gap-2 mb-3 report-export-actions" aria-label="Exportar ocupación">
+                <a class="btn btn-outline-success btn-sm" asp-page-handler="Export" asp-route-view="occupancy" asp-route-format="xlsx">Excel</a>
+                <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="occupancy" asp-route-format="csv">CSV</a>
+            </div>
+        }
         <div class="table-responsive analytics-table">
             <table class="table align-middle">
                 <thead><tr><th>Fila</th><th>Posiciones</th><th>Ocupadas</th><th>Vacías</th><th>Negativas</th><th>Bloqueadas</th><th>Inactivas</th><th>Utilización</th><th></th></tr></thead>
@@ -141,6 +170,317 @@
             <nav class="mt-4" aria-label="Paginación de excepciones"><ul class="pagination justify-content-center"><li class="page-item @(Model.ExceptionPageNumber <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-pageNumber="@(Model.ExceptionPageNumber - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@Model.ExceptionPageNumber de @Model.ExceptionTotalPages</span></li><li class="page-item @(Model.ExceptionPageNumber >= Model.ExceptionTotalPages ? "disabled" : null)"><a class="page-link" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-pageNumber="@(Model.ExceptionPageNumber + 1)">Siguiente</a></li></ul></nav>
         }
     }
+    else if (Model.View == "lot-aging")
+    {
+        var summary = Model.LotAging.Summary;
+        <p class="analytics-view-intro">Segmenta los lotes internos con saldo físico activo según su tiempo de permanencia en el almacén local.</p>
+
+        <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
+            <svg class="bi flex-shrink-0" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-11.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
+            </svg>
+            <div>
+                <strong>Aviso de permanencia:</strong> La antigüedad refleja los días transcurridos desde el registro del lote en el almacén local (tiempo de permanencia física); no representa fecha de caducidad ni vencimiento de fabricante.
+            </div>
+        </div>
+
+        <section class="analytics-metrics mb-3" aria-label="Resumen de antigüedad de lotes">
+            <article><strong>@summary.Days0To30LotCount</strong><span>0–30 días</span></article>
+            <article><strong>@summary.Days31To60LotCount</strong><span>31–60 días</span></article>
+            <article class="is-warning"><strong>@summary.Days61To90LotCount</strong><span>61–90 días</span></article>
+            <article class="is-danger"><strong>@summary.Days90PlusLotCount</strong><span>Más de 90 días</span></article>
+        </section>
+
+        <form method="get" class="analytics-filter-card analytics-filter-form">
+            <input type="hidden" name="view" value="lot-aging" />
+            <div>
+                <label for="aging-search" class="form-label">Buscar</label>
+                <input id="aging-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción o lote" />
+            </div>
+            <div>
+                <label for="aging-bucket" class="form-label">Rango</label>
+                <select id="aging-bucket" name="ageBucket" class="form-select">
+                    <option value="">Todos los rangos</option>
+                    <option value="days0to30" selected="@(Model.AgeBucket == LotAgeBucket.Days0To30)">0–30 días</option>
+                    <option value="days31to60" selected="@(Model.AgeBucket == LotAgeBucket.Days31To60)">31–60 días</option>
+                    <option value="days61to90" selected="@(Model.AgeBucket == LotAgeBucket.Days61To90)">61–90 días</option>
+                    <option value="days90plus" selected="@(Model.AgeBucket == LotAgeBucket.Days90Plus)">Más de 90 días</option>
+                </select>
+            </div>
+            <div>
+                <label for="aging-status" class="form-label">Estado</label>
+                <select id="aging-status" name="status" class="form-select">
+                    <option value="active">Activos</option>
+                    <option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option>
+                    <option value="all" selected="@(Model.Status == "all")">Todos</option>
+                </select>
+            </div>
+            <div>
+                <label for="aging-unit" class="form-label">Unidad</label>
+                <select id="aging-unit" name="unitId" class="form-select">
+                    <option value="">Todas</option>
+                    @foreach (var unit in Model.UnitOptions)
+                    {
+                        <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="analytics-filter-actions">
+                <button class="btn btn-primary">Aplicar</button>
+                <a asp-route-view="lot-aging" class="btn btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <p class="mb-0 text-muted">@Model.LotAging.Page.TotalCount.ToString("N0") lote(s)</p>
+            @if (isAdmin)
+            {
+                <div class="d-flex gap-2">
+                    <a class="btn btn-outline-success btn-sm" asp-page-handler="Export" asp-route-view="lot-aging" asp-route-format="xlsx" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket">Excel</a>
+                    <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="lot-aging" asp-route-format="csv" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket">CSV</a>
+                </div>
+            }
+        </div>
+
+        <div class="table-responsive analytics-table">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Lote interno</th>
+                        <th>Fecha ingreso</th>
+                        <th>Días</th>
+                        <th>Rango</th>
+                        <th>Existencia</th>
+                        <th>Ubicación</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.LotAging.Page.Items.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay lotes que coincidan con los filtros seleccionados.</td></tr>
+                }
+                @foreach (var item in Model.LotAging.Page.Items)
+                {
+                    var chipClass = item.AgeBucket switch
+                    {
+                        LotAgeBucket.Days90Plus => "is-danger",
+                        LotAgeBucket.Days61To90 => "is-warning",
+                        _ => "is-active"
+                    };
+                    <tr>
+                        <td>
+                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a>
+                            <small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small>
+                        </td>
+                        <td>
+                            <span class="font-monospace fw-semibold">@item.LotNumber</span>
+                        </td>
+                        <td>
+                            @(item.LotDate?.ToString("dd/MM/yyyy") ?? "—")
+                        </td>
+                        <td class="font-monospace">
+                            <strong>@item.AgeDays</strong> d
+                        </td>
+                        <td>
+                            <span class="analytics-chip @chipClass">@item.AgeBucketLabel</span>
+                        </td>
+                        <td class="analytics-quantity">
+                            @item.Quantity.ToString("0.####") @item.UnitCode
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary-subtle text-body">@item.PrimaryLocationCode</span>
+                            @if (item.LocationCount > 1)
+                            {
+                                <small class="text-muted ms-1">(+@(item.LocationCount - 1) más)</small>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="btn btn-outline-primary btn-sm">Ver existencias</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <nav aria-label="Paginación de lotes">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(page <= 1 ? "disabled" : null)">
+                        <a class="page-link" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket" asp-route-pageNumber="@(page - 1)">Anterior</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">@(page) de @totalPages</span>
+                    </li>
+                    <li class="page-item @(page >= totalPages ? "disabled" : null)">
+                        <a class="page-link" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket" asp-route-pageNumber="@(page + 1)">Siguiente</a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+    else if (Model.View == "coverage")
+    {
+        var summary = Model.Coverage.Summary;
+        <p class="analytics-view-intro">Proyecta los días de disponibilidad del inventario según el ritmo de consumo real neto (salidas a producción y generales deduciendo retornos WIP) en posiciones de rack.</p>
+
+        <section class="analytics-metrics mb-3" aria-label="Resumen de cobertura">
+            <article class="is-danger"><strong>@summary.CriticalCount</strong><span>Críticos (&lt; 7d)</span></article>
+            <article class="is-warning"><strong>@summary.LowCount</strong><span>Bajos (7–14d)</span></article>
+            <article><strong>@summary.NormalCount</strong><span>Normales (15–45d)</span></article>
+            <article><strong>@summary.ExcessCount</strong><span>Exceso (&gt; 45d)</span></article>
+            <article><strong>@summary.NoRecentConsumptionCount</strong><span>Sin consumo reciente</span></article>
+            <article class="is-danger"><strong>@summary.ExhaustedCount</strong><span>Agotados</span></article>
+        </section>
+
+        <form method="get" class="analytics-filter-card analytics-filter-form">
+            <input type="hidden" name="view" value="coverage" />
+            <div>
+                <label for="coverage-search" class="form-label">Producto</label>
+                <input id="coverage-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU o descripción" />
+            </div>
+            <div>
+                <label for="coverage-period" class="form-label">Ventana de consumo</label>
+                <select id="coverage-period" name="period" class="form-select">
+                    <option value="30" selected="@(Model.Period == "30")">Últimos 30 días</option>
+                    <option value="60" selected="@(Model.Period == "60")">Últimos 60 días</option>
+                    <option value="90" selected="@(Model.Period == "90")">Últimos 90 días</option>
+                </select>
+            </div>
+            <div>
+                <label for="coverage-class" class="form-label">Clasificación</label>
+                <select id="coverage-class" name="coverageClass" class="form-select">
+                    <option value="">Todas las clasificaciones</option>
+                    <option value="critical" selected="@(Model.CoverageClass == CoverageClassification.Critical)">Crítico (&lt; 7 días)</option>
+                    <option value="low" selected="@(Model.CoverageClass == CoverageClassification.Low)">Bajo (7–14 días)</option>
+                    <option value="normal" selected="@(Model.CoverageClass == CoverageClassification.Normal)">Normal (15–45 días)</option>
+                    <option value="excess" selected="@(Model.CoverageClass == CoverageClassification.Excess)">Exceso (&gt; 45 días)</option>
+                    <option value="norecentconsumption" selected="@(Model.CoverageClass == CoverageClassification.NoRecentConsumption)">Sin consumo reciente</option>
+                    <option value="exhausted" selected="@(Model.CoverageClass == CoverageClassification.Exhausted)">Agotado</option>
+                </select>
+            </div>
+            <div>
+                <label for="coverage-status" class="form-label">Estado</label>
+                <select id="coverage-status" name="status" class="form-select">
+                    <option value="active">Activos</option>
+                    <option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option>
+                    <option value="all" selected="@(Model.Status == "all")">Todos</option>
+                </select>
+            </div>
+            <div>
+                <label for="coverage-unit" class="form-label">Unidad</label>
+                <select id="coverage-unit" name="unitId" class="form-select">
+                    <option value="">Todas</option>
+                    @foreach (var unit in Model.UnitOptions)
+                    {
+                        <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="analytics-filter-actions">
+                <button class="btn btn-primary">Aplicar</button>
+                <a asp-route-view="coverage" class="btn btn-outline-secondary">Limpiar</a>
+            </div>
+        </form>
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <p class="mb-0 text-muted">@Model.Coverage.Page.TotalCount.ToString("N0") producto(s)</p>
+            @if (isAdmin)
+            {
+                <div class="d-flex gap-2">
+                    <a class="btn btn-outline-success btn-sm" asp-page-handler="Export" asp-route-view="coverage" asp-route-format="xlsx" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass">Excel</a>
+                    <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="coverage" asp-route-format="csv" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass">CSV</a>
+                </div>
+            }
+        </div>
+
+        <div class="table-responsive analytics-table">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Stock disponible (racks)</th>
+                        <th>Consumo neto</th>
+                        <th>Consumo diario prom.</th>
+                        <th>Días cobertura</th>
+                        <th>Clasificación</th>
+                        <th>Última salida</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Coverage.Page.Items.Count == 0)
+                {
+                    <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay productos que coincidan con los filtros seleccionados.</td></tr>
+                }
+                @foreach (var item in Model.Coverage.Page.Items)
+                {
+                    var chipClass = item.Classification switch
+                    {
+                        CoverageClassification.Critical or CoverageClassification.Exhausted => "is-danger",
+                        CoverageClassification.Low => "is-warning",
+                        CoverageClassification.Normal => "is-active",
+                        _ => ""
+                    };
+                    <tr>
+                        <td>
+                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a>
+                            <small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small>
+                        </td>
+                        <td class="analytics-quantity">
+                            @item.AvailableStock.ToString("0.####") @item.UnitCode
+                        </td>
+                        <td class="analytics-quantity">
+                            @item.NetConsumption.ToString("0.####") @item.UnitCode
+                        </td>
+                        <td class="analytics-quantity">
+                            @item.DailyAverageConsumption.ToString("0.####") @item.UnitCode/d
+                        </td>
+                        <td>
+                            @if (item.CoverageDays is decimal days)
+                            {
+                                <strong class="font-monospace @(item.Classification == CoverageClassification.Critical ? "text-danger" : null)">@days.ToString("0.0")</strong> <small>días</small>
+                            }
+                            else
+                            {
+                                <span class="text-body-secondary">Sin consumo</span>
+                            }
+                        </td>
+                        <td>
+                            <span class="analytics-chip @chipClass">@item.ClassificationLabel</span>
+                        </td>
+                        <td>
+                            @Model.FormatLocalDate(item.LastExitDateUtc)
+                        </td>
+                        <td class="text-end">
+                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="btn btn-outline-primary btn-sm">Existencias</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (totalPages > 1)
+        {
+            <nav aria-label="Paginación de cobertura">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item @(page <= 1 ? "disabled" : null)">
+                        <a class="page-link" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass" asp-route-pageNumber="@(page - 1)">Anterior</a>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">@(page) de @totalPages</span>
+                    </li>
+                    <li class="page-item @(page >= totalPages ? "disabled" : null)">
+                        <a class="page-link" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass" asp-route-pageNumber="@(page + 1)">Siguiente</a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
     else
     {
         <p class="analytics-view-intro">@(Model.View == "activity" ? "Mide frecuencia y volumen de salidas efectivas por SKU; no es una tasa contra inventario promedio." : "Identifica existencia positiva sin salida durante 30 días o más para conteo, reasignación o disposición.")</p>
@@ -151,14 +491,14 @@
             <div><label for="analytics-search" class="form-label">Producto</label><input id="analytics-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción, referencia o código" /></div>
             <div><label for="analytics-status" class="form-label">Estado</label><select id="analytics-status" name="status" class="form-select"><option value="active">Activos</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option><option value="all" selected="@(Model.Status == "all")">Todos</option></select></div>
             <div><label for="analytics-unit" class="form-label">Unidad</label><select id="analytics-unit" name="unitId" class="form-select"><option value="">Todas</option>@foreach (var unit in Model.UnitOptions) { <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option> }</select></div>
-            @if (Model.View == "activity") { <div><label for="analytics-period" class="form-label">Período</label><select id="analytics-period" name="period" class="form-select"><option value="30" selected="@(Model.Period == "30")">30 días</option><option value="90" selected="@(Model.Period == "90")">90 días</option><option value="180" selected="@(Model.Period == "180")">180 días</option><option value="all" selected="@(Model.Period == "all")">Todo el historial</option></select></div> }
+            @if (Model.View == "activity") { <div><label for="analytics-period" class="form-label">Período</label><select id="analytics-period" name="period" class="form-select"><option value="this-month" selected="@(Model.Period == "this-month")">Mes actual</option><option value="last-month" selected="@(Model.Period == "last-month")">Mes anterior</option><option value="30" selected="@(Model.Period == "30")">30 días</option><option value="90" selected="@(Model.Period == "90")">90 días</option><option value="180" selected="@(Model.Period == "180")">180 días</option><option value="all" selected="@(Model.Period == "all")">Todo el historial</option></select></div> }
             <div class="analytics-filter-actions"><button class="btn btn-primary">Aplicar</button><a asp-route-view="@Model.View" class="btn btn-outline-secondary">Limpiar</a></div>
         </form>
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <p class="mb-0 text-muted">@((Model.View == "activity" ? Model.Activity.TotalCount : Model.Stagnant.TotalCount).ToString("N0")) producto(s)</p>
             @if (isAdmin)
             {
-                <div class="d-flex gap-2"><a class="btn btn-outline-success btn-sm" asp-page-handler="Export" asp-route-view="@Model.View" asp-route-format="xlsx" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">Excel</a><a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="@Model.View" asp-route-format="csv" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">CSV</a></div>
+                <div class="d-flex gap-2"><a class="btn btn-outline-success btn-sm" asp-page-handler="Export" asp-route-view="@Model.View" asp-route-format="xlsx" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory">Excel</a><a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="@Model.View" asp-route-format="csv" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory">CSV</a></div>
             }
         </div>
 

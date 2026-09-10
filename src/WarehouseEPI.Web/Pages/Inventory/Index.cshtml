@@ -63,11 +63,15 @@
             </div>
             @if (Model.Product is not null) { <div class="inventory-total"><span>Total global</span><strong>@Model.ProductTotal.ToString("0.####") @Model.Product.UnitCode</strong></div> }
             <div class="inventory-identity-actions">
-                @if (isAdmin && Model.Product is not null)
+                @if (Model.Product is not null)
                 {
-                    <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@Model.Product.Id" class="btn btn-outline-primary">Ficha</a>
-                    <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-secondary">Movimientos</a>
-                    <a asp-page="/Locations/Index" asp-route-search="@Model.Product.Sku" asp-route-status="all" asp-route-viewMode="map" class="btn btn-outline-secondary">Croquis</a>
+                    <a asp-page="/Reports/Kardex/Index" asp-route-sku="@Model.Product.Sku" asp-route-locationId="@Model.HighlightLocationId" class="btn btn-outline-info">Kardex</a>
+                    @if (isAdmin)
+                    {
+                        <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@Model.Product.Id" class="btn btn-outline-primary">Ficha</a>
+                        <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-secondary">Movimientos</a>
+                        <a asp-page="/Locations/Index" asp-route-search="@Model.Product.Sku" asp-route-status="all" asp-route-viewMode="map" class="btn btn-outline-secondary">Croquis</a>
+                    }
                 }
                 else if (isAdmin && Model.Location is not null)
                 {

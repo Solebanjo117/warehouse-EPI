@@ -84,6 +84,7 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Admin/Account", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Settings", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Labels", "AdminOnly");
+    options.Conventions.AuthorizeFolder("/Admin/Production", "AdminOnly");
 });
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseNpgsql(
@@ -111,6 +112,8 @@ builder.Services.AddScoped<WarehouseMapService>();
 builder.Services.AddScoped<InventoryMovementService>();
 builder.Services.AddScoped<ReceivingService>();
 builder.Services.AddScoped<ReceivingQueryService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionQueryService>();
 builder.Services.AddScoped<InventoryCorrectionService>();
 builder.Services.AddScoped<WipDispositionService>();
 builder.Services.AddScoped<WipDispositionCorrectionService>();
@@ -137,7 +140,13 @@ builder.Services.AddScoped<OperationalAlertService>();
 builder.Services.AddScoped<OperationalExceptionService>();
 builder.Services.AddScoped<UnifiedTraceService>();
 builder.Services.AddScoped<UnifiedTraceExportService>();
+builder.Services.AddScoped<KardexReportService>();
+builder.Services.AddScoped<KardexExportService>();
 builder.Services.AddScoped<MovementTraceabilityService>();
+builder.Services.AddScoped<WorkloadReportService>();
+builder.Services.AddScoped<WorkQueueService>();
+builder.Services.AddScoped<HeatmapReportService>();
+builder.Services.AddScoped<ExecutiveReportService>();
 builder.Services.AddHostedService<OperationalExceptionReconciliationHostedService>();
 builder.Services.AddScoped<WarehouseSettingsService>();
 builder.Services.AddScoped<WarehouseClock>();

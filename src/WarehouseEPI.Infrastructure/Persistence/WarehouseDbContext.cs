@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Infrastructure.Persistence;
 
@@ -53,6 +54,13 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ReceivingConfirmation> ReceivingConfirmations => Set<ReceivingConfirmation>();
     public DbSet<ReceivingConfirmationLine> ReceivingConfirmationLines => Set<ReceivingConfirmationLine>();
     public DbSet<ReceivingDocumentEvent> ReceivingDocumentEvents => Set<ReceivingDocumentEvent>();
+    public DbSet<ProductionStage> ProductionStages => Set<ProductionStage>();
+    public DbSet<ProductionShift> ProductionShifts => Set<ProductionShift>();
+    public DbSet<ProductionRoute> ProductionRoutes => Set<ProductionRoute>();
+    public DbSet<ProductionRouteStage> ProductionRouteStages => Set<ProductionRouteStage>();
+    public DbSet<ProductionWorkOrder> ProductionWorkOrders => Set<ProductionWorkOrder>();
+    public DbSet<ProductionWorkOrderStage> ProductionWorkOrderStages => Set<ProductionWorkOrderStage>();
+    public DbSet<ProductionEvent> ProductionEvents => Set<ProductionEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -82,6 +90,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureLabels(modelBuilder);
         ConfigureOperationalExceptions(modelBuilder);
         ConfigureReceiving(modelBuilder);
+        modelBuilder.ConfigureProduction();
     }
 
     private static void ConfigureReceiving(ModelBuilder modelBuilder)
@@ -639,7 +648,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
                 "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
@@ -648,7 +657,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "(purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR " +
                 "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
                 "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR " +
-                "(purpose = 'DOCUMENT_RECEIPT' AND type = 'ENTRY' AND operational_area_id IS NULL)");
+                "(purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL)");
         });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
@@ -1293,7 +1302,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent) &&
+            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent) &&
                 (entry.State is EntityState.Modified or EntityState.Deleted))
             .Select(entry => entry.Metadata.ClrType.Name)
             .Distinct()
@@ -1400,6 +1409,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.WipSupplierReturn => "WIP_SUPPLIER_RETURN",
         InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
         InventoryMovementPurpose.DocumentReceipt => "DOCUMENT_RECEIPT",
+        InventoryMovementPurpose.ProductionReceipt => "PRODUCTION_RECEIPT",
         _ => "STANDARD"
     };
 
@@ -1412,6 +1422,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "WIP_SUPPLIER_RETURN" => InventoryMovementPurpose.WipSupplierReturn,
         "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
         "DOCUMENT_RECEIPT" => InventoryMovementPurpose.DocumentReceipt,
+        "PRODUCTION_RECEIPT" => InventoryMovementPurpose.ProductionReceipt,
         _ => InventoryMovementPurpose.Standard
     };
 

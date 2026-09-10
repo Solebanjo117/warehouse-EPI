@@ -2398,6 +2398,7 @@ a.product-catalog-filter-chip:focus-visible {
 
 /* Áreas WIP: ubicaciones operativas con existencias reales. */
 .map-element.wip rect{fill:#f4a340!important;stroke:#9a4d00}.map-element.wip text{fill:#3d2500}
+.map-element.map-heat-0 rect{fill:color-mix(in srgb,var(--bs-secondary) 35%,var(--bs-body-bg))!important}.map-element.map-heat-1 rect{fill:color-mix(in srgb,var(--bs-info) 40%,var(--bs-body-bg))!important}.map-element.map-heat-2 rect{fill:color-mix(in srgb,var(--bs-warning) 55%,var(--bs-body-bg))!important}.map-element.map-heat-3 rect{fill:color-mix(in srgb,var(--bs-warning) 82%,var(--bs-danger))!important}.map-element.map-heat-4 rect{fill:var(--bs-danger)!important}.map-element.map-heat-unavailable rect{fill:var(--bs-secondary-bg)!important;stroke-dasharray:5 3}.map-element .map-heat-value{font-size:.65rem;font-weight:700}.map-heat-controls .form-select,.map-heat-controls .form-control,.map-heat-controls .btn{min-height:44px}.map-heat-legend{display:flex;flex-wrap:wrap;gap:.5rem 1rem}.map-heat-legend span{display:inline-flex;align-items:center;gap:.4rem}.heat-swatch{width:1.1rem;height:1.1rem;border:1px solid var(--bs-border-color);border-radius:.2rem}.heat-swatch.heat-0{background:color-mix(in srgb,var(--bs-secondary) 35%,var(--bs-body-bg))}.heat-swatch.heat-1{background:color-mix(in srgb,var(--bs-info) 40%,var(--bs-body-bg))}.heat-swatch.heat-2{background:color-mix(in srgb,var(--bs-warning) 55%,var(--bs-body-bg))}.heat-swatch.heat-3{background:color-mix(in srgb,var(--bs-warning) 82%,var(--bs-danger))}.heat-swatch.heat-4{background:var(--bs-danger)}.heat-swatch.heat-unavailable{background:var(--bs-secondary-bg);border-style:dashed}
 
 /* Vista operativa de racks */
 .rack-filter-bar{display:inline-flex;flex-wrap:wrap;gap:1px;padding:1px;border:1px solid var(--bs-border-color);border-radius:.6rem;background:var(--bs-border-color)}
@@ -2603,4 +2604,37 @@ a.product-catalog-filter-chip:focus-visible {
 @media (max-width: 767.98px) {
   .label-version-row { grid-template-columns: minmax(0, 1fr); }
   .label-version-actions { justify-content: flex-start; }
+}
+
+/* Centro de carga de trabajo: una decisión principal por tarjeta y lectura
+   vertical en tablets de operación. */
+.workload-view-tabs { gap: .5rem; }
+.workload-view-tabs .nav-link { min-height: 44px; display: inline-flex; align-items: center; font-weight: 650; }
+.workload-summary-card { color: var(--bs-body-color); border-left: 4px solid var(--bs-primary); }
+.workload-summary-card-warning { border-left-color: var(--bs-warning); }
+.workload-summary-card .card-body,
+.workload-metric .card-body { display: flex; flex-direction: column; gap: .15rem; }
+.workload-summary-card strong,
+.workload-metric strong { color: var(--bs-primary); font-size: clamp(1.65rem, 3vw, 2.2rem); line-height: 1.1; }
+.workload-summary-card small,
+.workload-metric small { color: var(--bs-secondary-color); }
+.workload-metric-name { font-size: 1.1rem !important; overflow-wrap: anywhere; }
+.workload-section { scroll-margin-top: 1rem; }
+.workload-section > .card-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.workload-section > .card-header small { color: var(--bs-secondary-color); }
+.workload-item-list { display: grid; gap: .75rem; }
+.workload-item { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .9rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-body-bg); }
+.workload-item-main { min-width: 0; }
+.workload-item-main h4,
+.workload-item-main p { overflow-wrap: anywhere; }
+.workload-primary-action { min-width: 9.5rem; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+.workload-empty { padding: 1.5rem; text-align: center; color: var(--bs-secondary-color); }
+.workload-breakdown-list { max-height: 18rem; overflow: auto; }
+
+@media (max-width: 767.98px) {
+  .workload-view-tabs { display: grid; grid-template-columns: 1fr 1fr; }
+  .workload-view-tabs .nav-link { justify-content: center; text-align: center; }
+  .workload-item { align-items: stretch; flex-direction: column; }
+  .workload-primary-action { width: 100%; }
+  .workload-section > .card-header { align-items: flex-start; }
 }

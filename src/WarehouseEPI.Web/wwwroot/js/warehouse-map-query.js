@@ -50,5 +50,97 @@
   document.querySelector("[data-map-zoom='in']")?.addEventListener("click", () => applyZoom(zoom * ZOOM_STEP));
   document.querySelector("[data-map-zoom='out']")?.addEventListener("click", () => applyZoom(zoom / ZOOM_STEP));
   document.querySelector("[data-map-fit]")?.addEventListener("click", () => applyZoom(MIN_ZOOM, true));
+  const heatmapForm = document.querySelector("[data-heatmap-form]");
+  if (heatmapForm) {
+    const metricControl = heatmapForm.querySelector("[name='mapMetric']");
+    const periodControl = heatmapForm.querySelector("[name='period']");
+    const errorBox = document.querySelector("[data-heatmap-error]");
+    const updateControlVisibility = () => {
+      const activity = metricControl?.value === "activity";
+      const custom = activity && periodControl?.value === "custom";
+      document.querySelectorAll("[data-heatmap-activity-control]").forEach((item) => item.classList.toggle("d-none", !activity));
+      document.querySelectorAll("[data-heatmap-custom-control]").forEach((item) => item.classList.toggle("d-none", !custom));
+      document.querySelector("[data-heatmap-unavailable-legend]")?.classList.toggle("d-none", activity);
+      const zeroLabel = document.querySelector("[data-heatmap-zero-label]");
+      if (zeroLabel) zeroLabel.textContent = activity ? "Sin actividad" : "Sin ocupación";
+    };
+    const setError = (message = "") => {
+      if (!errorBox) return;
+      errorBox.textContent = message;
+      errorBox.classList.toggle("d-none", message.length === 0);
+    };
+    const applyRackValues = (rack, metric) => {
+      const element = mapRoot.querySelector(`[data-map-open="${CSS.escape(rack.elementId)}"]`);
+      if (element) {
+        Array.from(element.classList).filter((name) => name.startsWith("map-heat-")).forEach((name) => element.classList.remove(name));
+        const unavailable = metric === "occupancy" && rack.totalPositions === 0;
+        element.classList.add(unavailable ? "map-heat-unavailable" : `map-heat-${rack.heatLevel}`);
+        element.dataset.heatLevel = `${rack.heatLevel}`;
+        const valueLabel = metric === "activity"
+          ? rack.accessCount === 0 ? ", sin actividad" : `, ${rack.accessCount} operaciones`
+          : unavailable ? ", sin posiciones evaluables" : `, ${rack.occupancyPercent}% ocupado`;
+        element.setAttribute("aria-label", `${element.dataset.mapBaseLabel}${valueLabel}`);
+        const visibleValue = element.querySelector("[data-heatmap-value]");
+        if (visibleValue) visibleValue.textContent = metric === "activity"
+          ? `${rack.accessCount} mov.`
+          : unavailable ? "N/D" : `${rack.occupancyPercent}%`;
+      }
+      const row = document.querySelector(`[data-heatmap-rack-row="${CSS.escape(rack.elementId)}"]`);
+      if (row) {
+        const access = row.querySelector("[data-heatmap-access]");
+        const occupancy = row.querySelector("[data-heatmap-occupancy]");
+        const incidents = row.querySelector("[data-heatmap-incidents]");
+        if (access) access.textContent = `${rack.accessCount}`;
+        if (occupancy) occupancy.textContent = `${rack.occupiedPositions}/${rack.totalPositions} (${rack.occupancyPercent}%)`;
+        if (incidents) incidents.textContent = `${rack.negativePositions} negativas · ${rack.blockedPositions} bloqueadas`;
+      }
+    };
+    const refreshHeatmap = async () => {
+      updateControlVisibility();
+      const formData = new FormData(heatmapForm);
+      if (formData.get("period") === "custom" && (!formData.get("from") || !formData.get("to"))) return;
+      const query = new URLSearchParams(formData);
+      query.set("handler", "HeatmapData");
+      heatmapForm.setAttribute("aria-busy", "true");
+      setError();
+      try {
+        const response = await fetch(`${window.location.pathname}?${query}`, { headers: { Accept: "application/json" } });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const result = await response.json();
+        result.racks.forEach((rack) => applyRackValues(rack, result.metric));
+        const periodLabel = document.querySelector("[data-heatmap-period-label]");
+        const generated = document.querySelector("[data-heatmap-generated]");
+        const timeZone = document.querySelector("[data-heatmap-timezone]");
+        if (periodLabel) periodLabel.textContent = result.periodLabel;
+        if (generated) generated.textContent = result.generatedAtLocal;
+        if (timeZone) timeZone.textContent = result.timeZoneId;
+        if (periodControl) periodControl.value = result.period;
+        const fromControl = heatmapForm.querySelector("[name='from']");
+        const toControl = heatmapForm.querySelector("[name='to']");
+        if (fromControl) fromControl.value = result.from || "";
+        if (toControl) toControl.value = result.to || "";
+        document.querySelectorAll("[data-heatmap-export]").forEach((link) => {
+          const exportUrl = new URL(link.href);
+          exportUrl.searchParams.set("mapMetric", result.metric);
+          exportUrl.searchParams.set("period", result.period);
+          result.from ? exportUrl.searchParams.set("from", result.from) : exportUrl.searchParams.delete("from");
+          result.to ? exportUrl.searchParams.set("to", result.to) : exportUrl.searchParams.delete("to");
+          link.href = exportUrl.toString();
+        });
+        query.delete("handler");
+        window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
+      } catch {
+        setError("No fue posible calcular el mapa de calor. Los valores anteriores se conservaron; vuelve a intentarlo.");
+      } finally {
+        heatmapForm.removeAttribute("aria-busy");
+      }
+    };
+    heatmapForm.addEventListener("submit", (event) => { event.preventDefault(); refreshHeatmap(); });
+    heatmapForm.querySelectorAll("[data-heatmap-submit]").forEach((control) => control.addEventListener("change", () => {
+      updateControlVisibility();
+      if (control === periodControl && periodControl.value === "custom") return;
+      refreshHeatmap();
+    }));
+  }
   mapRoot.querySelector("[data-map-target='true']")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
 })();

@@ -1,0 +1,353 @@
+@page "/Reports/Heatmap"
+@using System.Globalization
+@using WarehouseEPI.Infrastructure.Reporting
+@model WarehouseEPI.Web.Pages.Reports.Heatmap.IndexModel
+@{
+    ViewData["Title"] = "Mapa de calor de almacén";
+    var report = Model.Report;
+    var summary = report.Summary;
+    var isAdmin = User.IsInRole("ADMIN");
+    var isAccessMetric = report.Metric == HeatmapMetricType.AccessFrequency;
+    var totalPages = (int)Math.Ceiling((double)report.TotalCount / report.PageSize);
+    totalPages = Math.Max(1, totalPages);
+}
+
+@section Styles {
+    <style>
+        .heatmap-container {
+            background: #0f172a;
+            border-radius: 0.5rem;
+            overflow: auto;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .heatmap-svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            min-width: 900px;
+        }
+        .heatmap-rack {
+            cursor: pointer;
+            transition: transform 0.15s ease, filter 0.15s ease;
+        }
+        .heatmap-rack:hover, .heatmap-rack:focus {
+            filter: brightness(1.25);
+            outline: none;
+        }
+        /* Niveles térmicos */
+        .heat-level-0 rect { fill: #334155; stroke: #475569; stroke-width: 1; }
+        .heat-level-1 rect { fill: #0284c7; stroke: #38bdf8; stroke-width: 1.5; }
+        .heat-level-2 rect { fill: #eab308; stroke: #fde047; stroke-width: 1.5; }
+        .heat-level-3 rect { fill: #ea580c; stroke: #fb923c; stroke-width: 1.5; }
+        .heat-level-4 rect { fill: #dc2626; stroke: #f87171; stroke-width: 2; }
+        .heatmap-rack text {
+            fill: #ffffff;
+            font-size: 11px;
+            font-weight: 600;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+        .heat-swatch {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            vertical-align: middle;
+            margin-right: 4px;
+        }
+    </style>
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1">
+                <li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">Reportes</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Mapa de calor</li>
+            </ol>
+        </nav>
+        <h1 class="h2 mb-1">Mapa de calor de almacén (Heatmap)</h1>
+        <p class="text-muted mb-0">
+            Intensidad espacial de uso por rack en croquis SVG: rotación y accesos físicos vs. densidad de ocupación.
+        </p>
+    </div>
+    @if (isAdmin)
+    {
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-page="Index" asp-page-handler="Export" asp-route-format="excel"
+               asp-route-metric="@Model.Metric" asp-route-period="@Model.Period"
+               asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")"
+               asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search"
+               class="btn btn-outline-success">
+                Exportar Excel (.xlsx)
+            </a>
+            <a asp-page="Index" asp-page-handler="Export" asp-route-format="csv"
+               asp-route-metric="@Model.Metric" asp-route-period="@Model.Period"
+               asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")"
+               asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search"
+               class="btn btn-outline-secondary">
+                Exportar CSV
+            </a>
+        </div>
+    }
+</div>
+
+<!-- TARJETAS DE RESUMEN MÉTRICO -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card h-100 border-start border-primary border-4 shadow-sm">
+            <div class="card-body">
+                <span class="text-muted small d-block mb-1">Racks evaluados</span>
+                <strong class="h3 d-block mb-0 text-primary">@summary.TotalRacks</strong>
+                <small class="text-muted">@summary.ActiveRacks con posiciones activas</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100 border-start border-info border-4 shadow-sm">
+            <div class="card-body">
+                <span class="text-muted small d-block mb-1">@(isAccessMetric ? "Máximo de accesos en rack" : "Ocupación promedio")</span>
+                <strong class="h3 d-block mb-0 text-info">
+                    @(isAccessMetric ? summary.MaxAccessCount.ToString("N0") : $"{summary.AverageOccupancyPercent:0.0}%")
+                </strong>
+                <small class="text-muted">@(isAccessMetric ? "Mayor rotación en el período" : "Capacidad en uso")</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100 border-start border-danger border-4 shadow-sm">
+            <div class="card-body">
+                <span class="text-muted small d-block mb-1">Zona caliente (Nivel 3 y 4)</span>
+                <strong class="h3 d-block mb-0 text-danger">@summary.HighHeatRacksCount</strong>
+                <small class="text-muted">Racks de alta concentración</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card h-100 border-start border-secondary border-4 shadow-sm">
+            <div class="card-body">
+                <span class="text-muted small d-block mb-1">Métrica activa</span>
+                <strong class="h5 d-block mb-0 text-dark">
+                    @(isAccessMetric ? "Frecuencia de accesos" : "Densidad de ocupación")
+                </strong>
+                <small class="text-muted">@report.PeriodLabel</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- FORMULARIO DE FILTROS Y SELECTOR DE MÉTRICA -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-body-tertiary d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div class="btn-group" role="group" aria-label="Selector de métrica">
+            <a asp-page="Index" asp-route-metric="access-frequency" asp-route-period="@Model.Period"
+               asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search"
+               class="btn @(isAccessMetric ? "btn-primary" : "btn-outline-primary")">
+                Frecuencia de accesos / picking
+            </a>
+            <a asp-page="Index" asp-route-metric="occupancy-density" asp-route-period="@Model.Period"
+               asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search"
+               class="btn @(!isAccessMetric ? "btn-primary" : "btn-outline-primary")">
+                Densidad de ocupación (%)
+            </a>
+        </div>
+        @if (isAccessMetric)
+        {
+            <div class="btn-group btn-group-sm" role="group" aria-label="Períodos rápidos">
+                <a asp-page="Index" asp-route-metric="@Model.Metric" asp-route-period="7" asp-route-rowCode="@Model.RowCode" class="btn btn-outline-secondary @(Model.Period == "7" ? "active" : "")">7 días</a>
+                <a asp-page="Index" asp-route-metric="@Model.Metric" asp-route-period="14" asp-route-rowCode="@Model.RowCode" class="btn btn-outline-secondary @(Model.Period == "14" ? "active" : "")">14 días</a>
+                <a asp-page="Index" asp-route-metric="@Model.Metric" asp-route-period="30" asp-route-rowCode="@Model.RowCode" class="btn btn-outline-secondary @(Model.Period == "30" || string.IsNullOrEmpty(Model.Period) ? "active" : "")">30 días</a>
+            </div>
+        }
+    </div>
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <input type="hidden" name="metric" value="@Model.Metric" />
+            <input type="hidden" name="period" value="@Model.Period" />
+            @if (isAccessMetric)
+            {
+                <div class="col-6 col-md-3">
+                    <label for="from" class="form-label small">Desde</label>
+                    <input id="from" name="from" type="date" class="form-control form-control-sm"
+                           value="@Model.From?.ToString("yyyy-MM-dd")" />
+                </div>
+                <div class="col-6 col-md-3">
+                    <label for="to" class="form-label small">Hasta</label>
+                    <input id="to" name="to" type="date" class="form-control form-control-sm"
+                           value="@Model.To?.ToString("yyyy-MM-dd")" />
+                </div>
+            }
+            <div class="col-6 col-md-2">
+                <label for="rowCode" class="form-label small">Fila</label>
+                <select id="rowCode" name="rowCode" class="form-select form-select-sm">
+                    <option value="">Todas las filas</option>
+                    @foreach (var row in Model.Rows)
+                    {
+                        <option value="@row" selected="@(string.Equals(Model.RowCode, row, StringComparison.OrdinalIgnoreCase))">@row</option>
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-md-4">
+                <label for="search" class="form-label small">Buscar rack</label>
+                <input id="search" name="search" type="text" class="form-control form-control-sm"
+                       placeholder="Código o etiqueta..." value="@Model.Search" />
+            </div>
+            <div class="col-12 col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary btn-sm flex-grow-1">Filtrar</button>
+                <a asp-page="Index" asp-route-metric="@Model.Metric" class="btn btn-outline-secondary btn-sm">Limpiar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- LEYENDA TÉRMICA -->
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3 p-2 bg-body-tertiary rounded border small">
+    <strong class="me-2">Escala térmica:</strong>
+    <span><span class="heat-swatch" style="background:#334155;"></span> Nivel 0 (Sin actividad / Vacío)</span>
+    <span><span class="heat-swatch" style="background:#0284c7;"></span> Nivel 1 (Baja ≤ 25%)</span>
+    <span><span class="heat-swatch" style="background:#eab308;"></span> Nivel 2 (Moderada 26-50%)</span>
+    <span><span class="heat-swatch" style="background:#ea580c;"></span> Nivel 3 (Alta 51-75%)</span>
+    <span><span class="heat-swatch" style="background:#dc2626;"></span> Nivel 4 (Crítica > 75%)</span>
+</div>
+
+<!-- CROQUIS SVG CON MAPA DE CALOR -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <span><strong>Croquis Térmico de Almacén</strong></span>
+        <span class="badge text-bg-light">Dimensiones: @Model.MapView.CanvasWidth.ToString("F0", CultureInfo.InvariantCulture) × @Model.MapView.CanvasHeight.ToString("F0", CultureInfo.InvariantCulture)</span>
+    </div>
+    <div class="heatmap-container p-3">
+        <svg class="heatmap-svg" viewBox="0 0 @Model.MapView.CanvasWidth.ToString(CultureInfo.InvariantCulture) @Model.MapView.CanvasHeight.ToString(CultureInfo.InvariantCulture)"
+             role="img" aria-label="Croquis térmico de distribución de almacén">
+            <!-- Capa Arquitectónica -->
+            <partial name="/Pages/Admin/Catalogs/Locations/_WarehouseMapArchitecture.cshtml" model="Model.MapView.Architecture" />
+
+            <!-- Capa de Racks Térmicos -->
+            <g data-heatmap-layer>
+                @foreach (var element in Model.MapView.Elements.Where(e => e.IsVisible))
+                {
+                    Model.RacksByElementId.TryGetValue(element.Id, out var heatItem);
+                    var heatClass = heatItem is not null ? $"heat-level-{heatItem.HeatLevel}" : "heat-level-0";
+                    var transform = $"translate({element.X.ToString(CultureInfo.InvariantCulture)} {element.Y.ToString(CultureInfo.InvariantCulture)}) rotate({element.Rotation})";
+                    var tooltip = heatItem is not null
+                        ? $"{element.Label} | Accesos: {heatItem.AccessCount} | Ocupación: {heatItem.OccupancyPercent:0.0}% ({heatItem.OccupiedPositions}/{heatItem.TotalPositions})"
+                        : element.Label;
+
+                    <g class="heatmap-rack @heatClass" transform="@transform" tabindex="0" role="button"
+                       aria-label="@tooltip">
+                        <title>@tooltip</title>
+                        <rect width="@element.Width.ToString(CultureInfo.InvariantCulture)"
+                              height="@element.Height.ToString(CultureInfo.InvariantCulture)" rx="4" />
+                        <text x="6" y="18">@element.Label</text>
+                    </g>
+                }
+            </g>
+        </svg>
+    </div>
+</div>
+
+<!-- TABLA DE DETALLE ACCESIBLE -->
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-body-tertiary d-flex justify-content-between align-items-center">
+        <span class="small text-muted">
+            Mostrando <strong>@report.Racks.Count</strong> de <strong>@report.TotalCount</strong> racks.
+        </span>
+        <span class="badge text-bg-light border">@report.PeriodLabel</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Fila</th>
+                    <th scope="col">Rack</th>
+                    <th scope="col">Etiqueta</th>
+                    <th scope="col" class="text-end">Accesos / Movs</th>
+                    <th scope="col" class="text-end">Posiciones totales</th>
+                    <th scope="col" class="text-end">Posiciones ocupadas</th>
+                    <th scope="col" class="text-end">Ocupación %</th>
+                    <th scope="col">Nivel térmico</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (report.Racks.Count == 0)
+                {
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            No se encontraron racks que coincidan con los filtros aplicados.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var rack in report.Racks)
+                    {
+                        var badgeColor = rack.HeatLevel switch
+                        {
+                            1 => "text-bg-info",
+                            2 => "text-bg-warning",
+                            3 => "text-bg-orange text-white",
+                            4 => "text-bg-danger",
+                            _ => "text-bg-secondary"
+                        };
+                        var classLabel = rack.HeatLevel switch
+                        {
+                            1 => "Baja",
+                            2 => "Moderada",
+                            3 => "Alta",
+                            4 => "Crítica",
+                            _ => "Sin actividad"
+                        };
+                        <tr>
+                            <td data-label="Fila"><strong>@rack.RowCode</strong></td>
+                            <td data-label="Rack">@(rack.RackNumber?.ToString() ?? "—")</td>
+                            <td data-label="Etiqueta"><strong>@rack.Label</strong></td>
+                            <td data-label="Accesos" class="text-end font-monospace fw-bold @(rack.AccessCount > 0 ? "text-primary" : "text-muted")">
+                                @rack.AccessCount.ToString("N0")
+                            </td>
+                            <td data-label="Posiciones totales" class="text-end font-monospace">@rack.TotalPositions</td>
+                            <td data-label="Posiciones ocupadas" class="text-end font-monospace">@rack.OccupiedPositions</td>
+                            <td data-label="Ocupación %" class="text-end font-monospace fw-bold">@rack.OccupancyPercent.ToString("0.0")%</td>
+                            <td data-label="Nivel térmico">
+                                <span class="badge @badgeColor">Nivel @rack.HeatLevel - @classLabel</span>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <!-- PAGINACIÓN -->
+    @if (totalPages > 1)
+    {
+        <div class="card-footer bg-body-tertiary d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <span class="small text-muted">
+                Página <strong>@(Model.PageNumber)</strong> de <strong>@totalPages</strong>
+            </span>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : "")">
+                    <a class="page-link" asp-page="Index" asp-route-pageNumber="@(Model.PageNumber - 1)"
+                       asp-route-metric="@Model.Metric" asp-route-period="@Model.Period"
+                       asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")"
+                       asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search">Anterior</a>
+                </li>
+                @for (var p = 1; p <= totalPages; p++)
+                {
+                    <li class="page-item @(p == Model.PageNumber ? "active" : "")">
+                        <a class="page-link" asp-page="Index" asp-route-pageNumber="@p"
+                           asp-route-metric="@Model.Metric" asp-route-period="@Model.Period"
+                           asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")"
+                           asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search">@(p)</a>
+                    </li>
+                }
+                <li class="page-item @(Model.PageNumber >= totalPages ? "disabled" : "")">
+                    <a class="page-link" asp-page="Index" asp-route-pageNumber="@(Model.PageNumber + 1)"
+                       asp-route-metric="@Model.Metric" asp-route-period="@Model.Period"
+                       asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")"
+                       asp-route-rowCode="@Model.RowCode" asp-route-search="@Model.Search">Siguiente</a>
+                </li>
+            </ul>
+        </div>
+    }
+</div>

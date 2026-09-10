@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Pages.Locations;
 
@@ -13,15 +14,21 @@ namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 public sealed class IndexModel(
     WarehouseDbContext dbContext,
     WarehouseMapService mapService,
-    WipReportService wipReportService)
-    : LocationIndexPageModel(dbContext, mapService, wipReportService)
+    WipReportService wipReportService,
+    HeatmapReportService heatmapReportService,
+    ReportExportService reportExportService,
+    WarehouseClock clock)
+    : LocationIndexPageModel(dbContext, mapService, wipReportService, heatmapReportService, reportExportService, clock)
 {
     public override bool IsAdministrativeView => true;
 
     internal IndexModel(WarehouseDbContext dbContext) : this(
         dbContext,
         new WarehouseMapService(dbContext),
-        new WipReportService(dbContext, new WarehouseClock(new WarehouseSettingsService(dbContext))))
+        new WipReportService(dbContext, new WarehouseClock(new WarehouseSettingsService(dbContext))),
+        new HeatmapReportService(dbContext, new WarehouseMapService(dbContext), new WarehouseSettingsService(dbContext)),
+        new ReportExportService(new WarehouseSettingsService(dbContext)),
+        new WarehouseClock(new WarehouseSettingsService(dbContext)))
     { }
 
     public async Task<IActionResult> OnPostToggleAsync(Guid id, CancellationToken cancellationToken)

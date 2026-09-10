@@ -66,6 +66,13 @@ public sealed class InventoryCorrectionService(
                 return await AbortAsync(transaction, new(InventoryCorrectionStatus.CannotCorrectReversal), cancellationToken);
             var isDocumentReceipt = await dbContext.ReceivingConfirmations.AsNoTracking()
                 .AnyAsync(item => item.InventoryMovementId == original.Id, cancellationToken);
+            var isProductionReceipt = await dbContext.ProductionEvents.AsNoTracking()
+                .AnyAsync(item => item.InventoryMovementId == original.Id, cancellationToken);
+            if (isProductionReceipt)
+            {
+                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                    Errors: ["La Entrada pertenece a una orden de producción. Corrígela desde la orden para conservar su avance."]), cancellationToken);
+            }
             if (isDocumentReceipt && normalized.Replacement is { } receiptReplacement &&
                 (receiptReplacement.Type != InventoryMovementType.Entry || receiptReplacement.Purpose != InventoryMovementPurpose.DocumentReceipt))
             {

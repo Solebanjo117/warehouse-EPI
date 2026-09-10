@@ -1,0 +1,212 @@
+.executive-print-header {
+  display: none;
+}
+
+.executive-section,
+.executive-method {
+  border: 1px solid var(--bs-border-color);
+  box-shadow: 0 0.25rem 1rem rgba(15, 23, 42, 0.06);
+}
+
+.executive-section > .card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--bs-body-bg);
+  border-bottom-color: var(--bs-border-color);
+  padding: 1rem 1.25rem;
+}
+
+.executive-section .eyebrow,
+.executive-screen-header .eyebrow {
+  display: block;
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.executive-alert-card,
+.executive-metric,
+.executive-capacity-value,
+.executive-flow-total {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1rem;
+  color: var(--bs-body-color);
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  text-decoration: none;
+}
+
+.executive-alert-card:hover,
+.executive-metric-link:hover,
+.executive-flow-row:hover {
+  border-color: var(--bs-primary);
+  color: var(--bs-primary-text-emphasis);
+}
+
+.executive-alert-card strong,
+.executive-metric strong,
+.executive-capacity-value strong,
+.executive-flow-total strong {
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  line-height: 1;
+}
+
+.executive-alert-card small,
+.executive-metric small,
+.executive-flow-total small {
+  color: var(--bs-secondary-color);
+}
+
+.executive-alert-critical {
+  border-inline-start: 0.35rem solid var(--bs-danger);
+}
+
+.executive-alert-warning {
+  border-inline-start: 0.35rem solid var(--bs-warning);
+}
+
+.executive-overlap-note {
+  color: var(--bs-secondary-color);
+}
+
+.executive-capacity-progress {
+  width: 100%;
+  height: 1rem;
+  accent-color: var(--bs-primary);
+}
+
+.executive-comparison {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 0.35rem;
+  padding: 0.2rem 0.5rem;
+  color: var(--bs-secondary-color);
+  background: var(--bs-secondary-bg);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.executive-flow-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.executive-flow-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(13rem, auto) minmax(6rem, auto);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  color: var(--bs-body-color);
+  background: var(--bs-tertiary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.65rem;
+  text-decoration: none;
+}
+
+.executive-flow-row small {
+  color: var(--bs-secondary-color);
+  text-align: right;
+}
+
+.executive-method > summary {
+  cursor: pointer;
+  padding: 1rem 1.25rem;
+  font-weight: 700;
+}
+
+.executive-method[open] > summary {
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+@media (max-width: 767.98px) {
+  .executive-flow-row {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .executive-flow-row small {
+    text-align: left;
+  }
+
+  .executive-actions {
+    width: 100%;
+  }
+
+  .executive-actions > * {
+    flex: 1 1 auto;
+  }
+}
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 12mm;
+  }
+
+  body {
+    color: #111 !important;
+    background: #fff !important;
+    font-size: 10pt;
+  }
+
+  .app-sidebar,
+  .app-topbar,
+  .executive-screen-header,
+  .executive-period-form,
+  .btn,
+  footer {
+    display: none !important;
+  }
+
+  .app-main,
+  .app-content {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .executive-print-header {
+    display: block;
+    margin-bottom: 1rem;
+    border-bottom: 2px solid #111;
+  }
+
+  .executive-print-header h1 {
+    font-size: 18pt;
+  }
+
+  .executive-section,
+  .executive-method {
+    break-inside: avoid;
+    box-shadow: none;
+    border-color: #999;
+  }
+
+  .executive-alert-card,
+  .executive-metric,
+  .executive-capacity-value,
+  .executive-flow-total,
+  .executive-flow-row {
+    color: #111 !important;
+    background: #fff !important;
+    border-color: #aaa !important;
+  }
+
+  .executive-method:not([open]) > .card-body {
+    display: block;
+  }
+
+  a {
+    color: #111 !important;
+    text-decoration: none !important;
+  }
+}

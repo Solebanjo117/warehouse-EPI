@@ -20,7 +20,8 @@ public sealed class IndexModel(
     ReportExportService exportService,
     WarehouseClock clock,
     WarehouseDbContext dbContext,
-    WarehouseSettingsService settingsService) : PageModel
+    WarehouseSettingsService settingsService,
+    TimeProvider? timeProvider = null) : PageModel
 {
     private const int PageSize = 25;
 
@@ -91,7 +92,7 @@ public sealed class IndexModel(
 
     public async Task OnGetAsync(
         string? view, string? search, string? sku, string? locationCode,
-        DateOnly? from, DateOnly? to, string? period = "30",
+        DateOnly? from, DateOnly? to, string? period = null,
         InventoryMovementType? movementType = null, InventoryMovementType? type = null,
         InventoryMovementPurpose? purpose = null, Guid? responsibleUserId = null,
         InventoryHistoryCorrectionState state = InventoryHistoryCorrectionState.All,
@@ -116,7 +117,7 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetExportAsync(
         string format, string? view, string? search, string? sku, string? locationCode,
-        DateOnly? from, DateOnly? to, string? period = "30",
+        DateOnly? from, DateOnly? to, string? period = null,
         InventoryMovementType? movementType = null, InventoryMovementType? type = null,
         InventoryMovementPurpose? purpose = null, Guid? responsibleUserId = null,
         InventoryHistoryCorrectionState state = InventoryHistoryCorrectionState.All,
@@ -124,7 +125,7 @@ public sealed class IndexModel(
     {
         await SetRequestStateAsync(view, search, sku, locationCode, from, to, period, movementType ?? type, purpose, responsibleUserId, state, 1, cancellationToken);
         var interval = await clock.GetUtcIntervalAsync(From, To, cancellationToken);
-        var localNow = await clock.ConvertAsync(DateTimeOffset.UtcNow, cancellationToken);
+        var localNow = await clock.ConvertAsync((timeProvider ?? TimeProvider.System).GetUtcNow(), cancellationToken);
         if (IsAudit)
         {
             var filter = BuildAuditFilter(interval.FromInclusive, interval.ToExclusive);
@@ -154,15 +155,64 @@ public sealed class IndexModel(
         InventoryHistoryCorrectionState state, int pageNumber, CancellationToken cancellationToken)
     {
         View = string.Equals(view, "audit", StringComparison.OrdinalIgnoreCase) ? "audit" : "effective";
-        var hasCustomDates = from is not null || to is not null;
-        Period = hasCustomDates ? "custom" : period is "today" or "7" or "30" or "all" ? period : "30";
+        var normalizedPeriod = period is "today" or "yesterday" or "this-week" or "last-week" or "7" or "this-month" or "last-month" or "30" or "all" or "custom"
+            ? period
+            : null;
+        Period = normalizedPeriod ?? (from is not null || to is not null ? "custom" : "30");
         TimeZoneId = (await settingsService.GetAsync(cancellationToken)).TimeZoneId;
-        var today = await clock.GetDateAsync(DateTimeOffset.UtcNow, cancellationToken);
-        if (!hasCustomDates && Period != "all")
+        var today = await clock.GetDateAsync((timeProvider ?? TimeProvider.System).GetUtcNow(), cancellationToken);
+        if (Period == "all")
         {
-            var days = Period switch { "today" => 0, "7" => 6, _ => 29 };
-            from = today.AddDays(-days);
-            to = today;
+            from = null;
+            to = null;
+        }
+        else if (Period != "custom")
+        {
+            if (Period == "today")
+            {
+                from = today;
+                to = today;
+            }
+            else if (Period == "yesterday")
+            {
+                from = today.AddDays(-1);
+                to = today.AddDays(-1);
+            }
+            else if (Period == "this-week")
+            {
+                var daysToMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+                from = today.AddDays(-daysToMonday);
+                to = today;
+            }
+            else if (Period == "last-week")
+            {
+                var daysToMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+                var startOfThisWeek = today.AddDays(-daysToMonday);
+                from = startOfThisWeek.AddDays(-7);
+                to = startOfThisWeek.AddDays(-1);
+            }
+            else if (Period == "7")
+            {
+                from = today.AddDays(-6);
+                to = today;
+            }
+            else if (Period == "this-month")
+            {
+                from = new DateOnly(today.Year, today.Month, 1);
+                to = today;
+            }
+            else if (Period == "last-month")
+            {
+                var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
+                var lastDayOfLastMonth = firstOfThisMonth.AddDays(-1);
+                from = new DateOnly(lastDayOfLastMonth.Year, lastDayOfLastMonth.Month, 1);
+                to = lastDayOfLastMonth;
+            }
+            else // "30" or default
+            {
+                from = today.AddDays(-29);
+                to = today;
+            }
         }
         Search = search?.Trim();
         Sku = sku?.Trim();

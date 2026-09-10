@@ -27,7 +27,7 @@
     @if(Model.ViewMode=="map") { <div><strong>@Model.Map.WithInventory</strong><span>Con saldo</span></div><div><strong>@Model.Map.Negative</strong><span>Negativas</span></div><div><strong>@Model.Map.Unplaced.Count</strong><span>Sin colocar</span></div> }
 </div>
 
-<form method="get" class="card card-body mb-3" data-location-search-form><input type="hidden" name="viewMode" value="@Model.ViewMode"/><div class="row g-2">
+<form method="get" class="card card-body mb-3" data-location-search-form><input type="hidden" name="viewMode" value="@Model.ViewMode"/>@if(Model.ViewMode=="map"){<input type="hidden" name="mapMetric" value="@Model.MapMetric"/><input type="hidden" name="period" value="@Model.HeatmapPeriod"/><input type="hidden" name="from" value="@Model.HeatmapFrom?.ToString("yyyy-MM-dd")"/><input type="hidden" name="to" value="@Model.HeatmapTo?.ToString("yyyy-MM-dd")"/>}<div class="row g-2">
     <div class="col-12 col-lg-4"><label for="search" class="form-label">Buscar ubicación o producto</label><input id="search" name="search" value="@Model.Search" class="form-control form-control-lg" placeholder="Código, SKU, descripción, referencia o barras" data-location-search-input /></div>
     <div class="col-6 col-md-4 col-lg-2"><label for="status" class="form-label">Estado</label><select id="status" name="status" class="form-select form-select-lg"><option value="active" selected="@(Model.Status=="active")">Disponibles</option><option value="blocked" selected="@(Model.Status=="blocked")">Bloqueadas</option><option value="inactive" selected="@(Model.Status=="inactive")">Inactivas</option>@if(Model.ViewMode=="table"){<option value="retired" selected="@(Model.Status=="retired")">Retiradas</option>}@if(!Model.IsAdministrativeView){<option value="unavailable" selected="@(Model.Status=="unavailable")">No disponibles</option>}<option value="all" selected="@(Model.Status=="all")">Todas</option></select></div>
     @if(Model.ViewMode == "racks"){<input type="hidden" name="kind" value="rack"/>}else{<div class="col-6 col-md-4 col-lg-2"><label for="kind" class="form-label">Tipo</label><select id="kind" name="kind" class="form-select form-select-lg"><option value="all">Todos</option><option value="rack" selected="@(Model.Kind=="rack")">Rack</option><option value="area" selected="@(Model.Kind=="area")">Área</option></select></div>}
@@ -43,7 +43,23 @@
 
 @if(Model.ViewMode=="map")
 {
-    <div class="warehouse-map-toolbar mb-2"><button type="button" class="btn btn-outline-secondary" data-map-zoom="in" aria-label="Acercar">＋</button><button type="button" class="btn btn-outline-secondary" data-map-zoom="out" aria-label="Alejar">−</button><button type="button" class="btn btn-outline-secondary" data-map-fit>Ajustar</button>@if(Model.IsAdministrativeView){<a asp-page="/Admin/Catalogs/Locations/Map/Edit" class="btn btn-primary ms-auto">Editar croquis</a>}</div>
+    <div class="warehouse-map-toolbar mb-2">
+        <button type="button" class="btn btn-outline-secondary" data-map-zoom="in" aria-label="Acercar">＋</button><button type="button" class="btn btn-outline-secondary" data-map-zoom="out" aria-label="Alejar">−</button><button type="button" class="btn btn-outline-secondary" data-map-fit>Ajustar</button>
+        <a class="btn @(Model.MapMetric=="normal"?"btn-outline-primary":"btn-primary")" asp-route-viewMode="map" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-mapMetric="@(Model.MapMetric=="normal"?"occupancy":"normal")">@(Model.MapMetric=="normal"?"Mapa de calor":"Vista normal")</a>
+        @if(Model.IsAdministrativeView){<a asp-page="/Admin/Catalogs/Locations/Map/Edit" class="btn btn-primary ms-auto">Editar croquis</a>}
+    </div>
+    @if(Model.MapMetric != "normal" && Model.Heatmap is not null)
+    {
+        <section class="card card-body mb-3 map-heat-controls" aria-labelledby="map-heat-title">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3"><div><h2 id="map-heat-title" class="h5 mb-1">Mapa de calor</h2><p class="text-body-secondary mb-0"><span data-heatmap-period-label>@Model.Heatmap.PeriodLabel</span> · Consultado <span data-heatmap-generated>@Model.Heatmap.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</span> (<span data-heatmap-timezone>@Model.Heatmap.TimeZoneId</span>)</p></div>@if(Model.IsAdministrativeView){<div class="d-flex gap-2"><a class="btn btn-outline-secondary" data-heatmap-export asp-page-handler="HeatmapExport" asp-route-format="csv" asp-route-mapMetric="@Model.MapMetric" asp-route-period="@Model.HeatmapPeriod" asp-route-from="@Model.HeatmapFrom" asp-route-to="@Model.HeatmapTo">CSV</a><a class="btn btn-outline-success" data-heatmap-export asp-page-handler="HeatmapExport" asp-route-format="xlsx" asp-route-mapMetric="@Model.MapMetric" asp-route-period="@Model.HeatmapPeriod" asp-route-from="@Model.HeatmapFrom" asp-route-to="@Model.HeatmapTo">Excel</a></div>}</div>
+            <form method="get" class="row g-2 mt-1 align-items-end" data-heatmap-form><input type="hidden" name="viewMode" value="map" /><input type="hidden" name="search" value="@Model.Search" /><input type="hidden" name="status" value="@Model.Status" /><input type="hidden" name="kind" value="@Model.Kind" /><input type="hidden" name="rowCode" value="@Model.RowCode" />
+                <div class="col-sm-5 col-lg-3"><label for="mapMetric" class="form-label">Métrica</label><select id="mapMetric" name="mapMetric" class="form-select" data-heatmap-submit><option value="occupancy" selected="@(Model.MapMetric=="occupancy")">Ocupación actual</option><option value="activity" selected="@(Model.MapMetric=="activity")">Actividad</option></select></div>
+                <div class="col-sm-4 col-lg-2 @(Model.MapMetric == "activity" ? "" : "d-none")" data-heatmap-activity-control><label for="heatPeriod" class="form-label">Período</label><select id="heatPeriod" name="period" class="form-select" data-heatmap-submit><option value="7" selected="@(Model.HeatmapPeriod=="7")">7 días</option><option value="14" selected="@(Model.HeatmapPeriod=="14")">14 días</option><option value="30" selected="@(Model.HeatmapPeriod=="30")">30 días</option><option value="custom" selected="@(Model.HeatmapPeriod=="custom")">Personalizado</option></select></div><div class="col-sm-4 col-lg-2 @(Model.MapMetric == "activity" && Model.HeatmapPeriod == "custom" ? "" : "d-none")" data-heatmap-custom-control><label for="heatFrom" class="form-label">Desde</label><input id="heatFrom" name="from" type="date" class="form-control" value="@Model.HeatmapFrom?.ToString("yyyy-MM-dd")" /></div><div class="col-sm-4 col-lg-2 @(Model.MapMetric == "activity" && Model.HeatmapPeriod == "custom" ? "" : "d-none")" data-heatmap-custom-control><label for="heatTo" class="form-label">Hasta</label><input id="heatTo" name="to" type="date" class="form-control" value="@Model.HeatmapTo?.ToString("yyyy-MM-dd")" /></div><div class="col-sm-4 col-lg-2 @(Model.MapMetric == "activity" && Model.HeatmapPeriod == "custom" ? "" : "d-none")" data-heatmap-custom-control><button class="btn btn-outline-primary w-100">Aplicar</button></div>
+            </form>
+            <div class="map-heat-legend mt-3" aria-label="Escala del mapa de calor"><span><i class="heat-swatch heat-0"></i><span data-heatmap-zero-label>@(Model.MapMetric == "activity" ? "Sin actividad" : "Sin ocupación")</span></span><span class="@(Model.MapMetric == "occupancy" ? "" : "d-none")" data-heatmap-unavailable-legend><i class="heat-swatch heat-unavailable"></i>Sin posiciones evaluables</span><span><i class="heat-swatch heat-1"></i>Baja</span><span><i class="heat-swatch heat-2"></i>Moderada</span><span><i class="heat-swatch heat-3"></i>Alta</span><span><i class="heat-swatch heat-4"></i>Crítica</span></div>
+        </section>
+    }
+    <div class="alert alert-danger @(Model.HeatmapError is null ? "d-none" : "")" role="alert" data-heatmap-error>@Model.HeatmapError</div>
     @if(!Model.Map.IsInitialized){<div class="alert alert-info"><strong>Vista previa sin guardar.</strong> El croquis aún no tiene una revisión guardada.</div>}
     <div class="warehouse-map-shell" data-warehouse-map data-highlight-location="@Model.HighlightLocationId"
          data-canvas-width="@Model.Map.CanvasWidth.ToString(global::System.Globalization.CultureInfo.InvariantCulture)"
@@ -56,8 +72,13 @@
                 @foreach(var element in Model.Map.Elements.OrderBy(item=>item.ZIndex))
                 {
                     var state = MapState(element); var match = element.Positions.Any(position=>Model.MapMatches.Contains(position.LocationId));
-                    <g class="map-element @state @(element.IsWip?"wip":"") @(match?"is-match":"")" transform="translate(@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)) rotate(@element.Rotation)" tabindex="0" role="button" aria-label="Abrir @element.Label, @StateLabel(state)" data-map-open="@element.Id" data-map-target="@match.ToString().ToLowerInvariant()">
-                        <rect width="@element.Width.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" height="@element.Height.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" rx="4"/><text x="6" y="18">@element.Label</text>@if(element.Positions.Any(position=>position.HasNegative)){<circle class="map-alert-dot" cx="@(element.Width-8)" cy="8" r="6"/>}
+                    Model.HeatmapByElementId.TryGetValue(element.Id, out var heatItem);
+                    var noEvaluablePositions = heatItem is not null && Model.MapMetric == "occupancy" && heatItem.TotalPositions == 0;
+                    var heatClass = heatItem is null || element.Kind != "Rack" ? "" : noEvaluablePositions ? "map-heat-unavailable" : $"map-heat-{heatItem.HeatLevel}";
+                    var heatLabel = heatItem is null ? "" : Model.MapMetric == "activity" ? heatItem.AccessCount == 0 ? ", sin actividad" : $", {heatItem.AccessCount} operaciones" : noEvaluablePositions ? ", sin posiciones evaluables" : $", {heatItem.OccupancyPercent:0.##}% ocupado";
+                    var heatValue = heatItem is null ? "" : Model.MapMetric == "activity" ? $"{heatItem.AccessCount} mov." : noEvaluablePositions ? "N/D" : $"{heatItem.OccupancyPercent:0.##}%";
+                    <g class="map-element @state @(element.IsWip?"wip":"") @(match?"is-match":"") @heatClass" transform="translate(@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)) rotate(@element.Rotation)" tabindex="0" role="button" aria-label="Abrir @element.Label, @StateLabel(state)@heatLabel" data-map-base-label="Abrir @element.Label, @StateLabel(state)" data-map-open="@element.Id" data-map-target="@match.ToString().ToLowerInvariant()" data-heat-level="@heatItem?.HeatLevel">
+                        <rect width="@element.Width.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" height="@element.Height.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" rx="4"/><text x="6" y="18">@element.Label</text><text class="map-heat-value @(heatItem is null ? "d-none" : "")" data-heatmap-value x="6" y="34">@heatValue</text>@if(element.Positions.Any(position=>position.HasNegative)){<circle class="map-alert-dot" cx="@(element.Width-8)" cy="8" r="6"/>}
                     </g>
                 }
                 </g>
@@ -142,6 +163,15 @@
         }
         </aside>
     </div>
+    @if(Model.MapMetric != "normal" && Model.Heatmap is not null)
+    {
+        var placedIds = Model.Map.Elements.Select(element => element.Id).ToHashSet();
+        var unplacedHeat = Model.Heatmap.AllRacks.Where(item => !placedIds.Contains(item.ElementId)).ToArray();
+        @if(unplacedHeat.Length > 0)
+        {
+            <details class="card card-body mt-3"><summary><strong>Racks sin colocar en el croquis (@unplacedHeat.Length)</strong></summary><div class="table-responsive mt-3"><table class="table table-sm align-middle"><thead><tr><th>Rack</th><th class="text-end">Operaciones</th><th class="text-end">Ocupación</th><th class="text-end">Incidencias</th></tr></thead><tbody>@foreach(var rack in unplacedHeat){<tr data-heatmap-rack-row="@rack.ElementId"><td>@rack.Label</td><td class="text-end" data-heatmap-access>@rack.AccessCount</td><td class="text-end" data-heatmap-occupancy>@rack.OccupiedPositions/@rack.TotalPositions (@rack.OccupancyPercent.ToString("0.##")%)</td><td class="text-end" data-heatmap-incidents>@rack.NegativePositions negativas · @rack.BlockedPositions bloqueadas</td></tr>}</tbody></table></div></details>
+        }
+    }
     <div class="visually-hidden"><h2>Lista accesible del croquis</h2><ul>@foreach(var element in Model.Map.Elements){<li><button type="button" data-map-open="@element.Id">@element.Label, @StateLabel(MapState(element))</button></li>}</ul></div>
 }
 else if(Model.ViewMode=="racks")

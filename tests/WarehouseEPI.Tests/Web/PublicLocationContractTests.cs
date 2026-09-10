@@ -40,6 +40,28 @@ public sealed class PublicLocationContractTests
     }
 
     [Fact]
+    public void Shared_location_map_exposes_heatmap_modes_without_a_duplicate_navigation_entry()
+    {
+        var page = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml");
+        var model = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationIndexPageModel.cs");
+        var layout = Read("src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml");
+        var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js");
+
+        Assert.Contains("Mapa de calor", page, StringComparison.Ordinal);
+        Assert.Contains("name=\"mapMetric\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-heat-level", page, StringComparison.Ordinal);
+        Assert.Contains("Racks sin colocar", page, StringComparison.Ordinal);
+        Assert.Contains("OnGetHeatmapExportAsync", model, StringComparison.Ordinal);
+        Assert.Contains("OnGetHeatmapDataAsync", model, StringComparison.Ordinal);
+        Assert.Contains("Heatmap.AllRacks", model, StringComparison.Ordinal);
+        Assert.Contains("data-heatmap-submit", script, StringComparison.Ordinal);
+        Assert.Contains("fetch(`${window.location.pathname}?${query}`", script, StringComparison.Ordinal);
+        Assert.Contains("window.history.replaceState", script, StringComparison.Ordinal);
+        Assert.Contains("map-heat-unavailable", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("asp-page=\"/Reports/Heatmap/Index\"", layout, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Public_detail_exposes_active_assignments_balances_and_safe_operations()
     {
         var model = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationDetailsPageModel.cs");

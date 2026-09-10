@@ -5,6 +5,7 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Locations;
@@ -12,14 +13,20 @@ namespace WarehouseEPI.Web.Pages.Locations;
 public class LocationIndexPageModel(
     WarehouseDbContext dbContext,
     WarehouseMapService mapService,
-    WipReportService wipReportService) : PageModel
+    WipReportService wipReportService,
+    HeatmapReportService heatmapReportService,
+    ReportExportService reportExportService,
+    WarehouseClock clock) : PageModel
 {
     protected WarehouseDbContext DbContext { get; } = dbContext;
 
     internal LocationIndexPageModel(WarehouseDbContext context) : this(
         context,
         new WarehouseMapService(context),
-        new WipReportService(context, new WarehouseClock(new WarehouseSettingsService(context))))
+        new WipReportService(context, new WarehouseClock(new WarehouseSettingsService(context))),
+        new HeatmapReportService(context, new WarehouseMapService(context), new WarehouseSettingsService(context)),
+        new ReportExportService(new WarehouseSettingsService(context)),
+        new WarehouseClock(new WarehouseSettingsService(context)))
     { }
     private const int PageSize = 25;
     private static readonly short[] KeypadOrder = [7, 8, 9, 4, 5, 6, 1, 2, 3];
@@ -42,6 +49,14 @@ public class LocationIndexPageModel(
     public IReadOnlySet<Guid> MapMatches { get; private set; } = new HashSet<Guid>();
     public Guid? HighlightLocationId { get; private set; }
     public string? RowCode { get; private set; }
+    public string MapMetric { get; private set; } = "normal";
+    public string HeatmapPeriod { get; private set; } = "30";
+    public DateOnly? HeatmapFrom { get; private set; }
+    public DateOnly? HeatmapTo { get; private set; }
+    public HeatmapReportDto? Heatmap { get; private set; }
+    public string? HeatmapError { get; private set; }
+    public IReadOnlyDictionary<Guid, RackHeatmapItemDto> HeatmapByElementId { get; private set; }
+        = new Dictionary<Guid, RackHeatmapItemDto>();
     public int CurrentPage { get; private set; } = 1;
     public int TotalPages { get; private set; } = 1;
     public IReadOnlyList<int> VisiblePages { get; private set; } = [];
@@ -50,7 +65,8 @@ public class LocationIndexPageModel(
 
     public async Task OnGetAsync(string? search, string status = "active", string kind = "all",
         string viewMode = "map", string? rowCode = null, int pageNumber = 1, Guid? highlightLocationId = null,
-        string rackFilter = "all", CancellationToken cancellationToken = default)
+        string rackFilter = "all", string mapMetric = "normal", string? period = "30",
+        DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
     {
         Search = search?.Trim();
         Status = status is "all" or "inactive" or "blocked" or "retired" or "unavailable" ? status : "active";
@@ -60,6 +76,7 @@ public class LocationIndexPageModel(
         HighlightLocationId = highlightLocationId;
         RowCode = rowCode?.Trim().ToUpperInvariant();
         CurrentPage = Math.Max(1, pageNumber);
+        MapMetric = mapMetric is "occupancy" or "activity" ? mapMetric : "normal";
 
         Rows = await DbContext.Locations.AsNoTracking().Where(location => location.RowCode != null)
             .Select(location => location.RowCode!).Distinct().OrderBy(value => value)
@@ -76,6 +93,19 @@ public class LocationIndexPageModel(
         if (ViewMode == "map")
         {
             Map = await mapService.GetAsync(true, includeReferences: false, cancellationToken);
+            if (MapMetric != "normal")
+            {
+                var (heatmapFilter, periodLabel) = await BuildHeatmapFilterAsync(period, from, to, cancellationToken);
+                try
+                {
+                    Heatmap = await heatmapReportService.GetHeatmapPageAsync(heatmapFilter, periodLabel, cancellationToken);
+                    HeatmapByElementId = Heatmap.AllRacks.ToDictionary(item => item.ElementId);
+                }
+                catch (Exception)
+                {
+                    HeatmapError = "No fue posible calcular el mapa de calor. Conserva tus filtros y vuelve a intentarlo.";
+                }
+            }
             var filteredLocationIds = (await query.Select(location => location.Id).ToListAsync(cancellationToken)).ToHashSet();
             var recentWipIssues = new Dictionary<Guid, IReadOnlyList<WipIssueRow>>();
             foreach (var element in Map.Elements.Where(element => element.IsWip && IsAdministrativeView))
@@ -120,6 +150,94 @@ public class LocationIndexPageModel(
         Locations = await LoadRowsAsync(ordered, cancellationToken);
         LayoutAreas = Locations.Where(location => location.Kind == LocationKind.Area).ToArray();
         LayoutRacks = CreateRackLayouts(Locations);
+    }
+
+    public async Task<IActionResult> OnGetHeatmapExportAsync(
+        string? format, string mapMetric = "occupancy", string? period = "30",
+        DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
+    {
+        if (!User.IsInRole("ADMIN")) return Forbid();
+        if (mapMetric is not ("occupancy" or "activity"))
+            return BadRequest("Selecciona una métrica válida para exportar el mapa de calor.");
+
+        MapMetric = mapMetric;
+        var (filter, periodLabel) = await BuildHeatmapFilterAsync(period, from, to, cancellationToken);
+        var export = await heatmapReportService.GetHeatmapExportAsync(filter, cancellationToken);
+        var stamp = export.GeneratedAtLocal.ToString("yyyy-MM-dd");
+        if (string.Equals(format, "csv", StringComparison.OrdinalIgnoreCase))
+            return File(await reportExportService.ExportHeatmapToCsvAsync(export.Racks, export.Summary, filter, periodLabel, cancellationToken),
+                "text/csv; charset=utf-8", $"Mapa_Calor_{MapMetric}_{stamp}.csv");
+        if (!string.Equals(format, "xlsx", StringComparison.OrdinalIgnoreCase))
+            return BadRequest("El formato de exportación debe ser xlsx o csv.");
+        return File(await reportExportService.ExportHeatmapToExcelAsync(export.Racks, export.Summary, filter, periodLabel, cancellationToken),
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Mapa_Calor_{MapMetric}_{stamp}.xlsx");
+    }
+
+    public async Task<IActionResult> OnGetHeatmapDataAsync(
+        string mapMetric = "occupancy", string? period = "30",
+        DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
+    {
+        if (mapMetric is not ("occupancy" or "activity"))
+            return BadRequest(new { error = "Selecciona una métrica válida para el mapa de calor." });
+
+        MapMetric = mapMetric;
+        var (filter, periodLabel) = await BuildHeatmapFilterAsync(period, from, to, cancellationToken);
+        var report = await heatmapReportService.GetHeatmapPageAsync(filter, periodLabel, cancellationToken);
+        return new JsonResult(new
+        {
+            metric = MapMetric,
+            period = HeatmapPeriod,
+            from = HeatmapFrom?.ToString("yyyy-MM-dd"),
+            to = HeatmapTo?.ToString("yyyy-MM-dd"),
+            report.PeriodLabel,
+            generatedAtLocal = report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm"),
+            report.TimeZoneId,
+            racks = report.AllRacks.Select(rack => new
+            {
+                elementId = rack.ElementId.ToString(),
+                rack.AccessCount,
+                rack.TotalPositions,
+                rack.OccupiedPositions,
+                rack.OccupancyPercent,
+                rack.NegativePositions,
+                rack.BlockedPositions,
+                rack.HeatLevel
+            })
+        });
+    }
+
+    private async Task<(HeatmapReportFilter Filter, string PeriodLabel)> BuildHeatmapFilterAsync(
+        string? period, DateOnly? from, DateOnly? to, CancellationToken cancellationToken)
+    {
+        var metric = MapMetric == "activity" ? HeatmapMetricType.AccessFrequency : HeatmapMetricType.OccupancyDensity;
+        var today = await clock.GetDateAsync(TimeProvider.System.GetUtcNow(), cancellationToken);
+        if (metric == HeatmapMetricType.OccupancyDensity)
+        {
+            HeatmapPeriod = period is "7" or "14" or "30" or "custom" ? period : "30";
+            HeatmapFrom = from;
+            HeatmapTo = to;
+            return (new HeatmapReportFilter(metric, PageSize: 50), "Saldo actual en estantería");
+        }
+
+        HeatmapPeriod = period is "7" or "14" or "30" or "custom" ? period : "30";
+        if (HeatmapPeriod == "custom" && from.HasValue && to.HasValue)
+        {
+            HeatmapFrom = from.Value <= to.Value ? from : to;
+            HeatmapTo = from.Value <= to.Value ? to : from;
+        }
+        else
+        {
+            var days = HeatmapPeriod == "7" ? 7 : HeatmapPeriod == "14" ? 14 : 30;
+            HeatmapFrom = today.AddDays(-(days - 1));
+            HeatmapTo = today;
+            HeatmapPeriod = days.ToString();
+        }
+
+        var interval = await clock.GetUtcIntervalAsync(HeatmapFrom, HeatmapTo, cancellationToken);
+        var label = HeatmapPeriod == "custom"
+            ? $"{HeatmapFrom:dd/MM/yyyy} a {HeatmapTo:dd/MM/yyyy}"
+            : $"Últimos {HeatmapPeriod} días";
+        return (new HeatmapReportFilter(metric, interval.FromInclusive, interval.ToExclusive, PageSize: 50), label);
     }
 
     private static IReadOnlyList<RackLayout> CreateRackLayouts(IReadOnlyList<LocationRow> locations)

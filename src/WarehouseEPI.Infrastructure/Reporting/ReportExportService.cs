@@ -595,6 +595,761 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         var encoding = new UTF8Encoding(true); return encoding.GetPreamble().Concat(encoding.GetBytes(builder.ToString())).ToArray();
     }
 
+    public async Task<byte[]> ExportOccupancyToExcelAsync(
+        LocationOccupancyReportDto occupancy,
+        DateTimeOffset snapshotAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Ocupación");
+
+        var localGeneratedAt = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        var localSnapshotAt = TimeZoneInfo.ConvertTime(snapshotAtUtc, timeZone);
+
+        worksheet.Cell(1, 1).SetValue(SanitizeText($"{settings.WarehouseName} - Ocupación física de racks"));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+
+        worksheet.Cell(2, 1).SetValue(SanitizeText(
+            $"Generado el: {localGeneratedAt:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Datos al: {localSnapshotAt:yyyy-MM-dd HH:mm:ss} | Total: {occupancy.Rows.Count} filas"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(3, 1).SetValue(SanitizeText(
+            $"Posiciones totales: {occupancy.Summary.TotalStoragePositions:N0} | Ocupadas: {occupancy.Summary.OccupiedCount:N0} | Vacías: {occupancy.Summary.EmptyCount:N0} | Negativas: {occupancy.Summary.NegativeCount:N0} | Bloqueadas: {occupancy.Summary.BlockedCount:N0} | Inactivas: {occupancy.Summary.InactiveCount:N0} | Utilización global: {(occupancy.Summary.UtilizationPercentage / 100m):0.00%}"));
+        worksheet.Cell(3, 1).Style.Font.Italic = true;
+
+        string[] headers =
+        [
+            "Fila", "Posiciones de almacenamiento", "Ocupadas", "Vacías",
+            "Negativas", "Bloqueadas", "Inactivas", "% Utilización"
+        ];
+        WriteTableHeaders(worksheet, headers);
+
+        var currentRow = 6;
+        foreach (var row in occupancy.Rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.RowCode));
+            SetCount(worksheet.Cell(currentRow, 2), row.Summary.TotalStoragePositions);
+            SetCount(worksheet.Cell(currentRow, 3), row.Summary.OccupiedCount);
+            SetCount(worksheet.Cell(currentRow, 4), row.Summary.EmptyCount);
+            SetCount(worksheet.Cell(currentRow, 5), row.Summary.NegativeCount);
+            SetCount(worksheet.Cell(currentRow, 6), row.Summary.BlockedCount);
+            SetCount(worksheet.Cell(currentRow, 7), row.Summary.InactiveCount);
+            SetPercentage(worksheet.Cell(currentRow, 8), row.Summary.UtilizationPercentage);
+            currentRow++;
+        }
+
+        // Fila final de Totales / Resumen consolidado
+        var totalCell = worksheet.Cell(currentRow, 1);
+        totalCell.SetValue("Total general");
+        totalCell.Style.Font.Bold = true;
+
+        SetCount(worksheet.Cell(currentRow, 2), occupancy.Summary.TotalStoragePositions, isBold: true);
+        SetCount(worksheet.Cell(currentRow, 3), occupancy.Summary.OccupiedCount, isBold: true);
+        SetCount(worksheet.Cell(currentRow, 4), occupancy.Summary.EmptyCount, isBold: true);
+        SetCount(worksheet.Cell(currentRow, 5), occupancy.Summary.NegativeCount, isBold: true);
+        SetCount(worksheet.Cell(currentRow, 6), occupancy.Summary.BlockedCount, isBold: true);
+        SetCount(worksheet.Cell(currentRow, 7), occupancy.Summary.InactiveCount, isBold: true);
+        SetPercentage(worksheet.Cell(currentRow, 8), occupancy.Summary.UtilizationPercentage, isBold: true);
+
+        worksheet.Range(currentRow, 1, currentRow, 8).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        worksheet.Range(currentRow, 1, currentRow, 8).Style.Fill.BackgroundColor = XLColor.FromArgb(241, 245, 249);
+
+        worksheet.Columns().AdjustToContents(4, Math.Max(5, currentRow));
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportOccupancyToCsvAsync(
+        LocationOccupancyReportDto occupancy,
+        DateTimeOffset snapshotAtUtc,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var localGeneratedAt = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        var localSnapshotAt = TimeZoneInfo.ConvertTime(snapshotAtUtc, timeZone);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("Fila,Posiciones de almacenamiento,Ocupadas,Vacías,Negativas,Bloqueadas,Inactivas,Utilización,Fecha generación,Fecha datos,Zona horaria");
+
+        foreach (var row in occupancy.Rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.RowCode))).Append(',')
+              .Append(row.Summary.TotalStoragePositions.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.Summary.OccupiedCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.Summary.EmptyCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.Summary.NegativeCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.Summary.BlockedCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.Summary.InactiveCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append((row.Summary.UtilizationPercentage / 100m).ToString("0.0000", CultureInfo.InvariantCulture)).Append(',')
+              .Append(EscapeCsv(localGeneratedAt.ToString("yyyy-MM-dd HH:mm:ss"))).Append(',')
+              .Append(EscapeCsv(localSnapshotAt.ToString("yyyy-MM-dd HH:mm:ss"))).Append(',')
+              .Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).AppendLine();
+        }
+
+        // Fila de total
+        sb.Append(EscapeCsv("Total general")).Append(',')
+          .Append(occupancy.Summary.TotalStoragePositions.ToString(CultureInfo.InvariantCulture)).Append(',')
+          .Append(occupancy.Summary.OccupiedCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+          .Append(occupancy.Summary.EmptyCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+          .Append(occupancy.Summary.NegativeCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+          .Append(occupancy.Summary.BlockedCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+          .Append(occupancy.Summary.InactiveCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+          .Append((occupancy.Summary.UtilizationPercentage / 100m).ToString("0.0000", CultureInfo.InvariantCulture)).Append(',')
+          .Append(EscapeCsv(localGeneratedAt.ToString("yyyy-MM-dd HH:mm:ss"))).Append(',')
+          .Append(EscapeCsv(localSnapshotAt.ToString("yyyy-MM-dd HH:mm:ss"))).Append(',')
+          .Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).AppendLine();
+
+        return CsvBytes(sb);
+    }
+
+    public async Task<byte[]> ExportLotAgingToExcelAsync(
+        IReadOnlyList<LotAgingItemDto> rows,
+        LotAgingSummaryDto summary,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Antigüedad lotes");
+
+        var localGeneratedAt = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+
+        worksheet.Cell(1, 1).SetValue(SanitizeText($"{settings.WarehouseName} - Antigüedad de lotes internos"));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+
+        worksheet.Cell(2, 1).SetValue(SanitizeText(
+            $"Generado el: {localGeneratedAt:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Total: {rows.Count} lotes activos"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(3, 1).SetValue(SanitizeText(
+            "Aviso: La antigüedad refleja los días transcurridos desde el registro del lote en el almacén local (tiempo de permanencia); no representa fecha de caducidad ni vencimiento de fabricante."));
+        worksheet.Cell(3, 1).Style.Font.Italic = true;
+        worksheet.Cell(3, 1).Style.Font.FontColor = XLColor.FromArgb(100, 116, 139);
+
+        worksheet.Cell(4, 1).SetValue(SanitizeText(
+            $"Resumen: 0–30d: {summary.Days0To30LotCount:N0} | 31–60d: {summary.Days31To60LotCount:N0} | 61–90d: {summary.Days61To90LotCount:N0} | Más de 90d: {summary.Days90PlusLotCount:N0} | Filtros: {FormatAnalyticsFilter(filter)}"));
+        worksheet.Cell(4, 1).Style.Font.Italic = true;
+
+        string[] headers =
+        [
+            "SKU", "Descripción", "Unidad", "Lote interno", "Fecha ingreso",
+            "Días en almacén", "Rango antigüedad", "Cantidad", "Posiciones", "Ubicación principal"
+        ];
+        WriteTableHeaders(worksheet, headers, 6);
+
+        var currentRow = 7;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.Sku));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.Description ?? string.Empty));
+            worksheet.Cell(currentRow, 3).SetValue(SanitizeText(row.UnitCode));
+            worksheet.Cell(currentRow, 4).SetValue(SanitizeText(row.LotNumber));
+            if (row.LotDate is not null)
+            {
+                worksheet.Cell(currentRow, 5).SetValue(row.LotDate.Value.ToDateTime(TimeOnly.MinValue));
+                worksheet.Cell(currentRow, 5).Style.DateFormat.Format = "yyyy-mm-dd";
+            }
+            SetCount(worksheet.Cell(currentRow, 6), row.AgeDays);
+            worksheet.Cell(currentRow, 7).SetValue(SanitizeText(row.AgeBucketLabel));
+            SetNumber(worksheet.Cell(currentRow, 8), row.Quantity);
+            SetCount(worksheet.Cell(currentRow, 9), row.LocationCount);
+            worksheet.Cell(currentRow, 10).SetValue(SanitizeText(row.PrimaryLocationCode));
+            currentRow++;
+        }
+
+        var totalCell = worksheet.Cell(currentRow, 1);
+        totalCell.SetValue("Total lotes");
+        totalCell.Style.Font.Bold = true;
+        SetCount(worksheet.Cell(currentRow, 4), rows.Count, isBold: true);
+
+        worksheet.Range(currentRow, 1, currentRow, 10).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        worksheet.Range(currentRow, 1, currentRow, 10).Style.Fill.BackgroundColor = XLColor.FromArgb(241, 245, 249);
+
+        worksheet.Columns().AdjustToContents(5, Math.Max(6, currentRow));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportLotAgingToCsvAsync(
+        IReadOnlyList<LotAgingItemDto> rows,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var metadata = FormatAnalyticsFilter(filter);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("SKU,Descripción,Unidad,Lote interno,Fecha ingreso,Días en almacén,Rango antigüedad,Cantidad,Posiciones,Ubicación principal,Aviso permanencia,Zona horaria,Filtros aplicados");
+
+        const string notice = "Tiempo de permanencia en almacén local; no representa fecha de caducidad ni vencimiento";
+
+        foreach (var row in rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.Sku))).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.Description ?? string.Empty))).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.LotNumber))).Append(',')
+              .Append(EscapeCsv(row.LotDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty)).Append(',')
+              .Append(row.AgeDays.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.AgeBucketLabel))).Append(',')
+              .Append(row.Quantity.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.LocationCount.ToString(CultureInfo.InvariantCulture)).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.PrimaryLocationCode))).Append(',')
+              .Append(EscapeCsv(notice)).Append(',')
+              .Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).Append(',')
+              .Append(EscapeCsv(SanitizeText(metadata))).AppendLine();
+        }
+
+        return CsvBytes(sb);
+    }
+
+    public async Task<byte[]> ExportCoverageToExcelAsync(
+        IReadOnlyList<SkuCoverageItemDto> rows,
+        SkuCoverageSummaryDto summary,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Cobertura");
+
+        var localGeneratedAt = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+
+        worksheet.Cell(1, 1).SetValue(SanitizeText($"{settings.WarehouseName} - Cobertura estimada por consumo"));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+
+        worksheet.Cell(2, 1).SetValue(SanitizeText(
+            $"Generado el: {localGeneratedAt:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Total: {rows.Count} productos evaluados"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(3, 1).SetValue(SanitizeText(
+            $"Alertas: Críticos: {summary.CriticalCount:N0} | Bajos: {summary.LowCount:N0} | Normales: {summary.NormalCount:N0} | Exceso: {summary.ExcessCount:N0} | Sin consumo: {summary.NoRecentConsumptionCount:N0} | Agotados: {summary.ExhaustedCount:N0}"));
+        worksheet.Cell(3, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(4, 1).SetValue(SanitizeText($"Filtros: {FormatAnalyticsFilter(filter)}"));
+        worksheet.Cell(4, 1).Style.Font.Italic = true;
+
+        string[] headers =
+        [
+            "SKU", "Descripción", "Unidad", "Stock disponible (racks)", "Consumo neto período",
+            "Consumo diario promedio", "Días cobertura", "Clasificación", "Última salida"
+        ];
+        WriteTableHeaders(worksheet, headers, 6);
+
+        var currentRow = 7;
+        foreach (var row in rows)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(row.Sku));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(row.Description ?? string.Empty));
+            worksheet.Cell(currentRow, 3).SetValue(SanitizeText(row.UnitCode));
+            SetNumber(worksheet.Cell(currentRow, 4), row.AvailableStock);
+            SetNumber(worksheet.Cell(currentRow, 5), row.NetConsumption);
+            SetNumber(worksheet.Cell(currentRow, 6), row.DailyAverageConsumption);
+
+            if (row.CoverageDays is null)
+            {
+                worksheet.Cell(currentRow, 7).SetValue("Sin consumo reciente");
+            }
+            else
+            {
+                worksheet.Cell(currentRow, 7).SetValue(row.CoverageDays.Value);
+                worksheet.Cell(currentRow, 7).Style.NumberFormat.Format = "#,##0.0";
+            }
+
+            worksheet.Cell(currentRow, 8).SetValue(SanitizeText(row.ClassificationLabel));
+            SetLocalDate(worksheet.Cell(currentRow, 9), row.LastExitDateUtc, timeZone);
+            currentRow++;
+        }
+
+        var totalCell = worksheet.Cell(currentRow, 1);
+        totalCell.SetValue("Total productos");
+        totalCell.Style.Font.Bold = true;
+        SetCount(worksheet.Cell(currentRow, 4), rows.Count, isBold: true);
+
+        worksheet.Range(currentRow, 1, currentRow, 9).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        worksheet.Range(currentRow, 1, currentRow, 9).Style.Fill.BackgroundColor = XLColor.FromArgb(241, 245, 249);
+
+        worksheet.Columns().AdjustToContents(5, Math.Max(6, currentRow));
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportCoverageToCsvAsync(
+        IReadOnlyList<SkuCoverageItemDto> rows,
+        InventoryAnalyticsFilter filter,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var metadata = FormatAnalyticsFilter(filter);
+
+        var sb = new StringBuilder();
+        sb.AppendLine("SKU,Descripción,Unidad,Stock disponible (racks),Consumo neto período,Consumo diario promedio,Días cobertura,Clasificación,Última salida,Zona horaria,Filtros aplicados");
+
+        foreach (var row in rows)
+        {
+            sb.Append(EscapeCsv(SanitizeText(row.Sku))).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.Description ?? string.Empty))).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.UnitCode))).Append(',')
+              .Append(row.AvailableStock.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.NetConsumption.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',')
+              .Append(row.DailyAverageConsumption.ToString("0.0000", CultureInfo.InvariantCulture)).Append(',')
+              .Append(EscapeCsv(row.CoverageDays?.ToString("0.0", CultureInfo.InvariantCulture) ?? "Sin consumo reciente")).Append(',')
+              .Append(EscapeCsv(SanitizeText(row.ClassificationLabel))).Append(',')
+              .Append(EscapeCsv(FormatLocalDate(row.LastExitDateUtc, timeZone))).Append(',')
+              .Append(EscapeCsv(SanitizeText(settings.TimeZoneId))).Append(',')
+              .Append(EscapeCsv(SanitizeText(metadata))).AppendLine();
+        }
+
+        return CsvBytes(sb);
+    }
+
+    // =========================================================================
+    // EXPORTACIONES ETAPA 4: CARGA DE TRABAJO, MAPA DE CALOR Y RESUMEN EJECUTIVO
+    // =========================================================================
+
+    public async Task<byte[]> ExportWorkloadToExcelAsync(
+        IReadOnlyList<WorkloadOperatorDto> operators,
+        WorkloadSummaryDto summary,
+        WorkloadReportFilter filter,
+        string periodLabel,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Carga de Trabajo");
+
+        var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        worksheet.Cell(1, 1).SetValue(SanitizeText($"{settings.WarehouseName} - Reporte de Actividad y Carga de Trabajo por Responsable"));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+
+        worksheet.Cell(2, 1).SetValue(SanitizeText($"Generado el: {localNow:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Período: {periodLabel} | {WorkloadReportService.FormatShiftLabel(filter.Shift)}"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(3, 1).SetValue(SanitizeText($"Resumen: {summary.TotalOperations} operaciones efectivas | {summary.TotalLines} líneas | {summary.ActiveOperatorsCount} operadores activos | Mayor actividad: {summary.TopOperatorName ?? "Ninguno"} ({summary.TopOperatorOperations} ops)"));
+        worksheet.Cell(3, 1).Style.Font.Bold = true;
+
+        string[] headers =
+        [
+            "Responsable",
+            "Rol",
+            "Operaciones totales",
+            "Líneas totales",
+            "Entradas (Ops)",
+            "Entradas (Líneas)",
+            "Salidas (Ops)",
+            "Salidas (Líneas)",
+            "Transferencias (Ops)",
+            "Transferencias (Líneas)",
+            "Ajustes (Ops)",
+            "Ajustes (Líneas)",
+            "Primera actividad",
+            "Última actividad"
+        ];
+
+        var startRow = 5;
+        WriteTableHeaders(worksheet, headers, startRow);
+
+        var currentRow = startRow + 1;
+        foreach (var op in operators)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(op.FullName));
+            worksheet.Cell(currentRow, 2).SetValue(SanitizeText(op.RoleName));
+            SetCount(worksheet.Cell(currentRow, 3), op.TotalOperations, isBold: true);
+            SetCount(worksheet.Cell(currentRow, 4), op.TotalLines, isBold: true);
+            SetCount(worksheet.Cell(currentRow, 5), op.EntryOperations);
+            SetCount(worksheet.Cell(currentRow, 6), op.EntryLines);
+            SetCount(worksheet.Cell(currentRow, 7), op.ExitOperations);
+            SetCount(worksheet.Cell(currentRow, 8), op.ExitLines);
+            SetCount(worksheet.Cell(currentRow, 9), op.TransferOperations);
+            SetCount(worksheet.Cell(currentRow, 10), op.TransferLines);
+            SetCount(worksheet.Cell(currentRow, 11), op.AdjustmentOperations);
+            SetCount(worksheet.Cell(currentRow, 12), op.AdjustmentLines);
+            SetLocalDate(worksheet.Cell(currentRow, 13), op.FirstActivityLocal, timeZone);
+            SetLocalDate(worksheet.Cell(currentRow, 14), op.LastActivityLocal, timeZone);
+            currentRow++;
+        }
+
+        // Fila de totales
+        if (operators.Count > 0)
+        {
+            worksheet.Cell(currentRow, 1).SetValue("TOTALES");
+            worksheet.Cell(currentRow, 1).Style.Font.Bold = true;
+            for (var col = 3; col <= 12; col++)
+            {
+                var colLetter = XLHelper.GetColumnLetterFromNumber(col);
+                var cell = worksheet.Cell(currentRow, col);
+                cell.FormulaA1 = $"SUM({colLetter}{startRow + 1}:{colLetter}{currentRow - 1})";
+                cell.Style.Font.Bold = true;
+                cell.Style.NumberFormat.Format = "#,##0";
+            }
+            worksheet.Range(currentRow, 1, currentRow, headers.Length).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+            worksheet.Range(currentRow, 1, currentRow, headers.Length).Style.Fill.BackgroundColor = XLColor.FromArgb(241, 245, 249);
+        }
+
+        worksheet.Columns().AdjustToContents();
+        worksheet.SheetView.FreezeRows(startRow);
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportWorkloadToCsvAsync(
+        IReadOnlyList<WorkloadOperatorDto> operators,
+        WorkloadSummaryDto summary,
+        WorkloadReportFilter filter,
+        string periodLabel,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {settings.WarehouseName} - Reporte de Actividad y Carga de Trabajo");
+        sb.AppendLine($"# Generado el: {localNow:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Período: {periodLabel} | {WorkloadReportService.FormatShiftLabel(filter.Shift)}");
+        sb.AppendLine($"# Resumen: {summary.TotalOperations} operaciones | {summary.TotalLines} líneas | {summary.ActiveOperatorsCount} operadores activos | Mayor actividad: {summary.TopOperatorName ?? "Ninguno"} ({summary.TopOperatorOperations} ops)");
+        sb.AppendLine("Responsable,Rol,Operaciones totales,Líneas totales,Entradas Ops,Entradas Líneas,Salidas Ops,Salidas Líneas,Transferencias Ops,Transferencias Líneas,Ajustes Ops,Ajustes Líneas,Primera actividad,Última actividad");
+
+        foreach (var op in operators)
+        {
+            sb.Append(EscapeCsv(SanitizeText(op.FullName))).Append(',')
+              .Append(EscapeCsv(SanitizeText(op.RoleName))).Append(',')
+              .Append(op.TotalOperations).Append(',')
+              .Append(op.TotalLines).Append(',')
+              .Append(op.EntryOperations).Append(',')
+              .Append(op.EntryLines).Append(',')
+              .Append(op.ExitOperations).Append(',')
+              .Append(op.ExitLines).Append(',')
+              .Append(op.TransferOperations).Append(',')
+              .Append(op.TransferLines).Append(',')
+              .Append(op.AdjustmentOperations).Append(',')
+              .Append(op.AdjustmentLines).Append(',')
+              .Append(EscapeCsv(FormatLocalDate(op.FirstActivityLocal, timeZone))).Append(',')
+              .Append(EscapeCsv(FormatLocalDate(op.LastActivityLocal, timeZone))).AppendLine();
+        }
+
+        return CsvBytes(sb);
+    }
+
+    public async Task<byte[]> ExportHeatmapToExcelAsync(
+        IReadOnlyList<RackHeatmapItemDto> racks,
+        HeatmapSummaryDto summary,
+        HeatmapReportFilter filter,
+        string periodLabel,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Mapa de Calor");
+
+        var metricName = filter.Metric == HeatmapMetricType.AccessFrequency ? "Frecuencia de Accesos / Picking" : "Densidad de Ocupación";
+        worksheet.Cell(1, 1).SetValue(SanitizeText($"{settings.WarehouseName} - Mapa de Calor ({metricName})"));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 14;
+
+        worksheet.Cell(2, 1).SetValue(SanitizeText($"Generado el: {localNow:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Período: {periodLabel} | Métrica: {metricName}"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(3, 1).SetValue(SanitizeText($"Resumen: {summary.TotalRacks} racks evaluados | {summary.ActiveRacks} racks activos | Máx. accesos: {summary.MaxAccessCount} | Ocupación promedio: {summary.AverageOccupancyPercent:0.00}% | Racks de alta intensidad (Nivel 3+): {summary.HighHeatRacksCount}"));
+        worksheet.Cell(3, 1).Style.Font.Bold = true;
+
+        string[] headers =
+        [
+            "Fila",
+            "Rack",
+            "Etiqueta",
+            "Accesos (Movimientos)",
+            "Posiciones totales",
+            "Posiciones ocupadas",
+            "Ocupación %",
+            "Nivel térmico (0-4)",
+            "Clasificación"
+        ];
+
+        var startRow = 5;
+        WriteTableHeaders(worksheet, headers, startRow);
+
+        var currentRow = startRow + 1;
+        foreach (var rack in racks)
+        {
+            worksheet.Cell(currentRow, 1).SetValue(SanitizeText(rack.RowCode));
+            worksheet.Cell(currentRow, 2).SetValue(rack.RackNumber ?? 0);
+            worksheet.Cell(currentRow, 3).SetValue(SanitizeText(rack.Label));
+            SetCount(worksheet.Cell(currentRow, 4), rack.AccessCount);
+            SetCount(worksheet.Cell(currentRow, 5), rack.TotalPositions);
+            SetCount(worksheet.Cell(currentRow, 6), rack.OccupiedPositions);
+            SetPercentage(worksheet.Cell(currentRow, 7), rack.OccupancyPercent);
+            SetCount(worksheet.Cell(currentRow, 8), rack.HeatLevel);
+
+            var classLabel = rack.HeatLevel switch
+            {
+                0 => "Sin actividad / Vacío",
+                1 => "Baja (≤ 25%)",
+                2 => "Moderada (26-50%)",
+                3 => "Alta (51-75%)",
+                _ => "Crítica (> 75%)"
+            };
+            worksheet.Cell(currentRow, 9).SetValue(classLabel);
+            currentRow++;
+        }
+
+        // Totales
+        if (racks.Count > 0)
+        {
+            worksheet.Cell(currentRow, 1).SetValue("TOTALES");
+            worksheet.Cell(currentRow, 1).Style.Font.Bold = true;
+            for (var col = 4; col <= 6; col++)
+            {
+                var colLetter = XLHelper.GetColumnLetterFromNumber(col);
+                var cell = worksheet.Cell(currentRow, col);
+                cell.FormulaA1 = $"SUM({colLetter}{startRow + 1}:{colLetter}{currentRow - 1})";
+                cell.Style.Font.Bold = true;
+                cell.Style.NumberFormat.Format = "#,##0";
+            }
+            worksheet.Range(currentRow, 1, currentRow, headers.Length).Style.Border.TopBorder = XLBorderStyleValues.Thin;
+            worksheet.Range(currentRow, 1, currentRow, headers.Length).Style.Fill.BackgroundColor = XLColor.FromArgb(241, 245, 249);
+        }
+
+        worksheet.Columns().AdjustToContents();
+        worksheet.SheetView.FreezeRows(startRow);
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    public async Task<byte[]> ExportHeatmapToCsvAsync(
+        IReadOnlyList<RackHeatmapItemDto> racks,
+        HeatmapSummaryDto summary,
+        HeatmapReportFilter filter,
+        string periodLabel,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        var timeZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
+        var localNow = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, timeZone);
+        var metricName = filter.Metric == HeatmapMetricType.AccessFrequency ? "Frecuencia de Accesos" : "Densidad de Ocupación";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"# {settings.WarehouseName} - Mapa de Calor ({metricName})");
+        sb.AppendLine($"# Generado el: {localNow:yyyy-MM-dd HH:mm:ss} ({settings.TimeZoneId}) | Período: {periodLabel} | Métrica: {metricName}");
+        sb.AppendLine($"# Resumen: {summary.TotalRacks} racks evaluados | {summary.ActiveRacks} racks activos | Máx. accesos: {summary.MaxAccessCount} | Ocupación promedio: {summary.AverageOccupancyPercent:0.00}% | Racks Nivel 3+: {summary.HighHeatRacksCount}");
+        sb.AppendLine("Fila,Rack,Etiqueta,Accesos,Posiciones totales,Posiciones ocupadas,Ocupación %,Nivel térmico,Clasificación");
+
+        foreach (var rack in racks)
+        {
+            var classLabel = rack.HeatLevel switch
+            {
+                0 => "Sin actividad / Vacío",
+                1 => "Baja (≤ 25%)",
+                2 => "Moderada (26-50%)",
+                3 => "Alta (51-75%)",
+                _ => "Crítica (> 75%)"
+            };
+
+            sb.Append(EscapeCsv(SanitizeText(rack.RowCode))).Append(',')
+              .Append(rack.RackNumber?.ToString() ?? string.Empty).Append(',')
+              .Append(EscapeCsv(SanitizeText(rack.Label))).Append(',')
+              .Append(rack.AccessCount).Append(',')
+              .Append(rack.TotalPositions).Append(',')
+              .Append(rack.OccupiedPositions).Append(',')
+              .Append((rack.OccupancyPercent / 100m).ToString("0.00%", CultureInfo.InvariantCulture)).Append(',')
+              .Append(rack.HeatLevel).Append(',')
+              .Append(EscapeCsv(classLabel)).AppendLine();
+        }
+
+        return CsvBytes(sb);
+    }
+
+    public async Task<byte[]> ExportExecutiveToExcelAsync(
+        ExecutiveReportDto report,
+        CancellationToken cancellationToken = default)
+    {
+        var settings = await settingsService.GetAsync(cancellationToken);
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("Resumen Ejecutivo");
+
+        worksheet.Cell(1, 1).SetValue(SanitizeText($"{settings.WarehouseName} - Informe Ejecutivo de Almacén"));
+        worksheet.Cell(1, 1).Style.Font.Bold = true;
+        worksheet.Cell(1, 1).Style.Font.FontSize = 16;
+        worksheet.Cell(1, 1).Style.Font.FontColor = XLColor.FromArgb(15, 23, 42);
+
+        worksheet.Cell(2, 1).SetValue(SanitizeText($"Situación actual al {report.GeneratedAtLocal:dd/MM/yyyy HH:mm} ({report.TimeZoneId})"));
+        worksheet.Cell(2, 1).Style.Font.Italic = true;
+        worksheet.Cell(3, 1).SetValue(SanitizeText(
+            $"Actividad del {report.ActivityFrom:dd/MM/yyyy} al {report.ActivityTo:dd/MM/yyyy} ({report.PeriodLabel}) | " +
+            $"Comparación del {report.PreviousActivityFrom:dd/MM/yyyy} al {report.PreviousActivityTo:dd/MM/yyyy} ({report.PreviousPeriodLabel})"));
+        worksheet.Cell(3, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(5, 1).SetValue("1. REQUIERE ATENCIÓN AHORA");
+        worksheet.Cell(5, 1).Style.Font.Bold = true;
+        worksheet.Cell(5, 1).Style.Font.FontSize = 12;
+        worksheet.Cell(6, 1).SetValue("Cobertura crítica según consumo efectivo de 30 días:");
+        SetCount(worksheet.Cell(6, 2), report.InventoryHealth.CriticalCoverageSkus, isBold: true);
+        worksheet.Cell(7, 1).SetValue("Posiciones con saldo negativo:");
+        SetCount(worksheet.Cell(7, 2), report.Capacity.NegativePositions, isBold: true);
+        worksheet.Cell(8, 1).SetValue("SKU debajo del mínimo:");
+        SetCount(worksheet.Cell(8, 2), report.InventoryHealth.LowStockSkus, isBold: true);
+        worksheet.Cell(9, 1).SetValue("Las alertas pueden contener el mismo SKU y no deben sumarse.");
+        worksheet.Cell(9, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(11, 1).SetValue("2. SITUACIÓN ACTUAL DEL INVENTARIO");
+        worksheet.Cell(11, 1).Style.Font.Bold = true;
+        worksheet.Cell(11, 1).Style.Font.FontSize = 12;
+
+        worksheet.Cell(12, 1).SetValue("SKU activos:");
+        SetCount(worksheet.Cell(12, 2), report.InventoryHealth.TotalActiveSkus, isBold: true);
+        worksheet.Cell(13, 1).SetValue("SKU debajo del mínimo:");
+        SetCount(worksheet.Cell(13, 2), report.InventoryHealth.LowStockSkus);
+        worksheet.Cell(14, 1).SetValue("SKU con cobertura crítica:");
+        SetCount(worksheet.Cell(14, 2), report.InventoryHealth.CriticalCoverageSkus);
+        worksheet.Cell(15, 1).SetValue("SKU con existencia y sin salida efectiva durante 90 días o más:");
+        SetCount(worksheet.Cell(15, 2), report.InventoryHealth.Stagnant90PlusSkus);
+
+        worksheet.Cell(17, 1).SetValue("3. CAPACIDAD ACTUAL DEL ALMACÉN");
+        worksheet.Cell(17, 1).Style.Font.Bold = true;
+        worksheet.Cell(17, 1).Style.Font.FontSize = 12;
+
+        worksheet.Cell(18, 1).SetValue("Posiciones totales:");
+        SetCount(worksheet.Cell(18, 2), report.Capacity.TotalRackPositions);
+        worksheet.Cell(19, 1).SetValue("Bloqueadas:");
+        SetCount(worksheet.Cell(19, 2), report.Capacity.BlockedPositions);
+        worksheet.Cell(20, 1).SetValue("Con saldo negativo:");
+        SetCount(worksheet.Cell(20, 2), report.Capacity.NegativePositions);
+        worksheet.Cell(21, 1).SetValue("Ocupadas:");
+        SetCount(worksheet.Cell(21, 2), report.Capacity.OccupiedPositions);
+        worksheet.Cell(22, 1).SetValue("Vacías disponibles:");
+        SetCount(worksheet.Cell(22, 2), report.Capacity.EmptyPositions);
+        worksheet.Cell(23, 1).SetValue("Utilización del espacio utilizable:");
+        SetPercentage(worksheet.Cell(23, 2), report.Capacity.UtilizationPercent, isBold: true);
+        worksheet.Cell(24, 1).SetValue("Clasificación exclusiva: bloqueada, negativa, ocupada o vacía. La utilización excluye las bloqueadas.");
+        worksheet.Cell(24, 1).Style.Font.Italic = true;
+
+        worksheet.Cell(26, 1).SetValue("4. ACTIVIDAD DEL PERÍODO Y COMPARACIÓN");
+        worksheet.Cell(26, 1).Style.Font.Bold = true;
+        worksheet.Cell(26, 1).Style.Font.FontSize = 12;
+
+        string[] flowHeaders =
+        [
+            "Actividad", "Movimientos actuales", "Detalles actuales", "Movimientos anteriores", "Detalles anteriores",
+            "Diferencia movimientos", "Variación movimientos", "Diferencia detalles", "Variación detalles"
+        ];
+        WriteTableHeaders(worksheet, flowHeaders, 27);
+
+        WriteFlowRow(28, "Total", report.OperationalFlow.TotalMovements, report.OperationalFlow.TotalDetails,
+            report.Comparison.TotalMovements, report.Comparison.TotalDetails);
+        WriteFlowRow(29, "Entradas", report.OperationalFlow.EntryMovements, report.OperationalFlow.EntryDetails,
+            report.Comparison.EntryMovements, null);
+        WriteFlowRow(30, "Salidas", report.OperationalFlow.ExitMovements, report.OperationalFlow.ExitDetails,
+            report.Comparison.ExitMovements, null);
+        WriteFlowRow(31, "Transferencias", report.OperationalFlow.TransferMovements, report.OperationalFlow.TransferDetails,
+            report.Comparison.TransferMovements, null);
+        WriteFlowRow(32, "Ajustes", report.OperationalFlow.AdjustmentMovements, report.OperationalFlow.AdjustmentDetails,
+            report.Comparison.AdjustmentMovements, null);
+
+        worksheet.Cell(34, 1).SetValue("5. PRODUCTOS CON MÁS SALIDAS");
+        worksheet.Cell(34, 1).Style.Font.Bold = true;
+        worksheet.Cell(34, 1).Style.Font.FontSize = 12;
+
+        string[] topHeaders = ["SKU", "Descripción", "Unidad", "Cantidad salida", "Movimientos"];
+        WriteTableHeaders(worksheet, topHeaders, 35);
+
+        var topRow = 36;
+        foreach (var sku in report.TopDemandedSkus)
+        {
+            worksheet.Cell(topRow, 1).SetValue(SanitizeText(sku.Sku));
+            worksheet.Cell(topRow, 2).SetValue(SanitizeText(sku.Description ?? string.Empty));
+            worksheet.Cell(topRow, 3).SetValue(SanitizeText(sku.Unit));
+            SetNumber(worksheet.Cell(topRow, 4), sku.TotalQuantity);
+            SetCount(worksheet.Cell(topRow, 5), sku.MovementCount);
+            topRow++;
+        }
+
+        var stagHeaderRow = topRow + 1;
+        worksheet.Cell(stagHeaderRow, 1).SetValue("6. PRODUCTOS CON EXISTENCIA Y SIN SALIDA RECIENTE");
+        worksheet.Cell(stagHeaderRow, 1).Style.Font.Bold = true;
+        worksheet.Cell(stagHeaderRow, 1).Style.Font.FontSize = 12;
+
+        string[] stagHeaders = ["SKU", "Descripción", "Unidad", "Existencia actual", "Días sin salida"];
+        WriteTableHeaders(worksheet, stagHeaders, stagHeaderRow + 1);
+
+        var stagRow = stagHeaderRow + 2;
+        foreach (var sku in report.StagnantSkus)
+        {
+            worksheet.Cell(stagRow, 1).SetValue(SanitizeText(sku.Sku));
+            worksheet.Cell(stagRow, 2).SetValue(SanitizeText(sku.Description ?? string.Empty));
+            worksheet.Cell(stagRow, 3).SetValue(SanitizeText(sku.Unit));
+            SetNumber(worksheet.Cell(stagRow, 4), sku.CurrentStock);
+            if (sku.DaysWithoutExit.HasValue)
+                SetCount(worksheet.Cell(stagRow, 5), sku.DaysWithoutExit.Value);
+            else
+                worksheet.Cell(stagRow, 5).SetValue("Nunca salió");
+            stagRow++;
+        }
+
+        worksheet.Cell(stagRow + 1, 1).SetValue("7. CÓMO SE CALCULA");
+        worksheet.Cell(stagRow + 1, 1).Style.Font.Bold = true;
+        worksheet.Cell(stagRow + 2, 1).SetValue("Un movimiento es una confirmación; cada producto incluido representa un detalle. Una transferencia con tres productos equivale a un movimiento y tres detalles.");
+        worksheet.Cell(stagRow + 3, 1).SetValue("Se cuentan movimientos efectivos: se excluyen originales corregidos y reversos; se incluyen reemplazos vigentes.");
+        worksheet.Cell(stagRow + 4, 1).SetValue("Los días sin salida se miden desde la última salida efectiva y no representan edad física del inventario.");
+
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+
+        void WriteFlowRow(
+            int row,
+            string label,
+            int currentMovements,
+            int currentDetails,
+            MetricComparisonDto movementComparison,
+            MetricComparisonDto? detailComparison)
+        {
+            worksheet.Cell(row, 1).SetValue(label);
+            SetCount(worksheet.Cell(row, 2), currentMovements, label == "Total");
+            SetCount(worksheet.Cell(row, 3), currentDetails, label == "Total");
+            SetCount(worksheet.Cell(row, 4), movementComparison.Previous);
+            if (detailComparison is not null)
+                SetCount(worksheet.Cell(row, 5), detailComparison.Previous);
+            SetCount(worksheet.Cell(row, 6), movementComparison.Delta);
+            if (movementComparison.PercentChange is decimal percentage)
+                SetPercentage(worksheet.Cell(row, 7), percentage);
+            else
+                worksheet.Cell(row, 7).SetValue("Sin base anterior");
+            if (detailComparison is not null)
+            {
+                SetCount(worksheet.Cell(row, 8), detailComparison.Delta);
+                if (detailComparison.PercentChange is decimal detailPercentage)
+                    SetPercentage(worksheet.Cell(row, 9), detailPercentage);
+                else
+                    worksheet.Cell(row, 9).SetValue("Sin base anterior");
+            }
+        }
+    }
+
+
     private static void WriteInventoryHeader(
         IXLWorksheet worksheet,
         string title,
@@ -615,11 +1370,11 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         worksheet.Cell(3, 1).Style.Font.Italic = true;
     }
 
-    private static void WriteTableHeaders(IXLWorksheet worksheet, IReadOnlyList<string> headers)
+    private static void WriteTableHeaders(IXLWorksheet worksheet, IReadOnlyList<string> headers, int rowNumber = 5)
     {
         for (var column = 0; column < headers.Count; column++)
         {
-            var cell = worksheet.Cell(5, column + 1);
+            var cell = worksheet.Cell(rowNumber, column + 1);
             cell.SetValue(headers[column]);
             cell.Style.Font.Bold = true;
             cell.Style.Font.FontColor = XLColor.White;
@@ -631,6 +1386,22 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
     {
         cell.SetValue(value);
         cell.Style.NumberFormat.Format = "#,##0.0000";
+    }
+
+    private static void SetCount(IXLCell cell, int value, bool isBold = false)
+    {
+        cell.SetValue(value);
+        cell.Style.NumberFormat.Format = "#,##0";
+        if (isBold)
+            cell.Style.Font.Bold = true;
+    }
+
+    private static void SetPercentage(IXLCell cell, decimal percentageScale100, bool isBold = false)
+    {
+        cell.SetValue(percentageScale100 / 100m);
+        cell.Style.NumberFormat.Format = "0.00%";
+        if (isBold)
+            cell.Style.Font.Bold = true;
     }
 
     private static void SetLocalDate(IXLCell cell, DateTimeOffset? value, TimeZoneInfo timeZone)
@@ -697,6 +1468,9 @@ public sealed class ReportExportService(WarehouseSettingsService settingsService
         if (filter.ToUtc is not null) values.Add($"hasta UTC exclusivo {filter.ToUtc:yyyy-MM-dd HH:mm:ss}");
         if (!string.IsNullOrWhiteSpace(filter.Search)) values.Add($"búsqueda={filter.Search}");
         if (filter.UnitId is not null) values.Add($"unidad={filter.UnitId}");
+        if (filter.StagnantCategory is not null) values.Add($"categoría={FormatStagnantCategory(filter.StagnantCategory.Value)}");
+        if (filter.AgeBucket is not null && filter.AgeBucket.Value != LotAgeBucket.All) values.Add($"antigüedad={InventoryAnalyticsService.FormatLotAgeBucket(filter.AgeBucket.Value)}");
+        if (filter.CoverageClassification is not null && filter.CoverageClassification.Value != CoverageClassification.All) values.Add($"clasificación={InventoryAnalyticsService.FormatCoverageClassification(filter.CoverageClassification.Value)}");
         return string.Join(" | ", values);
     }
 

@@ -13,7 +13,9 @@ public sealed class InventoryPageContractTests
         Assert.Contains("asp-page=\"/Admin/Inventory/Movements/Index\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Locations/Index\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Locations/Details\"", page, StringComparison.Ordinal);
-        Assert.Contains("isAdmin && Model.Product is not null", page, StringComparison.Ordinal);
+        Assert.Contains("@if (Model.Product is not null)", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Reports/Kardex/Index\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-locationId=\"@Model.HighlightLocationId\"", page, StringComparison.Ordinal);
         Assert.Contains("Model.Results.Summary.AssignedZero", page, StringComparison.Ordinal);
         Assert.Contains("Asignado · saldo cero", page, StringComparison.Ordinal);
         Assert.Contains("Saldo sin asignación", page, StringComparison.Ordinal);

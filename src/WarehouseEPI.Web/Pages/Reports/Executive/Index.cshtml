@@ -1,0 +1,118 @@
+@page "/Reports/Executive"
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Reporting
+@model WarehouseEPI.Web.Pages.Reports.Executive.IndexModel
+@{
+    ViewData["Title"] = "Informe ejecutivo de almacén";
+    var report = Model.Report;
+}
+
+@section Styles { <link rel="stylesheet" href="~/css/executive-report.css" asp-append-version="true" /> }
+@section Scripts { <script src="~/js/executive-report.js" asp-append-version="true"></script> }
+
+<div class="executive-report">
+    <header class="executive-print-header">
+        <h1>Warehouse EPI — Informe ejecutivo de almacén</h1>
+        <p>Situación actual al @report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm") (@report.TimeZoneId)</p>
+        <p>Actividad del @report.ActivityFrom.ToString("dd/MM/yyyy") al @report.ActivityTo.ToString("dd/MM/yyyy")</p>
+    </header>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4 executive-screen-header">
+        <div>
+            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">Reportes</a></li><li class="breadcrumb-item active" aria-current="page">Informe ejecutivo</li></ol></nav>
+            <span class="eyebrow">Resumen para decisión</span>
+            <h1 class="h2 mb-1">Informe ejecutivo de almacén</h1>
+            <p class="mb-1"><strong>Situación actual:</strong> @report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm") <span class="text-muted">(@report.TimeZoneId)</span></p>
+            <p class="mb-0"><strong>Actividad:</strong> @report.ActivityFrom.ToString("dd/MM/yyyy") al @report.ActivityTo.ToString("dd/MM/yyyy")</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2 executive-actions"><button type="button" class="btn btn-primary" data-print-report>Imprimir / Guardar PDF</button><a asp-page="Index" asp-page-handler="Export" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" class="btn btn-outline-success">Exportar Excel</a></div>
+    </div>
+
+    <section class="card executive-section executive-attention mb-4" aria-labelledby="attention-title">
+        <div class="card-header"><div><span class="eyebrow">Situación actual</span><h2 id="attention-title" class="h5 mb-0">Requiere atención ahora</h2></div><small>Cada indicador abre su evidencia</small></div>
+        <div class="card-body"><div class="row g-3">
+            <div class="col-12 col-md-4"><a href="@report.EvidenceLinks.CriticalCoverageUrl" class="executive-alert-card executive-alert-critical"><span>Cobertura crítica</span><strong>@report.InventoryHealth.CriticalCoverageSkus</strong><small>SKU con menos de 7 días según consumo de los últimos 30 días</small></a></div>
+            <div class="col-12 col-md-4"><a href="@report.EvidenceLinks.NegativeInventoryUrl" class="executive-alert-card executive-alert-critical"><span>Posiciones con saldo negativo</span><strong>@report.Capacity.NegativePositions</strong><small>Posiciones de rack que requieren revisión</small></a></div>
+            <div class="col-12 col-md-4"><a href="@report.EvidenceLinks.BelowMinimumUrl" class="executive-alert-card executive-alert-warning"><span>Debajo del mínimo</span><strong>@report.InventoryHealth.LowStockSkus</strong><small>SKU por debajo del mínimo configurado</small></a></div>
+        </div><p class="executive-overlap-note mb-0 mt-3">Un mismo SKU puede aparecer en más de una condición. Estos indicadores no deben sumarse.</p></div>
+    </section>
+
+    <section class="card executive-section mb-4" aria-labelledby="health-title">
+        <div class="card-header"><div><span class="eyebrow">Situación actual</span><h2 id="health-title" class="h5 mb-0">Salud del inventario</h2></div><small>Fotografía al @report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</small></div>
+        <div class="card-body"><div class="row g-3">
+            <div class="col-6 col-lg-3"><div class="executive-metric"><span>SKU activos</span><strong>@report.InventoryHealth.TotalActiveSkus</strong><small>Catálogo vigente</small></div></div>
+            <div class="col-6 col-lg-3"><a href="@report.EvidenceLinks.BelowMinimumUrl" class="executive-metric executive-metric-link"><span>Debajo del mínimo</span><strong>@report.InventoryHealth.LowStockSkus</strong><small>Ver productos</small></a></div>
+            <div class="col-6 col-lg-3"><a href="@report.EvidenceLinks.CriticalCoverageUrl" class="executive-metric executive-metric-link"><span>Cobertura crítica</span><strong>@report.InventoryHealth.CriticalCoverageSkus</strong><small>Consumo efectivo de 30 días</small></a></div>
+            <div class="col-6 col-lg-3"><a href="@report.EvidenceLinks.StagnantUrl" class="executive-metric executive-metric-link"><span>Sin salida 90+ días</span><strong>@report.InventoryHealth.Stagnant90PlusSkus</strong><small>Con existencia actual</small></a></div>
+        </div></div>
+    </section>
+
+    <section class="card executive-section mb-4" aria-labelledby="capacity-title">
+        <div class="card-header"><div><span class="eyebrow">Situación actual</span><h2 id="capacity-title" class="h5 mb-0">Capacidad actual del almacén</h2></div><span class="badge text-bg-primary">Utilización @report.Capacity.UtilizationPercent.ToString("0.0")%</span></div>
+        <div class="card-body">
+            <progress class="executive-capacity-progress" value="@report.Capacity.UtilizationPercent.ToString(System.Globalization.CultureInfo.InvariantCulture)" max="100">@report.Capacity.UtilizationPercent.ToString("0.0")%</progress>
+            <p class="small text-muted">La utilización considera posiciones utilizables; las bloqueadas quedan fuera del denominador.</p>
+            <div class="row g-3">
+                <div class="col-6 col-lg"><div class="executive-capacity-value"><span>Posiciones totales</span><strong>@report.Capacity.TotalRackPositions</strong></div></div>
+                <div class="col-6 col-lg"><a href="@report.EvidenceLinks.OccupiedLocationsUrl" class="executive-capacity-value executive-metric-link"><span>Ocupadas</span><strong>@report.Capacity.OccupiedPositions</strong></a></div>
+                <div class="col-6 col-lg"><a href="@report.EvidenceLinks.EmptyLocationsUrl" class="executive-capacity-value executive-metric-link"><span>Vacías disponibles</span><strong>@report.Capacity.EmptyPositions</strong></a></div>
+                <div class="col-6 col-lg"><a href="@report.EvidenceLinks.NegativeInventoryUrl" class="executive-capacity-value executive-metric-link"><span>Saldo negativo</span><strong class="text-danger">@report.Capacity.NegativePositions</strong></a></div>
+                <div class="col-6 col-lg"><a href="@report.EvidenceLinks.BlockedLocationsUrl" class="executive-capacity-value executive-metric-link"><span>Bloqueadas</span><strong class="text-warning">@report.Capacity.BlockedPositions</strong></a></div>
+            </div>
+            <p class="small text-muted mb-0 mt-3">Cada posición pertenece a un solo estado: bloqueada, negativa, ocupada o vacía disponible.</p>
+        </div>
+    </section>
+
+    <section class="card executive-section mb-4" aria-labelledby="activity-title">
+        <div class="card-header"><div><span class="eyebrow">Actividad del período</span><h2 id="activity-title" class="h5 mb-0">Movimientos registrados</h2><small>@report.ActivityFrom.ToString("dd/MM/yyyy") al @report.ActivityTo.ToString("dd/MM/yyyy")</small></div><a href="@report.EvidenceLinks.EffectiveMovementsUrl" class="btn btn-outline-primary btn-sm">Ver movimientos</a></div>
+        <div class="card-body">
+            <form method="get" class="executive-period-form mb-4">
+                <div class="d-flex flex-wrap gap-2" aria-label="Períodos rápidos"><a asp-route-period="this-month" class="btn btn-sm @(Model.Period == "this-month" ? "btn-primary" : "btn-outline-secondary")">Este mes</a><a asp-route-period="last-month" class="btn btn-sm @(Model.Period == "last-month" ? "btn-primary" : "btn-outline-secondary")">Mes pasado</a><a asp-route-period="this-week" class="btn btn-sm @(Model.Period == "this-week" ? "btn-primary" : "btn-outline-secondary")">Esta semana</a><a asp-route-period="last-week" class="btn btn-sm @(Model.Period == "last-week" ? "btn-primary" : "btn-outline-secondary")">Semana pasada</a></div>
+                <input type="hidden" name="period" value="custom" />
+                <div class="row g-2 align-items-end mt-1"><div class="col-6 col-md-3"><label for="from" class="form-label">Desde</label><input id="from" name="from" type="date" class="form-control" value="@Model.From?.ToString("yyyy-MM-dd")" /></div><div class="col-6 col-md-3"><label for="to" class="form-label">Hasta</label><input id="to" name="to" type="date" class="form-control" value="@Model.To?.ToString("yyyy-MM-dd")" /></div><div class="col-12 col-md-3"><button class="btn btn-primary w-100">Aplicar período</button></div></div>
+            </form>
+
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-md-6"><div class="executive-flow-total"><span>Movimientos efectivos registrados</span><strong>@report.OperationalFlow.TotalMovements</strong><small>Una confirmación cuenta como un movimiento</small>@Comparison(report.Comparison.TotalMovements, report.PreviousPeriodLabel)</div></div>
+                <div class="col-12 col-md-6"><div class="executive-flow-total"><span>Detalles de producto</span><strong>@report.OperationalFlow.TotalDetails</strong><small>Renglones de producto incluidos en los movimientos</small>@Comparison(report.Comparison.TotalDetails, report.PreviousPeriodLabel)</div></div>
+            </div>
+
+            <div class="executive-flow-list">
+                @FlowRow("Entradas", InventoryMovementType.Entry, report.OperationalFlow.EntryMovements, report.OperationalFlow.EntryDetails, report.Comparison.EntryMovements)
+                @FlowRow("Salidas", InventoryMovementType.Exit, report.OperationalFlow.ExitMovements, report.OperationalFlow.ExitDetails, report.Comparison.ExitMovements)
+                @FlowRow("Transferencias", InventoryMovementType.Transfer, report.OperationalFlow.TransferMovements, report.OperationalFlow.TransferDetails, report.Comparison.TransferMovements)
+                @FlowRow("Ajustes", InventoryMovementType.Adjustment, report.OperationalFlow.AdjustmentMovements, report.OperationalFlow.AdjustmentDetails, report.Comparison.AdjustmentMovements)
+            </div>
+            <p class="small text-muted mb-0 mt-3">Comparación: @report.PreviousPeriodLabel (@report.PreviousActivityFrom.ToString("dd/MM/yyyy") al @report.PreviousActivityTo.ToString("dd/MM/yyyy")).</p>
+        </div>
+    </section>
+
+    <div class="row g-4 mb-4">
+        <div class="col-12 col-lg-6"><section class="card executive-section h-100" aria-labelledby="exits-title"><div class="card-header"><div><span class="eyebrow">Actividad del período</span><h2 id="exits-title" class="h5 mb-0">Productos con más salidas</h2></div></div><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>SKU</th><th>Descripción</th><th class="text-end">Cantidad salida</th><th class="text-end">Movimientos</th></tr></thead><tbody>@if (report.TopDemandedSkus.Count == 0) { <tr><td colspan="4" class="text-center text-muted py-4">No hay salidas efectivas en el período.</td></tr> } else { @foreach (var item in report.TopDemandedSkus) { <tr><td><a href="@SkuMovementUrl(item.Sku)"><strong>@item.Sku</strong></a></td><td>@(item.Description ?? "Sin descripción")</td><td class="text-end">@item.TotalQuantity.ToString("0.####") @item.Unit</td><td class="text-end">@item.MovementCount</td></tr> } }</tbody></table></div></section></div>
+        <div class="col-12 col-lg-6"><section class="card executive-section h-100" aria-labelledby="stagnant-title"><div class="card-header"><div><span class="eyebrow">Situación actual</span><h2 id="stagnant-title" class="h5 mb-0">Productos con existencia y sin salida reciente</h2></div><a href="@report.EvidenceLinks.StagnantUrl" class="btn btn-outline-primary btn-sm">Ver todos</a></div><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>SKU</th><th>Descripción</th><th class="text-end">Existencia actual</th><th class="text-end">Desde última salida</th></tr></thead><tbody>@if (report.StagnantSkus.Count == 0) { <tr><td colspan="4" class="text-center text-muted py-4">No hay productos con existencia en esta condición.</td></tr> } else { @foreach (var item in report.StagnantSkus) { <tr><td><strong>@item.Sku</strong></td><td>@(item.Description ?? "Sin descripción")</td><td class="text-end">@item.CurrentStock.ToString("0.####") @item.Unit</td><td class="text-end">@(item.DaysWithoutExit is null ? "Nunca salió" : $"{item.DaysWithoutExit} días")</td></tr> } }</tbody></table></div><div class="card-footer small text-muted">Los días se cuentan desde la última salida efectiva; no representan la edad física del inventario.</div></section></div>
+    </div>
+
+    <details class="executive-method card mb-4"><summary>Cómo se calcula</summary><div class="card-body"><p><strong>Movimiento:</strong> una confirmación registrada. <strong>Detalle de producto:</strong> cada renglón incluido en ese movimiento. Una transferencia con tres productos equivale a un movimiento y tres detalles.</p><p>Se cuentan movimientos efectivos: los originales corregidos y sus reversos quedan fuera; el reemplazo vigente sí se incluye.</p><p class="mb-0">Salud y capacidad representan la situación actual. El selector de fechas modifica únicamente la actividad y su comparación.</p></div></details>
+</div>
+
+@functions {
+    Microsoft.AspNetCore.Html.IHtmlContent Comparison(MetricComparisonDto metric, string previousLabel)
+    {
+        var text = metric.PercentChange is null
+            ? $"Anterior {metric.Previous} · Diferencia {Signed(metric.Delta)} · Sin base anterior"
+            : $"Anterior {metric.Previous} · Diferencia {Signed(metric.Delta)} · {Signed(metric.PercentChange.Value)}%";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"executive-comparison\" title=\"{System.Net.WebUtility.HtmlEncode(previousLabel)}\">{System.Net.WebUtility.HtmlEncode(text)}</span>");
+    }
+
+    Microsoft.AspNetCore.Html.IHtmlContent FlowRow(string label, InventoryMovementType type, int movements, int details, MetricComparisonDto comparison)
+    {
+        var url = $"{Model.Report.EvidenceLinks.EffectiveMovementsUrl}&movementType={type}";
+        var comparisonText = comparison.PercentChange is null
+            ? $"Anterior {comparison.Previous} · Diferencia {Signed(comparison.Delta)} · Sin base anterior"
+            : $"Anterior {comparison.Previous} · Diferencia {Signed(comparison.Delta)} · {Signed(comparison.PercentChange.Value)}%";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<a class=\"executive-flow-row\" href=\"{System.Net.WebUtility.HtmlEncode(url)}\"><span>{System.Net.WebUtility.HtmlEncode(label)}</span><strong>{movements} movimientos · {details} detalles</strong><small>{System.Net.WebUtility.HtmlEncode(comparisonText)}</small></a>");
+    }
+
+    string SkuMovementUrl(string sku) => $"{Model.Report.EvidenceLinks.EffectiveMovementsUrl}&movementType=Exit&sku={Uri.EscapeDataString(sku)}";
+    static string Signed(decimal value) => value > 0 ? $"+{value:0.#}" : value.ToString("0.#");
+}

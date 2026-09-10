@@ -15,7 +15,7 @@ public sealed class OperationalExceptionPostgreSqlTests(PostgreSqlInventoryFixtu
     public async Task Migration_and_reconciliation_use_postgresql_indexes_and_xmin()
     {
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        var seed = await fixture.SeedAsync($"PG-EXCEPTION-{suffix}", $"PEX-{suffix}", "4386");
+        var seed = await fixture.SeedAsync($"PG-EXCEPTION-{suffix}", $"PEX-{suffix}", "4397");
         await using var db = fixture.CreateDbContext();
         db.InventoryBalances.Add(new InventoryBalance { ProductId = seed.ProductId, LocationId = seed.LocationId, Quantity = -1m });
         await db.SaveChangesAsync();

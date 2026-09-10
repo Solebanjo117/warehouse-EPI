@@ -1627,6 +1627,48 @@ pendientes.
   HID y comprobación en DevTools de que las páginas sin captura ya no descargan las
   bibliotecas pesadas.
 
+#### Fase 13.9: consolidación de reportes y mapa de calor integrado — implementada en código; validación visual y física pendiente
+
+- **Mapa de calor** es un modo del croquis compartido de Ubicaciones pública y ADMIN.
+  Reutiliza el mismo SVG, geometría, selección, zoom, desplazamiento y paneles; permite
+  alternar entre ocupación actual y actividad de 7, 14, 30 días o intervalo personalizado.
+  La escala usa todos los racks del croquis y no cambia por búsqueda o paginación. Los
+  racks sin coordenadas permanecen en el detalle tabular.
+- Ocupación agrega primero por producto y posición, considera ocupada una posición si
+  existe algún saldo neto positivo y muestra negativos y bloqueos como indicadores
+  independientes. Actividad cuenta movimientos efectivos distintos por rack; una
+  transferencia que toca dos racks cuenta una vez en cada uno. Un error de consulta se
+  muestra como error y nunca como valor cero.
+- La ruta anterior `/Reports/Heatmap` redirige al croquis conservando métrica y período;
+  sus descargas permanecen compatibles y protegidas para ADMIN. El acceso separado se
+  retiró del menú. Kárdex continúa separado de Existencias y conserva la ubicación de
+  contexto cuando se abre desde el detalle de inventario.
+- Cobertura reconoce surtimientos y retornos WIP actuales como transferencias, conserva
+  los registros históricos válidos y clasifica sin redondear: crítico menor de 7 días,
+  bajo de 7 a 14, normal mayor de 14 a 45 y exceso mayor de 45. Antigüedad usa la fecha
+  local de creación del lote; `LotDate` permanece informativa y el último intervalo se
+  denomina **Más de 90 días**. Se conservan las categorías funcionales de estancamiento.
+- Capacidad ejecutiva agrega por producto y ubicación antes de evaluar existencia positiva
+  y negativos. Kárdex desglosa lotes históricos, reconstruye la apertura de todo el
+  historial y mantiene la misma granularidad en pantalla y exportación. Los períodos
+  predefinidos prevalecen sobre fechas anteriores; `custom` usa las fechas y `all` elimina
+  ambos límites.
+- Excel evita fórmulas sobre rangos vacíos; CSV escapa una vez cada campo de metadatos y
+  conserva BOM, defensa contra fórmulas y números nativos. La impresión ejecutiva usa un
+  listener externo compatible con CSP.
+- No se agregaron migraciones, dependencias ni escrituras de inventario. No se inició,
+  detuvo ni desplegó el servicio operativo. La comprobación automatizada, PostgreSQL
+  aislado, navegador y dispositivos físicos se registran por separado en cada entrega.
+- Verificación del 9 de septiembre de 2026: la solución compiló con 0 advertencias y
+  0 errores; aprobaron 79 pruebas de Reporting, incluidas las consultas relacionales
+  contra `warehouse_epi_test`, y 66 pruebas focales de cálculos, rutas, Ubicaciones,
+  exportación y CSP. `node --check` aprobó los dos scripts modificados y
+  `git diff --check` no encontró errores de espacios.
+- El servicio `WarehouseEPI` estaba detenido y no había un listener de desarrollo, por
+  lo que se respetó el límite de no iniciarlo. Quedan pendientes la validación en
+  navegador de ambos temas, teclado, tablet, zoom, selección y diálogo de impresión,
+  además de las pruebas físicas HID, cámara e impresora.
+
 ### Fase 14: PWA y operación sin conexión
 
 - Agregar manifest, Service Worker y caché de interfaz.

@@ -9,5 +9,6 @@ public enum InventoryMovementPurpose
     WipConsumption,
     WipSupplierReturn,
     CycleCountAdjustment,
-    DocumentReceipt
+    DocumentReceipt,
+    ProductionReceipt
 }
