@@ -9,6 +9,11 @@
     bool IsCurrent(string page) => currentPage.Equals(page, StringComparison.OrdinalIgnoreCase);
     bool IsSection(string page) => currentPage.StartsWith(page, StringComparison.OrdinalIgnoreCase);
     var isLocationsSection = IsSection("/Locations") || (isAdmin && IsSection("/Admin/Catalogs/Locations"));
+    var isWorkloadActivity = IsSection("/Reports/Workload") &&
+        string.Equals(Context.Request.Query["view"].ToString(), "activity", StringComparison.OrdinalIgnoreCase);
+    var isWorkloadPending = IsSection("/Reports/Workload") && !isWorkloadActivity;
+    var isAdminSummarySection = IsSection("/Reports/Dashboard") ||
+        IsSection("/Reports/Executive") || isWorkloadActivity;
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -143,25 +148,31 @@
                 <a class="app-nav-link @(IsSection("/Reports/Wip") ? "active" : null)" asp-page="/Reports/Wip/Index" aria-current="@(IsSection("/Reports/Wip") ? "page" : null)" title="Reporte WIP">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte WIP</span>
                 </a>
-                <a class="app-nav-link @(IsSection("/Reports/Dashboard") ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(IsSection("/Reports/Dashboard") ? "page" : null)" title="Tablero diario">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Tablero diario</span>
-                </a>
+                @if (isAdmin)
+                {
+                    <a class="app-nav-link @(isAdminSummarySection ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(isAdminSummarySection ? "page" : null)" title="Resumen operativo">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Resumen operativo</span>
+                    </a>
+                }
+                else
+                {
+                    <a class="app-nav-link @(IsSection("/Reports/Dashboard") ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(IsSection("/Reports/Dashboard") ? "page" : null)" title="Tablero diario">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Tablero diario</span>
+                    </a>
+                }
                 <a class="app-nav-link @(IsSection("/Reports/Inventory") ? "active" : null)" asp-page="/Reports/Inventory/Index" aria-current="@(IsSection("/Reports/Inventory") ? "page" : null)" title="Analítica de inventario">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Analítica de inventario</span>
                 </a>
                 <a class="app-nav-link @(IsSection("/Reports/Kardex") ? "active" : null)" asp-page="/Reports/Kardex/Index" aria-current="@(IsSection("/Reports/Kardex") ? "page" : null)" title="Kardex por producto">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Kardex de productos</span>
                 </a>
-                <a class="app-nav-link @(IsSection("/Reports/Workload") ? "active" : null)" asp-page="/Reports/Workload/Index" aria-current="@(IsSection("/Reports/Workload") ? "page" : null)" title="Actividad y carga de trabajo">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Carga de trabajo</span>
-                </a>
                 @if (isAdmin)
                 {
-                    <a class="app-nav-link @(IsSection("/Reports/Executive") ? "active" : null)" asp-page="/Reports/Executive/Index" aria-current="@(IsSection("/Reports/Executive") ? "page" : null)" title="Informe ejecutivo de almacén">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Informe ejecutivo</span>
+                    <a class="app-nav-link @(isWorkloadPending ? "active" : null)" asp-page="/Reports/Workload/Index" asp-route-view="pending" aria-current="@(isWorkloadPending ? "page" : null)" title="Trabajo pendiente">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Pendientes</span>
                     </a>
-                    <a class="app-nav-link @(IsCurrent("/Admin/Inventory/Alerts") ? "active" : null)" asp-page="/Admin/Inventory/Alerts" aria-current="@(IsCurrent("/Admin/Inventory/Alerts") ? "page" : null)" title="Alertas">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-alert" /></svg><span>Alertas</span>
+                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Alerts") ? "active" : null)" asp-page="/Admin/Inventory/Alerts" aria-current="@(IsSection("/Admin/Inventory/Alerts") ? "page" : null)" title="Centro de excepciones">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-alert" /></svg><span>Centro de excepciones</span>
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Movements") ? "active" : null)" asp-page="/Admin/Inventory/Movements/Index" aria-current="@(IsSection("/Admin/Inventory/Movements") ? "page" : null)" title="Movimientos">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Movimientos</span>
@@ -173,6 +184,12 @@
                     *@
                     <a class="app-nav-link @(IsSection("/Admin/Inventory/Lots") ? "active" : null)" asp-page="/Admin/Inventory/Lots/Index" aria-current="@(IsSection("/Admin/Inventory/Lots") ? "page" : null)" title="Lotes">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-lots" /></svg><span>Lotes</span>
+                    </a>
+                }
+                else
+                {
+                    <a class="app-nav-link @(IsSection("/Reports/Workload") ? "active" : null)" asp-page="/Reports/Workload/Index" aria-current="@(IsSection("/Reports/Workload") ? "page" : null)" title="Actividad y carga de trabajo">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Carga de trabajo</span>
                     </a>
                 }
             </div>
@@ -197,8 +214,11 @@
 
                 <div class="app-nav-group">
                     <div class="app-nav-heading">Administración</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Production") ? "active" : null)" asp-page="/Admin/Production/Orders" aria-current="@(IsSection("/Admin/Production") ? "page" : null)" title="Órdenes de trabajo">
+                    <a class="app-nav-link @(IsSection("/Admin/Production") && !IsCurrent("/Admin/Production/Processes") && !IsCurrent("/Admin/Production/ProcessEdit") ? "active" : null)" asp-page="/Admin/Production/Orders" aria-current="@(IsSection("/Admin/Production") && !IsCurrent("/Admin/Production/Processes") && !IsCurrent("/Admin/Production/ProcessEdit") ? "page" : null)" title="Órdenes de trabajo">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Órdenes de trabajo</span>
+                    </a>
+                    <a class="app-nav-link @(IsCurrent("/Admin/Production/Processes") || IsCurrent("/Admin/Production/ProcessEdit") ? "active" : null)" asp-page="/Admin/Production/Processes" aria-current="@(IsCurrent("/Admin/Production/Processes") || IsCurrent("/Admin/Production/ProcessEdit") ? "page" : null)" title="Procesos">
+                        <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Procesos</span>
                     </a>
                     <a class="app-nav-link @(IsSection("/Admin/Users") ? "active" : null)" asp-page="/Admin/Users/Index" aria-current="@(IsSection("/Admin/Users") ? "page" : null)" title="Usuarios">
                         <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>Usuarios</span>

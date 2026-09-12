@@ -3,24 +3,46 @@
 @using WarehouseEPI.Infrastructure.Reporting
 @model WarehouseEPI.Web.Pages.Reports.Workload.IndexModel
 @{
-    ViewData["Title"] = "Carga de trabajo";
     var isPending = Model.View == "pending";
+    ViewData["Title"] = Model.IsAdmin
+        ? (isPending ? "Pendientes" : "Resumen operativo · Equipo")
+        : "Carga de trabajo";
 }
 
 <div class="workload-page">
+    @if (Model.IsAdmin && !isPending)
+    {
+        @await Html.PartialAsync("/Pages/Reports/_AdminSummaryNavigation.cshtml", "team")
+    }
     <header class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">Reportes</a></li><li class="breadcrumb-item active" aria-current="page">Carga de trabajo</li></ol></nav>
             <span class="eyebrow">Centro de trabajo</span>
-            <h1 class="h2 mb-1">Carga de trabajo</h1>
-            <p class="text-muted mb-0">Consulta lo pendiente y revisa la actividad registrada sin cambiar operaciones desde esta pantalla.</p>
+            @if (Model.IsAdmin && isPending)
+            {
+                <h1 class="h2 mb-1">Pendientes</h1>
+                <p class="text-muted mb-0">Abre el trabajo pendiente en su módulo y atiéndelo con los controles operativos habituales.</p>
+            }
+            else if (Model.IsAdmin)
+            {
+                <h2 class="h3 mb-1">Equipo</h2>
+                <p class="text-muted mb-0">Compara la actividad registrada por período, franja y responsable.</p>
+            }
+            else
+            {
+                <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">Reportes</a></li><li class="breadcrumb-item active" aria-current="page">Carga de trabajo</li></ol></nav>
+                <h1 class="h2 mb-1">Carga de trabajo</h1>
+                <p class="text-muted mb-0">Consulta lo pendiente y revisa la actividad registrada sin cambiar operaciones desde esta pantalla.</p>
+            }
         </div>
     </header>
 
-    <nav class="nav nav-pills workload-view-tabs mb-4" aria-label="Vistas de carga de trabajo">
-        <a asp-page="Index" asp-route-view="pending" class="nav-link @(isPending ? "active" : null)" aria-current="@(isPending ? "page" : null)">Por atender</a>
-        <a asp-page="Index" asp-route-view="activity" class="nav-link @(!isPending ? "active" : null)" aria-current="@(!isPending ? "page" : null)">Actividad realizada</a>
-    </nav>
+    @if (!Model.IsAdmin)
+    {
+        <nav class="nav nav-pills workload-view-tabs mb-4" aria-label="Vistas de carga de trabajo">
+            <a asp-page="Index" asp-route-view="pending" class="nav-link @(isPending ? "active" : null)" aria-current="@(isPending ? "page" : null)">Por atender</a>
+            <a asp-page="Index" asp-route-view="activity" class="nav-link @(!isPending ? "active" : null)" aria-current="@(!isPending ? "page" : null)">Actividad realizada</a>
+        </nav>
+    }
 
     @if (isPending)
     {
@@ -83,7 +105,7 @@
             @if (queue.Exceptions is not null)
             {
                 <section id="pending-exceptions" class="card workload-section mb-4" aria-labelledby="exceptions-heading">
-                    <header class="card-header"><div><h3 id="exceptions-heading" class="h5 mb-0">Excepciones</h3><small>@queue.Exceptions.TotalCount casos abiertos para seguimiento ADMIN</small></div><a asp-page="/Admin/Inventory/Alerts" class="btn btn-outline-primary btn-sm">Ver todas</a></header>
+                    <header class="card-header"><div><h3 id="exceptions-heading" class="h5 mb-0">Excepciones</h3><small>@queue.Exceptions.TotalCount casos abiertos para seguimiento ADMIN</small></div><a asp-page="/Admin/Inventory/Alerts" class="btn btn-outline-primary btn-sm">Abrir Centro de excepciones</a></header>
                     <div class="card-body">
                         @if (queue.Exceptions.Items.Count == 0) { <p class="workload-empty mb-0">@(queue.Search is null ? "No hay excepciones abiertas." : "No hay excepciones que coincidan con la búsqueda.")</p> }
                         else

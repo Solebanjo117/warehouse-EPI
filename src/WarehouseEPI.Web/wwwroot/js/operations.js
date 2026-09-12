@@ -678,6 +678,7 @@
       }
       selected[kind] = item;
       lookup.hidden.value = item.id;
+      lookup.hidden.dispatchEvent(new Event("change", { bubbles: true }));
       lookup.input.value = lookupKind === "product" ? item.sku : item.code;
       lookup.input.setCustomValidity("");
       lookup.record.querySelector("[data-selected-title]").textContent = lookup.input.value;
@@ -709,6 +710,7 @@
       const lookup = lookups[kind];
       selected[kind] = null;
       lookup.hidden.value = "";
+      lookup.hidden.dispatchEvent(new Event("change", { bubbles: true }));
       lookup.record.classList.add("d-none");
       lookup.input.setCustomValidity("");
       lookup.panel?.classList.add("d-none");

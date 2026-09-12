@@ -154,6 +154,13 @@ public sealed class LocationAreaAdministrationService(
         }
 
         dbContext.WarehouseMapElements.RemoveRange(mapElements);
+        var processTargets = await dbContext.ProductionProcessWipTargets.Where(x => x.LocationId == location.Id).ToListAsync(token);
+        if (processTargets.Count != 0)
+        {
+            dbContext.RemoveRange(processTargets);
+            var configuration = await dbContext.ProductionProcessConfigurations.SingleOrDefaultAsync(x => x.Id == 1, token);
+            if (configuration is not null) configuration.Version++;
+        }
         dbContext.Locations.Remove(location);
         try
         {

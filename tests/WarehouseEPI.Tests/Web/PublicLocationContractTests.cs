@@ -44,6 +44,8 @@ public sealed class PublicLocationContractTests
     {
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml");
         var model = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationIndexPageModel.cs");
+        var legacyPage = Read("src", "WarehouseEPI.Web", "Pages", "Reports", "Heatmap", "Index.cshtml");
+        var legacyModel = Read("src", "WarehouseEPI.Web", "Pages", "Reports", "Heatmap", "Index.cshtml.cs");
         var layout = Read("src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml");
         var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js");
 
@@ -54,11 +56,18 @@ public sealed class PublicLocationContractTests
         Assert.Contains("OnGetHeatmapExportAsync", model, StringComparison.Ordinal);
         Assert.Contains("OnGetHeatmapDataAsync", model, StringComparison.Ordinal);
         Assert.Contains("Heatmap.AllRacks", model, StringComparison.Ordinal);
+        Assert.Contains("asp-route-rowCode=\"@Model.RowCode\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-search=\"@Model.Search\"", page, StringComparison.Ordinal);
         Assert.Contains("data-heatmap-submit", script, StringComparison.Ordinal);
         Assert.Contains("fetch(`${window.location.pathname}?${query}`", script, StringComparison.Ordinal);
         Assert.Contains("window.history.replaceState", script, StringComparison.Ordinal);
         Assert.Contains("map-heat-unavailable", page, StringComparison.Ordinal);
         Assert.DoesNotContain("asp-page=\"/Reports/Heatmap/Index\"", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain("<style", legacyPage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<h1", legacyPage, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("data-heatmap-layer", legacyPage, StringComparison.Ordinal);
+        Assert.Contains("/Admin/Catalogs/Locations/Index", legacyModel, StringComparison.Ordinal);
+        Assert.Contains("HeatmapQueryNormalizer", legacyModel, StringComparison.Ordinal);
     }
 
     [Fact]

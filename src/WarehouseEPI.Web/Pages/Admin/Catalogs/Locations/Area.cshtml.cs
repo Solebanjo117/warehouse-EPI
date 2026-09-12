@@ -8,25 +8,30 @@ using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdministrationService areas) : PageModel
+public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdministrationService areas,
+    ProductionProcessConfigurationService processes) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     [BindProperty] public DeleteInputModel DeleteInput { get; set; } = new();
     public LocationAreaDeletionState? Deletion { get; private set; }
     public IReadOnlyList<string> DeleteErrors { get; private set; } = [];
     public bool IsEdit => Input.Id != Guid.Empty;
+    public IReadOnlyList<ProductionStage> Processes { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync(Guid? locationId, CancellationToken cancellationToken)
     {
-        if (locationId is null) return Page();
+        if (locationId is null) { await LoadProcessesAsync(cancellationToken); return Page(); }
         var location = await dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(candidate => candidate.Id == locationId, cancellationToken);
         if (location is null) return NotFound();
         if (location.Kind != LocationKind.Area) return BadRequest();
-        Input = new() { Id = location.Id, Code = location.Code, Description = location.Description, OperationalRole = location.OperationalRole };
+        var selected = await processes.AreaProcessIdsAsync(location.Id, cancellationToken);
+        Input = new() { Id = location.Id, Code = location.Code, Description = location.Description, OperationalRole = location.OperationalRole, ProcessIds = selected };
+        await LoadProcessesAsync(cancellationToken);
         await PrepareDeletionAsync(location.Id, cancellationToken);
         return Page();
     }
@@ -39,26 +44,52 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             ModelState.AddModelError("Input.Code", "Usa letras, números y guiones, sin espacios externos ni guiones al inicio o final.");
         if (!ModelState.IsValid)
         {
+            await LoadProcessesAsync(cancellationToken);
             await PrepareDeletionAsync(Input.Id, cancellationToken);
             return Page();
         }
         if (await dbContext.Locations.AnyAsync(location => location.Code == Input.Code && location.Id != Input.Id, cancellationToken))
         {
             ModelState.AddModelError("Input.Code", "Ya existe una ubicación con ese código.");
+            await LoadProcessesAsync(cancellationToken);
             await PrepareDeletionAsync(Input.Id, cancellationToken);
             return Page();
         }
+        await using var transaction = dbContext.Database.IsRelational() ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        Location target;
         if (Input.Id == Guid.Empty)
-            dbContext.Locations.Add(new Location { Code = Input.Code, Kind = LocationKind.Area, Description = Input.Description, OperationalRole = Input.OperationalRole });
+        {
+            target = new Location { Code = Input.Code, Kind = LocationKind.Area, Description = Input.Description, OperationalRole = Input.OperationalRole };
+            dbContext.Locations.Add(target);
+        }
         else
         {
-            var location = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == Input.Id, cancellationToken);
-            if (location is null) return NotFound();
-            if (location.Kind != LocationKind.Area) return BadRequest();
-            location.Code = Input.Code; location.Description = Input.Description;
-            location.OperationalRole = Input.OperationalRole; location.UpdatedAt = DateTimeOffset.UtcNow;
+            target = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == Input.Id, cancellationToken) ?? null!;
+            if (target is null) return NotFound();
+            if (target.Kind != LocationKind.Area) return BadRequest();
+            target.Code = Input.Code; target.Description = Input.Description;
+            target.OperationalRole = Input.OperationalRole; target.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        await dbContext.SaveChangesAsync(cancellationToken);
+        var association = await processes.ApplyAreaAsync(target.Id, Input.OperationalRole, Input.ProcessIds, Input.ProcessConfigurationVersion, cancellationToken);
+        if (association.Status != ProcessConfigurationStatus.Success)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
+            ModelState.AddModelError(string.Empty, association.Status == ProcessConfigurationStatus.ConcurrencyConflict
+                ? "La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar."
+                : association.Errors?.FirstOrDefault() ?? "No fue posible asociar los procesos.");
+            await LoadProcessesAsync(cancellationToken); await PrepareDeletionAsync(Input.Id, cancellationToken); return Page();
+        }
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction is not null) await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
+            ModelState.AddModelError(string.Empty, "La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar.");
+            await LoadProcessesAsync(cancellationToken); await PrepareDeletionAsync(Input.Id, cancellationToken); return Page();
+        }
         return RedirectToPage("Index");
     }
 
@@ -107,6 +138,13 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         DeleteInput.LocationId = locationId;
     }
 
+    private async Task LoadProcessesAsync(CancellationToken token)
+    {
+        var result = await processes.GetProcessesAsync(Input.ProcessIds, token);
+        Input.ProcessConfigurationVersion = result.Version;
+        Processes = result.Processes;
+    }
+
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
         ? id : Guid.Empty;
 
@@ -116,6 +154,8 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         [Required, StringLength(40)] public string Code { get; set; } = string.Empty;
         [StringLength(200)] public string? Description { get; set; }
         public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Other;
+        public List<Guid> ProcessIds { get; set; } = [];
+        public uint ProcessConfigurationVersion { get; set; }
     }
 
     public sealed class DeleteInputModel

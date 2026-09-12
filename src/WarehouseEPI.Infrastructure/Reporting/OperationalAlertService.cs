@@ -93,18 +93,18 @@ public sealed class OperationalAlertService(
         var items = new List<OperationalAlertItemDto>
         {
             Item(OperationalAlertCategory.NegativeInventory, OperationalAlertSeverity.Critical, c.Negative,
-                "Saldos negativos", "Posiciones producto-ubicación con saldo neto negativo.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?view=negative" : "/Reports/Inventory?view=exceptions&exception=negative"),
+                "Saldos negativos", "Posiciones producto-ubicación con saldo neto negativo.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=NegativeInventory" : "/Reports/Inventory?view=exceptions&exception=negative"),
             Item(OperationalAlertCategory.BelowMinimum, OperationalAlertSeverity.Warning, c.Minimum,
-                "Productos bajo mínimo", "Productos activos cuya existencia no alcanza el mínimo configurado.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?view=minimum" : "/Reports/Inventory?view=exceptions&exception=minimum")
+                "Productos bajo mínimo", "Productos activos cuya existencia no alcanza el mínimo configurado.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=BelowMinimum" : "/Reports/Inventory?view=exceptions&exception=minimum")
         };
         if (audience == OperationalAlertAudience.Admin)
         {
-            items.Add(Item(OperationalAlertCategory.UnassignedBalance, OperationalAlertSeverity.Warning, c.Unassigned, "Saldos sin asignación", "Existencia real sin relación activa producto-ubicación.", "/Admin/Inventory/Alerts?view=unassigned"));
-            items.Add(Item(OperationalAlertCategory.RestrictedInventory, OperationalAlertSeverity.Critical, c.Restricted, "Inventario restringido", "Existencia en posiciones bloqueadas o inactivas.", "/Admin/Inventory/Alerts?view=restricted"));
-            items.Add(Item(OperationalAlertCategory.StagnantInventory, OperationalAlertSeverity.Warning, c.Stagnant, "Inventario estancado", "Productos con existencia y 90 días o más sin salida efectiva.", "/Admin/Inventory/Alerts?view=stagnant"));
-            items.Add(Item(OperationalAlertCategory.CycleCountStale, OperationalAlertSeverity.Critical, c.Stale, "Conteos obsoletos", "El saldo cambió durante el conteo y requiere reconteo.", "/Admin/Inventory/Alerts?view=cycle&attention=stale"));
-            items.Add(Item(OperationalAlertCategory.CycleCountPending, OperationalAlertSeverity.Warning, c.Pending, "Conteos pendientes", "Ubicaciones en revisión o con reconteo solicitado.", "/Admin/Inventory/Alerts?view=cycle&attention=review"));
-            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Saldo WIP estancado", $"Posiciones WIP positivas con lote de {c.WipDays} días o más.", "/Admin/Inventory/Alerts?view=wip"));
+            items.Add(Item(OperationalAlertCategory.UnassignedBalance, OperationalAlertSeverity.Warning, c.Unassigned, "Saldos sin asignación", "Existencia real sin relación activa producto-ubicación.", "/Admin/Inventory/Alerts?category=UnassignedBalance"));
+            items.Add(Item(OperationalAlertCategory.RestrictedInventory, OperationalAlertSeverity.Critical, c.Restricted, "Inventario restringido", "Existencia en posiciones bloqueadas o inactivas.", "/Admin/Inventory/Alerts?category=RestrictedInventory"));
+            items.Add(Item(OperationalAlertCategory.StagnantInventory, OperationalAlertSeverity.Warning, c.Stagnant, "Inventario estancado", "Productos con existencia y 90 días o más sin salida efectiva.", "/Admin/Inventory/Alerts?category=StagnantInventory"));
+            items.Add(Item(OperationalAlertCategory.CycleCountStale, OperationalAlertSeverity.Critical, c.Stale, "Conteos obsoletos", "El saldo cambió durante el conteo y requiere reconteo.", "/Admin/Inventory/Alerts?category=CycleCountStale"));
+            items.Add(Item(OperationalAlertCategory.CycleCountPending, OperationalAlertSeverity.Warning, c.Pending, "Conteos pendientes", "Ubicaciones en revisión o con reconteo solicitado.", "/Admin/Inventory/Alerts?category=CycleCountPending"));
+            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Saldo WIP estancado", $"Posiciones WIP positivas con lote de {c.WipDays} días o más.", "/Admin/Inventory/Alerts?category=AgedWip"));
         }
         return items.Where(x => x.Count > 0).OrderBy(x => x.Severity).ThenBy(x => x.Category).ToArray();
     }

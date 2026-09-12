@@ -395,10 +395,9 @@
   }
 
   // ---- Planes recurrentes: búsqueda seleccionable, HID y cámara ------------------------
-  const planForm = document.querySelector("[data-cycle-plan]");
-  if (planForm) {
+  document.querySelectorAll("[data-cycle-plan]").forEach((planForm, formIndex) => {
     const lookupUrl = planForm.dataset.lookupUrl;
-    const fields = {};
+    const fields = [];
 
     const requestJson = async (url, signal) => {
       const response = await fetch(url, { headers: { Accept: "application/json" }, signal });
@@ -415,17 +414,22 @@
 
     const announce = (field, message) => { field.feedback.textContent = message; };
 
-    const clearSelection = (field) => {
+    const clearSelection = (field, clearInput = false) => {
       field.id.value = "";
       field.selected.classList.add("d-none");
       field.selected.querySelector("[data-cycle-plan-selected-title]").textContent = "";
       field.selected.querySelector("[data-cycle-plan-selected-detail]").textContent = "";
       field.selected.querySelector("[data-cycle-plan-selected-meta]").textContent = "";
+      if (clearInput) field.input.value = "";
+      if (field.clear) field.clear.disabled = !field.input.value.trim();
     };
 
     const resultValues = (field, item) => field.type === "product"
       ? { id: item.id, title: item.sku, detail: item.description || "Sin descripción", meta: item.unitCode }
       : { id: item.id, title: item.code, detail: item.description || "Sin descripción", meta: "Ubicación" };
+
+    const itemIsAllowed = (field, item) => !field.allowedIds
+      || field.allowedIds.has(String(item.id).toLowerCase());
 
     const selectItem = (field, item, message) => {
       const values = resultValues(field, item);
@@ -438,6 +442,7 @@
       field.selected.querySelector("[data-cycle-plan-selected-detail]").textContent = values.detail;
       field.selected.querySelector("[data-cycle-plan-selected-meta]").textContent = values.meta;
       field.selected.classList.remove("d-none");
+      if (field.clear) field.clear.disabled = false;
       closeResults(field);
       announce(field, message || `${field.label} seleccionado.`);
     };
@@ -458,6 +463,7 @@
 
     const renderResults = (field, items) => {
       closeResults(field);
+      items = items.filter(item => itemIsAllowed(field, item));
       if (items.length === 0) {
         announce(field, `No se encontraron ${field.type === "product" ? "productos" : "ubicaciones"}.`);
         return;
@@ -467,7 +473,7 @@
         const values = resultValues(field, item);
         const option = document.createElement("button");
         option.type = "button";
-        option.id = `cycle-plan-${field.type}-option-${index}`;
+        option.id = `cycle-plan-${formIndex}-${field.key}-option-${index}`;
         option.className = "list-group-item list-group-item-action";
         option.setAttribute("role", "option");
         option.setAttribute("aria-selected", "false");
@@ -520,15 +526,19 @@
       try {
         const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
         const expected = resolution?.[sourceField.type];
-        if (expected) {
+        if (expected && itemIsAllowed(sourceField, expected)) {
           selectItem(sourceField, expected, `${sourceField.label} seleccionado por código.`);
           return sourceField.input;
+        }
+        if (expected) {
+          announce(sourceField, `${sourceField.label} no está disponible para esta operación.`);
+          return false;
         }
 
         const otherType = sourceField.type === "product" ? "location" : "product";
         const other = resolution?.[otherType];
-        if (other && fields[otherType]) {
-          const target = fields[otherType];
+        const target = fields.find(field => field.type === otherType);
+        if (other && target) {
           selectItem(target, other, `${target.label} seleccionado por código.`);
           announce(sourceField, `El código corresponde a ${target.label.toLowerCase()}; se colocó en el campo correcto.`);
           return target.input;
@@ -542,11 +552,16 @@
       }
     };
 
-    planForm.querySelectorAll("[data-cycle-plan-field]").forEach((element) => {
+    planForm.querySelectorAll("[data-cycle-plan-field]").forEach((element, fieldIndex) => {
       const type = element.dataset.cyclePlanField;
       const field = {
         type,
-        label: type === "product" ? "SKU" : "Ubicación",
+        key: element.dataset.cyclePlanKey || `${type}-${fieldIndex}`,
+        label: element.dataset.cyclePlanLabel || (type === "product" ? "SKU" : "Ubicación"),
+        optional: element.hasAttribute("data-cycle-plan-optional"),
+        allowedIds: element.dataset.cyclePlanAllowedIds
+          ? new Set(element.dataset.cyclePlanAllowedIds.split(",").map(value => value.trim().toLowerCase()).filter(Boolean))
+          : undefined,
         element,
         input: element.querySelector("[data-cycle-plan-search]"),
         id: element.querySelector("[data-cycle-plan-id]"),
@@ -554,16 +569,18 @@
         selected: element.querySelector("[data-cycle-plan-selected]"),
         feedback: element.querySelector("[data-cycle-plan-feedback]"),
         camera: element.querySelector("[data-cycle-plan-camera]"),
+        clear: element.querySelector("[data-cycle-plan-clear]"),
         highlighted: -1,
         timer: 0,
         controller: undefined
       };
-      fields[type] = field;
+      fields.push(field);
 
       field.input.addEventListener("input", () => {
         field.controller?.abort();
         clearSelection(field);
         field.input.setCustomValidity("");
+        if (field.clear) field.clear.disabled = !field.input.value.trim();
         window.clearTimeout(field.timer);
         field.timer = window.setTimeout(() => void search(field), 250);
       });
@@ -588,22 +605,31 @@
         }
       });
       field.input.addEventListener("blur", () => window.setTimeout(() => closeResults(field), 150));
-      field.camera.addEventListener("click", () => {
+      field.camera?.addEventListener("click", () => {
         if (!openCycleScanner(field.camera, value => resolveCode(field, value))) {
           announce(field, "No fue posible abrir el lector. Escribe el código o usa un lector HID.");
           field.input.focus();
         }
       });
+      field.clear?.addEventListener("click", () => {
+        field.controller?.abort();
+        window.clearTimeout(field.timer);
+        clearSelection(field, true);
+        closeResults(field);
+        field.input.setCustomValidity("");
+        announce(field, `Sin ${field.label.toLowerCase()}.`);
+        field.input.focus();
+      });
     });
 
     document.addEventListener("click", (event) => {
-      Object.values(fields).forEach(field => {
+      fields.forEach(field => {
         if (!field.element.contains(event.target)) closeResults(field);
       });
     });
 
     planForm.addEventListener("submit", (event) => {
-      const missing = Object.values(fields).find(field => !field.id.value);
+      const missing = fields.find(field => !field.id.value && (!field.optional || field.input.value.trim()));
       if (!missing) return;
       event.preventDefault();
       missing.input.setCustomValidity(`Selecciona ${missing.label.toLowerCase()} de los resultados.`);
@@ -611,7 +637,7 @@
       missing.input.reportValidity();
       missing.input.focus();
     });
-  }
+  });
 
   const locationButton = document.querySelector("[data-cycle-scan-location]");
   if (locationButton) {

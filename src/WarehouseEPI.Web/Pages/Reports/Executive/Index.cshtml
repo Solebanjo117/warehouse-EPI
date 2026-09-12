@@ -3,7 +3,7 @@
 @using WarehouseEPI.Infrastructure.Reporting
 @model WarehouseEPI.Web.Pages.Reports.Executive.IndexModel
 @{
-    ViewData["Title"] = "Informe ejecutivo de almacén";
+    ViewData["Title"] = "Resumen operativo · Gestión";
     var report = Model.Report;
 }
 
@@ -12,16 +12,17 @@
 
 <div class="executive-report">
     <header class="executive-print-header">
-        <h1>Warehouse EPI — Informe ejecutivo de almacén</h1>
+        <div class="executive-print-title">Warehouse EPI — Informe ejecutivo de almacén</div>
         <p>Situación actual al @report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm") (@report.TimeZoneId)</p>
         <p>Actividad del @report.ActivityFrom.ToString("dd/MM/yyyy") al @report.ActivityTo.ToString("dd/MM/yyyy")</p>
     </header>
 
+    @await Html.PartialAsync("/Pages/Reports/_AdminSummaryNavigation.cshtml", "management")
+
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4 executive-screen-header">
         <div>
-            <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">Reportes</a></li><li class="breadcrumb-item active" aria-current="page">Informe ejecutivo</li></ol></nav>
             <span class="eyebrow">Resumen para decisión</span>
-            <h1 class="h2 mb-1">Informe ejecutivo de almacén</h1>
+            <h2 class="h3 mb-1">Gestión</h2>
             <p class="mb-1"><strong>Situación actual:</strong> @report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm") <span class="text-muted">(@report.TimeZoneId)</span></p>
             <p class="mb-0"><strong>Actividad:</strong> @report.ActivityFrom.ToString("dd/MM/yyyy") al @report.ActivityTo.ToString("dd/MM/yyyy")</p>
         </div>

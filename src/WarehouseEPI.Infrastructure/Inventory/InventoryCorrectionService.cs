@@ -80,6 +80,35 @@ public sealed class InventoryCorrectionService(
                     Errors: ["El reemplazo de una recepción documental debe conservar Entrada y propósito Recepción documental."]), cancellationToken);
             }
             var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
+            if (await dbContext.ProductionMaterialOperationLines.AsNoTracking()
+                .AnyAsync(line => originalLineIds.Contains(line.InventoryMovementLineId), cancellationToken))
+            {
+                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                    Errors: ["El movimiento pertenece a una operación de material. Revierte la operación desde la orden de trabajo."]), cancellationToken);
+            }
+            var materialIssue = await dbContext.ProductionMaterialIssueLinks
+                .Include(link => link.WorkOrder)
+                .Include(link => link.OperationLines).ThenInclude(line => line.Operation)
+                .SingleOrDefaultAsync(link => originalLineIds.Contains(link.InventoryMovementLineId), cancellationToken);
+            if (materialIssue is not null)
+            {
+                var reversedMaterialOperations = await dbContext.ProductionMaterialOperations.AsNoTracking()
+                    .Where(operation => operation.ReversesOperationId != null)
+                    .Select(operation => operation.ReversesOperationId!.Value).ToListAsync(cancellationToken);
+                if (materialIssue.OperationLines.Any(line =>
+                        line.Operation.Type != ProductionMaterialOperationType.Reversal &&
+                        !reversedMaterialOperations.Contains(line.Operation.Id)))
+                    return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                        Errors: ["El surtimiento ya tiene consumos o devoluciones. Revierte primero esas operaciones desde la orden."]), cancellationToken);
+                if (normalized.Replacement is { } issueReplacement &&
+                    (issueReplacement.Type != InventoryMovementType.Transfer ||
+                     issueReplacement.Purpose != InventoryMovementPurpose.ProductionIssue ||
+                     issueReplacement.Lines.Count != 1 ||
+                     issueReplacement.Lines[0].ProductId != original.Lines.Single().ProductId ||
+                     issueReplacement.Lines[0].DestinationLocationId != original.Lines.Single().DestinationLocationId))
+                    return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                        Errors: ["El reemplazo debe conservar producto, destino WIP y propósito del surtimiento vinculado."]), cancellationToken);
+            }
             if (await dbContext.WipDispositions.AnyAsync(disposition =>
                     originalLineIds.Contains(disposition.OriginalMovementLineId) &&
                     disposition.ReversesDispositionId == null &&
@@ -127,6 +156,20 @@ public sealed class InventoryCorrectionService(
                 RecordedAt = timeProvider.GetUtcNow()
             };
             dbContext.InventoryMovementCorrections.Add(correction);
+            if (materialIssue is not null)
+            {
+                if (replacementResult?.MovementId is Guid replacementId)
+                {
+                    var replacementLine = await dbContext.InventoryMovementLines
+                        .SingleAsync(line => line.MovementId == replacementId, cancellationToken);
+                    materialIssue.InventoryMovementLineId = replacementLine.Id;
+                }
+                else
+                {
+                    dbContext.ProductionMaterialIssueLinks.Remove(materialIssue);
+                }
+                materialIssue.WorkOrder.Version++;
+            }
             await dbContext.SaveChangesAsync(cancellationToken);
             if (isDocumentReceipt && receivingService is not null)
                 await receivingService.RecalculateAfterCorrectionAsync(original.Id, normalized.OperationId, normalized.Reason, cancellationToken);

@@ -22,4 +22,5 @@ public sealed class Product
     public ICollection<ProductBarcode> Barcodes { get; set; } = [];
     public ICollection<ProductLocationAssignment> LocationAssignments { get; set; } = [];
     public ICollection<ProductLot> Lots { get; set; } = [];
+    public ICollection<ProductionMaterialWipDefault> ProductionWipDefaults { get; set; } = [];
 }

@@ -55,7 +55,7 @@
         <a asp-page="/Operations/CycleCounts/Index">Conteos cíclicos</a>
         @if (isAdmin)
         {
-            <a asp-page="/Admin/Inventory/Alerts">Alertas administrativas</a>
+            <a asp-page="/Admin/Inventory/Alerts">Centro de excepciones</a>
             <a asp-page="/Admin/Catalogs/Locations/Index">Ubicaciones</a>
             <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
         }
@@ -67,7 +67,14 @@
         <a class="@(Model.View == "stagnant" ? "active" : null)" aria-current="@(Model.View == "stagnant" ? "page" : null)" asp-route-view="stagnant" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory">Estancamiento</a>
         <a class="@(Model.View == "lot-aging" ? "active" : null)" aria-current="@(Model.View == "lot-aging" ? "page" : null)" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket">Antigüedad de lotes</a>
         <a class="@(Model.View == "coverage" ? "active" : null)" aria-current="@(Model.View == "coverage" ? "page" : null)" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass">Cobertura por consumo</a>
-        <a class="@(Model.View == "exceptions" ? "active" : null)" aria-current="@(Model.View == "exceptions" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search">Excepciones</a>
+        @if (isAdmin)
+        {
+            <a asp-page="/Admin/Inventory/Alerts">Centro de excepciones</a>
+        }
+        else
+        {
+            <a class="@(Model.View == "exceptions" ? "active" : null)" aria-current="@(Model.View == "exceptions" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search">Excepciones</a>
+        }
     </nav>
 
     @if (Model.View == "occupancy")
@@ -111,6 +118,15 @@
     else if (Model.View == "exceptions")
     {
         <p class="analytics-view-intro">Prioriza saldos que requieren conciliación y productos que necesitan reabastecimiento; esta consulta nunca modifica inventario.</p>
+        @if (isAdmin)
+        {
+            <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+                <span>Esta consulta analítica se conserva para compatibilidad y exportación. El seguimiento administrativo se realiza en el Centro de excepciones.</span>
+                <a asp-page="/Admin/Inventory/Alerts"
+                   asp-route-category="@(Model.ExceptionView == "minimum" ? "BelowMinimum" : "NegativeInventory")"
+                   class="btn btn-primary">Abrir Centro de excepciones</a>
+            </div>
+        }
         <section class="report-print-meta" aria-label="Metadatos de impresión">
             <strong>Excepción: @(Model.ExceptionView == "negative" ? "Saldos producto-ubicación negativos" : "Productos bajo mínimo")</strong>
             <span>Búsqueda: @(string.IsNullOrWhiteSpace(Model.Search) ? "Sin filtro" : Model.Search)</span>

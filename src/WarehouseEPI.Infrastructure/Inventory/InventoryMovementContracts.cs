@@ -19,7 +19,11 @@ public sealed record InventoryMovementLineCommand(
     Guid? SourceLocationId = null,
     Guid? DestinationLocationId = null,
     Guid? LocationId = null,
-    uint? ExpectedBalanceVersion = null);
+    uint? ExpectedBalanceVersion = null,
+    IReadOnlyList<InventoryLotSelection>? Lots = null,
+    Guid? DestinationLotId = null);
+
+public sealed record InventoryLotSelection(Guid LotId, decimal Quantity);
 
 public sealed record SharedAssignmentApproval(Guid ProductId, Guid LocationId);
 

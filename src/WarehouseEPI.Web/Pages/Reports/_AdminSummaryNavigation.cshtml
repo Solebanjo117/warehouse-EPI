@@ -1,0 +1,22 @@
+@model string
+@{
+    var activeView = Model?.Trim().ToLowerInvariant();
+}
+
+<header class="admin-summary-header">
+    <span class="eyebrow">Consulta ADMIN</span>
+    <h1 id="admin-summary-title" class="h2 mb-1">Resumen operativo</h1>
+    <p class="text-muted mb-0">Revisa la situación de hoy, la gestión del período y la actividad del equipo.</p>
+</header>
+<nav class="analytics-tabs admin-summary-tabs" aria-label="Secciones del resumen operativo">
+    <a class="@(activeView == "today" ? "active" : null)"
+       aria-current="@(activeView == "today" ? "page" : null)"
+       asp-page="/Reports/Dashboard/Index">Hoy</a>
+    <a class="@(activeView == "management" ? "active" : null)"
+       aria-current="@(activeView == "management" ? "page" : null)"
+       asp-page="/Reports/Executive/Index">Gestión</a>
+    <a class="@(activeView == "team" ? "active" : null)"
+       aria-current="@(activeView == "team" ? "page" : null)"
+       asp-page="/Reports/Workload/Index"
+       asp-route-view="activity">Equipo</a>
+</nav>

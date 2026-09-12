@@ -15,7 +15,7 @@ public sealed class ExecutiveReportContractTests
 
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Reports", "Executive", "Index.cshtml");
         var css = Read("src", "WarehouseEPI.Web", "wwwroot", "css", "executive-report.css");
-        var layout = Read("src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml");
+        var summaryNavigation = Read("src", "WarehouseEPI.Web", "Pages", "Reports", "_AdminSummaryNavigation.cshtml");
 
         Assert.Contains("Movimientos efectivos registrados", page, StringComparison.Ordinal);
         Assert.Contains("Detalles de producto", page, StringComparison.Ordinal);
@@ -27,9 +27,9 @@ public sealed class ExecutiveReportContractTests
         Assert.DoesNotContain("onchange=", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("@media print", css, StringComparison.Ordinal);
 
-        var adminBlock = layout.IndexOf("@if (isAdmin)", layout.IndexOf("Carga de trabajo", StringComparison.Ordinal), StringComparison.Ordinal);
-        var executiveLink = layout.IndexOf("/Reports/Executive/Index", StringComparison.Ordinal);
-        Assert.True(adminBlock >= 0 && executiveLink > adminBlock);
+        Assert.Contains("/Reports/Executive/Index", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains(">Gestión</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("activeView == \"management\"", summaryNavigation, StringComparison.Ordinal);
     }
 
     [Fact]

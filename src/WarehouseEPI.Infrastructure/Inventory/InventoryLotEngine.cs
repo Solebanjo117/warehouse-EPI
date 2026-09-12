@@ -48,6 +48,16 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
         void Add(InventoryBalance balance, ProductLot lot, decimal delta) => ApplyChange(line, balance, delta, now, lot);
         IEnumerable<(InventoryBalance Balance, ProductLot Lot, decimal Delta)> Consume(Guid location, decimal quantity)
         {
+            if (command.Lots is { Count: > 0 })
+            {
+                foreach (var selected in command.Lots)
+                {
+                    var lot = lots.SingleOrDefault(x => x.Id == selected.LotId)
+                        ?? throw new InvalidOperationException("El lote reservado ya no existe.");
+                    yield return (Balance(location, lot), lot, -selected.Quantity);
+                }
+                yield break;
+            }
             var remaining = quantity;
             ProductLot? last = null;
             foreach (var lot in ordered)
@@ -76,7 +86,11 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
         switch (type)
         {
             case InventoryMovementType.Entry:
-                Add(Balance(command.DestinationLocationId!.Value, daily), daily, command.Quantity);
+                var destinationLot = command.DestinationLotId is Guid destinationLotId
+                    ? lots.SingleOrDefault(x => x.Id == destinationLotId)
+                        ?? throw new InvalidOperationException("El lote de destino no existe para el producto.")
+                    : daily;
+                Add(Balance(command.DestinationLocationId!.Value, destinationLot), destinationLot, command.Quantity);
                 break;
             case InventoryMovementType.Exit:
                 foreach (var change in Consume(command.SourceLocationId!.Value, command.Quantity))

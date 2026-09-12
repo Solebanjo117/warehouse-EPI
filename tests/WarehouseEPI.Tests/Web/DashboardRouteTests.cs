@@ -141,6 +141,40 @@ public sealed class DashboardRouteTests
         Assert.Contains("The MIT License", File.ReadAllText(license), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Admin_summary_unifies_navigation_while_public_report_links_remain_available()
+    {
+        var layout = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
+        var summaryNavigation = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "_AdminSummaryNavigation.cshtml"));
+        var dashboard = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "Dashboard", "Index.cshtml"));
+        var executive = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "Executive", "Index.cshtml"));
+        var workload = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "Workload", "Index.cshtml"));
+
+        Assert.Contains("isAdminSummarySection", layout, StringComparison.Ordinal);
+        Assert.Contains("isWorkloadPending", layout, StringComparison.Ordinal);
+        Assert.Contains("<span>Resumen operativo</span>", layout, StringComparison.Ordinal);
+        Assert.Contains("<span>Pendientes</span>", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain("<span>Informe ejecutivo</span>", layout, StringComparison.Ordinal);
+        Assert.Contains("<span>Tablero diario</span>", layout, StringComparison.Ordinal);
+        Assert.Contains("<span>Carga de trabajo</span>", layout, StringComparison.Ordinal);
+
+        Assert.Contains("asp-page=\"/Reports/Dashboard/Index\">Hoy</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Reports/Executive/Index\">Gestión</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("asp-route-view=\"activity\">Equipo</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Equal(3, summaryNavigation.Split("aria-current=", StringSplitOptions.None).Length - 1);
+
+        Assert.Contains("_AdminSummaryNavigation.cshtml\", \"today\"", dashboard, StringComparison.Ordinal);
+        Assert.Contains("_AdminSummaryNavigation.cshtml\", \"management\"", executive, StringComparison.Ordinal);
+        Assert.Contains("Model.IsAdmin && !isPending", workload, StringComparison.Ordinal);
+        Assert.Contains("_AdminSummaryNavigation.cshtml\", \"team\"", workload, StringComparison.Ordinal);
+        Assert.Contains("@if (!Model.IsAdmin)", workload, StringComparison.Ordinal);
+    }
+
     private static string RepositoryPath(params string[] parts)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

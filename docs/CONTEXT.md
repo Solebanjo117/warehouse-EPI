@@ -1639,10 +1639,11 @@ pendientes.
   independientes. Actividad cuenta movimientos efectivos distintos por rack; una
   transferencia que toca dos racks cuenta una vez en cada uno. Un error de consulta se
   muestra como error y nunca como valor cero.
-- La ruta anterior `/Reports/Heatmap` redirige al croquis conservando métrica y período;
-  sus descargas permanecen compatibles y protegidas para ADMIN. El acceso separado se
-  retiró del menú. Kárdex continúa separado de Existencias y conserva la ubicación de
-  contexto cuando se abre desde el detalle de inventario.
+- La ruta anterior `/Reports/Heatmap` es únicamente un adaptador: redirige al croquis
+  público o administrativo según el rol y conserva métrica, período, fechas, fila y
+  búsqueda. Sus descargas permanecen compatibles y protegidas para ADMIN; la interfaz
+  duplicada y el acceso separado se retiraron. Kárdex continúa separado de Existencias
+  y conserva la ubicación de contexto cuando se abre desde el detalle de inventario.
 - Cobertura reconoce surtimientos y retornos WIP actuales como transferencias, conserva
   los registros históricos válidos y clasifica sin redondear: crítico menor de 7 días,
   bajo de 7 a 14, normal mayor de 14 a 45 y exceso mayor de 45. Antigüedad usa la fecha
@@ -2008,7 +2009,63 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
   la suite relevante completa, validación visual de temas/anchos y pruebas
   físicas de tablet, cámara y lector.
 
+## 13.9 Procesos asociados a WIP (implementado en código, pendiente de despliegue)
+
+- El catálogo ADMIN `/Admin/Production/Processes` reutiliza `ProductionStage` como proceso y permite mantener código, nombre, estado y asociaciones WIP. Las rutas de producción consumen el mismo catálogo; los turnos continúan configurándose en la pantalla de rutas.
+- Un proceso puede asociarse a varias áreas WIP, filas completas y racks WIP. Las áreas se identifican por `Location.Id`; una fila se identifica sólo por `RowCode` y aplica a todos sus racks, incluidos los de almacenamiento y los creados posteriormente; los racks directos se configuran una sola vez por fila y número y aplican a todas sus posiciones.
+- El editor del proceso reúne áreas, filas y racks en un buscador con sugerencias y selección múltiple. Elegir una fila retira asociaciones directas redundantes de sus racks y no admite excepciones individuales. Los vínculos no disponibles siguen visibles para poder retirarlos.
+- La misma relación se edita desde el proceso, desde `Editar área` y desde `Editar rack`. Un contador de versión compartido rechaza ediciones obsoletas; los cambios del rack conservan revisión, motivo, NIP ADMIN e idempotencia.
+- `Editar rack` separa las asociaciones directas editables de los procesos heredados por fila, que son de sólo lectura y enlazan al proceso de origen. Eliminar o reclasificar un rack retira únicamente sus asociaciones directas; la fila permanece configurada para otros racks y para futuras altas.
+- Cambiar una ubicación o rack a una función distinta de WIP retira sus asociaciones. Desactivar un proceso usado en una ruta activa se rechaza. No se eliminan procesos físicamente y las instantáneas de órdenes existentes conservan sus nombres y secuencias.
+- Esta configuración por sí sola no mueve inventario ni atribuye saldos a procesos. La integración operativa opcional con órdenes se implementó después en 13.10.
+- La migración `20260910154113_ProcessWipAssignments`, aplicada en la base local el 10 de septiembre de 2026, creó la revisión de configuración, su auditoría y asociaciones de área o rack. La ampliación para filas completas quedó en la migración incremental `20260910175524_ProcessRowAssignments`, pendiente de aplicar y publicar; no se debe modificar retroactivamente la migración ya registrada.
+
+## 13.10 Material WIP vinculado a órdenes y procesos (implementado en código, pendiente de despliegue)
+
+- `Surtir WIP` permite elegir **Para una orden** o **Surtimiento general**. El modo de orden busca únicamente órdenes liberadas o en proceso y etapas cuyo proceso sea efectivo para el área, rack o fila del destino. El vínculo es opcional, se crea en la misma transacción que `ProductionIssue` y no reclasifica movimientos históricos.
+- `ProductionMaterialIssueLink` relaciona la línea original con la orden y su etapa. `ProductionMaterialOperation` y sus líneas registran consumos, regresos a bodega, devoluciones a proveedor y reversos mediante una cabecera idempotente. El pendiente siempre se deriva como surtido menos operaciones vigentes; no se guarda un total paralelo.
+- La página de la orden muestra Material WIP por proceso y permite confirmar varias líneas con cantidades editables, observaciones y un solo NIP. Registrar avance continúa siendo una acción independiente porque no existe BOM para convertir producto terminado en materia prima consumida.
+- La reserva conserva los lotes recibidos por el surtimiento original. Las operaciones de la orden toman esos lotes; el flujo WIP general calcula saldo total, reservado y libre y asigna FEFO sólo entre lotes libres. Si una cantidad invade una reserva se rechaza y se muestran enlaces a las órdenes que la poseen.
+- Cada vínculo, operación o reverso incrementa la versión de la orden. Los formularios obsoletos, reintentos con contenido distinto y cantidades superiores al pendiente se rechazan. Una confirmación que agrupa varias ubicaciones se ejecuta dentro de una sola transacción.
+- La corrección genérica de consumos o devoluciones vinculados queda bloqueada y dirige al reverso ADMIN de la orden. Un surtimiento sin operaciones posteriores puede corregirse; su vínculo pasa al reemplazo compatible o se retira si sólo se revierte.
+- La migración incremental `20260910185035_ProductionMaterialOrderLinks` crea las tres tablas e índices de vínculo, operación y líneas. Depende de `20260910175524_ProcessRowAssignments`; ambas están pendientes de aplicar. El SQL revisable está en `docs/sql/20260910185035_ProductionMaterialOrderLinks.sql`. No se desplegó ni reinició la aplicación.
+- Verificación actual: compilación Release, contratos JavaScript, 51 pruebas focales de producción/inventario/WIP y una prueba PostgreSQL aislada de material pasan. Siguen pendientes la aplicación de migraciones, la prueba PostgreSQL aislada de esta migración y la validación visual/física en tablet, lector y red local.
+
+## 13.11 Seguimiento visual de producción por lotes (implementado en código, pendiente de despliegue)
+
+- Las recetas ADMIN son versionadas por producto y asignan cada material, en su unidad de inventario, a una etapa de la ruta. Una orden nueva copia la versión activa y escala el plan contra la cantidad autorizada; editar el catálogo después no cambia la orden. Las órdenes anteriores muestran `Seguimiento anterior sin trazabilidad por lote` y conservan su flujo.
+- Cada orden trazable admite varios lotes de producción sin exceder lo autorizado. Cada lote recibe folio y un único `ProductLot` del terminado; todas sus recepciones parciales entran a ese lote de inventario. La etiqueta Code 128 identifica el lote y su reimpresión no crea producción.
+- El resultado por etapa confirma con un NIP las cantidades procesada, buena, retrabajo y merma junto con los consumos reales. Los consumos toman únicamente reservas WIP de la orden, conservan los lotes de materia prima y se guardan con el resultado y sus vínculos dentro de la misma transacción. Un reintento idéntico devuelve la operación previa y uno diferente se rechaza.
+- Las entregas entre procesos quedan identificadas y cada recepción o conciliación señala la entrega concreta. Una etapa posterior sólo puede procesar lo recibido para ese lote. El retrabajo conserva la procedencia previa y sólo agrega material cuando se captura consumo adicional.
+- La orden presenta `Materiales → Procesos → Producto terminado → Bodega`, selector de lote, estados por unidad, pendientes, resultados parciales, procedencia e historial. El listado permite buscar orden, lote o SKU, filtrar por estado, proceso, fecha y alertas, y pagina de 25 en 25. `/Operations/Production/Trace` consulta trazabilidad desde materia prima o terminado.
+- Los ajustes del plan exigen NIP ADMIN y motivo y generan evento auditable. El reverso del resultado conserva el original, revierte sus movimientos de material y exige resolver primero la cadena posterior. El cierre continúa bloqueado por entregas, retrabajo, producto sin destino o material WIP reservado.
+- La migración incremental `20260911125505_ProductionBatchTraceability` agrega recetas, planes, lotes, resultados, consumos y relaciones de eventos. Su SQL revisable está en `docs/sql/20260911125505_ProductionBatchTraceability.sql`. No se aplicó a la base operativa, no se publicó y no se reinició el servicio.
+- La validación automatizada cubre versionado y copia de recetas, límites e idempotencia de lotes, recepción entre etapas, reversos, contratos de interfaz, preservación de una orden anterior al bajar/subir la migración y trazabilidad PostgreSQL con recepciones parciales. La validación visual en laptop/tablet y las pruebas físicas de impresión, HID y cámara siguen siendo actividades separadas.
+- La receta se administra dentro de `Editar producto`, después de sus datos principales. La ficha de producto resume ruta, etapas y receta activa; la ruta continúa configurándose en `/Admin/Production/Routes`. La URL anterior `/Admin/Production/Recipes` redirige al listado de productos y conserva los servicios y versiones históricas.
+- Los materiales de receta y la ubicación principal del producto usan el buscador compartido con sugerencias, Enter/HID, selección manual y cámara. Cada página carga una sola instancia del modal; procesos, unidades, tipos y clases permanecen como listas cerradas. Las filas de material totalmente vacías son opcionales, mientras que una fila iniciada debe resolver un producto activo, una etapa de la ruta y una cantidad positiva.
+
+## 13.12 Integración integral de órdenes, materiales, WIP y analítica — P1 implementada en código; despliegue pendiente
+
+- La especificación funcional y técnica está en `docs/PRODUCTION_ORDER_TRACKING.md`. Define el recorrido desde la creación y liberación de una orden hasta el surtimiento Rack → WIP, consumo por lote, avance entre procesos, recepción del terminado, alertas para bodega y analítica.
+- Cada material conservará su ubicación principal de almacén y podrá tener un WIP predeterminado por proceso. Esta regla se configura una vez en el material; no se repite en cada receta. La receta define cantidad y proceso de incorporación, y la orden copia el destino WIP resuelto para conservar su fotografía histórica.
+- Liberar una orden generará solicitudes identificables de surtimiento. La cola **Surtimientos a producción** mostrará a bodega material, pendiente, prioridad, ubicaciones y lotes sugeridos y WIP de destino. La solicitud no mueve inventario; el traslado real se crea únicamente después de escanear o seleccionar y confirmar con NIP.
+- P1 ya está implementada en código. Crear, Editar y Detalles del producto permiten configurar y auditar una regla por material/proceso; el editor y listado de procesos admiten un WIP predeterminado general. Los destinos válidos son área WIP, rack WIP completo o posición exacta y se validan con las asociaciones actuales o propuestas del proceso. Una referencia que luego queda bloqueada, inactiva, ausente, reclasificada o incompatible se conserva y muestra la causa, sin mover inventario ni elegir otra ubicación.
+- Los cambios P1 exigen NIP ADMIN, motivo, versión esperada e identificador idempotente. Producto y reglas se crean en una transacción; en Editar las reglas tienen formulario independiente. La migración `20260911184026_MaterialWipDefaults`, su SQL revisable y una prueba PostgreSQL aislada acompañan el cambio. La migración P1 no se aplicó a la base configurada y la validación visual/física continúa pendiente.
+- La implementación restante se divide en P2 fotografía de planificación, P3 solicitudes y alertas de bodega, P4 preparación guiada Rack → WIP, P5 ejecución integrada, P6 analítica y P7 validación y despliegue. Estas fases amplían 13.9–13.11 y deben preservar reservas, lotes, idempotencia, reversos y el motor de inventario como fuente única.
+
 ## 14. Contexto breve para pegar en otro chat
+
+### Acuerdos de Order Tracking — 11 de septiembre de 2026
+
+Detalle en `docs/PRODUCTION_ORDER_TRACKING.md`. Son decisiones documentadas; no implican implementación verificada ni despliegue.
+
+- Reservar material para la orden desde la liberación, antes del traslado, mostrando folio y motivo y distinguiendo reserva en almacén de reserva en WIP.
+- Permitir elegir material libre ya existente en WIP, surtimiento completo desde almacén o una combinación. Una reserva ajena requiere reasignación auditada.
+- Permitir ajustes de la orden con valores anteriores, motivo, responsable y fecha, conciliando solicitudes, reservas y operaciones dependientes.
+- Mantener **un solo lote por orden**, sin división opcional: el grupo puede avanzar durante varios días y recibir parcialmente en bodega. Los consumos conservan los lotes de materia prima vinculados al mismo lote terminado; no se identifican piezas individuales.
+- Dedicar registros y analítica a retrabajo y merma. Permitir cierre de fabricación por debajo o por encima de la meta, conservando retrabajo para días posteriores asociado a la misma orden y lote.
+- Pendiente de concretar: estados y permisos de cierre, tratamiento de reservas durante el retrabajo, proceso al que regresa, faltantes al reservar y recuperación de solicitudes abandonadas. Separar cierre principal y definitivo es una propuesta, no una decisión confirmada.
+
 
 ```text
 Estoy desarrollando Warehouse EPI en

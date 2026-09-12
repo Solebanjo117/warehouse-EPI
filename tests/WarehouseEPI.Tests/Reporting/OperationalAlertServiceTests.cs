@@ -48,6 +48,8 @@ public sealed class OperationalAlertServiceTests
             new[] { OperationalAlertCategory.NegativeInventory, OperationalAlertCategory.BelowMinimum }));
         Assert.Equal(1, publicSnapshot.Items.Single(x => x.Category == OperationalAlertCategory.NegativeInventory).Count);
         Assert.DoesNotContain(publicSnapshot.Items, x => x.Category == OperationalAlertCategory.RestrictedInventory);
+        Assert.All(publicSnapshot.Items, item => Assert.StartsWith("/Reports/Inventory?view=exceptions&exception=", item.TargetUrl, StringComparison.Ordinal));
+        Assert.All(adminSnapshot.Items, item => Assert.Equal($"/Admin/Inventory/Alerts?category={item.Category}", item.TargetUrl));
         Assert.Equal(2, adminSnapshot.Items.Single(x => x.Category == OperationalAlertCategory.UnassignedBalance).Count);
         Assert.Equal(2, adminSnapshot.Items.Single(x => x.Category == OperationalAlertCategory.RestrictedInventory).Count);
         Assert.Equal(1, adminSnapshot.Items.Single(x => x.Category == OperationalAlertCategory.CycleCountStale).Count);

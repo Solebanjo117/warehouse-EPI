@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\WarehouseEPI.Core\WarehouseEPI.Core.csproj" />
+    <EmbeddedResource Include="..\..\docs\sql\20260911125505_ProductionBatchTraceability.sql"
+                      Link="Migrations\20260911125505_ProductionBatchTraceability.sql" />
   </ItemGroup>
 
   <ItemGroup>

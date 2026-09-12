@@ -23,6 +23,9 @@ public sealed class RackOperationsContractTests
         Assert.Contains("Revisar cambios", page, StringComparison.Ordinal);
         Assert.Contains("NIP ADMIN", page, StringComparison.Ordinal);
         Assert.Contains("No es eliminación física de datos", page, StringComparison.Ordinal);
+        Assert.Contains("Heredados de Fila", page, StringComparison.Ordinal);
+        Assert.Contains("Directos actuales", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Admin/Production/ProcessEdit\"", page, StringComparison.Ordinal);
         Assert.Contains("[Authorize(Policy = \"AdminOnly\")]", model, StringComparison.Ordinal);
         Assert.Contains("Input.Pin = string.Empty", model, StringComparison.Ordinal);
     }

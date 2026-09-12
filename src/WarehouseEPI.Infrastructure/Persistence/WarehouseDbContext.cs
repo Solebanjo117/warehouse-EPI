@@ -61,6 +61,20 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductionWorkOrder> ProductionWorkOrders => Set<ProductionWorkOrder>();
     public DbSet<ProductionWorkOrderStage> ProductionWorkOrderStages => Set<ProductionWorkOrderStage>();
     public DbSet<ProductionEvent> ProductionEvents => Set<ProductionEvent>();
+    public DbSet<ProductionProcessWipTarget> ProductionProcessWipTargets => Set<ProductionProcessWipTarget>();
+    public DbSet<ProductionProcessConfiguration> ProductionProcessConfigurations => Set<ProductionProcessConfiguration>();
+    public DbSet<ProductionProcessRevision> ProductionProcessRevisions => Set<ProductionProcessRevision>();
+    public DbSet<ProductionMaterialWipDefault> ProductionMaterialWipDefaults => Set<ProductionMaterialWipDefault>();
+    public DbSet<ProductionMaterialWipRevision> ProductionMaterialWipRevisions => Set<ProductionMaterialWipRevision>();
+    public DbSet<ProductionMaterialIssueLink> ProductionMaterialIssueLinks => Set<ProductionMaterialIssueLink>();
+    public DbSet<ProductionMaterialOperation> ProductionMaterialOperations => Set<ProductionMaterialOperation>();
+    public DbSet<ProductionMaterialOperationLine> ProductionMaterialOperationLines => Set<ProductionMaterialOperationLine>();
+    public DbSet<ProductionRecipe> ProductionRecipes => Set<ProductionRecipe>();
+    public DbSet<ProductionRecipeLine> ProductionRecipeLines => Set<ProductionRecipeLine>();
+    public DbSet<ProductionOrderMaterialPlan> ProductionOrderMaterialPlans => Set<ProductionOrderMaterialPlan>();
+    public DbSet<ProductionBatch> ProductionBatches => Set<ProductionBatch>();
+    public DbSet<ProductionBatchResult> ProductionBatchResults => Set<ProductionBatchResult>();
+    public DbSet<ProductionBatchMaterialConsumption> ProductionBatchMaterialConsumptions => Set<ProductionBatchMaterialConsumption>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1302,7 +1316,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent) &&
+            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption) &&
                 (entry.State is EntityState.Modified or EntityState.Deleted))
             .Select(entry => entry.Metadata.ClrType.Name)
             .Distinct()

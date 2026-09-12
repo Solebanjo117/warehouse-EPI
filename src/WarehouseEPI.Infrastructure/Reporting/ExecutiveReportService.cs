@@ -138,10 +138,10 @@ public sealed class ExecutiveReportService(
         var previousTo = LocalDate(previousToUtc.AddTicks(-1), timeZone);
         var dateQuery = $"period=custom&from={activityFrom:yyyy-MM-dd}&to={activityTo:yyyy-MM-dd}";
         var links = new ExecutiveEvidenceLinksDto(
-            "/Reports/Inventory?view=exceptions&exception=minimum",
+            "/Admin/Inventory/Alerts?category=BelowMinimum",
             "/Reports/Inventory?view=coverage&period=30&coverageClass=Critical",
-            "/Reports/Inventory?view=stagnant&stagnantCategory=90plus",
-            "/Reports/Inventory?view=exceptions&exception=negative",
+            "/Admin/Inventory/Alerts?category=StagnantInventory",
+            "/Admin/Inventory/Alerts?category=NegativeInventory",
             "/Locations?viewMode=racks&kind=rack&rackFilter=occupied",
             "/Locations?viewMode=racks&kind=rack&rackFilter=empty",
             "/Locations?viewMode=table&kind=rack&status=blocked",

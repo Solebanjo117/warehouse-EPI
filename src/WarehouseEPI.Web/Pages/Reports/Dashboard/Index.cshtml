@@ -3,7 +3,8 @@
 @using WarehouseEPI.Infrastructure.Reporting
 @model WarehouseEPI.Web.Pages.Reports.Dashboard.IndexModel
 @{
-    ViewData["Title"] = "Tablero diario";
+    var isAdmin = User.IsInRole("ADMIN");
+    ViewData["Title"] = isAdmin ? "Resumen operativo · Hoy" : "Tablero diario";
     var metrics = Model.Snapshot.Metrics;
     var points = metrics.RecentActivityTrend;
     var totalOperations = points.Sum(point => point.TotalEffectiveOperations);
@@ -14,7 +15,6 @@
         date = point.Date.ToString("yyyy-MM-dd"), point.DayLabel, point.EntryCount, point.ExitCount,
         point.TransferCount, point.AdjustmentCount, point.TotalEffectiveOperations, point.DistinctSkusCount
     }));
-    var isAdmin = User.IsInRole("ADMIN");
 }
 
 @section Styles {
@@ -22,15 +22,36 @@
 }
 
 <div class="daily-dashboard" data-dashboard data-metrics-url="@Url.Page("/Reports/Dashboard/Index", "Metrics")" data-warehouse-date="@Model.Snapshot.WarehouseDate.ToString("yyyy-MM-dd")" data-is-admin="@isAdmin.ToString().ToLowerInvariant()">
-    <header class="dashboard-header"><div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Tablero diario</h1><p class="text-muted mb-0">Prioriza las excepciones del día y resume actividad efectiva sin sumar unidades diferentes.</p></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-secondary" asp-page="/Reports/Inventory/Index">Analítica de inventario</a><button class="btn btn-outline-primary" type="button" data-dashboard-refresh>Actualizar ahora</button></div></header>
+    @if (isAdmin)
+    {
+        @await Html.PartialAsync("/Pages/Reports/_AdminSummaryNavigation.cshtml", "today")
+    }
+    <header class="dashboard-header">
+        <div>
+            <span class="eyebrow">Operación LAN</span>
+            @if (isAdmin)
+            {
+                <h2 class="h3 mb-1">Hoy</h2>
+            }
+            else
+            {
+                <h1 class="h2 mb-1">Tablero diario</h1>
+            }
+            <p class="text-muted mb-0">Prioriza las excepciones del día y resume actividad efectiva sin sumar unidades diferentes.</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" asp-page="/Reports/Inventory/Index">Analítica de inventario</a>
+            <button class="btn btn-outline-primary" type="button" data-dashboard-refresh>Actualizar ahora</button>
+        </div>
+    </header>
     <p class="dashboard-update-state" role="status" aria-live="polite" data-dashboard-status>Datos generados: <time data-dashboard-updated datetime="@Model.Snapshot.GeneratedAtLocal.ToString("O")">@Model.Snapshot.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</time></p>
 
     <div class="dashboard-tiers">
         <section class="dashboard-tier is-attention" aria-labelledby="dashboard-attention-title">
             <h2 class="dashboard-tier-title" id="dashboard-attention-title">Requiere atención</h2>
             <div class="dashboard-metrics dashboard-metrics-pair">
-                <article class="is-danger"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-alert" /></svg></span><strong data-dashboard-metric="negativePositionsCount">@metrics.NegativePositionsCount</strong><small>Saldos producto-ubicación negativos</small><a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="negative">Revisar saldos</a></article>
-                <article class="is-warning"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-products" /></svg></span><strong data-dashboard-metric="lowStockProductsCount">@metrics.LowStockProductsCount</strong><small>Productos bajo mínimo</small><a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="minimum">Revisar mínimos</a></article>
+                <article class="is-danger"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-alert" /></svg></span><strong data-dashboard-metric="negativePositionsCount">@metrics.NegativePositionsCount</strong><small>Saldos producto-ubicación negativos</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Alerts" asp-route-category="NegativeInventory">Revisar casos</a> } else { <a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="negative">Revisar saldos</a> }</article>
+                <article class="is-warning"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-products" /></svg></span><strong data-dashboard-metric="lowStockProductsCount">@metrics.LowStockProductsCount</strong><small>Productos bajo mínimo</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Alerts" asp-route-category="BelowMinimum">Revisar casos</a> } else { <a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="minimum">Revisar mínimos</a> }</article>
             </div>
         </section>
         <section class="dashboard-tier" aria-labelledby="dashboard-today-title">

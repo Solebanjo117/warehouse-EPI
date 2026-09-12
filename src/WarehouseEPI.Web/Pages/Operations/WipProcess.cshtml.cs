@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
@@ -12,7 +13,8 @@ public sealed class WipProcessModel(
     WarehouseDbContext dbContext,
     InventoryMovementService movementService,
     OperationalInventoryQueryService operationalQuery,
-    InventoryQueryService inventoryQuery) : PageModel
+    InventoryQueryService inventoryQuery,
+    ProductionMaterialService productionMaterials) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public IReadOnlyList<WipOption> WipLocations { get; private set; } = [];
@@ -21,6 +23,7 @@ public sealed class WipProcessModel(
     public OperationalLocationResult? Source { get; private set; }
     public OperationalLocationResult? Destination { get; private set; }
     public InventoryBalanceSnapshot? SourceBalance { get; private set; }
+    public ProductionMaterialAvailability? Availability { get; private set; }
 
     public async Task OnGetAsync(string? action, string? wipCode, string? productCode, CancellationToken cancellationToken)
     {
@@ -98,7 +101,10 @@ public sealed class WipProcessModel(
             ? await operationalQuery.ResolveLocationAsync(Input.DestinationCode, cancellationToken: cancellationToken)
             : null;
         if (Product is not null && Source is not null)
+        {
             SourceBalance = await inventoryQuery.GetBalanceAsync(Product.Id, Source.Id, cancellationToken);
+            Availability = await productionMaterials.GetAvailabilityAsync(Product.Id, Source.Id, cancellationToken);
+        }
     }
 
     private void ValidateResolved()

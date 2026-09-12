@@ -4,8 +4,9 @@ public enum ProductionWorkOrderStatus { Draft, Released, InProgress, Paused, Clo
 public enum ProductionEventType
 {
     Created, Released, QuantityAuthorized, Processed, Reworked, Delivered, Received,
-    DifferenceReturned, DifferenceLost, WarehouseReceived, Paused, Resumed, Closed, Cancelled
+    DifferenceReturned, DifferenceLost, WarehouseReceived, Paused, Resumed, Closed, Cancelled, ResultReversed, MaterialPlanAdjusted
 }
+public enum ProductionMaterialOperationType { Consumption, WarehouseReturn, SupplierReturn, Reversal }
 
 public sealed class ProductionStage
 {
@@ -13,6 +14,74 @@ public sealed class ProductionStage
     public required string Code { get; set; }
     public required string Name { get; set; }
     public bool IsActive { get; set; } = true;
+    public Guid? DefaultWipLocationId { get; set; }
+    public string? DefaultWipRowCode { get; set; }
+    public short? DefaultWipRackNumber { get; set; }
+    public Location? DefaultWipLocation { get; set; }
+    public ICollection<ProductionProcessWipTarget> WipTargets { get; set; } = [];
+}
+
+public sealed class ProductionMaterialWipDefault
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProductId { get; set; }
+    public Guid ProductionStageId { get; set; }
+    public Guid? LocationId { get; set; }
+    public string? RowCode { get; set; }
+    public short? RackNumber { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public Product Product { get; set; } = null!;
+    public ProductionStage ProductionStage { get; set; } = null!;
+    public Location? Location { get; set; }
+}
+
+public sealed class ProductionMaterialWipRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public Guid ProductId { get; set; }
+    public Guid AuthorizedByUserId { get; set; }
+    public required string Reason { get; set; }
+    public required string BeforeJson { get; set; }
+    public required string AfterJson { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public Product Product { get; set; } = null!;
+    public User AuthorizedByUser { get; set; } = null!;
+}
+
+public sealed class ProductionProcessWipTarget
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProductionStageId { get; set; }
+    public Guid? LocationId { get; set; }
+    public string? RowCode { get; set; }
+    public short? RackNumber { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ProductionStage ProductionStage { get; set; } = null!;
+    public Location? Location { get; set; }
+}
+
+public sealed class ProductionProcessConfiguration
+{
+    public short Id { get; set; } = 1;
+    public uint Version { get; set; }
+}
+
+public sealed class ProductionProcessRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public Guid ProductionStageId { get; set; }
+    public Guid AuthorizedByUserId { get; set; }
+    public required string Reason { get; set; }
+    public required string BeforeJson { get; set; }
+    public required string AfterJson { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public ProductionStage ProductionStage { get; set; } = null!;
+    public User AuthorizedByUser { get; set; } = null!;
 }
 
 public sealed class ProductionShift
@@ -63,11 +132,17 @@ public sealed class ProductionWorkOrder
     public DateTimeOffset? ReleasedAt { get; set; }
     public DateTimeOffset? ClosedAt { get; set; }
     public uint Version { get; set; }
+    public bool UsesBatchTraceability { get; set; }
+    public int? RecipeVersion { get; set; }
     public Product Product { get; set; } = null!;
     public Unit Unit { get; set; } = null!;
     public User CreatedByUser { get; set; } = null!;
     public ICollection<ProductionWorkOrderStage> Stages { get; set; } = [];
     public ICollection<ProductionEvent> Events { get; set; } = [];
+    public ICollection<ProductionMaterialIssueLink> MaterialIssues { get; set; } = [];
+    public ICollection<ProductionMaterialOperation> MaterialOperations { get; set; } = [];
+    public ICollection<ProductionOrderMaterialPlan> MaterialPlan { get; set; } = [];
+    public ICollection<ProductionBatch> Batches { get; set; } = [];
 }
 
 public sealed class ProductionWorkOrderStage
@@ -80,6 +155,53 @@ public sealed class ProductionWorkOrderStage
     public required string Name { get; set; }
     public ProductionWorkOrder WorkOrder { get; set; } = null!;
     public ProductionStage SourceStage { get; set; } = null!;
+    public ICollection<ProductionMaterialIssueLink> MaterialIssues { get; set; } = [];
+    public ICollection<ProductionOrderMaterialPlan> MaterialPlan { get; set; } = [];
+}
+
+public sealed class ProductionMaterialIssueLink
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid WorkOrderId { get; set; }
+    public Guid WorkOrderStageId { get; set; }
+    public Guid InventoryMovementLineId { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ProductionWorkOrder WorkOrder { get; set; } = null!;
+    public ProductionWorkOrderStage WorkOrderStage { get; set; } = null!;
+    public InventoryMovementLine InventoryMovementLine { get; set; } = null!;
+    public ICollection<ProductionMaterialOperationLine> OperationLines { get; set; } = [];
+}
+
+public sealed class ProductionMaterialOperation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public Guid WorkOrderId { get; set; }
+    public Guid WorkOrderStageId { get; set; }
+    public ProductionMaterialOperationType Type { get; set; }
+    public Guid ResponsibleUserId { get; set; }
+    public Guid? ReversesOperationId { get; set; }
+    public string? Reference { get; set; }
+    public string? Notes { get; set; }
+    public DateTimeOffset RecordedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ProductionWorkOrder WorkOrder { get; set; } = null!;
+    public ProductionWorkOrderStage WorkOrderStage { get; set; } = null!;
+    public User ResponsibleUser { get; set; } = null!;
+    public ProductionMaterialOperation? ReversesOperation { get; set; }
+    public ICollection<ProductionMaterialOperationLine> Lines { get; set; } = [];
+}
+
+public sealed class ProductionMaterialOperationLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ProductionMaterialOperationId { get; set; }
+    public Guid IssueLinkId { get; set; }
+    public Guid InventoryMovementLineId { get; set; }
+    public decimal Quantity { get; set; }
+    public ProductionMaterialOperation Operation { get; set; } = null!;
+    public ProductionMaterialIssueLink IssueLink { get; set; } = null!;
+    public InventoryMovementLine InventoryMovementLine { get; set; } = null!;
 }
 
 public sealed class ProductionEvent
@@ -90,6 +212,8 @@ public sealed class ProductionEvent
     public Guid WorkOrderId { get; set; }
     public Guid? WorkOrderStageId { get; set; }
     public Guid? RelatedStageId { get; set; }
+    public Guid? BatchId { get; set; }
+    public Guid? RelatedEventId { get; set; }
     public ProductionEventType Type { get; set; }
     public Guid ResponsibleUserId { get; set; }
     public Guid? ShiftId { get; set; }
@@ -103,6 +227,8 @@ public sealed class ProductionEvent
     public ProductionWorkOrder WorkOrder { get; set; } = null!;
     public ProductionWorkOrderStage? WorkOrderStage { get; set; }
     public ProductionWorkOrderStage? RelatedStage { get; set; }
+    public ProductionBatch? Batch { get; set; }
+    public ProductionEvent? RelatedEvent { get; set; }
     public User ResponsibleUser { get; set; } = null!;
     public ProductionShift? Shift { get; set; }
     public InventoryMovement? InventoryMovement { get; set; }

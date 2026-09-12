@@ -4,7 +4,7 @@
     var selectedEntryLocation = Model.SelectedEntryLocation;
 }
 
-<form method="post" class="product-editor-form" data-product-editor-form data-location-lookup-url="@Url.Page("/Operations/Lookup")">
+<form method="post" class="product-editor-form" data-cycle-plan data-lookup-url="@Url.Page("/Operations/Lookup")">
     <div asp-validation-summary="All" class="alert alert-danger product-editor-validation" role="alert"></div>
     <input asp-for="Input.Id" type="hidden" />
 
@@ -83,26 +83,31 @@
                     </div>
                     <div class="col-12">
                         <label for="default-entry-location-search" class="form-label fw-semibold">Ubicación principal de entrada <span class="text-body-secondary fw-normal">(opcional)</span></label>
-                        <div class="lookup-field" data-product-entry-location>
-                            <input asp-for="Input.DefaultEntryLocationId" type="hidden" data-product-entry-location-id />
+                        <div class="lookup-field" data-cycle-plan-field="location" data-cycle-plan-key="default-entry-location"
+                             data-cycle-plan-label="Ubicación principal" data-cycle-plan-optional>
+                            <input asp-for="Input.DefaultEntryLocationId" type="hidden" data-cycle-plan-id />
                             <div class="input-group">
                                 <input id="default-entry-location-search" class="form-control product-editor-control" type="search"
                                        value="@selectedEntryLocation?.Code" autocomplete="off" autocapitalize="characters"
                                        placeholder="Busca por código o descripción" role="combobox" aria-autocomplete="list"
                                        aria-expanded="false" aria-controls="default-entry-location-results"
-                                       aria-describedby="default-entry-location-feedback" data-product-entry-location-search />
-                                <button type="button" class="btn btn-outline-secondary" data-product-entry-location-clear
+                                       aria-describedby="default-entry-location-feedback" data-cycle-plan-search />
+                                <button type="button" class="btn btn-outline-secondary" data-cycle-plan-camera
+                                        aria-label="Escanear ubicación principal con cámara">
+                                    <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
+                                </button>
+                                <button type="button" class="btn btn-outline-secondary" data-cycle-plan-clear
                                         disabled="@(selectedEntryLocation is null)" aria-label="Quitar ubicación principal de entrada">Quitar</button>
                             </div>
                             <div id="default-entry-location-results" class="lookup-results list-group" role="listbox"
-                                 data-product-entry-location-results></div>
-                            <div class="selected-record @(selectedEntryLocation is null ? "d-none" : null) mt-2" data-product-entry-location-selected>
-                                <strong data-product-entry-location-code>@selectedEntryLocation?.Code</strong>
-                                <span data-product-entry-location-description>@selectedEntryLocation?.Description</span>
-                                <small data-product-entry-location-status>@(selectedEntryLocation?.IsAvailable == false ? "Ubicación no disponible; puede conservarla o quitarla." : "Ubicación principal seleccionada")</small>
+                                 data-cycle-plan-results></div>
+                            <div class="selected-record @(selectedEntryLocation is null ? "d-none" : null) mt-2" data-cycle-plan-selected>
+                                <strong data-cycle-plan-selected-title>@selectedEntryLocation?.Code</strong>
+                                <span data-cycle-plan-selected-detail>@selectedEntryLocation?.Description</span>
+                                <small data-cycle-plan-selected-meta>@(selectedEntryLocation?.IsAvailable == false ? "No disponible" : "Ubicación")</small>
                             </div>
                             <p id="default-entry-location-feedback" class="form-text mb-0" role="status" aria-live="polite"
-                               data-product-entry-location-feedback>Escribe para buscar una ubicación física disponible.</p>
+                               data-cycle-plan-feedback>Escribe para buscar o usa un lector HID.</p>
                         </div>
                         <div class="form-text">Entrada la seleccionará como destino al escanear este producto. El operador podrá cambiarla.</div>
                         <span asp-validation-for="Input.DefaultEntryLocationId" class="text-danger"></span>
@@ -124,6 +129,10 @@
         </aside>
     </div>
 
+    @if (!isEditing)
+    {
+        <partial name="_ProductionWipDefaults" model="Model" />
+    }
     <div class="product-editor-actions">
         @if (isEditing)
         {

@@ -1,0 +1,10 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Production.TraceModel
+@{ ViewData["Title"] = "Trazabilidad de producción"; }
+<div class="container-fluid py-3 production-page">
+ <header class="mb-4"><a asp-page="Index" class="text-decoration-none">← Producción</a><span class="eyebrow d-block mt-2">Consulta</span><h1 class="h2 mb-1">Procedencia de lotes</h1><p class="text-body-secondary">Busca un lote de materia prima, lote de producción, lote terminado o SKU.</p></header>
+ <form method="get" class="row g-2 mb-4"><div class="col-12 col-md-9"><label asp-for="Search" class="form-label">Lote o SKU</label><input asp-for="Search" class="form-control form-control-lg" type="search" autocomplete="off" autocapitalize="characters" autofocus/></div><div class="col-12 col-md-3 d-flex align-items-end"><button class="btn btn-primary btn-lg w-100">Consultar</button></div></form>
+ @if(string.IsNullOrWhiteSpace(Model.Search)){<div class="alert alert-info">Escanea la etiqueta o escribe el identificador. La consulta no confirma movimientos.</div>}
+ else if(Model.Items.Count==0){<div class="alert alert-warning">No se encontraron vínculos de transformación para ese dato. Una orden anterior puede no tener trazabilidad por lote.</div>}
+ else{<div class="table-responsive"><table class="table align-middle"><thead><tr><th>Producto terminado</th><th>Lote de producción</th><th>Materia prima</th><th>Consumo</th><th>Proceso</th><th>Responsable y fecha</th></tr></thead><tbody>@foreach(var x in Model.Items){<tr><td><strong>@x.FinishedSku</strong><small class="d-block text-body-secondary">@x.FinishedLot</small></td><td>@x.BatchNumber</td><td><strong>@x.MaterialSku</strong><small class="d-block text-body-secondary">@x.MaterialLot</small></td><td>@x.Quantity.ToString("0.####") @x.Unit</td><td>@x.Stage</td><td>@x.Responsible<small class="d-block text-body-secondary">@x.RecordedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</small></td></tr>}</tbody></table></div>}
+</div>

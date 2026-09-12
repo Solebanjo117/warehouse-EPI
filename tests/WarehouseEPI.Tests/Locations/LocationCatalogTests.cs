@@ -7,11 +7,13 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 using RackPrintModel = WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack.PrintModel;
@@ -37,9 +39,10 @@ public sealed class LocationCatalogTests
         };
         fixture.Db.Locations.Add(area);
         await fixture.Db.SaveChangesAsync();
-        var page = new AreaModel(fixture.Db, new LocationAreaAdministrationService(fixture.Db,
-            new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")),
-            TimeProvider.System));
+        var pins = new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
+        var page = new AreaModel(fixture.Db, new LocationAreaAdministrationService(fixture.Db, pins,
+            TimeProvider.System), new ProductionProcessConfigurationService(fixture.Db, pins, TimeProvider.System,
+                NullLogger<ProductionProcessConfigurationService>.Instance));
 
         var result = await page.OnGetAsync(area.Id, CancellationToken.None);
 
@@ -1192,7 +1195,9 @@ public sealed class LocationCatalogTests
             Layout = layout, Kind = WarehouseMapElementKind.Rack, RowCode = "Z", RackNumber = 4,
             X = 10, Y = 20, Width = 30, Height = 40
         };
-        fixture.Db.AddRange(role, user, layout, mapElement);
+        var process = new ProductionStage { Code = "ROW-Z", Name = "Proceso de fila Z" };
+        var rowTarget = new ProductionProcessWipTarget { ProductionStage = process, RowCode = "Z" };
+        fixture.Db.AddRange(role, user, layout, mapElement, process, rowTarget);
         fixture.Db.Locations.AddRange(positions);
         await fixture.Db.SaveChangesAsync();
         var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
@@ -1203,6 +1208,7 @@ public sealed class LocationCatalogTests
         var view = await service.GetAsync("Z", 4);
         Assert.NotNull(view);
         Assert.True(view.Deletion.CanDelete);
+        Assert.Contains(process.Id, view.InheritedProcessIds);
         Assert.Equal(LocationRackDeleteStatus.ValidationFailed,
             (await service.DeleteAsync(command with { ConfirmationCode = "Z-5" })).Status);
         Assert.Equal(LocationRackDeleteStatus.InvalidPin,
@@ -1214,6 +1220,7 @@ public sealed class LocationCatalogTests
 
         Assert.Empty(await fixture.Db.Locations.Where(item => item.RowCode == "Z" && item.RackNumber == 4).ToListAsync());
         Assert.Empty(await fixture.Db.WarehouseMapElements.Where(item => item.RowCode == "Z" && item.RackNumber == 4).ToListAsync());
+        Assert.True(await fixture.Db.ProductionProcessWipTargets.AnyAsync(item => item.RowCode == "Z" && item.RackNumber == null));
         Assert.Equal(8, (await fixture.Db.WarehouseMapLayouts.SingleAsync()).Version);
         var revision = Assert.Single(await fixture.Db.LocationRackRevisions.Where(item => item.OperationId == operationId).ToListAsync());
         Assert.Contains("Deleted", revision.AfterJson, StringComparison.Ordinal);

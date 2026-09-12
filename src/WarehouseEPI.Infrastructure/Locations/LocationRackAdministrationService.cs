@@ -13,7 +13,8 @@ namespace WarehouseEPI.Infrastructure.Locations;
 
 public sealed record LocationRackEditCommand(Guid OperationId, Guid RequestedByUserId, string RowCode,
     short RackNumber, LocationOperationalRole OperationalRole,
-    IReadOnlyCollection<short> PresentPallets, string? Reason, string? Pin);
+    IReadOnlyCollection<short> PresentPallets, string? Reason, string? Pin,
+    IReadOnlyList<Guid>? ProcessIds = null, uint? ProcessConfigurationVersion = null);
 
 public sealed record LocationRackPositionState(Guid? Id, short PalletNumber, string Code,
     bool Exists, bool IsPhysicallyPresent, bool IsActive, bool IsBlocked, bool HasBalance,
@@ -21,7 +22,8 @@ public sealed record LocationRackPositionState(Guid? Id, short PalletNumber, str
 
 public sealed record LocationRackEditView(string RowCode, short RackNumber,
     LocationOperationalRole OperationalRole, IReadOnlyList<LocationRackPositionState> Positions,
-    IReadOnlyList<LocationRackRevisionView> Revisions, LocationRackDeletionState Deletion);
+    IReadOnlyList<LocationRackRevisionView> Revisions, LocationRackDeletionState Deletion,
+    IReadOnlyList<Guid> ProcessIds, IReadOnlyList<Guid> InheritedProcessIds, uint ProcessConfigurationVersion);
 
 public sealed record LocationRackDeletionState(bool CanDelete, IReadOnlyList<string> Blockers);
 
@@ -71,7 +73,12 @@ public sealed class LocationRackAdministrationService(
                 item.BeforeJson, item.AfterJson))
             .ToListAsync(token);
         var deletion = await GetDeletionStateAsync(locations, token);
-        return new(row, rackNumber, RackOperationalRole(locations), states, revisions, deletion);
+        var processIds = await dbContext.ProductionProcessWipTargets.AsNoTracking()
+            .Where(x => x.RowCode == row && x.RackNumber == rackNumber).Select(x => x.ProductionStageId).ToListAsync(token);
+        var inheritedProcessIds = await dbContext.ProductionProcessWipTargets.AsNoTracking()
+            .Where(x => x.RowCode == row && x.RackNumber == null).Select(x => x.ProductionStageId).ToListAsync(token);
+        var processVersion = (await dbContext.ProductionProcessConfigurations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, token))?.Version ?? 0;
+        return new(row, rackNumber, RackOperationalRole(locations), states, revisions, deletion, processIds, inheritedProcessIds, processVersion);
     }
 
     public async Task<LocationRackReviewResult> ReviewAsync(LocationRackEditCommand command,
@@ -111,6 +118,8 @@ public sealed class LocationRackAdministrationService(
             command.RackNumber,
             command.OperationalRole,
             PresentPallets = desired,
+            ProcessIds = command.ProcessIds?.OrderBy(x => x),
+            command.ProcessConfigurationVersion,
             Reason = reason
         }));
 
@@ -145,7 +154,41 @@ public sealed class LocationRackAdministrationService(
             return new(LocationRackSaveStatus.ValidationFailed, errors);
         }
 
-        var before = SerializeState(locations);
+        var previousProcessIds = await dbContext.ProductionProcessWipTargets
+            .Where(x => x.RowCode == row && x.RackNumber == command.RackNumber)
+            .Select(x => x.ProductionStageId).OrderBy(x => x).ToListAsync(token);
+        var inheritedProcessIds = await dbContext.ProductionProcessWipTargets
+            .Where(x => x.RowCode == row && x.RackNumber == null)
+            .Select(x => x.ProductionStageId).OrderBy(x => x).ToListAsync(token);
+        IReadOnlyList<Guid> requestedProcessIds = previousProcessIds;
+        if (command.ProcessIds is not null)
+        {
+            var configuration = await dbContext.ProductionProcessConfigurations.SingleOrDefaultAsync(x => x.Id == 1, token);
+            var version = configuration?.Version ?? 0;
+            if (version != command.ProcessConfigurationVersion)
+            {
+                if (transaction is not null) await transaction.RollbackAsync(token);
+                return new(LocationRackSaveStatus.ValidationFailed, ["La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar."]);
+            }
+            configuration ??= new ProductionProcessConfiguration();
+            if (dbContext.Entry(configuration).State == EntityState.Detached) dbContext.Add(configuration);
+            var requested = command.OperationalRole == LocationOperationalRole.Wip
+                ? command.ProcessIds.Distinct().Except(inheritedProcessIds).ToArray() : [];
+            requestedProcessIds = requested.OrderBy(x => x).ToArray();
+            var targets = await dbContext.ProductionProcessWipTargets.Where(x => x.RowCode == row && x.RackNumber == command.RackNumber).ToListAsync(token);
+            var existingIds = targets.Select(x => x.ProductionStageId).ToArray();
+            if (await dbContext.ProductionStages.CountAsync(x => requested.Contains(x.Id) && (x.IsActive || existingIds.Contains(x.Id)), token) != requested.Length)
+            {
+                if (transaction is not null) await transaction.RollbackAsync(token);
+                return new(LocationRackSaveStatus.ValidationFailed, ["Uno de los procesos seleccionados no está disponible."]);
+            }
+            dbContext.RemoveRange(targets.Where(x => !requested.Contains(x.ProductionStageId)));
+            foreach (var id in requested.Except(targets.Select(x => x.ProductionStageId))) dbContext.Add(new ProductionProcessWipTarget { ProductionStageId = id, RowCode = row, RackNumber = command.RackNumber, CreatedAt = timeProvider.GetUtcNow() });
+            configuration.Version++;
+        }
+
+        var before = JsonSerializer.Serialize(new { Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations)),
+            DirectProcessIds = previousProcessIds, InheritedRowProcessIds = inheritedProcessIds });
         var byPallet = locations.ToDictionary(item => item.PalletNumber!.Value);
         var now = timeProvider.GetUtcNow();
         foreach (var pallet in Enumerable.Range(1, 9).Select(value => (short)value))
@@ -191,7 +234,8 @@ public sealed class LocationRackAdministrationService(
             }
         }
 
-        var after = SerializeState(locations.OrderBy(item => item.PalletNumber).ToArray());
+        var after = JsonSerializer.Serialize(new { Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations.OrderBy(item => item.PalletNumber).ToArray())),
+            DirectProcessIds = requestedProcessIds, InheritedRowProcessIds = inheritedProcessIds });
         dbContext.LocationRackRevisions.Add(new LocationRackRevision
         {
             OperationId = command.OperationId,
@@ -342,6 +386,13 @@ public sealed class LocationRackAdministrationService(
                 });
             }
             dbContext.WarehouseMapElements.RemoveRange(mapElements);
+        }
+        var processTargets = await dbContext.ProductionProcessWipTargets.Where(x => x.RowCode == row && x.RackNumber == command.RackNumber).ToListAsync(token);
+        if (processTargets.Count != 0)
+        {
+            dbContext.RemoveRange(processTargets);
+            var configuration = await dbContext.ProductionProcessConfigurations.SingleOrDefaultAsync(x => x.Id == 1, token);
+            if (configuration is not null) configuration.Version++;
         }
         dbContext.Locations.RemoveRange(locations);
 

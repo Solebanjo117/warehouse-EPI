@@ -219,10 +219,11 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("name=\"Input.BaseUnitId\"", createHtml);
         Assert.Contains("name=\"Input.DefaultEntryLocationId\"", createHtml);
         Assert.Contains("Ubicación principal de entrada", createHtml);
-        Assert.Contains("data-product-entry-location-search", createHtml);
-        Assert.Contains("data-product-entry-location-results", createHtml);
-        Assert.Contains("data-product-entry-location-clear", createHtml);
-        Assert.Contains("/js/product-editor.js", createHtml);
+        Assert.Contains("data-cycle-plan-search", createHtml);
+        Assert.Contains("data-cycle-plan-results", createHtml);
+        Assert.Contains("data-cycle-plan-clear", createHtml);
+        Assert.Contains("data-cycle-plan-camera", createHtml);
+        Assert.Contains("/js/cycle-count.js", createHtml);
         Assert.DoesNotContain("<select id=\"Input_DefaultEntryLocationId\"", createHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Códigos de barras", createHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", createHtml, StringComparison.Ordinal);
@@ -269,10 +270,12 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("Ver ficha", editHtml);
         Assert.Contains("Ubicaciones asignadas", editHtml);
         Assert.Contains("name=\"Input.DefaultEntryLocationId\"", editHtml);
-        Assert.Contains("data-product-entry-location-search", editHtml);
+        Assert.Contains("data-cycle-plan-search", editHtml);
         Assert.Contains("role=\"combobox\"", editHtml);
         Assert.Contains("aria-controls=\"default-entry-location-results\"", editHtml);
-        Assert.Contains("/js/product-editor.js", editHtml);
+        Assert.Contains("data-cycle-plan-camera", editHtml);
+        Assert.Contains("Configuración de producción", editHtml);
+        Assert.Contains("/js/cycle-count.js", editHtml);
         Assert.DoesNotContain("Códigos de barras", editHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", editHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AddBarcode", editHtml, StringComparison.Ordinal);
@@ -284,6 +287,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var detailsHtml = await detailsPage.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailsPage.StatusCode);
         Assert.Contains("Lotes internos", detailsHtml);
+        Assert.Contains("Configuración de producción", detailsHtml);
         Assert.DoesNotContain("Códigos de barras", detailsHtml, StringComparison.OrdinalIgnoreCase);
 
         var editResponse = await client.PostAsync(
