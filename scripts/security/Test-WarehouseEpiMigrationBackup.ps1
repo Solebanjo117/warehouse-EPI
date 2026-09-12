@@ -110,7 +110,9 @@ try {
         }
         $stream = $entry[0].Open()
         try {
-            $hash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($stream)).ToLowerInvariant()
+            $sha256 = [Security.Cryptography.SHA256]::Create()
+            try { $hash = ([BitConverter]::ToString($sha256.ComputeHash($stream))).Replace('-', '').ToLowerInvariant() }
+            finally { $sha256.Dispose() }
         }
         finally { $stream.Dispose() }
         if ($hash -cne [string]$file.Sha256) {
