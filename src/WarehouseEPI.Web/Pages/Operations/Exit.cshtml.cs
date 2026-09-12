@@ -9,13 +9,7 @@ public sealed class ExitModel : OperationPageModel
     private readonly ProductionMaterialService? productionMaterials;
 
     public ExitModel(InventoryMovementService movementService, InventoryQueryService inventoryQuery,
-        OperationalInventoryQueryService operationalQuery)
-        : base(movementService, inventoryQuery, operationalQuery)
-    {
-    }
-
-    public ExitModel(InventoryMovementService movementService, InventoryQueryService inventoryQuery,
-        OperationalInventoryQueryService operationalQuery, ProductionMaterialService productionMaterials)
+        OperationalInventoryQueryService operationalQuery, ProductionMaterialService? productionMaterials = null)
         : base(movementService, inventoryQuery, operationalQuery, productionMaterials)
     {
         this.productionMaterials = productionMaterials;
