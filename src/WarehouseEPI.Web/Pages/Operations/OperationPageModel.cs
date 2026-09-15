@@ -60,6 +60,9 @@ public abstract class OperationPageModel(
         var query = PageContext?.HttpContext?.Request.Query;
         Input.WorkOrderId = Guid.TryParse(query?["workOrderId"].ToString(), out var workOrderId) ? workOrderId : null;
         Input.WorkOrderStageId = Guid.TryParse(query?["workOrderStageId"].ToString(), out var workOrderStageId) ? workOrderStageId : null;
+        Input.SupplyRequestLineId = Guid.TryParse(query?["supplyRequestLineId"].ToString(), out var supplyRequestLineId) ? supplyRequestLineId : null;
+        Input.ExpectedSupplyVersion = uint.TryParse(query?["expectedSupplyVersion"].ToString(), out var expectedSupplyVersion) ? expectedSupplyVersion : null;
+        Input.ExpectedWorkOrderVersion = uint.TryParse(query?["expectedWorkOrderVersion"].ToString(), out var expectedWorkOrderVersion) ? expectedWorkOrderVersion : null;
         await LoadSelectionAsync(cancellationToken);
 
         var invalidFields = ModelState.Where(item => item.Value?.Errors.Count > 0)
@@ -108,7 +111,8 @@ public abstract class OperationPageModel(
 
         var result = MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.WipLinkMode == WipLinkMode.Order
             ? await productionMaterials!.IssueAsync(command, Input.WorkOrderId!.Value,
-                Input.WorkOrderStageId!.Value, Input.ExpectedWorkOrderVersion!.Value, cancellationToken)
+                Input.WorkOrderStageId!.Value, Input.ExpectedWorkOrderVersion!.Value,
+                Input.SupplyRequestLineId, Input.ExpectedSupplyVersion, cancellationToken)
             : await movementService.ConfirmAsync(command, cancellationToken);
         ClearPin();
 
@@ -306,6 +310,8 @@ public abstract class OperationPageModel(
         public Guid? WorkOrderId { get; set; }
         public Guid? WorkOrderStageId { get; set; }
         public uint? ExpectedWorkOrderVersion { get; set; }
+        public Guid? SupplyRequestLineId { get; set; }
+        public uint? ExpectedSupplyVersion { get; set; }
         public uint? ExpectedBalanceVersion { get; set; }
         public decimal? Quantity { get; set; }
         [StringLength(120)] public string? Reference { get; set; }

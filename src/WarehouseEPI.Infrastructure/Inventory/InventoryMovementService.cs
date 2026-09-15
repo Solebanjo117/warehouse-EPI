@@ -30,7 +30,7 @@ public sealed class InventoryMovementService(
 
     internal async Task<InventoryMovementResult> ConfirmAuthorizedAsync(
         InventoryMovementCommand command, User user, bool allowReservedWip = false,
-        CancellationToken cancellationToken = default)
+        Guid? productionSupplyLineId = null, CancellationToken cancellationToken = default)
     {
         if (user.Role.Code is not ("ADMIN" or "OPERATOR"))
             return new(InventoryMovementStatus.InvalidPin);
@@ -48,7 +48,7 @@ public sealed class InventoryMovementService(
         if (productErrors.Count > 0)
             return new(InventoryMovementStatus.ValidationFailed, Errors: productErrors);
 
-        return await ConfirmTrackedLotsAsync(normalized, user, products, allowReservedWip, cancellationToken);
+        return await ConfirmTrackedLotsAsync(normalized, user, products, allowReservedWip, productionSupplyLineId, cancellationToken);
     }
 
     private async Task<InventoryMovementResult> ConfirmTrackedLotsAsync(
@@ -56,6 +56,7 @@ public sealed class InventoryMovementService(
         User user,
         IReadOnlyDictionary<Guid, Product> products,
         bool allowReservedWip,
+        Guid? productionSupplyLineId,
         CancellationToken cancellationToken)
     {
         var fingerprint = InventoryMovementRules.CreateFingerprint(command, user.Id);
@@ -95,6 +96,10 @@ public sealed class InventoryMovementService(
                 locationErrors.Add("El regreso WIP requiere una ubicación de bodega no WIP como destino.");
             if (locationErrors.Count != 0)
                 return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed, Errors: locationErrors), cancellationToken);
+
+            var warehouseReservationErrors = await ValidateWarehouseReservationsAsync(command, productionSupplyLineId, cancellationToken);
+            if (warehouseReservationErrors.Count != 0)
+                return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed, Errors: warehouseReservationErrors), cancellationToken);
 
             if (!allowReservedWip && command.Purpose is InventoryMovementPurpose.WipConsumption or
                     InventoryMovementPurpose.WipWarehouseReturn or InventoryMovementPurpose.WipSupplierReturn)
@@ -253,6 +258,27 @@ public sealed class InventoryMovementService(
             var requested = group.Sum(x => x.Quantity);
             if (requested > physical - reserved)
                 errors.Add("La cantidad supera el saldo WIP libre. El resto está reservado para órdenes de trabajo.");
+        }
+        return errors;
+    }
+
+    private async Task<List<string>> ValidateWarehouseReservationsAsync(InventoryMovementCommand command,
+        Guid? ownSupplyLineId, CancellationToken token)
+    {
+        var outgoing = command.Lines.Where(x => x.SourceLocationId.HasValue)
+            .GroupBy(x => new { x.ProductId, LocationId = x.SourceLocationId!.Value });
+        var errors = new List<string>();
+        foreach (var group in outgoing)
+        {
+            var reservations = await dbContext.ProductionWarehouseReservations.AsNoTracking()
+                .Where(x => x.SupplyRequestLine.ProductId == group.Key.ProductId && x.LocationId == group.Key.LocationId && x.Quantity > x.ReleasedQuantity)
+                .Select(x => new { x.SupplyRequestLineId, Remaining = x.Quantity - x.ReleasedQuantity }).ToListAsync(token);
+            var otherReserved = reservations.Where(x => x.SupplyRequestLineId != ownSupplyLineId).Sum(x => x.Remaining);
+            if (otherReserved <= 0) continue;
+            var physical = await dbContext.InventoryBalances.AsNoTracking()
+                .Where(x => x.ProductId == group.Key.ProductId && x.LocationId == group.Key.LocationId).SumAsync(x => x.Quantity, token);
+            if (group.Sum(x => x.Quantity) > Math.Max(0, physical - otherReserved))
+                errors.Add("La cantidad utilizaría material reservado para otra orden. Cambia el origen o solicita una resolución ADMIN.");
         }
         return errors;
     }

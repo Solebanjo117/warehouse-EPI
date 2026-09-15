@@ -30,7 +30,7 @@ public sealed record ProductionMaterialAvailability(decimal Total, decimal Reser
     IReadOnlyList<ProductionMaterialReservationRow> Orders);
 
 public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinService pins,
-    InventoryMovementService movements, TimeProvider timeProvider)
+    InventoryMovementService movements, TimeProvider timeProvider, ProductionSupplyService? supplies = null)
 {
     public async Task<ProductionMaterialAvailability> GetAvailabilityAsync(Guid productId, Guid locationId,
         CancellationToken token = default)
@@ -81,7 +81,8 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
     }
 
     public async Task<InventoryMovementResult> IssueAsync(InventoryMovementCommand command, Guid workOrderId,
-        Guid stageId, uint expectedVersion, CancellationToken token = default)
+        Guid stageId, uint expectedVersion, Guid? supplyRequestLineId = null,
+        uint? expectedSupplyVersion = null, CancellationToken token = default)
     {
         if (command.Purpose != InventoryMovementPurpose.ProductionIssue || command.Lines.Count != 1 ||
             command.Lines[0].DestinationLocationId is not Guid destinationId)
@@ -103,6 +104,24 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
         if (stage.WorkOrder.Version != expectedVersion)
             return new(InventoryMovementStatus.BalanceChanged,
                 Errors: ["La orden cambió mientras capturabas. Recarga y selecciona nuevamente el proceso."]);
+        ProductionSupplyRequestLine? supplyLine = null;
+        var supplyService = supplies ?? new ProductionSupplyService(db, pins, timeProvider);
+        if (stage.WorkOrder.UsesSupplyRequests)
+        {
+            if (supplyRequestLineId is not Guid lineId)
+            {
+                supplyLine = await supplyService.FindOpenDeliveryLineAsync(workOrderId, stageId,
+                    command.Lines[0].ProductId, token);
+                if (supplyLine is null) return InvalidMovement("Selecciona una solicitud vigente desde Surtimientos a producción.");
+                lineId = supplyLine.Id;
+            }
+            var supplyVersion = expectedSupplyVersion ?? supplyLine?.SupplyRequest.Version;
+            if (supplyVersion is null) return InvalidMovement("Recarga la solicitud antes de confirmar.");
+            var validation = await supplyService.ValidateDeliveryAsync(lineId, workOrderId, stageId,
+                command.Lines[0].ProductId, destinationId, command.Lines[0].Quantity, supplyVersion.Value, token);
+            if (validation.Error is not null) return InvalidMovement(validation.Error);
+            supplyLine = validation.Line;
+        }
         if (!(await EffectiveProcessIdsAsync(destinationId, token)).Contains(stage.SourceStageId))
             return InvalidMovement("El proceso de la orden no está permitido en el destino WIP seleccionado.");
 
@@ -110,7 +129,14 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
             ? await db.Database.BeginTransactionAsync(token) : null;
         try
         {
-            var result = await movements.ConfirmAsync(command, token);
+            var movementUser = await pins.AuthenticateAsync(command.Pin, token);
+            if (movementUser is null || movementUser.Role.Code is not ("ADMIN" or "OPERATOR"))
+            {
+                if (transaction is not null) await transaction.RollbackAsync(token);
+                return new(InventoryMovementStatus.InvalidPin);
+            }
+            var result = await movements.ConfirmAuthorizedAsync(command, movementUser,
+                productionSupplyLineId: supplyLine?.Id, cancellationToken: token);
             if (result.Status != InventoryMovementStatus.Success || result.MovementId is not Guid movementId)
             {
                 if (transaction is not null) await transaction.RollbackAsync(token);
@@ -123,8 +149,17 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                 db.ProductionMaterialIssueLinks.Add(new ProductionMaterialIssueLink
                 {
                     WorkOrderId = workOrderId, WorkOrderStageId = stageId,
-                    InventoryMovementLineId = line.Id, CreatedAt = timeProvider.GetUtcNow()
+                    InventoryMovementLineId = line.Id, SupplyRequestLineId = supplyLine?.Id,
+                    CreatedAt = timeProvider.GetUtcNow()
                 });
+                if (supplyLine is not null && result.ResponsibleUserId is Guid userId)
+                {
+                    var user = await db.Users.SingleAsync(x => x.Id == userId, token);
+                    var supplyFingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                        $"{command.OperationId:N}|{supplyLine.Id:N}|{command.Lines[0].Quantity.ToString(CultureInfo.InvariantCulture)}")));
+                    supplyService.CompleteDelivery(supplyLine, command.OperationId, supplyFingerprint, user,
+                        command.Lines[0].Quantity, movementId, command.Lines[0].SourceLocationId!.Value);
+                }
                 stage.WorkOrder.Version++;
                 await db.SaveChangesAsync(token);
             }

@@ -8,7 +8,7 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Infrastructure.Production;
 
-public sealed record RecipeLineInput(Guid MaterialProductId, Guid StageId, decimal Quantity);
+public sealed record RecipeLineInput(Guid MaterialProductId, Guid? StageId, decimal Quantity);
 public sealed record SaveProductionRecipeCommand(Guid ProductId, decimal BaseQuantity,
     IReadOnlyList<RecipeLineInput> Lines, string Reason, string Pin);
 public sealed record CreateProductionBatchCommand(Guid OperationId, Guid WorkOrderId,
@@ -21,9 +21,9 @@ public sealed record RecordBatchResultCommand(Guid OperationId, Guid WorkOrderId
 public sealed record ProductionTraceabilityResult(bool Success, Guid? Id = null,
     IReadOnlyList<string>? Errors = null, bool Conflict = false);
 public sealed record ProductionRecipeView(Guid Id, Guid ProductId, string Product,
-    int Version, decimal BaseQuantity, IReadOnlyList<ProductionRecipeLineView> Lines);
-public sealed record ProductionRecipeLineView(Guid MaterialProductId, string Material, Guid StageId,
-    string Stage, decimal Quantity, string Unit);
+    int Version, decimal BaseQuantity, bool IsComplete, IReadOnlyList<ProductionRecipeLineView> Lines);
+public sealed record ProductionRecipeLineView(Guid MaterialProductId, string Material, Guid? StageId,
+    string? Stage, decimal Quantity, string Unit);
 public sealed record ProductionProductStageView(Guid Id, int Sequence, string Code, string Name);
 public sealed record ProductionProductConfigurationView(bool ProductIsActive, Guid? RouteId, string? RouteName,
     IReadOnlyList<ProductionProductStageView> Stages, ProductionRecipeView? ActiveRecipe);
@@ -52,17 +52,21 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         if (user?.Role.Code != "ADMIN") return Invalid("NIP ADMIN inválido.");
         if (!await db.Products.AnyAsync(x => x.Id == command.ProductId && x.IsActive, token))
             return Invalid("El producto terminado no existe o está inactivo.");
-        var lines = command.Lines.Where(x => x.MaterialProductId != Guid.Empty && x.StageId != Guid.Empty && x.Quantity > 0)
-            .GroupBy(x => new { x.MaterialProductId, x.StageId })
-            .Select(x => new RecipeLineInput(x.Key.MaterialProductId, x.Key.StageId, x.Sum(y => y.Quantity))).ToArray();
+        var lines = command.Lines.ToArray();
         if (command.BaseQuantity <= 0 || decimal.Round(command.BaseQuantity, 4) != command.BaseQuantity || lines.Length == 0)
             return Invalid("Indica una cantidad base y al menos un material válido.");
+        if (lines.Any(x => x.MaterialProductId == Guid.Empty || x.Quantity <= 0 || decimal.Round(x.Quantity, 4) != x.Quantity))
+            return Invalid("Cada línea requiere un material válido y una cantidad positiva de hasta cuatro decimales.");
+        if (lines.GroupBy(x => new { x.MaterialProductId, x.StageId }).Any(x => x.Count() > 1))
+            return Invalid("No repitas un material sin etapa ni la misma combinación de material y etapa.");
         if (string.IsNullOrWhiteSpace(command.Reason)) return Invalid("Indica el motivo de la nueva versión.");
         var route = await db.ProductionRoutes.Include(x => x.Stages)
             .SingleOrDefaultAsync(x => x.ProductId == command.ProductId && x.IsActive, token);
-        if (route is null) return Invalid("El producto requiere una ruta activa.");
-        if (lines.Any(x => !route.Stages.Any(s => s.StageId == x.StageId)))
-            return Invalid("Todos los materiales deben incorporarse en una etapa de la ruta activa.");
+        if (lines.Any(x => x.StageId.HasValue) && route is null)
+            return Invalid("Crea la ruta antes de asignar etapas a los materiales.");
+        if (route is not null && lines.Where(x => x.StageId.HasValue)
+                .Any(x => !route.Stages.Any(s => s.StageId == x.StageId)))
+            return Invalid("Una etapa seleccionada no pertenece a la ruta activa.");
         var products = await db.Products.Include(x => x.BaseUnit)
             .Where(x => lines.Select(y => y.MaterialProductId).Contains(x.Id) && x.IsActive).ToListAsync(token);
         if (products.Count != lines.Select(x => x.MaterialProductId).Distinct().Count())
@@ -386,12 +390,21 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
             .Select(x => new ProductionProductStageView(x.StageId, x.Sequence, x.Stage.Code, x.Stage.Name)).ToArray()
             ?? [];
         var recipeView = recipe is null ? null : new ProductionRecipeView(recipe.Id, product.Id,
-            $"{product.Sku} · {product.Description}", recipe.Version, recipe.BaseQuantity,
-            recipe.Lines.OrderBy(x => stages.FirstOrDefault(stage => stage.Id == x.StageId)?.Sequence ?? int.MaxValue)
+            $"{product.Sku} · {product.Description}", recipe.Version, recipe.BaseQuantity, false,
+            recipe.Lines.OrderBy(x => x.StageId.HasValue
+                    ? stages.FirstOrDefault(stage => stage.Id == x.StageId.Value)?.Sequence ?? int.MaxValue
+                    : int.MaxValue)
                 .ThenBy(x => x.MaterialProduct.Sku)
                 .Select(x => new ProductionRecipeLineView(x.MaterialProductId,
-                    $"{x.MaterialProduct.Sku} · {x.MaterialProduct.Description}", x.StageId, x.Stage.Name,
+                    $"{x.MaterialProduct.Sku} · {x.MaterialProduct.Description}", x.StageId, x.Stage?.Name,
                     x.Quantity, x.MaterialProduct.BaseUnit.Code)).ToArray());
+        if (recipeView is not null)
+        {
+            var complete = route is not null && recipe!.Lines.Count > 0 && recipe.Lines.All(x =>
+                x.MaterialProduct.IsActive && x.Quantity > 0 && x.StageId.HasValue &&
+                route!.Stages.Any(stage => stage.StageId == x.StageId.Value && stage.Stage.IsActive));
+            recipeView = recipeView with { IsComplete = complete };
+        }
         return new ProductionProductConfigurationView(product.IsActive, route?.Id, route?.Name, stages, recipeView);
     }
 

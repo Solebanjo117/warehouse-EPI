@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Data;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -36,27 +37,53 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
         if (product is null) return Invalid("El producto no existe o está inactivo.");
         if (!product.BaseUnit.AllowsDecimals && decimal.Truncate(command.TargetQuantity)!=command.TargetQuantity) return Invalid("La unidad del producto no permite decimales.");
         var route = await db.ProductionRoutes.Include(x=>x.Stages).ThenInclude(x=>x.Stage).SingleOrDefaultAsync(x=>x.ProductId==command.ProductId && x.IsActive,token);
-        if (route is null || route.Stages.Count==0) return Invalid("Configura una ruta activa para el producto antes de crear la orden.");
         var recipe = await db.ProductionRecipes.Include(x => x.Lines).ThenInclude(x => x.MaterialProduct).SingleOrDefaultAsync(x => x.ProductId == command.ProductId && x.IsActive, token);
+        var canSnapshotRecipe = route is not null && route.Stages.Count > 0 && recipe is not null && recipe.Lines.Count > 0 &&
+            recipe.Lines.All(line => line.MaterialProduct.IsActive && line.StageId.HasValue &&
+                route.Stages.Any(stage => stage.StageId == line.StageId.Value && stage.Stage.IsActive));
         var id=Guid.NewGuid(); var number=$"OT-{timeProvider.GetUtcNow():yyyy}-{id.ToString("N")[..6].ToUpperInvariant()}";
-        var order=new ProductionWorkOrder { Id=id, CreateOperationId=command.OperationId, CreateFingerprint=fingerprint, Number=number, ExternalReference=Trim(command.ExternalReference,120), ProductId=product.Id, UnitId=product.BaseUnitId, TargetQuantity=command.TargetQuantity, AuthorizedQuantity=command.TargetQuantity, DueDate=command.DueDate, Notes=Trim(command.Notes,500), CreatedByUserId=user.Id, CreatedAt=timeProvider.GetUtcNow(), UsesBatchTraceability=recipe is not null, RecipeVersion=recipe?.Version };
-        foreach(var item in route.Stages.OrderBy(x=>x.Sequence)) order.Stages.Add(new ProductionWorkOrderStage { SourceStageId=item.StageId, Sequence=item.Sequence, Code=item.Stage.Code, Name=item.Stage.Name });
-        if(recipe is not null)
+        var order=new ProductionWorkOrder { Id=id, CreateOperationId=command.OperationId, CreateFingerprint=fingerprint, Number=number, ExternalReference=Trim(command.ExternalReference,120), ProductId=product.Id, UnitId=product.BaseUnitId, TargetQuantity=command.TargetQuantity, AuthorizedQuantity=command.TargetQuantity, DueDate=command.DueDate, Notes=Trim(command.Notes,500), CreatedByUserId=user.Id, CreatedAt=timeProvider.GetUtcNow(), UsesBatchTraceability=canSnapshotRecipe, RecipeVersion=canSnapshotRecipe ? recipe!.Version : null };
+        if(route is not null)
+            foreach(var item in route.Stages.OrderBy(x=>x.Sequence)) order.Stages.Add(new ProductionWorkOrderStage { SourceStageId=item.StageId, Sequence=item.Sequence, Code=item.Stage.Code, Name=item.Stage.Name });
+        if(canSnapshotRecipe)
         {
-            foreach(var line in recipe.Lines)
+            foreach(var line in recipe!.Lines)
             {
-                var stage=order.Stages.Single(x=>x.SourceStageId==line.StageId);
+                var stage=order.Stages.Single(x=>x.SourceStageId==line.StageId!.Value);
                 var planned=decimal.Round(line.Quantity*command.TargetQuantity/recipe.BaseQuantity,4,MidpointRounding.AwayFromZero);
                 order.MaterialPlan.Add(new ProductionOrderMaterialPlan { WorkOrderStage=stage, MaterialProductId=line.MaterialProductId, UnitId=line.MaterialProduct.BaseUnitId, PlannedQuantity=planned, OriginalPlannedQuantity=planned });
             }
         }
+        await new ProductionPlanningService(db,pins,timeProvider).ResolveNewOrderAsync(order,token);
         order.Events.Add(Event(command.OperationId,fingerprint,order,user,ProductionEventType.Created,reason:"Orden creada en borrador."));
         db.ProductionWorkOrders.Add(order);
         try { await db.SaveChangesAsync(token); return new(ProductionCommandStatus.Success,order.Id); }
         catch(DbUpdateException) { db.ChangeTracker.Clear(); existing=await db.ProductionWorkOrders.AsNoTracking().SingleOrDefaultAsync(x=>x.CreateOperationId==command.OperationId,token); return existing?.CreateFingerprint==fingerprint?new(ProductionCommandStatus.Success,existing.Id):new(ProductionCommandStatus.IdempotencyConflict); }
     }
 
-    public Task<ProductionCommandResult> ReleaseAsync(ProductionOrderActionCommand command,CancellationToken token=default)=>AdminStateAsync(command,ProductionWorkOrderStatus.Draft,ProductionWorkOrderStatus.Released,ProductionEventType.Released,"La orden sólo se puede liberar desde Borrador.",token);
+    public async Task<ProductionCommandResult> ReleaseAsync(ProductionOrderActionCommand command,CancellationToken token=default)
+    {
+        var user=await AdminAsync(command.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);
+        var fp=Fingerprint(command with{Pin=""});
+        await using var transaction=db.Database.IsRelational()?await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,token):null;
+        var result=await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>
+        {
+            if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
+            if(order.Status!=ProductionWorkOrderStatus.Draft)return Invalid("La orden sólo se puede liberar desde Borrador.");
+            var errors=await new ProductionPlanningService(db,pins,timeProvider).ValidateReleaseAsync(order,token);
+            if(errors.Count>0)return new(ProductionCommandStatus.ValidationFailed,order.Id,Errors:errors);
+            order.Status=ProductionWorkOrderStatus.Released;order.ReleasedAt=timeProvider.GetUtcNow();
+            await ProductionSupplyService.GenerateForReleaseAsync(db, order, timeProvider.GetUtcNow(), token);
+            order.Events.Add(Event(command.OperationId,fp,order,user,ProductionEventType.Released,reason:command.Reason));
+            return Success(order.Id);
+        },token);
+        if(transaction is not null)
+        {
+            if(result.Status==ProductionCommandStatus.Success)await transaction.CommitAsync(token);
+            else await transaction.RollbackAsync(token);
+        }
+        return result;
+    }
     public Task<ProductionCommandResult> PauseAsync(ProductionOrderActionCommand command,CancellationToken token=default)=>AdminStateAsync(command,null,ProductionWorkOrderStatus.Paused,ProductionEventType.Paused,"Sólo se puede pausar una orden liberada o en proceso.",token,ProductionWorkOrderStatus.Released,ProductionWorkOrderStatus.InProgress);
     public Task<ProductionCommandResult> ResumeAsync(ProductionOrderActionCommand command,CancellationToken token=default)=>AdminStateAsync(command,ProductionWorkOrderStatus.Paused,ProductionWorkOrderStatus.InProgress,ProductionEventType.Resumed,"La orden no está pausada.",token);
     public async Task<ProductionCommandResult> CancelAsync(ProductionOrderActionCommand command,CancellationToken token=default)
@@ -72,6 +99,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
         if(command.Quantity<=0 || string.IsNullOrWhiteSpace(command.Reason))return Invalid("Indica una cantidad adicional positiva y el motivo.");
         return await MutateAsync(command.OperationId,command.WorkOrderId,Fingerprint(command with{Pin=""}),async order=>{
             if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
+            if(order.UsesSupplyRequests)return Invalid("La orden ya tiene solicitudes de surtimiento. La conciliación de cambios se habilitará en una fase posterior.");
             if(order.Status is ProductionWorkOrderStatus.Draft or ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.Cancelled)return Invalid("La orden no admite ampliaciones en su estado actual.");
             order.AuthorizedQuantity+=command.Quantity; order.Events.Add(Event(command.OperationId,Fingerprint(command with{Pin=""}),order,user,ProductionEventType.QuantityAuthorized,quantity:command.Quantity,reason:command.Reason)); await Task.CompletedTask; return Success(order.Id);
         },token);
@@ -180,7 +208,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
     {var user=await AdminAsync(c.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);var fp=Fingerprint(c with{Pin=""});return await MutateAsync(c.OperationId,c.WorkOrderId,fp,async o=>{if(c.ExpectedVersion.HasValue&&o.Version!=c.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);if(expected.HasValue?o.Status!=expected:!allowed.Contains(o.Status))return Invalid(error);o.Status=next;if(next==ProductionWorkOrderStatus.Released)o.ReleasedAt=timeProvider.GetUtcNow();o.Events.Add(Event(c.OperationId,fp,o,user,type,reason:c.Reason));await Task.CompletedTask;return Success(o.Id);},token);}
     private async Task<ProductionCommandResult> MutateAsync(Guid operationId,Guid orderId,string fp,Func<ProductionWorkOrder,Task<ProductionCommandResult>> change,CancellationToken token)
     {var prior=await ExistingAsync(operationId,fp,token);if(prior is not null)return prior;var order=await LoadOrderAsync(orderId,token);if(order is null)return new(ProductionCommandStatus.NotFound);var result=await change(order);if(result.Status!=ProductionCommandStatus.Success)return result;var newEvent=order.Events.Single(x=>x.OperationId==operationId);db.Entry(newEvent).State=EntityState.Added;order.Version++;try{await db.SaveChangesAsync(token);return result;}catch(DbUpdateConcurrencyException ex){var detail=string.Join(", ",ex.Entries.Select(x=>$"{x.Metadata.ClrType.Name}:{x.State}"));db.ChangeTracker.Clear();return new(ProductionCommandStatus.ConcurrencyConflict,Errors:[$"{ex.Message} ({detail})"]);}catch(DbUpdateException){db.ChangeTracker.Clear();return await ExistingAsync(operationId,fp,token)??new(ProductionCommandStatus.IdempotencyConflict);}}
-    private Task<ProductionWorkOrder?> LoadOrderAsync(Guid id,CancellationToken t)=>db.ProductionWorkOrders.Include(x=>x.Product).ThenInclude(x=>x.BaseUnit).Include(x=>x.Stages).Include(x=>x.Events).SingleOrDefaultAsync(x=>x.Id==id,t);
+    private Task<ProductionWorkOrder?> LoadOrderAsync(Guid id,CancellationToken t)=>db.ProductionWorkOrders.Include(x=>x.Product).ThenInclude(x=>x.BaseUnit).Include(x=>x.Stages).Include(x=>x.Events).Include(x=>x.MaterialPlan).ThenInclude(x=>x.WorkOrderStage).Include(x=>x.MaterialPlan).ThenInclude(x=>x.MaterialProduct).SingleOrDefaultAsync(x=>x.Id==id,t);
     private async Task<ProductionCommandResult?> ExistingAsync(Guid op,string fp,CancellationToken t){var e=await db.ProductionEvents.AsNoTracking().SingleOrDefaultAsync(x=>x.OperationId==op,t);return e is null?null:e.RequestFingerprint==fp?new(ProductionCommandStatus.Success,e.WorkOrderId,e.InventoryMovementId):new(ProductionCommandStatus.IdempotencyConflict);}
     private async Task<User?> OperatorAsync(string pin,CancellationToken t){var u=await pins.AuthenticateAsync(pin,t);return u?.Role.Code is "ADMIN" or "OPERATOR"?u:null;} private async Task<User?> AdminAsync(string pin,CancellationToken t){var u=await pins.AuthenticateAsync(pin,t);return u?.Role.Code=="ADMIN"?u:null;}
     private static ProductionCommandResult Invalid(string e)=>new(ProductionCommandStatus.ValidationFailed,Errors:[e]);private static ProductionCommandResult Success(Guid id)=>new(ProductionCommandStatus.Success,id);

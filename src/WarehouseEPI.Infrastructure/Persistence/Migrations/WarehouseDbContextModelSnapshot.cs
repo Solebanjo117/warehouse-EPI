@@ -2575,6 +2575,10 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("inventory_movement_line_id");
 
+                    b.Property<Guid?>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
                     b.Property<Guid>("WorkOrderId")
                         .HasColumnType("uuid")
                         .HasColumnName("work_order_id");
@@ -2587,6 +2591,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("InventoryMovementLineId")
                         .IsUnique();
+
+                    b.HasIndex("SupplyRequestLineId");
 
                     b.HasIndex("WorkOrderStageId");
 
@@ -2857,6 +2863,34 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("unit_id");
 
+                    b.Property<Guid?>("WipLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("wip_location_id");
+
+                    b.Property<short?>("WipRackNumber")
+                        .HasColumnType("smallint")
+                        .HasColumnName("wip_rack_number");
+
+                    b.Property<string>("WipResolutionSource")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("wip_resolution_source");
+
+                    b.Property<string>("WipRowCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("wip_row_code");
+
+                    b.Property<string>("WipTargetCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("wip_target_code");
+
+                    b.Property<string>("WipTargetKind")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("wip_target_kind");
+
                     b.Property<Guid>("WorkOrderId")
                         .HasColumnType("uuid")
                         .HasColumnName("work_order_id");
@@ -2873,6 +2907,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UnitId");
 
+                    b.HasIndex("WipLocationId");
+
                     b.HasIndex("WorkOrderStageId");
 
                     b.HasIndex("WorkOrderId", "WorkOrderStageId", "MaterialProductId")
@@ -2881,7 +2917,67 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("production_order_material_plans", null, t =>
                         {
                             t.HasCheckConstraint("ck_production_order_material_plan_quantities", "planned_quantity > 0 AND original_planned_quantity > 0");
+
+                            t.HasCheckConstraint("ck_production_order_material_plan_wip_shape", "(wip_target_kind IS NULL AND wip_location_id IS NULL AND wip_row_code IS NULL AND wip_rack_number IS NULL AND wip_target_code IS NULL AND wip_resolution_source IS NULL) OR (wip_target_kind IN ('Area', 'Position') AND wip_location_id IS NOT NULL AND wip_row_code IS NULL AND wip_rack_number IS NULL AND wip_target_code IS NOT NULL AND wip_resolution_source IS NOT NULL) OR (wip_target_kind = 'Rack' AND wip_location_id IS NULL AND wip_row_code IS NOT NULL AND wip_rack_number IS NOT NULL AND wip_target_code IS NOT NULL AND wip_resolution_source IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionOrderPlanningRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("after_json");
+
+                    b.Property<Guid>("AuthorizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("authorized_by_user_id");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkOrderId", "RecordedAt");
+
+                    b.ToTable("production_order_planning_revisions", (string)null);
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessConfiguration", b =>
@@ -3096,7 +3192,7 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("recipe_id");
 
-                    b.Property<Guid>("StageId")
+                    b.Property<Guid?>("StageId")
                         .HasColumnType("uuid")
                         .HasColumnName("stage_id");
 
@@ -3106,8 +3202,13 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StageId");
 
+                    b.HasIndex("RecipeId", "MaterialProductId")
+                        .IsUnique()
+                        .HasFilter("stage_id IS NULL");
+
                     b.HasIndex("RecipeId", "MaterialProductId", "StageId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("stage_id IS NOT NULL");
 
                     b.ToTable("production_recipe_lines", null, t =>
                         {
@@ -3261,6 +3362,226 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("InventoryMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<Guid>("SupplyRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_id");
+
+                    b.Property<Guid?>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryMovementId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("SupplyRequestLineId");
+
+                    b.HasIndex("SupplyRequestId", "RecordedAt");
+
+                    b.ToTable("production_supply_events", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DestinationCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("destination_code");
+
+                    b.Property<Guid?>("DestinationLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_location_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationLocationId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("WorkOrderId", "WorkOrderStageId", "DestinationCode")
+                        .IsUnique();
+
+                    b.ToTable("production_supply_requests", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("CancelledQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("cancelled_quantity");
+
+                    b.Property<Guid>("MaterialPlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("material_plan_id");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("RequiredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("required_quantity");
+
+                    b.Property<Guid>("SupplyRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_id");
+
+                    b.Property<short>("UnitId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("unit_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialPlanId")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SupplyRequestId");
+
+                    b.HasIndex("UnitId");
+
+                    b.ToTable("production_supply_request_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_supply_request_line_quantities", "required_quantity > 0 AND cancelled_quantity >= 0 AND cancelled_quantity <= required_quantity");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWarehouseReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<decimal>("ReleasedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("released_quantity");
+
+                    b.Property<Guid>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LotId");
+
+                    b.HasIndex("LocationId", "LotId");
+
+                    b.HasIndex("SupplyRequestLineId", "LocationId", "LotId")
+                        .IsUnique();
+
+                    b.ToTable("production_warehouse_reservations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_warehouse_reservation_quantities", "quantity > 0 AND released_quantity >= 0 AND released_quantity <= quantity");
+                        });
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3334,6 +3655,14 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(20)")
                         .HasColumnName("status");
 
+                    b.Property<string>("SupplyPriority")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasDefaultValue("Normal")
+                        .HasColumnName("supply_priority");
+
                     b.Property<decimal>("TargetQuantity")
                         .HasPrecision(18, 4)
                         .HasColumnType("numeric(18,4)")
@@ -3346,6 +3675,12 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Property<bool>("UsesBatchTraceability")
                         .HasColumnType("boolean")
                         .HasColumnName("uses_batch_traceability");
+
+                    b.Property<bool>("UsesSupplyRequests")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("uses_supply_requests");
 
                     b.Property<long>("Version")
                         .IsConcurrencyToken()
@@ -5523,6 +5858,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany("IssueLinks")
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
                         .WithMany("MaterialIssues")
                         .HasForeignKey("WorkOrderId")
@@ -5536,6 +5876,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("InventoryMovementLine");
+
+                    b.Navigation("SupplyRequestLine");
 
                     b.Navigation("WorkOrder");
 
@@ -5667,6 +6009,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "WipLocation")
+                        .WithMany()
+                        .HasForeignKey("WipLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
                         .WithMany("MaterialPlan")
                         .HasForeignKey("WorkOrderId")
@@ -5685,9 +6032,30 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.Navigation("Unit");
 
+                    b.Navigation("WipLocation");
+
                     b.Navigation("WorkOrder");
 
                     b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionOrderPlanningRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("PlanningRevisions")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+
+                    b.Navigation("WorkOrder");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessRevision", b =>
@@ -5763,8 +6131,7 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "Stage")
                         .WithMany()
                         .HasForeignKey("StageId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("MaterialProduct");
 
@@ -5811,6 +6178,127 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("DefaultWipLocation");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "InventoryMovement")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequest", "SupplyRequest")
+                        .WithMany("Events")
+                        .HasForeignKey("SupplyRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany()
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("InventoryMovement");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("SupplyRequest");
+
+                    b.Navigation("SupplyRequestLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequest", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DestinationLocation")
+                        .WithMany()
+                        .HasForeignKey("DestinationLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("SupplyRequests")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationLocation");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionOrderMaterialPlan", "MaterialPlan")
+                        .WithMany()
+                        .HasForeignKey("MaterialPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequest", "SupplyRequest")
+                        .WithMany("Lines")
+                        .HasForeignKey("SupplyRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("MaterialPlan");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("SupplyRequest");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWarehouseReservation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "Lot")
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany("Reservations")
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Lot");
+
+                    b.Navigation("SupplyRequestLine");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>
@@ -6255,6 +6743,20 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("WipTargets");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequest", b =>
+                {
+                    b.Navigation("Events");
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", b =>
+                {
+                    b.Navigation("IssueLinks");
+
+                    b.Navigation("Reservations");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>
                 {
                     b.Navigation("Batches");
@@ -6267,7 +6769,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.Navigation("MaterialPlan");
 
+                    b.Navigation("PlanningRevisions");
+
                     b.Navigation("Stages");
+
+                    b.Navigation("SupplyRequests");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", b =>

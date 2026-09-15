@@ -75,6 +75,51 @@ public sealed class ProductCatalogIndexContractTests
         Assert.Contains("(\"active\", \"all\", \"unassigned\") => \"unassigned\"", model, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Product_catalog_recipe_summary_is_lazy_accessible_and_admin_only()
+    {
+        var page = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "Index.cshtml");
+        var model = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "Index.cshtml.cs");
+        var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "product-recipe-summary.js");
+        var styles = Read("src", "WarehouseEPI.Web", "wwwroot", "css", "products-index.css");
+
+        Assert.Contains("[Authorize(Policy = \"AdminOnly\")]", model, StringComparison.Ordinal);
+        Assert.Contains("OnGetRecipeSummaryAsync", model, StringComparison.Ordinal);
+        Assert.Contains("data-product-recipe-catalog", page, StringComparison.Ordinal);
+        Assert.Contains("product-recipe-detail-row", page, StringComparison.Ordinal);
+        Assert.Contains("product-recipe-mobile", page, StringComparison.Ordinal);
+        Assert.Contains("aria-expanded=\"false\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-product-recipe-trigger", page, StringComparison.Ordinal);
+        Assert.Contains("visually-hidden-focusable product-recipe-keyboard-toggle", page, StringComparison.Ordinal);
+        Assert.Contains("Receta v@(recipeVersion)", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ver receta", page, StringComparison.Ordinal);
+        Assert.Contains("Sin receta activa", page, StringComparison.Ordinal);
+        Assert.Contains("Configurar receta", page, StringComparison.Ordinal);
+        Assert.Contains("Editar receta", page, StringComparison.Ordinal);
+        Assert.Contains("asp-fragment=\"product-production\"", page, StringComparison.Ordinal);
+        Assert.Contains("product-recipe-summary.js", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("const cache = new Map()", script, StringComparison.Ordinal);
+        Assert.Contains("if (openButton) close(openButton)", script, StringComparison.Ordinal);
+        Assert.Contains("[data-product-recipe-panel]", script, StringComparison.Ordinal);
+        Assert.Contains("a, button, input, select, textarea, label", script, StringComparison.Ordinal);
+        Assert.Contains("is-recipe-expanded", script, StringComparison.Ordinal);
+        Assert.Contains("event.key === \"Escape\"", script, StringComparison.Ordinal);
+        Assert.Contains("textContent", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("innerHTML", script, StringComparison.Ordinal);
+        Assert.Contains("table-layout: fixed", styles, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: minmax(0, 1.2fr) minmax(0, 2fr) minmax(0, .8fr)", styles, StringComparison.Ordinal);
+        Assert.Contains(".product-recipe-detail-row > td", styles, StringComparison.Ordinal);
+        Assert.Contains("max-width: 100%", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("minmax(20rem, 2fr)", styles, StringComparison.Ordinal);
+        Assert.Contains("padding: .5rem .625rem", styles, StringComparison.Ordinal);
+        Assert.Contains("grid-template-columns: repeat(2, minmax(0, 1fr))", styles, StringComparison.Ordinal);
+
+        var detail = page.IndexOf("asp-page=\"Details\"", StringComparison.Ordinal);
+        var edit = page.IndexOf("asp-page=\"Edit\"", StringComparison.Ordinal);
+        Assert.True(detail >= 0 && edit > detail);
+    }
+
     private static string Read(params string[] parts) => File.ReadAllText(RepositoryPath(parts));
 
     private static int CountOccurrences(string source, string value) =>

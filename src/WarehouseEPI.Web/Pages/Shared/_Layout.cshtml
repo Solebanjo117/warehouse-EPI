@@ -93,6 +93,9 @@
 
             <div class="app-nav-group">
                 <div class="app-nav-heading">Operación</div>
+                <a class="app-nav-link @(IsSection("/Operations/ProductionSupply") ? "active" : null)" asp-page="/Operations/ProductionSupply/Index" aria-current="@(IsSection("/Operations/ProductionSupply") ? "page" : null)" title="Surtimientos a producción" data-supply-count-root data-snapshot-url="@Url.Page("/Operations/ProductionSupply/Index", "Snapshot")">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Surtimientos a producción</span><span class="notification-count" data-supply-count hidden>0</span>
+                </a>
                 <a class="app-nav-link @(IsCurrent("/Operations/Entry") ? "active" : null)" asp-page="/Operations/Entry" aria-current="@(IsCurrent("/Operations/Entry") ? "page" : null)" title="Entrada">
                     <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Entrada</span>
                 </a>

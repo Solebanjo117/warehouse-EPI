@@ -89,6 +89,10 @@ public sealed class InventoryCorrectionService(
             var materialIssue = await dbContext.ProductionMaterialIssueLinks
                 .Include(link => link.WorkOrder)
                 .Include(link => link.OperationLines).ThenInclude(line => line.Operation)
+                .Include(link => link.InventoryMovementLine)
+                .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.Reservations)
+                .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.IssueLinks).ThenInclude(issue => issue.InventoryMovementLine)
+                .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.SupplyRequest).ThenInclude(request => request.Events)
                 .SingleOrDefaultAsync(link => originalLineIds.Contains(link.InventoryMovementLineId), cancellationToken);
             if (materialIssue is not null)
             {
@@ -108,6 +112,15 @@ public sealed class InventoryCorrectionService(
                      issueReplacement.Lines[0].DestinationLocationId != original.Lines.Single().DestinationLocationId))
                     return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
                         Errors: ["El reemplazo debe conservar producto, destino WIP y propósito del surtimiento vinculado."]), cancellationToken);
+                if (normalized.Replacement is { } supplyReplacement && materialIssue.SupplyRequestLine is { } supplyLine)
+                {
+                    var deliveredByOthers = supplyLine.IssueLinks.Where(x => x.Id != materialIssue.Id)
+                        .Sum(x => x.InventoryMovementLine.Quantity);
+                    if (supplyReplacement.Lines.Single().Quantity > supplyLine.RequiredQuantity -
+                        supplyLine.CancelledQuantity - deliveredByOthers)
+                        return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                            Errors: ["El reemplazo supera el pendiente permitido por la solicitud de surtimiento."]), cancellationToken);
+                }
             }
             if (await dbContext.WipDispositions.AnyAsync(disposition =>
                     originalLineIds.Contains(disposition.OriginalMovementLineId) &&
@@ -126,7 +139,7 @@ public sealed class InventoryCorrectionService(
             InventoryMovementResult? replacementResult = null;
             if (normalized.Replacement is not null)
             {
-                replacementResult = await movementService.ConfirmAsync(new(
+                var replacementCommand = new InventoryMovementCommand(
                     Guid.NewGuid(),
                     normalized.Replacement.Type,
                     normalized.Pin,
@@ -135,7 +148,11 @@ public sealed class InventoryCorrectionService(
                     normalized.Replacement.Notes,
                     normalized.Replacement.ApprovedSharedAssignments,
                     normalized.Replacement.Purpose,
-                    normalized.Replacement.OperationalAreaId), cancellationToken);
+                    normalized.Replacement.OperationalAreaId);
+                replacementResult = materialIssue?.SupplyRequestLineId is Guid supplyLineId
+                    ? await movementService.ConfirmAuthorizedAsync(replacementCommand, requestedBy,
+                        productionSupplyLineId: supplyLineId, cancellationToken: cancellationToken)
+                    : await movementService.ConfirmAsync(replacementCommand, cancellationToken);
                 if (replacementResult.Status != InventoryMovementStatus.Success)
                     return await AbortAsync(transaction, Map(replacementResult), cancellationToken);
             }
@@ -158,6 +175,8 @@ public sealed class InventoryCorrectionService(
             dbContext.InventoryMovementCorrections.Add(correction);
             if (materialIssue is not null)
             {
+                var originalQuantity = materialIssue.InventoryMovementLine.Quantity;
+                var replacementQuantity = normalized.Replacement?.Lines.Single().Quantity ?? 0;
                 if (replacementResult?.MovementId is Guid replacementId)
                 {
                     var replacementLine = await dbContext.InventoryMovementLines
@@ -169,6 +188,24 @@ public sealed class InventoryCorrectionService(
                     dbContext.ProductionMaterialIssueLinks.Remove(materialIssue);
                 }
                 materialIssue.WorkOrder.Version++;
+                if (materialIssue.SupplyRequestLine is { } supplyLine)
+                {
+                    var restore = Math.Max(0, originalQuantity - replacementQuantity);
+                    foreach (var reservation in supplyLine.Reservations.Where(x => x.ReleasedQuantity > 0).OrderByDescending(x => x.CreatedAt))
+                    {
+                        var amount = Math.Min(restore, reservation.ReleasedQuantity);
+                        reservation.ReleasedQuantity -= amount; restore -= amount; if (restore == 0) break;
+                    }
+                    var request = supplyLine.SupplyRequest;
+                    request.Events.Add(new ProductionSupplyEvent { OperationId = normalized.OperationId,
+                        RequestFingerprint = fingerprint, SupplyRequest = request, SupplyRequestLine = supplyLine,
+                        Type = ProductionSupplyEventType.DeliveryReversed, ResponsibleUserId = authorizedBy.Id,
+                        Quantity = originalQuantity - replacementQuantity, Reason = normalized.Reason,
+                        RecordedAt = timeProvider.GetUtcNow() });
+                    dbContext.Entry(request.Events.Last()).State = EntityState.Added;
+                    request.Status = ProductionSupplyRequestStatus.InProgress;
+                    request.Version++;
+                }
             }
             await dbContext.SaveChangesAsync(cancellationToken);
             if (isDocumentReceipt && receivingService is not null)

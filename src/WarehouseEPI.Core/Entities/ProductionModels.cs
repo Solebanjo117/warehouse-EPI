@@ -133,6 +133,8 @@ public sealed class ProductionWorkOrder
     public DateTimeOffset? ClosedAt { get; set; }
     public uint Version { get; set; }
     public bool UsesBatchTraceability { get; set; }
+    public bool UsesSupplyRequests { get; set; }
+    public ProductionSupplyPriority SupplyPriority { get; set; } = ProductionSupplyPriority.Normal;
     public int? RecipeVersion { get; set; }
     public Product Product { get; set; } = null!;
     public Unit Unit { get; set; } = null!;
@@ -142,7 +144,9 @@ public sealed class ProductionWorkOrder
     public ICollection<ProductionMaterialIssueLink> MaterialIssues { get; set; } = [];
     public ICollection<ProductionMaterialOperation> MaterialOperations { get; set; } = [];
     public ICollection<ProductionOrderMaterialPlan> MaterialPlan { get; set; } = [];
+    public ICollection<ProductionOrderPlanningRevision> PlanningRevisions { get; set; } = [];
     public ICollection<ProductionBatch> Batches { get; set; } = [];
+    public ICollection<ProductionSupplyRequest> SupplyRequests { get; set; } = [];
 }
 
 public sealed class ProductionWorkOrderStage
@@ -165,11 +169,84 @@ public sealed class ProductionMaterialIssueLink
     public Guid WorkOrderId { get; set; }
     public Guid WorkOrderStageId { get; set; }
     public Guid InventoryMovementLineId { get; set; }
+    public Guid? SupplyRequestLineId { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ProductionWorkOrder WorkOrder { get; set; } = null!;
     public ProductionWorkOrderStage WorkOrderStage { get; set; } = null!;
     public InventoryMovementLine InventoryMovementLine { get; set; } = null!;
+    public ProductionSupplyRequestLine? SupplyRequestLine { get; set; }
     public ICollection<ProductionMaterialOperationLine> OperationLines { get; set; } = [];
+}
+
+public enum ProductionSupplyPriority { Normal, Urgent }
+public enum ProductionSupplyRequestStatus { Pending, InProgress, Completed, Cancelled }
+public enum ProductionSupplyEventType { Created, PreparationStarted, PreparationContinued, StockReserved, ProblemReported, QuantityCancelled, PriorityChanged, Delivered, DeliveryReversed }
+
+public sealed class ProductionSupplyRequest
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid WorkOrderId { get; set; }
+    public Guid WorkOrderStageId { get; set; }
+    public string DestinationCode { get; set; } = string.Empty;
+    public Guid? DestinationLocationId { get; set; }
+    public ProductionSupplyRequestStatus Status { get; set; } = ProductionSupplyRequestStatus.Pending;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public uint Version { get; set; }
+    public ProductionWorkOrder WorkOrder { get; set; } = null!;
+    public ProductionWorkOrderStage WorkOrderStage { get; set; } = null!;
+    public Location? DestinationLocation { get; set; }
+    public ICollection<ProductionSupplyRequestLine> Lines { get; set; } = [];
+    public ICollection<ProductionSupplyEvent> Events { get; set; } = [];
+}
+
+public sealed class ProductionSupplyRequestLine
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid SupplyRequestId { get; set; }
+    public Guid MaterialPlanId { get; set; }
+    public Guid ProductId { get; set; }
+    public short UnitId { get; set; }
+    public decimal RequiredQuantity { get; set; }
+    public decimal CancelledQuantity { get; set; }
+    public ProductionSupplyRequest SupplyRequest { get; set; } = null!;
+    public ProductionOrderMaterialPlan MaterialPlan { get; set; } = null!;
+    public Product Product { get; set; } = null!;
+    public Unit Unit { get; set; } = null!;
+    public ICollection<ProductionWarehouseReservation> Reservations { get; set; } = [];
+    public ICollection<ProductionMaterialIssueLink> IssueLinks { get; set; } = [];
+}
+
+public sealed class ProductionWarehouseReservation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid SupplyRequestLineId { get; set; }
+    public Guid LocationId { get; set; }
+    public Guid LotId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal ReleasedQuantity { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ProductionSupplyRequestLine SupplyRequestLine { get; set; } = null!;
+    public Location Location { get; set; } = null!;
+    public ProductLot Lot { get; set; } = null!;
+}
+
+public sealed class ProductionSupplyEvent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public string RequestFingerprint { get; set; } = string.Empty;
+    public Guid SupplyRequestId { get; set; }
+    public Guid? SupplyRequestLineId { get; set; }
+    public ProductionSupplyEventType Type { get; set; }
+    public Guid ResponsibleUserId { get; set; }
+    public decimal Quantity { get; set; }
+    public string? Reason { get; set; }
+    public Guid? InventoryMovementId { get; set; }
+    public DateTimeOffset RecordedAt { get; set; } = DateTimeOffset.UtcNow;
+    public ProductionSupplyRequest SupplyRequest { get; set; } = null!;
+    public ProductionSupplyRequestLine? SupplyRequestLine { get; set; }
+    public User ResponsibleUser { get; set; } = null!;
+    public InventoryMovement? InventoryMovement { get; set; }
 }
 
 public sealed class ProductionMaterialOperation

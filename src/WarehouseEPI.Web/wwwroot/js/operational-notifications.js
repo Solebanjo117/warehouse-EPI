@@ -64,3 +64,24 @@
   root.addEventListener("hidden.bs.offcanvas", () => document.querySelectorAll("[data-notification-trigger]").forEach((x) => x.setAttribute("aria-expanded", "false")));
   refresh(false);
 })();
+
+(() => {
+  "use strict";
+  const root = document.querySelector("[data-supply-count-root]");
+  const badge = root?.querySelector("[data-supply-count]");
+  if (!root || !badge) return;
+  const refresh = async () => {
+    if (document.hidden) return;
+    try {
+      const response = await fetch(root.dataset.snapshotUrl, { cache: "no-store", headers: { Accept: "application/json" } });
+      if (!response.ok) return;
+      const count = Number((await response.json()).pendingOrders || 0);
+      badge.textContent = count > 99 ? "99+" : String(count);
+      badge.hidden = count === 0;
+      root.setAttribute("aria-label", count === 0 ? "Surtimientos a producción" : `Surtimientos a producción, ${count} órdenes pendientes`);
+    } catch { /* El siguiente intervalo vuelve a consultar. */ }
+  };
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  refresh();
+  window.setInterval(refresh, 30000);
+})();

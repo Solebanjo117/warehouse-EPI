@@ -72,9 +72,14 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductionRecipe> ProductionRecipes => Set<ProductionRecipe>();
     public DbSet<ProductionRecipeLine> ProductionRecipeLines => Set<ProductionRecipeLine>();
     public DbSet<ProductionOrderMaterialPlan> ProductionOrderMaterialPlans => Set<ProductionOrderMaterialPlan>();
+    public DbSet<ProductionOrderPlanningRevision> ProductionOrderPlanningRevisions => Set<ProductionOrderPlanningRevision>();
     public DbSet<ProductionBatch> ProductionBatches => Set<ProductionBatch>();
     public DbSet<ProductionBatchResult> ProductionBatchResults => Set<ProductionBatchResult>();
     public DbSet<ProductionBatchMaterialConsumption> ProductionBatchMaterialConsumptions => Set<ProductionBatchMaterialConsumption>();
+    public DbSet<ProductionSupplyRequest> ProductionSupplyRequests => Set<ProductionSupplyRequest>();
+    public DbSet<ProductionSupplyRequestLine> ProductionSupplyRequestLines => Set<ProductionSupplyRequestLine>();
+    public DbSet<ProductionWarehouseReservation> ProductionWarehouseReservations => Set<ProductionWarehouseReservation>();
+    public DbSet<ProductionSupplyEvent> ProductionSupplyEvents => Set<ProductionSupplyEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1316,7 +1321,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption) &&
+            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption or ProductionSupplyEvent) &&
                 (entry.State is EntityState.Modified or EntityState.Deleted))
             .Select(entry => entry.Metadata.ClrType.Name)
             .Distinct()

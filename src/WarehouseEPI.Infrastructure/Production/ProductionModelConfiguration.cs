@@ -86,13 +86,17 @@ public static partial class ProductionModelConfiguration
         issue.Property(x => x.WorkOrderId).HasColumnName("work_order_id");
         issue.Property(x => x.WorkOrderStageId).HasColumnName("work_order_stage_id");
         issue.Property(x => x.InventoryMovementLineId).HasColumnName("inventory_movement_line_id");
+        issue.Property(x => x.SupplyRequestLineId).HasColumnName("supply_request_line_id");
         issue.Property(x => x.CreatedAt).HasColumnName("created_at");
         issue.HasIndex(x => x.InventoryMovementLineId).IsUnique();
         issue.HasIndex(x => new { x.WorkOrderId, x.WorkOrderStageId });
+        issue.HasIndex(x => x.SupplyRequestLineId);
         issue.HasOne(x => x.WorkOrder).WithMany(x => x.MaterialIssues).HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Restrict);
         issue.HasOne(x => x.WorkOrderStage).WithMany(x => x.MaterialIssues).HasForeignKey(x => x.WorkOrderStageId).OnDelete(DeleteBehavior.Restrict);
         issue.HasOne(x => x.InventoryMovementLine).WithOne(x => x.MaterialIssueLink)
             .HasForeignKey<ProductionMaterialIssueLink>(x => x.InventoryMovementLineId).OnDelete(DeleteBehavior.Restrict);
+        issue.HasOne(x => x.SupplyRequestLine).WithMany(x => x.IssueLinks)
+            .HasForeignKey(x => x.SupplyRequestLineId).OnDelete(DeleteBehavior.Restrict);
 
         var operation = modelBuilder.Entity<ProductionMaterialOperation>();
         operation.ToTable("production_material_operations", table => table.HasCheckConstraint(

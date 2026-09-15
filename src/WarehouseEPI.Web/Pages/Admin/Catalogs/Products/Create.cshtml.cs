@@ -24,7 +24,7 @@ public sealed class CreateModel(WarehouseDbContext dbContext, ProductionWipDefau
     public async Task<IActionResult> OnGetWipTargetsAsync(Guid stageId, string? q, CancellationToken token) =>
         new JsonResult(await wipDefaults.SearchAsync(stageId, q, token));
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken token)
+    public async Task<IActionResult> OnPostAsync(string? nextStep, CancellationToken token)
     {
         ProductPageSupport.Normalize(Input);
         await ProductPageSupport.ValidateAsync(dbContext, Input, ModelState, token);
@@ -68,6 +68,8 @@ public sealed class CreateModel(WarehouseDbContext dbContext, ProductionWipDefau
             return Page();
         }
         TempData["Success"] = "Producto creado.";
+        if (string.Equals(nextStep, "production", StringComparison.Ordinal))
+            return RedirectToPage("Edit", null, new { id = product.Id }, "product-production");
         return RedirectToPage("Details", new { id = product.Id });
     }
 
@@ -77,7 +79,6 @@ public sealed class CreateModel(WarehouseDbContext dbContext, ProductionWipDefau
         var setup = await wipDefaults.GetSetupAsync(token);
         WipConfiguration = new(setup.Version, [], setup.Processes, []);
         if (Wip.ExpectedVersion == 0) Wip.ExpectedVersion = setup.Version;
-        while (Wip.Rules.Count < Math.Max(4, setup.Processes.Count)) Wip.Rules.Add(new());
     }
     private static string WipError(WipDefaultResult result) => result.Status switch
     {

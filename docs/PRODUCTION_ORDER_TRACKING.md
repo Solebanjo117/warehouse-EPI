@@ -1,6 +1,6 @@
 # Seguimiento integral de órdenes de producción
 
-Decisiones operativas actualizadas: 11 de septiembre de 2026. Esta actualización documenta acuerdos; no acredita su implementación, migración ni despliegue.
+Decisiones operativas actualizadas: 11 de septiembre de 2026. Esta actualización documenta acuerdos; no acredita su implementación, migración ni despliegue. El contraste de esos acuerdos contra el código, del 14 de septiembre de 2026, está en §8.1, y el estado de las decisiones abiertas en §8.2.
 
 ## 1. Propósito
 
@@ -108,9 +108,9 @@ El destino debe pertenecer a las áreas, filas o racks WIP permitidos para el pr
 
 ### 4.1 Creación
 
-El ADMIN crea una orden seleccionando producto terminado, cantidad objetivo, fecha requerida y referencia opcional. El producto debe estar activo y tener una ruta activa.
+El ADMIN crea una orden seleccionando producto terminado, cantidad objetivo, fecha requerida y referencia opcional. El producto debe estar activo; la orden puede conservarse en borrador aunque la ruta o la receta todavía estén incompletas.
 
-Al crear la orden, el sistema copia:
+Al crear la orden, el sistema copia únicamente la configuración completa disponible:
 
 - producto y unidad del terminado;
 - etapas y secuencia de la ruta;
@@ -118,6 +118,8 @@ Al crear la orden, el sistema copia:
 - cantidades previstas escaladas;
 - proceso de incorporación de cada material;
 - configuración WIP resuelta para cada material.
+
+Si la ruta aún no existe, la orden queda sin etapas fotografiadas. Si la receta tiene materiales sin etapa o no es compatible con la ruta, queda sin versión fotografiada ni plan de materiales. Una revisión ADMIN posterior puede incorporar por primera vez esos datos cuando estén completos; nunca sustituye una fotografía existente.
 
 Cambiar posteriormente el catálogo no debe alterar una orden existente. Una receta modificada crea una versión y solamente afecta órdenes nuevas.
 
@@ -140,7 +142,7 @@ Un faltante de existencia genera una alerta, pero su tratamiento debe ser una de
 
 Liberar la orden crea pendientes identificables de surtimiento para bodega, agrupados por proceso y destino WIP, y reserva el material para la orden antes de su traslado. Crear la solicitud y la reserva no mueve inventario físico. La reserva debe indicar folio de orden y una descripción breve del motivo; se distinguirán los estados **Reservado en almacén** y **Reservado en WIP**. El traslado conserva la asociación con la misma orden.
 
-La cantidad solicitada y la cantidad efectivamente reservada se mostrarán por separado. Queda por definir el tratamiento de faltantes al liberar: no se presentará material inexistente como una reserva respaldada por existencia física.
+La cantidad solicitada y la cantidad efectivamente reservada se mostrarán por separado. La liberación puede continuar con faltantes. El sistema reserva únicamente la existencia libre real disponible y mantiene separado el faltante para que bodega lo reserve después mediante una acción explícita. No presenta el faltante como reserva respaldada ni sustituye materiales automáticamente.
 
 Cada solicitud contiene:
 
@@ -373,9 +375,9 @@ Los reportes tendrán filtros GET, paginación, zona horaria del almacén y expo
 
 - rutas secuenciales por producto;
 - procesos asociados a áreas, filas y racks WIP;
-- recetas versionadas integradas en la ficha del producto;
+- recetas versionadas integradas en la ficha del producto, incluida una lista de materiales incompleta antes de definir la ruta;
 - cantidad base y cálculo proporcional de materiales;
-- copia de ruta y receta a órdenes nuevas;
+- copia de ruta y receta completas a órdenes nuevas y finalización auditada de fotografías ausentes durante el borrador;
 - lotes de producción y lote de inventario terminado;
 - resultados parciales, retrabajo y merma;
 - consumos reales vinculados a lotes de materiales;
@@ -390,19 +392,66 @@ Estas funciones tienen migraciones pendientes de aplicación y validación físi
 
 ### Pendiente de implementar
 
-Los acuerdos del 11 de septiembre requieren contrastarse con el código antes de declararlos implementados: reserva previa al traslado, elección de WIP existente o surtimiento completo, ajustes auditados, un solo lote por orden y cierre con diferencias y retrabajo diferido.
+Los acuerdos del 11 de septiembre fueron contrastados con el código el 14 de
+septiembre; el resultado está en §8.1. Las fases P1, P2 y P3 entregaron el WIP
+predeterminado, la fotografía de planificación, las solicitudes persistentes y la
+cola de bodega. Lo que sigue abierto:
 
-- WIP predeterminado por material y proceso;
-- WIP predeterminado opcional del proceso;
-- resolución y copia del destino WIP en la orden;
-- solicitudes persistentes de surtimiento generadas al liberar;
-- cola específica y contador de alertas para bodega;
-- toma y bloqueo operativo de una solicitud por un operador;
 - sugerencia consolidada de ubicaciones y lotes de origen;
-- estado **Material listo en WIP** por proceso;
+- asignación explícita de material libre ya presente en WIP;
+- estado **Material listo en WIP** por proceso, si se decide persistirlo;
+- cierre principal con retrabajo diferido y cierre definitivo;
+- merma de materia prima como operación con motivo y efecto de inventario;
+- fecha de operación distinta de la fecha de registro en producción;
+- catálogo reutilizable de motivos de merma, retrabajo, diferencia y excepción;
+- pendiente de retrabajo con antigüedad, intentos, recuperación y descarte;
 - tablero analítico completo de producción;
 - exportaciones específicas de producción;
 - validación visual y física integral.
+
+### 8.1 Contraste con el código — 14 de septiembre de 2026
+
+Esta revisión compara los acuerdos documentados contra el código del repositorio.
+Confirma únicamente lo verificable en código: no acredita migración aplicada,
+piloto ni despliegue. Corrige además afirmaciones previas que resultaron
+inexactas.
+
+| Afirmación | Veredicto | Corrección |
+|---|---|---|
+| Reservas protegidas en almacén y WIP | Confirmada | WIP se protege en `ValidateFreeWipAsync`; almacén con las reservas P3 en `ValidateWarehouseReservationsAsync`. |
+| Entregas y recepciones entre etapas inexistentes | Incorrecta | Ya existen `DeliverAsync`, `ReceiveAsync`, devolución y pérdida de diferencias, con cantidades conciliadas. |
+| Cierre bloquea retrabajo diferido | Confirmada y prioritaria | `CloseAsync` exige `Rework == 0`; contradice el acuerdo de cierre principal con retrabajo pendiente. |
+| Cierre no registra diferencia ni autorización | Parcialmente confirmada | Guarda la cantidad recibida y el motivo, y la diferencia se puede calcular contra la meta. Sí exige NIP ADMIN: `CloseAsync` autentica ADMIN y registra al responsable en el evento. Falta persistir la diferencia explícita y modelar el cierre principal frente al definitivo. |
+| Estados P3 faltantes | Parcialmente confirmada | Persistidos: Pendiente, En surtimiento, Completada, Cancelada. Parcial y Sin existencia se derivan de entregado, reservado, pendiente y faltante; Bloqueada se deriva de una orden pausada; Lista en WIP equivale a completada. Si se necesitan historial, filtros y SLA por estado, deben convertirse en estados persistidos y auditados. |
+| Desperdicio de materia prima | Confirmada | Sólo existen consumo, devolución a bodega o proveedor y reverso. Falta un tipo de merma de material con motivo y efecto real de inventario. |
+| Fecha de operación distinta del registro | Confirmada para producción | Los movimientos de inventario ya tienen `OccurredAt` y `RecordedAt`; los resultados, eventos de proceso y entregas de producción sólo guardan `RecordedAt`. |
+| Catálogo de motivos | Confirmada | Los motivos son texto libre; no hay catálogo reutilizable para merma, retrabajo, diferencias o excepciones. |
+| Tránsito y relevo | Pendiente por decisión, no defecto de implementación | El documento lo deja abierto expresamente. P3 ya permite toma informativa y continuación por otro operador; no modela material recogido o en tránsito. |
+| Antigüedad e intentos de retrabajo | Parcialmente confirmada | Cada resultado conserva fecha y puede marcarse como retrabajo, pero no hay una entidad de pendiente de retrabajo con fecha de origen, intento, antigüedad, recuperación y descarte. |
+| P4 sin empezar | Parcialmente confirmada | Falta su núcleo: sugerencias consolidadas de origen y lote, material libre en WIP y flujo guiado. P3 ya permite reportar problema, continuar la preparación y cambiar origen usando la captura de salida existente. |
+| P6 sin empezar | Confirmada | Hay consulta operacional de producción y trazabilidad, pero no reportes de rendimiento, tiempos, desviación contra receta, merma y retrabajo, ni exportaciones de producción. |
+| P7 sin empezar | Confirmada en despliegue | No hay evidencia de aplicación operativa, piloto, validación en tablet, HID o cámara, ni publicación. El repositorio contiene migraciones pendientes de validar contra el historial de la base objetivo; su aplicación y el despliegue siguen pendientes. El conteo exacto pertenece al procedimiento de P7 y a la base concreta, previa confirmación explícita del destino. |
+
+### 8.2 Decisiones cerradas y decisiones abiertas
+
+Quedaron **decididas e implementadas** en P3, y ya no deben tratarse como
+pendientes: el tratamiento de faltantes al liberar —liberar, reservar sólo lo
+disponible y mostrar el faltante— y la toma con relevo informativo de una
+solicitud.
+
+Permanecen **abiertas**:
+
+- cierre principal frente a cierre definitivo, y tratamiento de las reservas
+  durante el retrabajo;
+- proceso de retorno del retrabajo y autorización de su descarte;
+- límites de los ajustes de una orden después de que exista consumo o recepción;
+- representación del material físicamente en tránsito y el relevo formal;
+- sustitución manual de material, su autorización y su trazabilidad.
+
+**Prioridad inmediata:** resolver el modelo de cierre principal con retrabajo
+diferido antes de ampliar P5. Es la contradicción funcional más seria del módulo:
+hoy el sistema sólo permite cerrar una orden cuando el retrabajo ya fue resuelto,
+mientras que la operación real atiende el retrabajo días después.
 
 ## 9. Fases de implementación
 
@@ -429,13 +478,26 @@ La migración incremental es `20260911184026_MaterialWipDefaults` y el SQL revis
 
 **Objetivo:** convertir una orden en un plan histórico completo y estable.
 
+**Estado al 14 de septiembre de 2026:** núcleo de planificación y consulta desplegable de receta implementados en código; migración y validación visual/física pendientes.
+
 - Resolver destinos WIP al crear o revisar el borrador.
 - Copiar receta, ruta, cantidades y destinos a la orden.
 - Mostrar faltantes o configuraciones incompletas.
 - Impedir la liberación cuando un destino obligatorio no esté resuelto.
 - Preservar órdenes existentes cuando cambie el catálogo.
+- Agregar en la lista de productos una consulta desplegable de los materiales de la receta activa, sin abandonar el listado.
 
-**Aceptación:** una orden conserva sus destinos aunque después cambie el WIP predeterminado del material.
+**Aceptación:** una orden conserva sus destinos aunque después cambie el WIP predeterminado del material. Desde el listado de productos se puede consultar rápidamente la receta activa, sus materiales, cantidades, unidades, procesos y destinos WIP sin confundir esos valores con existencias reales.
+
+La orden fotografía por material el tipo, la referencia y el código visible del destino WIP, junto con el origen de la resolución: regla del material, valor general del proceso, único destino concreto del proceso o excepción manual. La precedencia no sustituye silenciosamente una referencia configurada que esté bloqueada, inactiva o incompatible: la deja sin resolver para que el ADMIN atienda el bloqueo. Una fila completa continúa siendo una asociación permitida del proceso, no un destino final de la orden.
+
+Crear el borrador intenta resolver los destinos dentro de la misma operación. La revisión sólo completa datos ausentes y no recalcula fotografías existentes; un ADMIN puede elegir para el borrador otro destino válido con motivo, NIP, control de versión e idempotencia sin modificar P1. Liberar vuelve a validar receta, ruta, materiales, cantidades, procesos y destinos en el servidor. La existencia actual se presenta por separado como disponibilidad de almacén y libre en WIP; un faltante genera advertencia, no reserva ni bloqueo.
+
+La migración incremental es `20260914122652_Phase132ProductionPlanningSnapshot` y el SQL revisable está en `docs/sql/20260914122652_Phase132ProductionPlanningSnapshot.sql`. Conserva órdenes anteriores sin reconstruir destinos: una orden no borrador sin fotografía se identifica como histórica. P2 no crea solicitudes, reservas ni movimientos. No se aplicó esta migración a la base configurada, no se publicó ni se reinició el servicio.
+
+**Complemento UX implementado en código de P2 — receta desplegable en productos:** cada producto terminado con receta activa tiene un control de expansión en el listado ADMIN. El resumen muestra versión y cantidad base de la receta y, por material, SKU, descripción, cantidad, unidad, proceso de incorporación, destino WIP efectivo, fuente y estado de configuración. Un producto sin receta muestra `Sin receta activa`. En tablet se mantiene una sola fila abierta y el contenido se carga al desplegar para conservar el rendimiento. La consulta y la edición continúan siendo exclusivamente ADMIN; la edición permanece en la ficha completa. Este resumen no muestra stock ni permite editar o confirmar operaciones, porque las cantidades de receta expresan requerimientos y no existencia disponible.
+
+**Configuración integrada en Productos:** Crear producto ofrece `Guardar producto` o `Guardar y configurar receta`; la segunda opción continúa en el módulo `Receta y materiales` del mismo producto. En Editar, un ADMIN puede crear la primera ruta sin abandonar la ficha, indicando nombre, procesos, orden y NIP. Una vez creada, la ruta permanece en lectura y se habilita el editor versionado de receta existente. Los accesos `Configurar receta` y `Editar receta` desde listado y ficha llevan al mismo módulo. La configuración sigue siendo opcional para materias primas, no permite reemplazar una ruta activa y no agrega entidades ni migraciones.
 
 ### Fase P3 — Solicitudes y cola de surtimiento para bodega
 
@@ -449,6 +511,14 @@ La migración incremental es `20260911184026_MaterialWipDefaults` y el SQL revis
 - Mostrar faltantes y bloqueos accionables.
 
 **Aceptación:** bodega puede identificar una orden pendiente sin abrir manualmente cada orden de producción.
+
+**Implementada en código el 14 de septiembre de 2026; migración y despliegue pendientes.** Las órdenes liberadas a partir de P3 generan solicitudes agrupadas por proceso y destino y reservas por ubicación y lote hasta la existencia libre disponible. Las órdenes que ya estaban liberadas permanecen en el flujo anterior. Requerido, cancelado, entregado, pendiente, reservado y faltante se conservan separados.
+
+La cola pública **Surtimientos a producción** muestra una sola alerta por orden pendiente, prioridad normal o urgente, fecha requerida, proceso, material, cantidades y destino. La toma es informativa y permite continuidad por otro operador. Bodega reserva existencia nueva mediante una acción explícita; ADMIN cambia prioridad o cancela pendiente con NIP y motivo. Las órdenes pausadas conservan solicitudes y reservas, pero no admiten entrega.
+
+P3 conecta cada línea con la salida WIP existente. La confirmación revalida versión, pendiente, proceso, producto y destino; crea el movimiento y su vínculo, libera la reserva de almacén utilizada y actualiza la solicitud en la misma transacción. Se permite el saldo negativo con advertencia cuando no invade reservas ajenas. Una salida general, transferencia, ajuste o corrección no puede utilizar cantidades reservadas para otra orden.
+
+El límite con P4 queda fijado: P3 permite confirmar el surtimiento desde el flujo existente; P4 agregará la preparación guiada completa, la asignación explícita de material libre ya presente en WIP y las alternativas de viaje y entrega.
 
 ### Fase P4 — Preparación guiada y movimiento Rack → WIP
 
@@ -569,7 +639,7 @@ Las respuestas siguientes describen el comportamiento requerido o a diseñar; no
 |---|---|---|
 | Orden | Urgencia, orden extraordinaria, pausa, reanudación, cancelación parcial, cambio de cantidad o fecha. | Prioridad y motivo visibles; revisiones auditadas; conciliación de solicitudes, reservas y operaciones ya ejecutadas. |
 | Plan y configuración | Cambio de material, receta, ruta o destino después de liberar; WIP bloqueado, inactivo o incompatible. | Conservar plan original y revisión; validar dependencias y destinos alternativos. La sustitución manual de material requiere definir autorización y trazabilidad; no habilita sustitución automática. |
-| Reserva | Existencia insuficiente, diferencia física, material bloqueado, dos órdenes compitiendo por saldo o reasignación urgente. | Separar solicitado, reservado y faltante; proteger reservas ajenas y registrar toda reasignación. Definir la política de liberación con faltantes. |
+| Reserva | Existencia insuficiente, diferencia física, material bloqueado, dos órdenes compitiendo por saldo o reasignación urgente. | Separar solicitado, reservado y faltante; proteger reservas ajenas y registrar toda reasignación. La liberación puede continuar con faltantes: el sistema reserva únicamente la existencia libre real disponible y mantiene separado el faltante para que bodega lo reserve después mediante una acción explícita. No presenta el faltante como reserva respaldada ni sustituye materiales automáticamente. |
 | Preparación | Material no encontrado, cantidad insuficiente, ubicación inaccesible, varios orígenes, WIP libre disponible o surtimiento completo desde almacén. | Reportar problema sin perder el pendiente; permitir alternativas válidas y cantidades parciales, conciliando reservas sin duplicarlas. |
 | Entrega | Material u origen equivocado, WIP incorrecto o lleno, diferencia entre cantidad preparada y entregada, entrega parcial. | Verificar antes de confirmar; ofrecer corrección o destino alternativo permitido con motivo. Tras confirmar, usar correcciones auditadas. |
 | Viaje y relevo | Viaje interrumpido, material físicamente recogido pero aún no entregado, cambio de turno, solicitud abandonada o varios pedidos en un viaje. | Conservar progreso y responsable; definir toma, liberación y relevo. Queda pendiente definir representación del material en tránsito y conveniencia del viaje agrupado, sin perder la cantidad de cada orden. |

@@ -537,7 +537,7 @@
 
         const otherType = sourceField.type === "product" ? "location" : "product";
         const other = resolution?.[otherType];
-        const target = fields.find(field => field.type === otherType);
+        const target = fields.find(field => field.element.isConnected && field.type === otherType);
         if (other && target) {
           selectItem(target, other, `${target.label} seleccionado por código.`);
           announce(sourceField, `El código corresponde a ${target.label.toLowerCase()}; se colocó en el campo correcto.`);
@@ -552,7 +552,11 @@
       }
     };
 
-    planForm.querySelectorAll("[data-cycle-plan-field]").forEach((element, fieldIndex) => {
+    let nextFieldIndex = 0;
+    const initializeField = (element) => {
+      if (element.dataset.cyclePlanInitialized === "true") return;
+      element.dataset.cyclePlanInitialized = "true";
+      const fieldIndex = nextFieldIndex++;
       const type = element.dataset.cyclePlanField;
       const field = {
         type,
@@ -620,16 +624,31 @@
         announce(field, `Sin ${field.label.toLowerCase()}.`);
         field.input.focus();
       });
+    };
+
+    planForm.querySelectorAll("[data-cycle-plan-field]").forEach(initializeField);
+    planForm.addEventListener("cycle-plan:refresh", (event) => {
+      for (let index = fields.length - 1; index >= 0; index -= 1) {
+        if (!fields[index].element.isConnected) {
+          fields[index].controller?.abort();
+          window.clearTimeout(fields[index].timer);
+          fields.splice(index, 1);
+        }
+      }
+      const scope = event.detail?.scope instanceof Element ? event.detail.scope : planForm;
+      if (scope.matches?.("[data-cycle-plan-field]")) initializeField(scope);
+      scope.querySelectorAll?.("[data-cycle-plan-field]").forEach(initializeField);
     });
 
     document.addEventListener("click", (event) => {
-      fields.forEach(field => {
+      fields.filter(field => field.element.isConnected).forEach(field => {
         if (!field.element.contains(event.target)) closeResults(field);
       });
     });
 
     planForm.addEventListener("submit", (event) => {
-      const missing = fields.find(field => !field.id.value && (!field.optional || field.input.value.trim()));
+      const missing = fields.find(field => field.element.isConnected
+        && !field.id.value && (!field.optional || field.input.value.trim()));
       if (!missing) return;
       event.preventDefault();
       missing.input.setCustomValidity(`Selecciona ${missing.label.toLowerCase()} de los resultados.`);

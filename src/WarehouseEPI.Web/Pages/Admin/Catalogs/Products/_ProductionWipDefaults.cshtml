@@ -7,68 +7,57 @@
          data-material-wip-editor data-wip-lookup-url="@lookupUrl">
     <div class="card-body p-3 p-md-4">
         <div class="product-editor-module-header">
-            <div>
-                <span class="product-editor-step">Producción</span>
-                <h2 id="product-wip-defaults-heading" class="h4 mb-1">Destinos WIP de producción</h2>
-                <p class="text-body-secondary mb-0">Indica a qué WIP se envía normalmente este material en cada proceso. No representa saldo ni mueve inventario.</p>
-            </div>
+            <div><span class="product-editor-step">Producción</span><h2 id="product-wip-defaults-heading" class="h4 mb-1">Destinos WIP de producción</h2><p class="text-body-secondary mb-0">Preferencias por proceso; no representan existencias ni mueven inventario.</p></div>
+            <span class="product-editor-count" data-material-wip-count>@Model.Wip.Rules.Count @(Model.Wip.Rules.Count == 1 ? "destino" : "destinos")</span>
         </div>
         <input asp-for="Wip.OperationId" type="hidden" />
         <input asp-for="Wip.ExpectedVersion" type="hidden" />
-        <div class="d-grid gap-3 mt-3">
+        <div class="d-grid gap-3 mt-3" data-material-wip-rows>
             @for (var index = 0; index < Model.Wip.Rules.Count; index++)
             {
                 <div class="border rounded p-3" data-material-wip-row>
                     <div class="row g-3 align-items-end">
                         <div class="col-12 col-md-4">
-                            <label asp-for="Wip.Rules[index].StageId" class="form-label fw-semibold">Proceso</label>
+                            <label asp-for="Wip.Rules[index].StageId" class="form-label fw-semibold" data-wip-label-for="stage">Proceso</label>
                             <select asp-for="Wip.Rules[index].StageId" class="form-select form-select-lg" data-material-wip-stage>
                                 <option value="">Sin regla</option>
-                                @foreach (var process in config?.Processes ?? [])
-                                {
-                                    <option value="@process.Id">@process.Code · @process.Name</option>
-                                }
+                                @foreach (var process in config?.Processes ?? []) { <option value="@process.Id">@process.Code · @process.Name</option> }
                             </select>
                         </div>
-                        <div class="col-12 col-md-8">
-                            <label for="material-wip-target-@index" class="form-label fw-semibold">Destino WIP habitual</label>
+                        <div class="col-12 col-md-7">
+                            <label for="material-wip-target-@index" class="form-label fw-semibold" data-wip-label-for="search">Destino WIP habitual</label>
                             <input asp-for="Wip.Rules[index].TargetKey" type="hidden" data-material-wip-key />
                             <input asp-for="Wip.Rules[index].TargetLabel" type="hidden" data-material-wip-label />
                             <div class="lookup-field">
-                                <input id="material-wip-target-@index" type="search" class="form-control form-control-lg"
-                                       value="@Model.Wip.Rules[index].TargetLabel" autocomplete="off"
-                                       placeholder="Busca un área, rack o posición" role="combobox"
-                                       aria-autocomplete="list" aria-expanded="false" data-material-wip-search />
+                                <input id="material-wip-target-@index" type="search" class="form-control form-control-lg" value="@Model.Wip.Rules[index].TargetLabel" autocomplete="off" placeholder="Busca un área, rack o posición" role="combobox" aria-autocomplete="list" aria-expanded="false" data-material-wip-search />
                                 <div class="lookup-results list-group" role="listbox" data-material-wip-results></div>
                             </div>
                             <div class="form-text" role="status" aria-live="polite" data-material-wip-feedback>Selecciona primero el proceso y después busca el destino.</div>
                         </div>
+                        <div class="col-12 col-md-1 text-md-end"><button type="button" class="btn btn-outline-danger" data-material-wip-remove aria-label="Quitar destino WIP @(index + 1)">Quitar</button></div>
                     </div>
                 </div>
             }
         </div>
-        <span asp-validation-for="Wip.Rules" class="text-danger"></span>
+        <div class="product-editor-empty mt-3 @(Model.Wip.Rules.Count == 0 ? null : "d-none")" data-material-wip-empty>Sin destinos configurados. Agrega uno cuando este material necesite un destino habitual.</div>
+        <button type="button" class="btn btn-outline-primary btn-lg mt-3" data-material-wip-add>Agregar destino</button>
+        <template data-material-wip-template>
+            <div class="border rounded p-3" data-material-wip-row>
+                <div class="row g-3 align-items-end">
+                    <div class="col-12 col-md-4"><label class="form-label fw-semibold" data-wip-label-for="stage">Proceso</label><select class="form-select form-select-lg" data-material-wip-stage><option value="">Sin regla</option>@foreach (var process in config?.Processes ?? []) { <option value="@process.Id">@process.Code · @process.Name</option> }</select></div>
+                    <div class="col-12 col-md-7"><label class="form-label fw-semibold" data-wip-label-for="search">Destino WIP habitual</label><input type="hidden" data-material-wip-key /><input type="hidden" data-material-wip-label /><div class="lookup-field"><input type="search" class="form-control form-control-lg" autocomplete="off" placeholder="Busca un área, rack o posición" role="combobox" aria-autocomplete="list" aria-expanded="false" data-material-wip-search /><div class="lookup-results list-group" role="listbox" data-material-wip-results></div></div><div class="form-text" role="status" aria-live="polite" data-material-wip-feedback>Selecciona primero el proceso y después busca el destino.</div></div>
+                    <div class="col-12 col-md-1 text-md-end"><button type="button" class="btn btn-outline-danger" data-material-wip-remove>Quitar</button></div>
+                </div>
+            </div>
+        </template>
+        <span asp-validation-for="Wip.Rules" class="text-danger d-block mt-2"></span>
         @if (config?.Rules.Any(x => !x.IsAvailable) == true)
         {
-            <div class="alert alert-warning mt-3 mb-0" role="alert">
-                <strong>Hay destinos que requieren atención.</strong>
-                @foreach (var rule in config.Rules.Where(x => !x.IsAvailable))
-                {
-                    <div>@rule.Process: @rule.Target — @rule.Warning</div>
-                }
-            </div>
+            <div class="alert alert-warning mt-3 mb-0" role="alert"><strong>Hay destinos que requieren atención.</strong>@foreach (var rule in config.Rules.Where(x => !x.IsAvailable)) { <div>@rule.Process: @rule.Target — @rule.Warning</div> }</div>
         }
         <div class="row g-3 mt-1">
-            <div class="col-12 col-md-8">
-                <label asp-for="Wip.Reason" class="form-label fw-semibold">Motivo del cambio</label>
-                <textarea asp-for="Wip.Reason" class="form-control" rows="2" maxlength="500"></textarea>
-                <span asp-validation-for="Wip.Reason" class="text-danger"></span>
-            </div>
-            <div class="col-12 col-md-4">
-                <label asp-for="Wip.Pin" class="form-label fw-semibold">NIP ADMIN</label>
-                <input asp-for="Wip.Pin" value="" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" />
-                <span asp-validation-for="Wip.Pin" class="text-danger"></span>
-            </div>
+            <div class="col-12 col-md-8"><label asp-for="Wip.Reason" class="form-label fw-semibold">Motivo del cambio</label><textarea asp-for="Wip.Reason" class="form-control" rows="2" maxlength="500"></textarea><span asp-validation-for="Wip.Reason" class="text-danger"></span></div>
+            <div class="col-12 col-md-4"><label asp-for="Wip.Pin" class="form-label fw-semibold">NIP ADMIN</label><input asp-for="Wip.Pin" value="" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" /><span asp-validation-for="Wip.Pin" class="text-danger"></span></div>
         </div>
     </div>
 </section>

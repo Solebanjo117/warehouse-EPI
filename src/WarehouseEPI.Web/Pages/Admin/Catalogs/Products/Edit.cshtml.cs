@@ -17,10 +17,12 @@ public sealed class EditModel(
     WarehouseDbContext dbContext,
     ProductLocationAssignmentService assignmentService,
     ProductionTraceabilityService production,
-    ProductionWipDefaultService wipDefaults) : PageModel, IProductFormPage
+    ProductionWipDefaultService wipDefaults,
+    ProductionService productionService) : PageModel, IProductFormPage
 {
     [BindProperty] public ProductInputModel Input { get; set; } = new();
     [BindProperty] public RecipeInputModel Recipe { get; set; } = new();
+    [BindProperty] public RouteInputModel Route { get; set; } = new();
     [BindProperty] public MaterialWipInputModel Wip { get; set; } = new();
     public MaterialWipDefaultsView? WipConfiguration { get; private set; }
     public IReadOnlyList<SelectListItem> Units { get; private set; } = [];
@@ -30,12 +32,25 @@ public sealed class EditModel(
     public IReadOnlyList<LocationAssignmentRow> LocationAssignments { get; private set; } = [];
     public IReadOnlyList<LocationSearchRow> LocationResults { get; private set; } = [];
     public string? LocationSearch { get; private set; }
+    public string? AssignedLocationSearch { get; private set; }
+    public string AssignmentStatus { get; private set; } = "active";
+    public int AssignmentPage { get; private set; } = 1;
+    public int AssignmentTotalPages { get; private set; }
+    public int AssignmentTotalCount { get; private set; }
+    public int ActiveAssignmentCount { get; private set; }
+    public string ActiveEditorSection { get; private set; } = "general";
+    public string ActiveProductionSection { get; private set; } = "materials";
     public ProductionProductConfigurationView? Production { get; private set; }
     public IReadOnlyList<Product> RecipeMaterials { get; private set; } = [];
+    public IReadOnlyList<ProductionStageChoice> AvailableProductionStages { get; private set; } = [];
 
-    public async Task<IActionResult> OnGetAsync(Guid id, string? locationSearch, CancellationToken token)
+    public async Task<IActionResult> OnGetAsync(Guid id, string? locationSearch, CancellationToken token,
+        string? assignedLocationSearch = null, string? assignmentStatus = null, int assignmentPage = 1)
     {
         LocationSearch = locationSearch?.Trim();
+        AssignedLocationSearch = assignedLocationSearch?.Trim();
+        AssignmentStatus = NormalizeAssignmentStatus(assignmentStatus);
+        AssignmentPage = Math.Max(1, assignmentPage);
         if (!await LoadProductAsync(id, token)) return NotFound();
         await LoadAsync(initializeRecipe: true, token);
         return Page();
@@ -43,7 +58,7 @@ public sealed class EditModel(
 
     public async Task<IActionResult> OnPostAsync(CancellationToken token)
     {
-        RemoveModelStatePrefix(nameof(Recipe));
+        ValidateOnly(Input, nameof(Input));
         ProductPageSupport.Normalize(Input);
         await ProductPageSupport.ValidateAsync(dbContext, Input, ModelState, token);
         var product = await dbContext.Products.SingleOrDefaultAsync(x => x.Id == Input.Id, token);
@@ -73,14 +88,14 @@ public sealed class EditModel(
 
     public async Task<IActionResult> OnPostRecipeAsync(Guid id, CancellationToken token)
     {
-        RemoveModelStatePrefix(nameof(Input));
+        ValidateOnly(Recipe, nameof(Recipe));
         var attemptedLines = Recipe.Lines.Where(x => x.MaterialProductId.HasValue || x.StageId.HasValue ||
             x.Quantity.HasValue || !string.IsNullOrWhiteSpace(x.MaterialSearch)).ToArray();
-        if (attemptedLines.Any(x => !x.MaterialProductId.HasValue || !x.StageId.HasValue || x.Quantity is null or <= 0))
-            ModelState.AddModelError(string.Empty, "Cada material utilizado requiere una selección válida, proceso y cantidad positiva.");
+        if (attemptedLines.Any(x => !x.MaterialProductId.HasValue || x.Quantity is null or <= 0))
+            ModelState.AddModelError("Recipe.Lines", "Cada línea iniciada requiere un material válido y una cantidad positiva.");
         var lines = attemptedLines
-            .Where(x => x.MaterialProductId.HasValue && x.StageId.HasValue && x.Quantity > 0)
-            .Select(x => new RecipeLineInput(x.MaterialProductId!.Value, x.StageId!.Value, x.Quantity!.Value)).ToArray();
+            .Where(x => x.MaterialProductId.HasValue && x.Quantity > 0)
+            .Select(x => new RecipeLineInput(x.MaterialProductId!.Value, x.StageId, x.Quantity!.Value)).ToArray();
 
         ProductionTraceabilityResult result;
         if (!ModelState.IsValid)
@@ -101,17 +116,64 @@ public sealed class EditModel(
         }
 
         ModelState.AddModelError(string.Empty, result.Errors?.FirstOrDefault() ?? "No fue posible guardar la receta.");
+        ActiveEditorSection = "production";
         if (!await LoadProductAsync(id, token)) return NotFound();
         await LoadAsync(initializeRecipe: false, token);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAssignLocationAsync(Guid id, Guid locationId, CancellationToken token)
+    public async Task<IActionResult> OnPostRouteAsync(Guid id, CancellationToken token)
+    {
+        ValidateOnly(Route, nameof(Route));
+        var selected = Route.Stages.Where(x => x.Order.HasValue).ToArray();
+        if (selected.Length == 0)
+            ModelState.AddModelError("Route.Stages", "Indica el orden de al menos un proceso.");
+        if (selected.Any(x => x.StageId == Guid.Empty || x.Order <= 0))
+            ModelState.AddModelError("Route.Stages", "Cada proceso incluido requiere un orden mayor que cero.");
+        if (selected.Where(x => x.Order.HasValue).GroupBy(x => x.Order!.Value).Any(x => x.Count() > 1))
+            ModelState.AddModelError("Route.Stages", "No repitas el mismo número de orden en dos procesos.");
+        if (selected.GroupBy(x => x.StageId).Any(x => x.Count() > 1))
+            ModelState.AddModelError("Route.Stages", "Cada proceso sólo puede incluirse una vez.");
+
+        if (!ModelState.IsValid)
+        {
+            ActiveEditorSection = "production";
+            ActiveProductionSection = "route";
+            Route.Pin = "";
+            ModelState.Remove("Route.Pin");
+            if (!await LoadProductAsync(id, token)) return NotFound();
+            await LoadAsync(initializeRecipe: true, token);
+            return Page();
+        }
+        var stageIds = selected.OrderBy(x => x.Order).Select(x => x.StageId).ToArray();
+        var result = await productionService.CreateRouteAsync(new(Route.OperationId, id, Route.Name, stageIds, Route.Pin), token);
+        Route.Pin = "";
+        ModelState.Remove("Route.Pin");
+
+        if (result.Status == ProductionCommandStatus.Success)
+        {
+            TempData["Success"] = "Ruta creada. Ya puedes capturar la receta y sus materiales.";
+            return RedirectToPage("Edit", null, new { id }, "product-production-route");
+        }
+
+        ModelState.AddModelError(string.Empty, result.Status == ProductionCommandStatus.InvalidPin
+            ? "NIP ADMIN inválido."
+            : result.ValidationErrors.FirstOrDefault() ?? "No fue posible crear la ruta.");
+        ActiveEditorSection = "production";
+        ActiveProductionSection = "route";
+        if (!await LoadProductAsync(id, token)) return NotFound();
+        await LoadAsync(initializeRecipe: true, token);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostAssignLocationAsync(Guid id, Guid locationId, CancellationToken token,
+        string? locationSearch = null, string? assignedLocationSearch = null, string? assignmentStatus = null,
+        int assignmentPage = 1)
     {
         var result = await assignmentService.AssignAsync(id, locationId, token);
         if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = "Ubicación asignada al producto.";
         else TempData["Error"] = AssignmentError(result);
-        return RedirectToPage(new { id });
+        return RedirectToLocations(id, locationSearch, assignedLocationSearch, assignmentStatus, assignmentPage);
     }
 
     public async Task<IActionResult> OnGetWipTargetsAsync(Guid stageId, string? q, CancellationToken token) =>
@@ -119,7 +181,7 @@ public sealed class EditModel(
 
     public async Task<IActionResult> OnPostWipAsync(Guid id, CancellationToken token)
     {
-        RemoveModelStatePrefix(nameof(Input)); RemoveModelStatePrefix(nameof(Recipe));
+        ValidateOnly(Wip, nameof(Wip));
         var attempted = Wip.Rules.Where(x => x.StageId.HasValue || !string.IsNullOrWhiteSpace(x.TargetKey)).ToArray();
         if (attempted.Any(x => !x.StageId.HasValue || string.IsNullOrWhiteSpace(x.TargetKey)))
             ModelState.AddModelError("Wip.Rules", "Cada regla requiere proceso y destino WIP.");
@@ -143,18 +205,21 @@ public sealed class EditModel(
             WipDefaultStatus.IdempotencyConflict => "La operación ya se utilizó con datos distintos.",
             _ => result.Errors?.FirstOrDefault() ?? "No fue posible guardar los destinos WIP."
         });
+        ActiveEditorSection = "wip";
         if (!await LoadProductAsync(id, token)) return NotFound();
-        await LoadAsync(initializeRecipe: true, token);
+        await LoadAsync(initializeRecipe: true, token, initializeWip: false);
         return Page();
     }
 
-    public async Task<IActionResult> OnPostDeactivateLocationAsync(Guid id, Guid locationId, CancellationToken token)
+    public async Task<IActionResult> OnPostDeactivateLocationAsync(Guid id, Guid locationId, CancellationToken token,
+        string? locationSearch = null, string? assignedLocationSearch = null, string? assignmentStatus = null,
+        int assignmentPage = 1)
     {
         var result = await assignmentService.DeactivateAsync(id, locationId, token);
         if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = "La asignación fue desactivada.";
         else if (result == ProductLocationAssignmentResult.SuccessDefaultEntryCleared) TempData["Success"] = "La asignación fue desactivada y la ubicación principal de entrada fue retirada.";
         else TempData["Error"] = "La asignación activa ya no existe.";
-        return RedirectToPage(new { id });
+        return RedirectToLocations(id, locationSearch, assignedLocationSearch, assignmentStatus, assignmentPage);
     }
 
     private async Task<bool> LoadProductAsync(Guid id, CancellationToken token)
@@ -177,12 +242,27 @@ public sealed class EditModel(
         return true;
     }
 
-    private async Task LoadAsync(bool initializeRecipe, CancellationToken token)
+    private async Task LoadAsync(bool initializeRecipe, CancellationToken token, bool initializeWip = true)
     {
         (Units, Types, Classes, SelectedEntryLocation) = await ProductPageSupport.LoadOptionsAsync(dbContext, Input, token);
-        LocationAssignments = await dbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.ProductId == Input.Id)
+        var assignments = dbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.ProductId == Input.Id);
+        ActiveAssignmentCount = await assignments.CountAsync(x => x.IsActive, token);
+        if (AssignmentStatus == "active") assignments = assignments.Where(x => x.IsActive);
+        else if (AssignmentStatus == "inactive") assignments = assignments.Where(x => !x.IsActive);
+        if (!string.IsNullOrWhiteSpace(AssignedLocationSearch))
+        {
+            var assignedTerm = AssignedLocationSearch.ToUpperInvariant();
+            assignments = assignments.Where(x => x.Location.Code.Contains(assignedTerm) ||
+                (x.Location.Description != null && x.Location.Description.ToUpper().Contains(assignedTerm)));
+        }
+        AssignmentTotalCount = await assignments.CountAsync(token);
+        AssignmentTotalPages = (int)Math.Ceiling(AssignmentTotalCount / 25d);
+        if (AssignmentTotalPages > 0) AssignmentPage = Math.Min(AssignmentPage, AssignmentTotalPages);
+        else AssignmentPage = 1;
+        LocationAssignments = await assignments
             .OrderByDescending(x => x.IsActive).ThenBy(x => x.Location.RowCode).ThenBy(x => x.Location.RackNumber)
             .ThenBy(x => x.Location.PalletNumber).ThenBy(x => x.Location.Code)
+            .Skip((AssignmentPage - 1) * 25).Take(25)
             .Select(x => new LocationAssignmentRow(x.LocationId, x.Location.Code, x.Location.Description,
                 x.Location.IsActive, x.Location.IsBlocked, x.IsActive, x.LocationId == Input.DefaultEntryLocationId))
             .ToListAsync(token);
@@ -199,8 +279,21 @@ public sealed class EditModel(
         }
 
         Production = await production.GetProductConfigurationAsync(Input.Id, token);
+        if (Production?.RouteId is null && Production?.ProductIsActive == true)
+        {
+            AvailableProductionStages = await dbContext.ProductionStages.AsNoTracking().Where(x => x.IsActive)
+                .OrderBy(x => x.Code).ThenBy(x => x.Name)
+                .Select(x => new ProductionStageChoice(x.Id, x.Code, x.Name)).ToListAsync(token);
+            var currentOrders = Route.Stages.Where(x => x.StageId != Guid.Empty)
+                .GroupBy(x => x.StageId).ToDictionary(x => x.Key, x => x.First().Order);
+            Route.Stages = AvailableProductionStages.Select(x => new RouteStageOrderInputModel
+            {
+                StageId = x.Id,
+                Order = currentOrders.GetValueOrDefault(x.Id)
+            }).ToList();
+        }
         WipConfiguration = await wipDefaults.GetMaterialAsync(Input.Id, token);
-        if (Wip.Rules.Count == 0 && WipConfiguration is not null)
+        if (initializeWip && Wip.Rules.Count == 0 && WipConfiguration is not null)
         {
             Wip = new MaterialWipInputModel
             {
@@ -211,14 +304,31 @@ public sealed class EditModel(
                 }).ToList()
             };
         }
-        while (Wip.Rules.Count < Math.Max(4, WipConfiguration?.Processes.Count ?? 0)) Wip.Rules.Add(new());
         if (initializeRecipe) InitializeRecipe();
-        while (Recipe.Lines.Count < 8) Recipe.Lines.Add(new());
+        if (Recipe.Lines.Count == 0) Recipe.Lines.Add(new());
         var materialIds = Recipe.Lines.Where(x => x.MaterialProductId.HasValue)
             .Select(x => x.MaterialProductId!.Value).Distinct().ToArray();
         RecipeMaterials = materialIds.Length == 0 ? [] : await dbContext.Products.AsNoTracking()
             .Include(x => x.BaseUnit).Where(x => materialIds.Contains(x.Id)).ToListAsync(token);
     }
+
+    private RedirectToPageResult RedirectToLocations(Guid id, string? locationSearch,
+        string? assignedLocationSearch, string? assignmentStatus, int assignmentPage) =>
+        RedirectToPage("Edit", null, new
+        {
+            id,
+            locationSearch = locationSearch?.Trim(),
+            assignedLocationSearch = assignedLocationSearch?.Trim(),
+            assignmentStatus = NormalizeAssignmentStatus(assignmentStatus),
+            assignmentPage = Math.Max(1, assignmentPage)
+        }, "product-locations");
+
+    private static string NormalizeAssignmentStatus(string? value) => value switch
+    {
+        "inactive" => "inactive",
+        "all" => "all",
+        _ => "active"
+    };
 
     private void InitializeRecipe()
     {
@@ -239,11 +349,18 @@ public sealed class EditModel(
             };
     }
 
-    private void RemoveModelStatePrefix(string prefix)
+    private void ValidateOnly(object model, string prefix)
     {
-        foreach (var key in ModelState.Keys.Where(key => key.Equals(prefix, StringComparison.OrdinalIgnoreCase)
-                     || key.StartsWith($"{prefix}.", StringComparison.OrdinalIgnoreCase)).ToArray())
-            ModelState.Remove(key);
+        ModelState.Clear();
+        var results = new List<ValidationResult>();
+        Validator.TryValidateObject(model, new ValidationContext(model), results, validateAllProperties: true);
+        foreach (var result in results)
+        {
+            var members = result.MemberNames.DefaultIfEmpty(string.Empty);
+            foreach (var member in members)
+                ModelState.AddModelError(string.IsNullOrEmpty(member) ? prefix : $"{prefix}.{member}",
+                    result.ErrorMessage ?? "El valor no es válido.");
+        }
     }
 
     private static string AssignmentError(ProductLocationAssignmentResult result) => result switch
@@ -262,7 +379,9 @@ public sealed class EditModel(
         public decimal BaseQuantity { get; set; } = 1;
         public List<RecipeLineInputModel> Lines { get; set; } = [];
         [Required, StringLength(500)] public string Reason { get; set; } = "Definición inicial";
-        [Required, RegularExpression("^[0-9]{4,8}$")] public string Pin { get; set; } = "";
+        [Required(ErrorMessage = "El NIP ADMIN es obligatorio."),
+         RegularExpression("^[0-9]{4,8}$", ErrorMessage = "El NIP ADMIN debe contener de 4 a 8 dígitos.")]
+        public string Pin { get; set; } = "";
     }
 
     public sealed class RecipeLineInputModel
@@ -272,6 +391,25 @@ public sealed class EditModel(
         public Guid? StageId { get; set; }
         public decimal? Quantity { get; set; }
     }
+
+    public sealed class RouteInputModel
+    {
+        public Guid OperationId { get; set; } = Guid.NewGuid();
+        [Required(ErrorMessage = "El nombre de la ruta es obligatorio."), StringLength(120)]
+        public string Name { get; set; } = "Ruta de producción";
+        public List<RouteStageOrderInputModel> Stages { get; set; } = [];
+        [Required(ErrorMessage = "El NIP ADMIN es obligatorio."),
+         RegularExpression("^[0-9]{4,8}$", ErrorMessage = "El NIP ADMIN debe contener de 4 a 8 dígitos.")]
+        public string Pin { get; set; } = "";
+    }
+
+    public sealed class RouteStageOrderInputModel
+    {
+        public Guid StageId { get; set; }
+        public int? Order { get; set; }
+    }
+
+    public sealed record ProductionStageChoice(Guid Id, string Code, string Name);
 
     public sealed record LocationAssignmentRow(Guid LocationId, string Code, string? Description,
         bool LocationIsActive, bool LocationIsBlocked, bool IsActive, bool IsDefaultEntry);

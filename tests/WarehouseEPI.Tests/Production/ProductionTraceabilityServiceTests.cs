@@ -61,6 +61,43 @@ public sealed class ProductionTraceabilityServiceTests
         var line = Assert.Single(configuration.ActiveRecipe!.Lines);
         Assert.Equal(fixture.Material.Id, line.MaterialProductId);
         Assert.Equal(fixture.Stage.Id, line.StageId);
+        Assert.True(configuration.ActiveRecipe.IsComplete);
+    }
+
+    [Fact]
+    public async Task Recipe_without_route_is_saved_as_an_incomplete_version()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var route = await fixture.Db.ProductionRoutes.SingleAsync();
+        route.IsActive = false;
+        await fixture.Db.SaveChangesAsync();
+
+        var saved = await fixture.Trace.SaveRecipeAsync(new(fixture.Finished.Id, 10,
+            [new(fixture.Material.Id, null, 2)], "Lista antes de ruta", fixture.AdminPin));
+
+        Assert.True(saved.Success);
+        var recipe = await fixture.Db.ProductionRecipes.Include(x => x.Lines).SingleAsync(x => x.IsActive);
+        Assert.Null(Assert.Single(recipe.Lines).StageId);
+        var configuration = await fixture.Trace.GetProductConfigurationAsync(fixture.Finished.Id);
+        Assert.False(configuration!.ActiveRecipe!.IsComplete);
+    }
+
+    [Fact]
+    public async Task Recipe_rejects_duplicate_unassigned_materials_but_allows_stage_to_remain_pending()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+
+        var duplicate = await fixture.Trace.SaveRecipeAsync(new(fixture.Finished.Id, 10,
+            [new(fixture.Material.Id, null, 1), new(fixture.Material.Id, null, 2)],
+            "Lista duplicada", fixture.AdminPin));
+        var pending = await fixture.Trace.SaveRecipeAsync(new(fixture.Finished.Id, 10,
+            [new(fixture.Material.Id, null, 3)], "Etapa pendiente", fixture.AdminPin));
+
+        Assert.False(duplicate.Success);
+        Assert.Contains("repitas", Assert.Single(duplicate.Errors!), StringComparison.OrdinalIgnoreCase);
+        Assert.True(pending.Success);
+        Assert.Null(Assert.Single((await fixture.Db.ProductionRecipes.Include(x => x.Lines)
+            .SingleAsync(x => x.IsActive)).Lines).StageId);
     }
 
     [Fact]
@@ -211,11 +248,13 @@ public sealed class ProductionTraceabilityServiceTests
             var material = new Product { Sku = "MP-TRACE", Description = "Material", BaseUnitId = 1 };
             var stage = new ProductionStage { Code = "TRAZA", Name = "Transformación" };
             var secondStage = new ProductionStage { Code = "EMPAQUE", Name = "Empaque" };
+            var wip = new Location { Code = "WIP-TRACE", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
+            stage.WipTargets.Add(new ProductionProcessWipTarget { Location = wip });
             var shift = new ProductionShift { Code = "T1", Name = "Turno 1" };
             var route = new ProductionRoute { Product = finished, Name = "Ruta" };
             route.Stages.Add(new ProductionRouteStage { Stage = stage, Sequence = 1 });
             route.Stages.Add(new ProductionRouteStage { Stage = secondStage, Sequence = 2 });
-            db.AddRange(admin, material, shift, route);
+            db.AddRange(admin, material, shift, route, wip);
             await db.SaveChangesAsync();
             var movements = new InventoryMovementService(db, pins, TimeProvider.System);
             var materials = new ProductionMaterialService(db, pins, movements, TimeProvider.System);

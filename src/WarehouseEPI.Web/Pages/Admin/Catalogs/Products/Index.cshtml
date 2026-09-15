@@ -267,6 +267,7 @@
 }
 else
 {
+    <div data-product-recipe-catalog data-recipe-summary-url="@Url.Page("Index", "RecipeSummary")">
     <div class="product-catalog-table d-none d-lg-block">
         <table class="table table-hover align-middle mb-0">
             <caption class="visually-hidden">Catálogo de productos filtrado</caption>
@@ -274,11 +275,37 @@ else
             <tbody>
                 @foreach (var item in Model.Products)
                 {
-                    <tr>
+                    <tr class="@(item.ActiveRecipeVersion is not null ? "product-recipe-trigger" : null)"
+                        data-product-recipe-trigger="@(item.ActiveRecipeVersion is not null ? "true" : null)">
                         <td class="product-catalog-product-cell">
+                            @if (item.ActiveRecipeVersion is int keyboardRecipeVersion)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-primary visually-hidden-focusable product-recipe-keyboard-toggle"
+                                        aria-expanded="false" aria-controls="product-recipe-desktop-@item.Id"
+                                        data-product-recipe-toggle data-product-id="@item.Id">
+                                    Mostrar u ocultar receta v@(keyboardRecipeVersion) de @item.Sku
+                                </button>
+                            }
                             <a asp-page="Details" asp-route-id="@item.Id" class="product-catalog-sku">@item.Sku</a>
                             <p class="product-catalog-description mb-1">@(item.Description ?? "Sin descripción")</p>
                             <div class="product-catalog-meta"><span>@(item.ExternalReference ?? "Sin referencia")</span><span>@item.Unit</span><span>@(item.Type ?? "Sin tipo") / @(item.Class ?? "Sin clase")</span></div>
+                            @if (item.ActiveRecipeVersion is int recipeVersion)
+                            {
+                                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                    <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
+                                    <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? "Lista lista" : "Lista incompleta")</span>
+                                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                                       class="btn btn-sm btn-outline-secondary product-recipe-action">@(item.ActiveRecipeIsComplete ? "Editar receta" : "Completar receta")</a>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                    <span class="pc-chip is-inactive">Sin receta activa</span>
+                                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                                       class="btn btn-sm btn-outline-primary product-recipe-action">Configurar receta</a>
+                                </div>
+                            }
                         </td>
                         <td class="product-catalog-stock text-end @(item.IsNegative ? "text-danger" : null)"><strong>@item.Quantity.ToString("0.####") @item.Unit</strong><small>Mínimo @item.Minimum.ToString("0.####")</small></td>
                         <td class="product-catalog-count text-end">
@@ -292,6 +319,12 @@ else
                         </td>
                         <td><div class="product-catalog-row-actions"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Ficha</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">Editar</a></div></td>
                     </tr>
+                    @if (item.ActiveRecipeVersion is not null)
+                    {
+                        <tr id="product-recipe-desktop-@item.Id" class="product-recipe-detail-row" hidden data-product-recipe-panel>
+                            <td colspan="5"><div class="product-recipe-panel" role="region" aria-label="Receta de @item.Sku" data-product-recipe-content></div></td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -300,7 +333,8 @@ else
     <div class="product-catalog-card-list d-lg-none">
         @foreach (var item in Model.Products)
         {
-            <article class="product-catalog-card @RowState(item)">
+            <article class="product-catalog-card @RowState(item) @(item.ActiveRecipeVersion is not null ? "product-recipe-trigger" : null)"
+                     data-product-recipe-trigger="@(item.ActiveRecipeVersion is not null ? "true" : null)">
                 <header>
                     <div><a asp-page="Details" asp-route-id="@item.Id" class="product-catalog-sku product-catalog-card-link">@item.Sku</a><p class="product-catalog-description mb-0">@(item.Description ?? "Sin descripción")</p></div>
                     <div class="product-catalog-statuses">
@@ -312,9 +346,34 @@ else
                     <div><dt>Existencia</dt><dd class="@(item.IsNegative ? "text-danger" : null)">@item.Quantity.ToString("0.####") @item.Unit</dd><small>Mínimo @item.Minimum.ToString("0.####")</small></div>
                     <div><dt>Ubicaciones</dt><dd>@item.LocationCount con saldo</dd>@if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">Sin asignación</span> }</div>
                 </dl>
+                @if (item.ActiveRecipeVersion is int recipeVersion)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-primary visually-hidden-focusable product-recipe-keyboard-toggle"
+                            aria-expanded="false" aria-controls="product-recipe-mobile-@item.Id"
+                            data-product-recipe-toggle data-product-id="@item.Id">
+                        Mostrar u ocultar receta v@(recipeVersion) de @item.Sku
+                    </button>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
+                        <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? "Lista lista" : "Lista incompleta")</span>
+                    </div>
+                    <section id="product-recipe-mobile-@item.Id" class="product-recipe-panel mt-2" hidden
+                             aria-label="Receta de @item.Sku" data-product-recipe-panel data-product-recipe-content></section>
+                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                       class="btn btn-outline-secondary product-recipe-action w-100 mt-2">@(item.ActiveRecipeIsComplete ? "Editar receta" : "Completar receta")</a>
+                }
+                else
+                {
+                    <div class="d-grid gap-2">
+                        <span class="pc-chip is-inactive">Sin receta activa</span>
+                        <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                           class="btn btn-outline-primary product-recipe-action">Configurar receta</a>
+                    </div>
+                }
                 <footer><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Ficha</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">Editar</a></footer>
             </article>
         }
+    </div>
     </div>
 }
 
@@ -338,6 +397,7 @@ else
 @section Scripts {
     <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
     <script src="~/js/operations.js" asp-append-version="true" defer></script>
+    <script src="~/js/product-recipe-summary.js" asp-append-version="true" defer></script>
 }
 
 @functions {

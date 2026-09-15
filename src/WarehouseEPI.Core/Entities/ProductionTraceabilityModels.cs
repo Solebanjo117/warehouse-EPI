@@ -1,5 +1,8 @@
 namespace WarehouseEPI.Core.Entities;
 
+public enum ProductionWipTargetKind { Area, Rack, Position }
+public enum ProductionWipResolutionSource { MaterialDefault, ProcessDefault, SingleProcessTarget, Manual }
+
 public sealed class ProductionRecipe
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -20,11 +23,11 @@ public sealed class ProductionRecipeLine
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid RecipeId { get; set; }
     public Guid MaterialProductId { get; set; }
-    public Guid StageId { get; set; }
+    public Guid? StageId { get; set; }
     public decimal Quantity { get; set; }
     public ProductionRecipe Recipe { get; set; } = null!;
     public Product MaterialProduct { get; set; } = null!;
-    public ProductionStage Stage { get; set; } = null!;
+    public ProductionStage? Stage { get; set; }
 }
 
 public sealed class ProductionOrderMaterialPlan
@@ -39,11 +42,33 @@ public sealed class ProductionOrderMaterialPlan
     public string? AdjustmentReason { get; set; }
     public Guid? AdjustedByUserId { get; set; }
     public DateTimeOffset? AdjustedAt { get; set; }
+    public ProductionWipTargetKind? WipTargetKind { get; set; }
+    public Guid? WipLocationId { get; set; }
+    public string? WipRowCode { get; set; }
+    public short? WipRackNumber { get; set; }
+    public string? WipTargetCode { get; set; }
+    public ProductionWipResolutionSource? WipResolutionSource { get; set; }
     public ProductionWorkOrder WorkOrder { get; set; } = null!;
     public ProductionWorkOrderStage WorkOrderStage { get; set; } = null!;
     public Product MaterialProduct { get; set; } = null!;
     public Unit Unit { get; set; } = null!;
     public User? AdjustedByUser { get; set; }
+    public Location? WipLocation { get; set; }
+}
+
+public sealed class ProductionOrderPlanningRevision
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public Guid WorkOrderId { get; set; }
+    public Guid AuthorizedByUserId { get; set; }
+    public required string Reason { get; set; }
+    public required string BeforeJson { get; set; }
+    public required string AfterJson { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public ProductionWorkOrder WorkOrder { get; set; } = null!;
+    public User AuthorizedByUser { get; set; } = null!;
 }
 
 public sealed class ProductionBatch

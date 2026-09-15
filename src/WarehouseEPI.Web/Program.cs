@@ -116,7 +116,9 @@ builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionServ
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionQueryService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionProcessConfigurationService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionWipDefaultService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionPlanningService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionMaterialService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionSupplyService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionTraceabilityService>();
 builder.Services.AddScoped<InventoryCorrectionService>();
 builder.Services.AddScoped<WipDispositionService>();
