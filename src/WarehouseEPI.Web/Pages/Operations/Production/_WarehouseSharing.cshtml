@@ -1,0 +1,18 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.WorkModel
+@if (Model.SharingConflicts.Count > 0)
+{
+    <div class="col-12 alert alert-warning" data-sharing-review>
+        <h3 class="h6">Revisar ubicación compartida</h3>
+        @for (var i = 0; i < Model.SharingConflicts.Count; i++)
+        {
+            var conflict = Model.SharingConflicts[i];
+            <input type="hidden" name="Warehouse.Approvals[@i].ProductId" value="@conflict.ProductId"/>
+            <input type="hidden" name="Warehouse.Approvals[@i].LocationId" value="@conflict.LocationId"/>
+            <label class="d-block mb-3"><input type="checkbox" name="Warehouse.Approvals[@i].Selected" value="true" required/>
+                Autorizo recibir @conflict.ProductSku en @conflict.LocationCode junto a @string.Join(", ", conflict.ExistingProductSkus).
+            </label>
+        }
+        <p>Revisa cantidad y destino; vuelve a introducir tu NIP para confirmar.</p>
+        <a asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@Model.BatchId" class="btn btn-outline-secondary">Cancelar recepción</a>
+    </div>
+}

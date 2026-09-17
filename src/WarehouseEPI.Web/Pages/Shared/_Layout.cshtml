@@ -1,19 +1,13 @@
-﻿@using WarehouseEPI.Infrastructure.Settings
+@using WarehouseEPI.Infrastructure.Settings
 @inject WarehouseSettingsService WarehouseSettings
 @{
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
     var isAdmin = User.IsInRole("ADMIN");
-    var locationsIndexPage = isAdmin ? "/Admin/Catalogs/Locations/Index" : "/Locations/Index";
     var business = await WarehouseSettings.GetAsync();
     var logoUrl = business.LogoFileName is null ? null : $"/branding/logo?v={business.LogoHash}";
-    bool IsCurrent(string page) => currentPage.Equals(page, StringComparison.OrdinalIgnoreCase);
-    bool IsSection(string page) => currentPage.StartsWith(page, StringComparison.OrdinalIgnoreCase);
-    var isLocationsSection = IsSection("/Locations") || (isAdmin && IsSection("/Admin/Catalogs/Locations"));
-    var isWorkloadActivity = IsSection("/Reports/Workload") &&
-        string.Equals(Context.Request.Query["view"].ToString(), "activity", StringComparison.OrdinalIgnoreCase);
-    var isWorkloadPending = IsSection("/Reports/Workload") && !isWorkloadActivity;
-    var isAdminSummarySection = IsSection("/Reports/Dashboard") ||
-        IsSection("/Reports/Executive") || isWorkloadActivity;
+    var modules = WarehouseEPI.Web.Navigation.ModuleNavigation.GetVisible(isAdmin);
+    var activeModule = WarehouseEPI.Web.Navigation.ModuleNavigation.Active(
+        currentPage, ViewContext.RouteData.Values["module"]?.ToString(), isAdmin);
 }
 <!DOCTYPE html>
 <html lang="es">
@@ -86,157 +80,25 @@
             </button>
         </div>
 
-        <nav class="app-nav">
-            <a class="app-nav-link @(IsCurrent("/Index") ? "active" : null)" asp-page="/Index" aria-current="@(IsCurrent("/Index") ? "page" : null)" title="Inicio">
+        <nav class="app-nav" aria-label="Módulos">
+            <a class="app-nav-link @(currentPage == "/Index" ? "active" : null)" asp-page="/Index"
+               aria-current="@(currentPage == "/Index" ? "page" : null)" title="Inicio">
                 <svg class="app-icon" aria-hidden="true"><use href="#icon-home" /></svg><span>Inicio</span>
             </a>
-
-            <div class="app-nav-group">
-                <div class="app-nav-heading">Operación</div>
-                <a class="app-nav-link @(IsSection("/Operations/ProductionSupply") ? "active" : null)" asp-page="/Operations/ProductionSupply/Index" aria-current="@(IsSection("/Operations/ProductionSupply") ? "page" : null)" title="Surtimientos a producción" data-supply-count-root data-snapshot-url="@Url.Page("/Operations/ProductionSupply/Index", "Snapshot")">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Surtimientos a producción</span><span class="notification-count" data-supply-count hidden>0</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/Entry") ? "active" : null)" asp-page="/Operations/Entry" aria-current="@(IsCurrent("/Operations/Entry") ? "page" : null)" title="Entrada">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Entrada</span>
-                </a>
-                @* Navegación temporalmente oculta: Recepciones contra documento no está en uso operativo.
-                <a class="app-nav-link @(IsSection("/Operations/Receiving") ? "active" : null)" asp-page="/Operations/Receiving/Index" aria-current="@(IsSection("/Operations/Receiving") ? "page" : null)" title="Recepciones contra documento">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Recepciones</span>
-                </a>
-                *@
-                <a class="app-nav-link @(IsCurrent("/Operations/Exit") ? "active" : null)" asp-page="/Operations/Exit" aria-current="@(IsCurrent("/Operations/Exit") ? "page" : null)" title="Salida">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-exit" /></svg><span>Salida</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/Transfer") ? "active" : null)" asp-page="/Operations/Transfer" aria-current="@(IsCurrent("/Operations/Transfer") ? "page" : null)" title="Transferencia">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Transferencia</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/WipProcess") || IsCurrent("/Operations/WipReturn") ? "active" : null)" asp-page="/Operations/WipProcess" title="Procesar WIP">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Procesar WIP</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Operations/Production") ? "active" : null)" asp-page="/Operations/Production/Index" aria-current="@(IsSection("/Operations/Production") ? "page" : null)" title="Seguimiento de producción">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Producción</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/Adjustment") ? "active" : null)" asp-page="/Operations/Adjustment" aria-current="@(IsCurrent("/Operations/Adjustment") ? "page" : null)" title="Ajuste">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Ajuste</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Operations/CycleCounts") ? "active" : null)" asp-page="/Operations/CycleCounts/Index" aria-current="@(IsSection("/Operations/CycleCounts") ? "page" : null)" title="Conteos cíclicos">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Conteos cíclicos</span>
-                </a>
-            </div>
-
-            <div class="app-nav-group">
-                <div class="app-nav-heading">Etiquetas</div>
-                <a class="app-nav-link @(IsSection("/Operations/Labels") ? "active" : null)" asp-page="/Operations/Labels/Index" aria-current="@(IsSection("/Operations/Labels") ? "page" : null)" title="Generar etiquetas desde formatos publicados">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Generar etiquetas</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Operations/PalletLabels") ? "active" : null)" asp-page="/Operations/PalletLabels/Index" aria-current="@(IsSection("/Operations/PalletLabels") ? "page" : null)" title="Generar placas documentales desde Entradas confirmadas">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Placas de pallet</span>
-                </a>
-                @if (isAdmin)
-                {
-                    <a class="app-nav-link @(IsSection("/Admin/Labels") ? "active" : null)" asp-page="/Admin/Labels/Templates/Index" aria-current="@(IsSection("/Admin/Labels") ? "page" : null)" title="Diseñar y publicar formatos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Diseñar formatos</span>
-                    </a>
-                }
-            </div>
-
-            <div class="app-nav-group">
-                <div class="app-nav-heading">Inventario</div>
-                <a class="app-nav-link @(isLocationsSection ? "active" : null)" asp-page="@locationsIndexPage" aria-current="@(isLocationsSection ? "page" : null)" title="Ubicaciones">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Reports/Wip") ? "active" : null)" asp-page="/Reports/Wip/Index" aria-current="@(IsSection("/Reports/Wip") ? "page" : null)" title="Reporte WIP">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte WIP</span>
-                </a>
-                @if (isAdmin)
-                {
-                    <a class="app-nav-link @(isAdminSummarySection ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(isAdminSummarySection ? "page" : null)" title="Resumen operativo">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Resumen operativo</span>
-                    </a>
-                }
-                else
-                {
-                    <a class="app-nav-link @(IsSection("/Reports/Dashboard") ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(IsSection("/Reports/Dashboard") ? "page" : null)" title="Tablero diario">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Tablero diario</span>
-                    </a>
-                }
-                <a class="app-nav-link @(IsSection("/Reports/Inventory") ? "active" : null)" asp-page="/Reports/Inventory/Index" aria-current="@(IsSection("/Reports/Inventory") ? "page" : null)" title="Analítica de inventario">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Analítica de inventario</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Reports/Kardex") ? "active" : null)" asp-page="/Reports/Kardex/Index" aria-current="@(IsSection("/Reports/Kardex") ? "page" : null)" title="Kardex por producto">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Kardex de productos</span>
-                </a>
-                @if (isAdmin)
-                {
-                    <a class="app-nav-link @(isWorkloadPending ? "active" : null)" asp-page="/Reports/Workload/Index" asp-route-view="pending" aria-current="@(isWorkloadPending ? "page" : null)" title="Trabajo pendiente">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Pendientes</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Alerts") ? "active" : null)" asp-page="/Admin/Inventory/Alerts" aria-current="@(IsSection("/Admin/Inventory/Alerts") ? "page" : null)" title="Centro de excepciones">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-alert" /></svg><span>Centro de excepciones</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Movements") ? "active" : null)" asp-page="/Admin/Inventory/Movements/Index" aria-current="@(IsSection("/Admin/Inventory/Movements") ? "page" : null)" title="Movimientos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Movimientos</span>
-                    </a>
-                    @* Navegación temporalmente oculta: Trazabilidad unificada no está en uso operativo.
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Trace") ? "active" : null)" asp-page="/Admin/Inventory/Trace/Index" aria-current="@(IsSection("/Admin/Inventory/Trace") ? "page" : null)" title="Trazabilidad unificada">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Trazabilidad</span>
-                    </a>
-                    *@
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Lots") ? "active" : null)" asp-page="/Admin/Inventory/Lots/Index" aria-current="@(IsSection("/Admin/Inventory/Lots") ? "page" : null)" title="Lotes">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-lots" /></svg><span>Lotes</span>
-                    </a>
-                }
-                else
-                {
-                    <a class="app-nav-link @(IsSection("/Reports/Workload") ? "active" : null)" asp-page="/Reports/Workload/Index" aria-current="@(IsSection("/Reports/Workload") ? "page" : null)" title="Actividad y carga de trabajo">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Carga de trabajo</span>
-                    </a>
-                }
-            </div>
-
-            @if (isAdmin)
+            @foreach (var module in modules)
             {
-                <div class="app-nav-group">
-                    <div class="app-nav-heading">Catálogos</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Products") ? "active" : null)" asp-page="/Admin/Catalogs/Products/Index" aria-current="@(IsSection("/Admin/Catalogs/Products") ? "page" : null)" title="Productos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-products" /></svg><span>Productos</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductTypes") ? "active" : null)" asp-page="/Admin/Catalogs/ProductTypes/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductTypes") ? "page" : null)" title="Tipos de producto">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-product-types" /></svg><span>Tipos de producto</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductClasses") ? "active" : null)" asp-page="/Admin/Catalogs/ProductClasses/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductClasses") ? "page" : null)" title="Clases de producto">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-product-classes" /></svg><span>Clases de producto</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Units") ? "active" : null)" asp-page="/Admin/Catalogs/Units/Index" aria-current="@(IsSection("/Admin/Catalogs/Units") ? "page" : null)" title="Unidades de medida">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-units" /></svg><span>Unidades de medida</span>
-                    </a>
-                </div>
-
-                <div class="app-nav-group">
-                    <div class="app-nav-heading">Administración</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Production") && !IsCurrent("/Admin/Production/Processes") && !IsCurrent("/Admin/Production/ProcessEdit") ? "active" : null)" asp-page="/Admin/Production/Orders" aria-current="@(IsSection("/Admin/Production") && !IsCurrent("/Admin/Production/Processes") && !IsCurrent("/Admin/Production/ProcessEdit") ? "page" : null)" title="Órdenes de trabajo">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Órdenes de trabajo</span>
-                    </a>
-                    <a class="app-nav-link @(IsCurrent("/Admin/Production/Processes") || IsCurrent("/Admin/Production/ProcessEdit") ? "active" : null)" asp-page="/Admin/Production/Processes" aria-current="@(IsCurrent("/Admin/Production/Processes") || IsCurrent("/Admin/Production/ProcessEdit") ? "page" : null)" title="Procesos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Procesos</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Users") ? "active" : null)" asp-page="/Admin/Users/Index" aria-current="@(IsSection("/Admin/Users") ? "page" : null)" title="Usuarios">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>Usuarios</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/System") ? "active" : null)" asp-page="/Admin/System/Index" aria-current="@(IsSection("/Admin/System") ? "page" : null)" title="Estado del sistema">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-system" /></svg><span>Estado del sistema</span>
-                    </a>
-                </div>
-
-                <div class="app-nav-group">
-                    <div class="app-nav-heading">Configuración</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Settings") ? "active" : null)" asp-page="/Admin/Settings/Business" aria-current="@(IsSection("/Admin/Settings") ? "page" : null)" title="Datos del negocio">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-system" /></svg><span>Datos del negocio</span>
-                    </a>
-                </div>
+                <a class="app-nav-link @(activeModule?.Key == module.Key ? "active" : null)"
+                   asp-page="/Modules/Index" asp-route-module="@module.Key"
+                   aria-current="@(activeModule?.Key == module.Key ? "page" : null)" title="@module.Title"
+                   data-supply-count-root="@(module.Key == "production" ? "true" : null)"
+                   data-supply-label="@(module.Key == "production" ? module.Title : null)"
+                   data-snapshot-url="@(module.Key == "production" ? Url.Page("/Operations/ProductionSupply/Index", "Snapshot") : null)">
+                    <svg class="app-icon" aria-hidden="true"><use href="@("#icon-" + module.Icon)" /></svg><span>@module.Title</span>
+                    @if (module.Key == "production")
+                    {
+                        <span class="notification-count" data-supply-count hidden>0</span>
+                    }
+                </a>
             }
         </nav>
 
@@ -262,6 +124,10 @@
 
     <div class="app-content">
         <main role="main" class="app-main">
+            @if (activeModule is not null && currentPage != "/Modules/Index")
+            {
+                <a class="module-back-link" asp-page="/Modules/Index" asp-route-module="@activeModule.Key">← Volver a @activeModule.Title</a>
+            }
             @RenderBody()
         </main>
         <footer class="app-footer">&copy; 2026 Warehouse EPI</footer>

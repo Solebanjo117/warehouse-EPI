@@ -1,0 +1,16 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.WorkModel
+@if(Model.PendingDeliveries.Count>0)
+{
+    <details class="card mb-3"><summary class="card-header">Entregas pendientes (@Model.PendingDeliveries.Count)</summary><div class="card-body">
+        @foreach(var delivery in Model.PendingDeliveries)
+        {
+            <article class="border rounded p-3 mb-2"><h3 class="h6">@delivery.SourceStage → @delivery.TargetStage · @delivery.BatchNumber</h3>
+                <p>@Model.DeliveryDates[delivery.Id] · @delivery.Responsible · Entrega @delivery.Id.ToString()[..8]</p>
+                <p>Entregado @delivery.Delivered.ToString("0.####") · Pendiente @delivery.Pending.ToString("0.####") @Model.Order.Unit</p>
+                @if(WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.Allows(Model.Order.Status,"capture")){<a class="btn btn-primary" asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@delivery.BatchId" asp-route-Task="receive" asp-route-DeliveryId="@delivery.Id">Recibir entrega</a>
+                <a class="btn btn-outline-warning" asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@delivery.BatchId" asp-route-Task="reconcile" asp-route-DeliveryId="@delivery.Id">Conciliar diferencia · NIP ADMIN</a>}
+                <span hidden data-delivery-context="@delivery.Id" data-summary="@delivery.BatchNumber · @delivery.SourceStage → @delivery.TargetStage · @Model.DeliveryDates[delivery.Id] · @delivery.Responsible · @delivery.Id" data-source="@delivery.SourceStageId" data-target="@delivery.TargetStageId" data-pending="@delivery.Pending.ToString(System.Globalization.CultureInfo.InvariantCulture)"></span>
+            </article>
+        }
+    </div></details>
+}

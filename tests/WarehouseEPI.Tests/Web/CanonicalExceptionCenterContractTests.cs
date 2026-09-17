@@ -11,8 +11,8 @@ public sealed class CanonicalExceptionCenterContractTests
         var workload = Read("src", "WarehouseEPI.Web", "Pages", "Reports", "Workload", "Index.cshtml");
         var executiveService = Read("src", "WarehouseEPI.Infrastructure", "Reporting", "ExecutiveReportService.cs");
 
-        Assert.Contains("IsSection(\"/Admin/Inventory/Alerts\")", layout, StringComparison.Ordinal);
-        Assert.Contains("<span>Centro de excepciones</span>", layout, StringComparison.Ordinal);
+        Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Page == "/Admin/Inventory/Alerts" && action.Title == "Centro de excepciones");
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Admin/Inventory/Alerts");
         Assert.DoesNotContain("<span>Alertas</span>", layout, StringComparison.Ordinal);
 
         Assert.Contains("asp-route-category=\"NegativeInventory\"", dashboard, StringComparison.Ordinal);

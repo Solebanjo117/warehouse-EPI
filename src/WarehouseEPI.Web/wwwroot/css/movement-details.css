@@ -222,3 +222,36 @@
   .movement-trace-timeline > li.is-current article { border-color: #000; box-shadow: inset 1.5pt 0 0 #000 !important; }
   a { color: #000 !important; text-decoration: none !important; }
 }
+
+/* Ajustes exclusivos de pantalla; la ficha impresa conserva sus reglas. */
+@media screen {
+    .movement-detail-workspace { max-width: 1280px; margin: 0 auto; }
+    .movement-detail-workspace .movement-detail-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+    .movement-detail-workspace .movement-detail-heading h1 { font-size: clamp(1.6rem, 3vw, 2rem); font-weight: 650; letter-spacing: -.025em; }
+    .movement-detail-workspace .movement-detail-brand { min-width: 0; flex: 1 1 360px; }
+    .movement-detail-workspace .movement-detail-brand > div { min-width: 0; overflow-wrap: anywhere; }
+    .movement-detail-workspace .movement-detail-meta { display: grid; gap: 0; padding: .5rem; border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); }
+    .movement-detail-workspace .movement-detail-meta article { padding: 1rem; border: 0; background: transparent; box-shadow: none; }
+    .movement-detail-workspace .movement-detail-meta article > span { font-size: .75rem; color: var(--bs-secondary-color); font-weight: 500; }
+    .movement-detail-workspace .movement-detail-meta strong { display: block; margin-top: .35rem; font-size: .95rem; font-weight: 600; }
+    .movement-detail-workspace .movement-detail-id { font-family: var(--bs-font-monospace); font-size: .8rem !important; }
+    .movement-detail-workspace .movement-section-heading h2 { font-size: 1.1rem; font-weight: 650; }
+    .movement-detail-workspace .movement-related-card,
+    .movement-detail-workspace .movement-line-card,
+    .movement-detail-workspace .movement-trace-timeline article { border-radius: .65rem; box-shadow: none; }
+    .movement-detail-workspace .movement-related-card { border-left-width: 1px; }
+    .movement-detail-workspace .movement-related-card > * { min-width: 0; overflow-wrap: anywhere; }
+    .movement-detail-workspace .movement-related-status { white-space: normal; }
+    .movement-detail-workspace th { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); font-size: .75rem; font-weight: 600; }
+    .movement-detail-workspace td { font-size: .9rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+    .movement-detail-workspace .btn, .movement-detail-workspace a { min-height: 44px; }
+    .movement-detail-workspace a { display: inline-flex; align-items: center; }
+    .movement-detail-workspace .btn-outline-danger { margin-inline-start: 1rem; }
+    .movement-detail-workspace a:focus-visible, .movement-detail-workspace button:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 2px; }
+}
+@media screen and (max-width: 767.98px) {
+    .movement-detail-workspace .movement-detail-meta { grid-template-columns: minmax(0, 1fr); }
+    .movement-detail-workspace .movement-detail-meta .movement-meta-wide { grid-column: auto; }
+    .movement-detail-workspace .movement-detail-brand { flex-basis: auto; }
+    .movement-detail-workspace .btn-outline-danger { margin-inline-start: 0; }
+}

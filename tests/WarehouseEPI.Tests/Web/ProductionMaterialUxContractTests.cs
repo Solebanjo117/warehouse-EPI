@@ -5,25 +5,22 @@ public sealed class ProductionMaterialUxContractTests
     private static readonly string Root = FindRoot();
 
     [Fact]
-    public void Wip_issue_exposes_order_mode_lookup_and_external_script()
+    public void Exit_does_not_duplicate_order_linked_production_supply()
     {
         var form = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Operations", "_GuidedMovementForm.cshtml"));
         var exit = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Exit.cshtml"));
-        var script = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "wwwroot", "js", "production-material-issue.js"));
 
-        Assert.Contains("data-production-material-link", form);
-        Assert.Contains("data-production-target-results", form);
-        Assert.Contains("Input.WorkOrderStageId", form);
-        Assert.Contains("production-material-issue.js", exit);
-        Assert.Contains("setTimeout(load, 250)", script);
-        Assert.Contains("event.key === \"Enter\"", script);
-        Assert.Contains("event.key === \"Escape\"", script);
+        Assert.DoesNotContain("data-production-material-link", form);
+        Assert.DoesNotContain("data-production-target-results", form);
+        Assert.DoesNotContain("Input.WorkOrderStageId", form);
+        Assert.DoesNotContain("Para una orden", form);
+        Assert.DoesNotContain("production-material-issue.js", exit);
     }
 
     [Fact]
     public void Work_order_material_form_has_editable_lines_single_pin_summary_and_admin_reversal()
     {
-        var page = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Work.cshtml"));
+        var page = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Work.cshtml")) + File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "_WorkConsultation.cshtml"));
         var script = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "wwwroot", "js", "production-material-order.js"));
 
         Assert.Contains("Material.Lines[", page);

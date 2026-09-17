@@ -15,7 +15,7 @@
     <section class="card product-editor-card" aria-labelledby="product-information-heading">
         <div class="card-body p-3 p-md-4">
             <div class="product-editor-section-heading">
-                <div><span class="product-editor-step">Datos generales</span><h2 id="product-information-heading" class="h4 mb-1">Información y configuración</h2><p class="text-body-secondary mb-0">Los campos marcados con * son obligatorios.</p></div>
+                <div><span class="product-editor-step">Datos generales</span><h2 id="product-information-heading" class="h4 mb-1">Identificación</h2><p class="text-body-secondary mb-0">Los campos marcados con * son obligatorios.</p></div>
             </div>
             <div class="row g-3">
                 <div class="col-12 col-md-6">
@@ -33,6 +33,16 @@
                     <textarea asp-for="Input.Description" class="form-control product-editor-description" rows="2" data-product-autogrow placeholder="Describe el producto para reconocerlo con facilidad"></textarea>
                     <span asp-validation-for="Input.Description" class="text-danger"></span>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card product-editor-card" aria-labelledby="product-classification-heading">
+        <div class="card-body p-3 p-md-4">
+            <div class="product-editor-section-heading">
+                <h2 id="product-classification-heading" class="h4 mb-0">Clasificación y existencia mínima</h2>
+            </div>
+            <div class="row g-3">
                 <div class="col-12 col-md-6">
                     <label asp-for="Input.BaseUnitId" class="form-label fw-semibold">Unidad base <span class="text-danger" aria-hidden="true">*</span></label>
                     <select asp-for="Input.BaseUnitId" asp-items="Model.Units" class="form-select product-editor-control" aria-required="true"><option value="">Seleccione una unidad</option></select>
@@ -51,6 +61,16 @@
                     <label asp-for="Input.ProductClassId" class="form-label fw-semibold">Clase <span class="text-body-secondary fw-normal">(opcional)</span></label>
                     <select asp-for="Input.ProductClassId" asp-items="Model.Classes" class="form-select product-editor-control"><option value="">Sin clase</option></select>
                 </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="card product-editor-card" aria-labelledby="product-operational-heading">
+        <div class="card-body p-3 p-md-4">
+            <div class="product-editor-section-heading">
+                <h2 id="product-operational-heading" class="h4 mb-0">Configuración operativa</h2>
+            </div>
+            <div class="row g-3">
                 <div class="col-12">
                     <label for="default-entry-location-search" class="form-label fw-semibold">Ubicación principal de entrada <span class="text-body-secondary fw-normal">(opcional)</span></label>
                     <div class="lookup-field" data-cycle-plan-field="location" data-cycle-plan-key="default-entry-location" data-cycle-plan-label="Ubicación principal" data-cycle-plan-optional>

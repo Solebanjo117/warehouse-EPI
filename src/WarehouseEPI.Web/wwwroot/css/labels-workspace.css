@@ -1,0 +1,59 @@
+/* Screen chrome only. Label canvases and physical print rules stay unchanged. */
+@media screen {
+    .labels-workspace { min-width: 0; }
+    .labels-workspace .label-page-header { padding-bottom: 1rem; border-bottom: 1px solid var(--bs-border-color); }
+    .labels-workspace .label-page-header h1 { font-size: 1.65rem; font-weight: 700; }
+    .labels-workspace .label-template-picker { padding: 1rem; margin-bottom: 1rem; border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-tertiary-bg); }
+    .labels-workspace .label-create-grid { grid-template-columns: minmax(0, 1fr); }
+    .labels-workspace :is(.label-form-card, .operation-card, .label-preview-toolbar) { border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); box-shadow: none; }
+    .labels-workspace .operation-card { padding: 1rem; }
+    .labels-workspace .label-submit-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; }
+    .labels-workspace .label-submit-card .label-section-heading { margin: 0; flex: 1 1 20rem; }
+    .labels-workspace .label-section-heading > div { min-width: 0; }
+    .labels-workspace .label-eyebrow { font-weight: 600; letter-spacing: .025em; }
+    .labels-workspace :is(.label-template-picker, .label-create-grid, .label-preview-toolbar) :is(.form-control, .form-select, .btn, .input-group-text) { min-height: 44px; }
+    .labels-workspace :is(.label-template-picker, .label-create-grid, .label-preview-toolbar) :is(input, select, button):focus-visible,
+    .labels-workspace .pallet-recent-item:focus-visible,
+    .labels-workspace .label-barcode-dialog button:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+    .labels-workspace :is(.label-form-card, .label-preview-toolbar) .btn { white-space: normal; }
+    .labels-workspace :is(.label-form-card, .operation-card, .label-preview-toolbar) { overflow-wrap: anywhere; }
+    .labels-workspace .selected-record { min-width: 0; border: 1px solid var(--bs-primary-border-subtle); background: var(--bs-primary-bg-subtle); }
+    .labels-workspace .selected-record > * { display: block; white-space: normal; overflow-wrap: anywhere; }
+    .labels-workspace .selected-record strong { font-family: var(--bs-font-monospace); font-size: 1.2rem; }
+    .labels-workspace .label-form-card .row > [class*="col-sm-"] { width: 100%; }
+    .labels-workspace .receipt-meta { grid-template-columns: minmax(0, 1fr); }
+    .labels-workspace .receipt-meta > div { min-width: 0; align-content: start; }
+    .labels-workspace .receipt-meta strong { font-variant-numeric: tabular-nums; }
+    .labels-workspace .pallet-recent-list { grid-template-columns: minmax(0, 1fr); gap: .75rem; }
+    .labels-workspace .pallet-recent-item { min-width: 0; min-height: 44px; padding: 1rem; border-radius: .65rem; }
+    .labels-workspace .pallet-recent-item > * { min-width: 0; }
+    .labels-workspace .pallet-recent-head { flex-wrap: wrap; }
+    .labels-workspace .pallet-recent-sku { font-family: var(--bs-font-monospace); overflow-wrap: anywhere; }
+    .labels-workspace :is(.pallet-recent-desc, .pallet-recent-qty, .pallet-recent-meta, .pallet-recent-destination) { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+    .labels-workspace .pallet-recent-qty { margin-left: auto; text-align: right; font-weight: 700; }
+    .labels-workspace .pallet-recent-destination { color: var(--bs-body-color); }
+    .labels-workspace .label-preview-toolbar { flex-wrap: wrap; }
+    .labels-workspace .label-preview-toolbar > div { flex: 1 1 22rem; min-width: 0; }
+    .labels-workspace .label-barcode-dialog .btn-close { min-width: 44px; min-height: 44px; flex-shrink: 0; padding: 0; }
+}
+@media screen and (min-width: 768px) {
+    .labels-workspace .label-form-card .row > [class*="col-sm-"] { width: 50%; }
+    .labels-workspace .receipt-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media screen and (min-width: 992px) {
+    .labels-generator .label-create-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media screen and (min-width: 1200px) {
+    .labels-workspace .receipt-meta { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .labels-workspace .pallet-recent-list { gap: 0; border: 1px solid var(--bs-border-color); border-radius: .65rem; overflow: hidden; }
+    .labels-workspace .pallet-recent-item { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: .35rem 1rem; border: 0; border-radius: 0; }
+    .labels-workspace .pallet-recent-list > li + li { border-top: 1px solid var(--bs-border-color); }
+    .labels-workspace .pallet-recent-head { grid-column: 1; grid-row: 1; }
+    .labels-workspace .pallet-recent-desc { grid-column: 1; grid-row: 2; }
+    .labels-workspace .pallet-recent-destination { grid-column: 2; grid-row: 1 / span 2; }
+    .labels-workspace .pallet-recent-meta { grid-column: 3; grid-row: 1 / span 2; }
+    .labels-workspace .pallet-recent-item:focus-visible { outline-offset: -3px; }
+}
+@media screen and (max-width: 767.98px) {
+    .labels-workspace .label-submit-card > .btn { width: 100%; }
+}

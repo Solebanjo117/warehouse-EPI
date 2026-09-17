@@ -67,19 +67,27 @@
 
 (() => {
   "use strict";
-  const root = document.querySelector("[data-supply-count-root]");
-  const badge = root?.querySelector("[data-supply-count]");
-  if (!root || !badge) return;
+  const roots = Array.from(document.querySelectorAll("[data-supply-count-root]"));
+  if (!roots.length) return;
+  let requestInProgress = false;
   const refresh = async () => {
-    if (document.hidden) return;
+    if (document.hidden || requestInProgress) return;
+    requestInProgress = true;
     try {
-      const response = await fetch(root.dataset.snapshotUrl, { cache: "no-store", headers: { Accept: "application/json" } });
+      const response = await fetch(roots[0].dataset.snapshotUrl, { cache: "no-store", headers: { Accept: "application/json" } });
       if (!response.ok) return;
       const count = Number((await response.json()).pendingOrders || 0);
-      badge.textContent = count > 99 ? "99+" : String(count);
-      badge.hidden = count === 0;
-      root.setAttribute("aria-label", count === 0 ? "Surtimientos a producción" : `Surtimientos a producción, ${count} órdenes pendientes`);
+      roots.forEach(root => {
+        const badge = root.querySelector("[data-supply-count]");
+        if (badge) {
+          badge.textContent = count > 99 ? "99+" : String(count);
+          badge.hidden = count === 0;
+        }
+        const label = root.dataset.supplyLabel || "Surtimientos a producción";
+        root.setAttribute("aria-label", count === 0 ? label : `${label}, ${count} órdenes pendientes de surtimiento`);
+      });
     } catch { /* El siguiente intervalo vuelve a consultar. */ }
+    finally { requestInProgress = false; }
   };
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   refresh();

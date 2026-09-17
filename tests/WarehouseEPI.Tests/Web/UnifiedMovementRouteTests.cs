@@ -46,7 +46,7 @@ public sealed class UnifiedMovementRouteTests
         var layout = Read("src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml");
         var legacy = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Reports", "Movements", "Index.cshtml.cs");
 
-        Assert.Equal(1, Count(layout, "asp-page=\"/Admin/Inventory/Movements/Index\""));
+        Assert.Single(ModuleNavigationTestSupport.Actions(), action => action.Page == "/Admin/Inventory/Movements/Index");
         Assert.DoesNotContain("asp-page=\"/Admin/Reports/Movements/Index\"", layout, StringComparison.Ordinal);
         Assert.Contains("/Admin/Inventory/Movements", legacy, StringComparison.Ordinal);
         Assert.Contains("view=effective", legacy, StringComparison.Ordinal);

@@ -73,7 +73,7 @@
                                     var resultsId = $"recipe-material-results-{i}";
                                     var feedbackId = $"recipe-material-feedback-{i}";
                                     <tr data-production-recipe-line>
-                                        <td class="recipe-material-cell">
+                                        <td class="recipe-material-cell" data-label="Material">
                                             <div class="lookup-field" data-cycle-plan-field="product" data-cycle-plan-key="material-@i" data-cycle-plan-label="Material" data-cycle-plan-optional>
                                                 <input asp-for="Recipe.Lines[i].MaterialProductId" type="hidden" data-cycle-plan-id />
                                                 <div class="input-group input-group-lg">
@@ -98,8 +98,8 @@
                                                 <p id="@feedbackId" class="form-text mb-0" role="status" aria-live="polite" data-cycle-plan-feedback>Escribe para buscar o usa un lector HID.</p>
                                             </div>
                                         </td>
-                                        <td><input asp-for="Recipe.Lines[i].Quantity" class="form-control form-control-lg" inputmode="decimal" aria-label="Cantidad del material @(i + 1)" data-production-recipe-quantity /></td>
-                                        <td>
+                                        <td data-label="Cantidad"><input asp-for="Recipe.Lines[i].Quantity" class="form-control form-control-lg" inputmode="decimal" aria-label="Cantidad del material @(i + 1)" data-production-recipe-quantity /></td>
+                                        <td data-label="Etapa de incorporación">
                                             @if (configuration.RouteId is null)
                                             {
                                                 <input asp-for="Recipe.Lines[i].StageId" type="hidden" value="" />

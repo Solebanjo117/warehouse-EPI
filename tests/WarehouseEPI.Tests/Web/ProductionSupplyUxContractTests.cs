@@ -21,7 +21,7 @@ public sealed class ProductionSupplyUxContractTests
     }
 
     [Fact]
-    public void Linked_exit_carries_supply_concurrency_fields()
+    public void Legacy_linked_exit_redirects_into_guided_preparation()
     {
         var root = FindRoot();
         var form = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations",
@@ -29,10 +29,32 @@ public sealed class ProductionSupplyUxContractTests
         var model = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations",
             "OperationPageModel.cs"));
 
-        Assert.Contains("Input.SupplyRequestLineId", form, StringComparison.Ordinal);
-        Assert.Contains("Input.ExpectedSupplyVersion", form, StringComparison.Ordinal);
-        Assert.Contains("supplyRequestLineId", model, StringComparison.Ordinal);
-        Assert.Contains("expectedSupplyVersion", model, StringComparison.Ordinal);
+        var exit = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations",
+            "Exit.cshtml.cs"));
+        Assert.DoesNotContain("Input.SupplyRequestLineId", form, StringComparison.Ordinal);
+        Assert.DoesNotContain("Input.ExpectedSupplyVersion", form, StringComparison.Ordinal);
+        Assert.Contains("supplyRequestLineId", exit, StringComparison.Ordinal);
+        Assert.Contains("ResolveLegacyLineAsync", exit, StringComparison.Ordinal);
+        Assert.Contains("/Operations/ProductionSupply/Prepare", exit, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Guided_preparation_preserves_accessibility_and_has_no_inline_script()
+    {
+        var root = FindRoot();
+        var page = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations",
+            "ProductionSupply", "Prepare.cshtml"));
+        var script = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "wwwroot", "js",
+            "production-supply-preparation.js"));
+
+        Assert.Contains("data-supply-preparation", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"status\"", page, StringComparison.Ordinal);
+        Assert.Contains("Confirmar surtimiento", page, StringComparison.Ordinal);
+        Assert.Contains("Comprobante de surtimiento", page, StringComparison.Ordinal);
+        Assert.Contains("Continuar pendiente", page, StringComparison.Ordinal);
+        Assert.Contains("production-supply-preparation.js", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("onclick=", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-source-quantity", script, StringComparison.Ordinal);
     }
 
     private static string FindRoot()

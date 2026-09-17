@@ -100,6 +100,10 @@
 </div>
 
 <partial name="/Pages/Operations/CycleCounts/_CameraScanner.cshtml" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/product-editor.css" asp-append-version="true" />
+}
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" /><script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true" defer></script><script src="~/js/production-recipe.js" asp-append-version="true" defer></script><script src="~/js/production-wip-defaults.js" asp-append-version="true" defer></script><script src="~/js/product-editor.js" asp-append-version="true" defer></script>
 }

@@ -1,6 +1,6 @@
 # Seguimiento integral de órdenes de producción
 
-Decisiones operativas actualizadas: 11 de septiembre de 2026. Esta actualización documenta acuerdos; no acredita su implementación, migración ni despliegue. El contraste de esos acuerdos contra el código, del 14 de septiembre de 2026, está en §8.1, y el estado de las decisiones abiertas en §8.2.
+Decisiones operativas actualizadas: 16 de septiembre de 2026. P1–P6 están implementadas en código. P5/P6 tienen verificación automatizada; las migraciones P4–P6, el despliegue y la aceptación física se reportan por separado.
 
 ## 1. Propósito
 
@@ -266,7 +266,7 @@ Los excedentes se muestran por separado. No se promedian porcentajes de procesos
 
 Se permitirá cerrar la fabricación con cantidad menor o mayor a la meta, registrando la diferencia, el motivo y la autorización correspondiente. El retrabajo normalmente se atiende días después y debe poder permanecer pendiente, identificado y vinculado a la misma orden y lote, sin obligar a mantener abierta la fabricación principal.
 
-**Propuesta pendiente de definición:** separar cierre de fabricación principal y cierre definitivo. Deben concretarse los estados, permisos y tratamiento de reservas durante el retrabajo diferido. Como criterio de conciliación definitiva, no deben existir:
+**Decisión confirmada para P5:** OPERATOR confirma el cierre principal con NIP; una diferencia exige autorización ADMIN sobre la versión y cantidades revisadas. ADMIN selecciona reservas concretas para el retrabajo y confirma el cierre definitivo. Si queda cantidad que ya no se fabricará, ADMIN ajusta previamente la meta, sin reducir por debajo de lo procesado o recibido. Como criterio de conciliación definitiva, no deben existir:
 
 - entregas pendientes de recibir o conciliar;
 - retrabajo pendiente;
@@ -281,7 +281,7 @@ Las correcciones se realizan mediante reversos auditados. Si existen operaciones
 
 Se permitirán cambios después de liberar la orden. Cada ajuste conservará valor anterior, valor nuevo, motivo, responsable y fecha. La ruta, receta y destinos copiados no cambiarán por editar el catálogo; un cambio explícito de la orden debe quedar registrado como una revisión histórica.
 
-Los ajustes deberán conciliar cantidades, solicitudes, reservas, destinos y operaciones dependientes. No se borrarán movimientos ejecutados para acomodar una nueva meta. Quedan por precisar los permisos y límites de ajustes cuando ya exista consumo o recepción de terminado.
+Los ajustes deberán conciliar cantidades, solicitudes, reservas, destinos y operaciones dependientes. No se borrarán movimientos ejecutados para acomodar una nueva meta. ADMIN ajusta fecha, meta, autorizado y cantidades de los materiales existentes con historial anterior/nuevo. No puede reducir por debajo de lo ejecutado, sustituir materiales ni cambiar producto/ruta. Después del cierre principal sólo se agregan necesidades de retrabajo; otros cambios requieren reapertura ADMIN.
 
 ### 4.11 Retrabajo y merma
 
@@ -289,7 +289,7 @@ Retrabajo y merma tendrán un apartado propio en la operación, los registros y 
 
 Se distinguirá merma de producto de desperdicio de materia prima, conservando cada unidad por separado. Los registros permitirán analizar recuperación, pendientes, tiempo hasta atender el retrabajo, merma y desviación del consumo contra receta.
 
-Queda pendiente definir si el retrabajo regresa al mismo proceso o a uno anterior, cómo se entrega y recibe nuevamente y cómo se autoriza su descarte. Estos puntos no se consideran decisiones cerradas.
+El retrabajo se atiende en el mismo proceso de origen; lo recuperado continúa mediante entregas y recepciones por la ruta existente. OPERATOR registra intentos con NIP y ADMIN autoriza el descarte. La fecha original del pendiente no se reinicia con cada intento. La captura con fecha anterior queda expresamente pospuesta.
 
 ## 5. Movimientos de inventario
 
@@ -390,69 +390,35 @@ Los reportes tendrán filtros GET, paginación, zona horaria del almacén y expo
 
 Estas funciones tienen migraciones pendientes de aplicación y validación física pendiente. Su presencia en código no equivale a despliegue operativo.
 
-### Pendiente de implementar
+### Pendiente de implementar y validar
 
-Los acuerdos del 11 de septiembre fueron contrastados con el código el 14 de
-septiembre; el resultado está en §8.1. Las fases P1, P2 y P3 entregaron el WIP
-predeterminado, la fotografía de planificación, las solicitudes persistentes y la
-cola de bodega. Lo que sigue abierto:
+- P6: tablero analítico completo, métricas y exportaciones de producción.
+- P7: validación visual/física integral, piloto, migraciones operativas y despliegue.
+- Fuera de P5: captura con fecha anterior, sustituciones de materiales y seguimiento del material en tránsito.
 
-- sugerencia consolidada de ubicaciones y lotes de origen;
-- asignación explícita de material libre ya presente en WIP;
-- estado **Material listo en WIP** por proceso, si se decide persistirlo;
-- cierre principal con retrabajo diferido y cierre definitivo;
-- merma de materia prima como operación con motivo y efecto de inventario;
-- fecha de operación distinta de la fecha de registro en producción;
-- catálogo reutilizable de motivos de merma, retrabajo, diferencia y excepción;
-- pendiente de retrabajo con antigüedad, intentos, recuperación y descarte;
-- tablero analítico completo de producción;
-- exportaciones específicas de producción;
-- validación visual y física integral.
+### 8.1 Contraste con el código — 15 de septiembre de 2026
 
-### 8.1 Contraste con el código — 14 de septiembre de 2026
+| Parte | Estado en desarrollo |
+|---|---|
+| P1–P4 | Configuración WIP, fotografía, solicitudes, reservas y preparación guiada existentes; preservados por P5. |
+| Lote único | Las nuevas órdenes no admiten segundo lote; el lote abarca lo autorizado y conserva el mismo lote terminado. Las órdenes históricas mantienen sus lotes sin fusión. |
+| Cierre | `PrincipalClosed` permite retrabajo posterior; `Closed` conserva el cierre definitivo. El cierre con diferencia identifica operador y ADMIN; la reapertura es ADMIN. |
+| Retrabajo | Pendiente con origen, intentos efectivos, recuperación, descarte y antigüedad; retornos al mismo proceso y continuación por la ruta. |
+| Reservas | Selección ADMIN de almacén/WIP para retrabajo; liberación de reservas de almacén no retenidas, devolución o anulación explícita del sobrante WIP y solicitudes adicionales. |
+| Ajustes | Revisión ADMIN de meta, autorizado, fecha y cantidades de materiales; invalida preparaciones y concilia pendientes/reservas sin modificar el catálogo. |
+| Merma | Operación de material separada del consumo en producción, con salida real, lotes, NIP y reverso auditado. |
+| Motivos | Catálogo ADMIN por categoría y opción Otro con comentario; descripción conservada en cada operación. |
+| Fecha anterior | Pospuesta; se conserva la fecha real de registro. |
+| Despliegue | No acreditado por presencia de código ni pruebas. Consultar el historial de la base objetivo dentro de P7. |
 
-Esta revisión compara los acuerdos documentados contra el código del repositorio.
-Confirma únicamente lo verificable en código: no acredita migración aplicada,
-piloto ni despliegue. Corrige además afirmaciones previas que resultaron
-inexactas.
+### 8.2 Decisiones y compatibilidad
 
-| Afirmación | Veredicto | Corrección |
-|---|---|---|
-| Reservas protegidas en almacén y WIP | Confirmada | WIP se protege en `ValidateFreeWipAsync`; almacén con las reservas P3 en `ValidateWarehouseReservationsAsync`. |
-| Entregas y recepciones entre etapas inexistentes | Incorrecta | Ya existen `DeliverAsync`, `ReceiveAsync`, devolución y pérdida de diferencias, con cantidades conciliadas. |
-| Cierre bloquea retrabajo diferido | Confirmada y prioritaria | `CloseAsync` exige `Rework == 0`; contradice el acuerdo de cierre principal con retrabajo pendiente. |
-| Cierre no registra diferencia ni autorización | Parcialmente confirmada | Guarda la cantidad recibida y el motivo, y la diferencia se puede calcular contra la meta. Sí exige NIP ADMIN: `CloseAsync` autentica ADMIN y registra al responsable en el evento. Falta persistir la diferencia explícita y modelar el cierre principal frente al definitivo. |
-| Estados P3 faltantes | Parcialmente confirmada | Persistidos: Pendiente, En surtimiento, Completada, Cancelada. Parcial y Sin existencia se derivan de entregado, reservado, pendiente y faltante; Bloqueada se deriva de una orden pausada; Lista en WIP equivale a completada. Si se necesitan historial, filtros y SLA por estado, deben convertirse en estados persistidos y auditados. |
-| Desperdicio de materia prima | Confirmada | Sólo existen consumo, devolución a bodega o proveedor y reverso. Falta un tipo de merma de material con motivo y efecto real de inventario. |
-| Fecha de operación distinta del registro | Confirmada para producción | Los movimientos de inventario ya tienen `OccurredAt` y `RecordedAt`; los resultados, eventos de proceso y entregas de producción sólo guardan `RecordedAt`. |
-| Catálogo de motivos | Confirmada | Los motivos son texto libre; no hay catálogo reutilizable para merma, retrabajo, diferencias o excepciones. |
-| Tránsito y relevo | Pendiente por decisión, no defecto de implementación | El documento lo deja abierto expresamente. P3 ya permite toma informativa y continuación por otro operador; no modela material recogido o en tránsito. |
-| Antigüedad e intentos de retrabajo | Parcialmente confirmada | Cada resultado conserva fecha y puede marcarse como retrabajo, pero no hay una entidad de pendiente de retrabajo con fecha de origen, intento, antigüedad, recuperación y descarte. |
-| P4 sin empezar | Parcialmente confirmada | Falta su núcleo: sugerencias consolidadas de origen y lote, material libre en WIP y flujo guiado. P3 ya permite reportar problema, continuar la preparación y cambiar origen usando la captura de salida existente. |
-| P6 sin empezar | Confirmada | Hay consulta operacional de producción y trazabilidad, pero no reportes de rendimiento, tiempos, desviación contra receta, merma y retrabajo, ni exportaciones de producción. |
-| P7 sin empezar | Confirmada en despliegue | No hay evidencia de aplicación operativa, piloto, validación en tablet, HID o cámara, ni publicación. El repositorio contiene migraciones pendientes de validar contra el historial de la base objetivo; su aplicación y el despliegue siguen pendientes. El conteo exacto pertenece al procedimiento de P7 y a la base concreta, previa confirmación explícita del destino. |
-
-### 8.2 Decisiones cerradas y decisiones abiertas
-
-Quedaron **decididas e implementadas** en P3, y ya no deben tratarse como
-pendientes: el tratamiento de faltantes al liberar —liberar, reservar sólo lo
-disponible y mostrar el faltante— y la toma con relevo informativo de una
-solicitud.
-
-Permanecen **abiertas**:
-
-- cierre principal frente a cierre definitivo, y tratamiento de las reservas
-  durante el retrabajo;
-- proceso de retorno del retrabajo y autorización de su descarte;
-- límites de los ajustes de una orden después de que exista consumo o recepción;
-- representación del material físicamente en tránsito y el relevo formal;
-- sustitución manual de material, su autorización y su trazabilidad.
-
-**Prioridad inmediata:** resolver el modelo de cierre principal con retrabajo
-diferido antes de ampliar P5. Es la contradicción funcional más seria del módulo:
-hoy el sistema sólo permite cerrar una orden cuando el retrabajo ya fue resuelto,
-mientras que la operación real atiende el retrabajo días después.
-
+- Liberar con faltantes y toma informativa siguen siendo decisiones cerradas de P3.
+- Cierre principal por OPERATOR, autorización ADMIN de diferencias, selección explícita de reservas, cierre definitivo y reapertura ADMIN.
+- Retrabajo en el proceso de origen; descarte ADMIN; merma de materia prima por OPERATOR con NIP.
+- Ajustar meta antes de cerrar fabricación no completada; conservar meta original y respetar cantidades ejecutadas.
+- Se mantienen abiertas para fases posteriores las sustituciones y la representación de material en tránsito.
+- Los retrabajos históricos sólo se vinculan desde resultados efectivos. La migración se detiene ante orígenes ambiguos o cantidades inconciliables; no deduce historia desde saldos actuales.
 ## 9. Fases de implementación
 
 ### Fase P1 — Configuración central de materiales y WIP
@@ -512,17 +478,19 @@ La migración incremental es `20260914122652_Phase132ProductionPlanningSnapshot`
 
 **Aceptación:** bodega puede identificar una orden pendiente sin abrir manualmente cada orden de producción.
 
-**Implementada en código el 14 de septiembre de 2026; migración y despliegue pendientes.** Las órdenes liberadas a partir de P3 generan solicitudes agrupadas por proceso y destino y reservas por ubicación y lote hasta la existencia libre disponible. Las órdenes que ya estaban liberadas permanecen en el flujo anterior. Requerido, cancelado, entregado, pendiente, reservado y faltante se conservan separados.
+**Implementada en código el 14 de septiembre de 2026; despliegue pendiente.** `CONTEXT.md` registra que P3 fue reaplicada el 15 de septiembre después de una reversión durante P4. Es evidencia documental: recrear el esquema no acredita recuperar los datos anteriores ni verifica el estado actual de la base. Las órdenes liberadas a partir de P3 generan solicitudes agrupadas por proceso y destino y reservas por ubicación y lote hasta la existencia libre disponible. Las órdenes que ya estaban liberadas permanecen en el flujo anterior. Requerido, cancelado, entregado, pendiente, reservado y faltante se conservan separados.
 
 La cola pública **Surtimientos a producción** muestra una sola alerta por orden pendiente, prioridad normal o urgente, fecha requerida, proceso, material, cantidades y destino. La toma es informativa y permite continuidad por otro operador. Bodega reserva existencia nueva mediante una acción explícita; ADMIN cambia prioridad o cancela pendiente con NIP y motivo. Las órdenes pausadas conservan solicitudes y reservas, pero no admiten entrega.
 
 P3 conecta cada línea con la salida WIP existente. La confirmación revalida versión, pendiente, proceso, producto y destino; crea el movimiento y su vínculo, libera la reserva de almacén utilizada y actualiza la solicitud en la misma transacción. Se permite el saldo negativo con advertencia cuando no invade reservas ajenas. Una salida general, transferencia, ajuste o corrección no puede utilizar cantidades reservadas para otra orden.
 
-El límite con P4 queda fijado: P3 permite confirmar el surtimiento desde el flujo existente; P4 agregará la preparación guiada completa, la asignación explícita de material libre ya presente en WIP y las alternativas de viaje y entrega.
+P3 conserva compatibilidad con la salida WIP anterior y comparte con P4 los cálculos y protecciones de reservas.
 
 ### Fase P4 — Preparación guiada y movimiento Rack → WIP
 
 **Objetivo:** ejecutar el surtimiento con ubicación y lote reales.
+
+**Implementada en código el 15 de septiembre de 2026; migración y SQL generados, despliegue y validación física pendientes.**
 
 - Recomendar racks y lotes con saldo libre.
 - Preservar Enter/HID, cámara y selección manual.
@@ -532,26 +500,47 @@ El límite con P4 queda fijado: P3 permite confirmar el surtimiento desde el flu
 - Evitar consumo doble, exceso y uso de reservas ajenas.
 - Informar a Producción cuando el material esté listo.
 
-**Aceptación:** cada cantidad visible en WIP está respaldada por un movimiento de inventario confirmado.
+La página `/Operations/ProductionSupply/Prepare` abre cada material pendiente sin recapturar la orden. Distingue saldo físico, reserva propia, reservas ajenas y cantidad utilizable; prioriza la reserva de la solicitud y la ubicación principal. Permite elegir varios orígenes de almacén, material libre en el destino WIP o una combinación. El operador selecciona ubicaciones y cantidades; el servidor resuelve lotes FEFO.
+
+Guardar una preparación exige NIP, conserva responsable, fecha, destino, fuentes y versión y puede continuarse desde otra tablet. El borrador no crea movimientos ni reservas adicionales. Al continuar se vuelve a consultar disponibilidad y una versión distinta impide sobrescribir cambios. Descartar exige NIP y motivo y conserva un evento auditado.
+
+Confirmar exige otro NIP y permite reducir las cantidades realmente entregadas por origen. Toda la operación usa una transacción: crea los traslados necesarios, asigna WIP existente sin movimiento ficticio, vincula lotes, libera reservas de almacén, actualiza pendientes y persiste una confirmación común con sus movimientos y asignaciones. El identificador estable impide duplicados y rechaza un reintento con contenido diferente.
+
+Después de confirmar, la pantalla muestra un comprobante con los identificadores de confirmación y operación, cantidad entregada, pendiente vigente, destino y número de traslados y asignaciones WIP. El resultado también puede consultarse mediante el handler `Result` usando el identificador estable. Los enlaces P3 anteriores que contienen una línea de solicitud redirigen a esta preparación; si un enlace antiguo sólo identifica una etapa con varias líneas, abre la cola para elegir el material.
+
+El cambio de destino se guarda únicamente para la línea pendiente seleccionada, exige NIP ADMIN, motivo, compatibilidad y versión, y obliga a revisar preparaciones abiertas. Una asignación WIP sin movimiento puede anularse parcialmente con NIP ADMIN sólo por su cantidad no consumida ni devuelta; libera la reserva y reabre el pendiente sin modificar el saldo físico.
+
+Las devoluciones a bodega de material ligado a una solicitud distinguen **Reposición**, que incrementa el pendiente sin reservar automáticamente, y **Sobrante**, que mantiene el surtimiento histórico sin abrir otro pendiente. La vista de producción calcula **Material listo en WIP** mientras el surtimiento está completo y no comenzó el consumo; después muestra **Surtimiento completo** junto con consumido y disponible.
+
+La migración incremental `20260915143955_Phase134GuidedProductionSupply` amplía el vínculo de material con producto, WIP, cantidad, procedencia y lotes; agrega preparaciones, fuentes y confirmaciones comunes. El backfill se detiene con diagnóstico si un vínculo histórico no puede reconstruirse desde su movimiento y sus cambios de saldo. No reconstruye historia desde existencias actuales. El SQL revisable está en `docs/sql/20260915143955_Phase134GuidedProductionSupply.sql`.
+
+**Aceptación:** cada cantidad reservada para una orden en WIP está respaldada por un traslado confirmado o por una asignación explícita sobre saldo libre real, con lotes, responsable y operación común trazables.
 
 ### Fase P5 — Ejecución integrada de producción
 
-**Objetivo:** cerrar el circuito entre materiales, procesos y producto terminado.
+**Implementada y verificada en código el 15 de septiembre de 2026; despliegue y aceptación operativa pendientes.**
 
-- Refinar la captura conjunta de resultado y consumo.
-- Mantener un solo lote por orden con avances, consumos y recepciones parciales durante varios días.
-- Incorporar ajustes auditados y cierre con cantidades menores o mayores a la meta.
-- Desarrollar el registro y seguimiento de retrabajo diferido y merma sin perder su orden y lote original.
-- Mostrar sugerencias de consumo por cantidad procesada.
-- Consolidar entregas pendientes entre procesos.
-- Mostrar estado del lote y preparación material en una sola vista.
-- Reforzar cierre conciliado y reversos en orden inverso.
+- `/Operations/Production/Work` conserva el registro conjunto de resultado y consumo, agrega selección del pendiente y motivos, y mantiene los avances posteriores al cierre principal.
+- `/Operations/Production/Execution` muestra meta original/vigente, recibido, diferencias, pendientes de retrabajo y antigüedad; concentra cierre principal/definitivo, reapertura, ajustes, reservas y solicitudes adicionales.
+- `/Admin/Production/Reasons` administra motivos de merma, retrabajo, diferencia y ajuste con NIP ADMIN, versión, idempotencia e historial. Desactivar un motivo no cambia los registros previos.
+- La creación de lote usa la cantidad autorizada completa e incrementa la versión de la orden para impedir dos creaciones simultáneas. Una orden histórica con varios lotes no admite otro.
+- El cierre principal exige conciliar cantidades por procesar, entregas y producto bueno; permite retrabajo pendiente y reservas retenidas explícitamente. Los intentos, surtimientos y recepciones posteriores conservan ese cierre.
+- El cierre definitivo exige resolver retrabajo, solicitudes y reservas. Corregir resultados de una orden cerrada exige reapertura ADMIN y resolver dependencias posteriores.
+- Las revisiones conservan cantidades anteriores/nuevas y no alteran receta ni ruta. Aumentar crea pendiente; reducir cancela lo pendiente y libera sólo reservas propias. El sobrante físico se devuelve por el flujo existente.
+- Merma de material crea salida real desde WIP y conserva lotes, responsable y motivo; sus cantidades se distinguen del consumo y pueden revertirse con historial.
+- La migración `20260915161501_Phase135ProductionExecution` y su SQL revisable amplían el esquema sobre P4. Conservan estados anteriores y meta original; reconstruyen retrabajos abiertos sólo desde resultados efectivos inequívocos. El descenso se bloquea si existe historia P5.
 
-**Aceptación:** desde una orden se conoce qué falta, dónde está cada lote y cuánto recibió bodega.
+**Aceptación:** una orden puede cerrar fabricación principal, atender retrabajo posteriormente, surtir/consumir material autorizado, recibir el recuperado en el mismo lote y cerrar definitivamente sin reservas ni cantidades pendientes.
 
+**Evidencia automatizada de P5:** compilación Release con cero advertencias/errores; modelo EF sin diferencias respecto de la migración; sintaxis de `production-execution.js` y `git diff --check` correctos. Pasaron 88 pruebas de producción/UI, una corrida focal de 10 pruebas P5, 9 pruebas PostgreSQL conjuntas de planificación/material/P5 y dos comprobaciones finales de cierre/permisos e intentos sucesivos. Las corridas se solapan; no son un total acumulable. SQL revisable: `docs/sql/20260915161501_Phase135ProductionExecution.sql`.
+
+La integración PostgreSQL verifica creación concurrente de un único lote, cierre principal, recuperación y recepción posterior, cierre definitivo, reconstrucción de historia inequívoca y rechazo de orígenes ambiguos. Las pruebas de P4 conservan surtimiento mixto; la trazabilidad usa ahora dos lotes de materia prima en el mismo lote de producción y conserva el bloqueo de reversos con dependencias posteriores.
+Las pruebas automatizadas y las migraciones sobre `warehouse_epi_test` no acreditan aplicación a la base operativa, despliegue ni aceptación física. No se inicia, detiene ni publica el servicio como parte de P5.
 ### Fase P6 — Analítica y alertas operativas
 
 **Objetivo:** medir rendimiento, faltantes, tiempos y cuellos de botella.
+
+**Implementada y verificada en código el 16 de septiembre de 2026; migración, despliegue, navegador y aceptación operativa pendientes.**
 
 - Construir proyección común para tablero, listado y exportación.
 - Agregar métricas de materiales, procesos, órdenes y lotes.
@@ -560,6 +549,14 @@ El límite con P4 queda fijado: P3 permite confirmar el surtimiento desde el flu
 - Integrar las alertas con la carga de trabajo existente.
 
 **Aceptación:** los totales del tablero pueden explicarse mediante órdenes, eventos y movimientos concretos.
+
+`/Reports/Production` es una consulta exclusivamente ADMIN con vistas de órdenes, materiales, retrabajo/merma y registros. Conserva filtros GET por periodo, búsqueda, producto, proceso, turno, estado y alertas; pagina en servidor y permite Excel, CSV e impresión. El diseño adopta la densidad operativa de HermeX POS dentro de Razor Pages, Bootstrap, temas y restricciones de tablet de Warehouse EPI.
+
+El cumplimiento usa la recepción efectiva en bodega contra la meta vigente y muestra la meta original cuando fue ajustada. Materiales separa plan original, plan autorizado, surtido, consumo efectivo, devoluciones, desperdicio, pendiente, desviación contra plan y desviación técnica contra la receta histórica proporcional a la entrada procesada de primera pasada. No suma unidades distintas. Registros muestra la cronología y señala originales revertidos sin incluirlos como efectivos.
+
+Cada proceso admite umbrales opcionales de inactividad y antigüedad de retrabajo. Vacíos muestran antigüedad sin declarar atraso; una orden pausada no genera alerta de inactividad. La cola pública incluye órdenes con cierre principal y pendientes posteriores sin exponer la analítica ADMIN.
+
+La migración incremental es `20260916142819_Phase136ProductionAnalytics`; agrega únicamente ambos umbrales y su restricción positiva. El SQL revisable está en `docs/sql/20260916142819_Phase136ProductionAnalytics.sql`. La verificación focal incluye las cuatro consultas sobre PostgreSQL, filtros y cumplimiento, tipos/sanitización de Excel, límite de 10,000 filas, autorización/contrato Razor, configuración de procesos, cola pública y navegación. Además, la corrida amplia de producción aprobó 106 pruebas.
 
 ### Fase P7 — Validación, migración y despliegue
 

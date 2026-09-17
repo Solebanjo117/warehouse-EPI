@@ -2725,11 +2725,17 @@ a.product-catalog-filter-chip:focus-visible {
 .supply-action-panel { display: grid; gap: 1rem; margin-top: .75rem; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-body-bg); }
 .supply-action-panel form { padding-bottom: 1rem; border-bottom: 1px solid var(--bs-border-color); }
 .supply-action-panel form:last-child { padding-bottom: 0; border-bottom: 0; }
+.supply-source-list { display: grid; gap: .75rem; }
+.supply-source-row { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(10rem, 14rem); gap: 1rem; align-items: end; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-tertiary-bg); }
+.supply-source-row strong, .supply-source-row small { display: block; }
+.supply-source-row .badge { margin-top: .35rem; }
+.supply-confirmation .btn, .supply-preparation summary, .supply-preparation > .mt-4 .btn { min-height: 44px; }
 
 @media (max-width: 767.98px) {
   .supply-filters, .supply-quantities { grid-template-columns: 1fr 1fr; }
   .supply-filters .btn { grid-column: 1 / -1; }
   .supply-actions, .supply-actions > .btn, .supply-actions details, .supply-actions summary { width: 100%; }
+  .supply-source-row { grid-template-columns: 1fr; }
   .workload-view-tabs { display: grid; grid-template-columns: 1fr 1fr; }
   .workload-view-tabs .nav-link { justify-content: center; text-align: center; }
   .workload-item { align-items: stretch; flex-direction: column; }

@@ -324,6 +324,7 @@
       }
     };
   };
+  window.WarehouseEpiCreateCameraScanner = createCameraScanner;
 
   const renderSuggestions = (container, items, kind, select) => {
     container.replaceChildren();

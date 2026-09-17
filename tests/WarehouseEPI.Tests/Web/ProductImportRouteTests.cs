@@ -156,6 +156,118 @@ public sealed class ProductImportRouteTests : IClassFixture<AdminRouteTests.Ware
         Assert.True(formOptions.MemoryBufferThreshold >= ProductImportLimits.MaxRequestBytes);
     }
 
+    [Fact]
+    public async Task Admin_reviews_existing_values_then_confirms_update()
+    {
+        await EnsureAdminAsync();
+        var sku = "UPDATE-" + Guid.NewGuid().ToString("N").ToUpperInvariant();
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            db.Products.Add(new Product { Sku = sku, Description = "Valor anterior", BaseUnitId = 1, MinimumStock = 9 });
+            await db.SaveChangesAsync();
+        }
+        using var client = await SignInAsync();
+        var html = await client.GetStringAsync("/Admin/Catalogs/Products/Import");
+        using var workbook = Workbook(sku);
+        using var upload = new MultipartFormDataContent();
+        upload.Add(new StringContent(Antiforgery(html)), "__RequestVerificationToken");
+        upload.Add(new StringContent("true"), "UpdateExisting");
+        upload.Add(new ByteArrayContent(workbook.ToArray()), "Upload", "products.xlsx");
+        var response = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=Upload", upload);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var preview = await client.GetStringAsync(response.Headers.Location);
+        Assert.Contains("Valor anterior", preview);
+        Assert.Contains("Producto web", preview);
+        var applied = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=Confirm",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["token"] = HiddenValue(preview, "token"),
+                ["__RequestVerificationToken"] = Antiforgery(preview)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, applied.StatusCode);
+        await using var verify = factory.Services.CreateAsyncScope();
+        var product = await verify.ServiceProvider.GetRequiredService<WarehouseDbContext>().Products.SingleAsync(x => x.Sku == sku);
+        Assert.Equal("Producto web", product.Description);
+        Assert.Equal(9, product.MinimumStock);
+    }
+
+    [Fact]
+    public async Task Unit_selector_recalculates_without_writing_products()
+    {
+        await EnsureAdminAsync();
+        using var client = await SignInAsync();
+        var html = await client.GetStringAsync("/Admin/Catalogs/Products/Import");
+        using var original = Workbook("UNIT-" + Guid.NewGuid().ToString("N"));
+        using var book = new XLWorkbook(original);
+        book.Worksheet(1).Cell(2, 5).Value = "Sq. Foot:SQFT";
+        using var stream = new MemoryStream();
+        book.SaveAs(stream);
+        using var upload = new MultipartFormDataContent();
+        upload.Add(new StringContent(Antiforgery(html)), "__RequestVerificationToken");
+        upload.Add(new ByteArrayContent(stream.ToArray()), "Upload", "products.xlsx");
+        var response = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=Upload", upload);
+        var preview = await client.GetStringAsync(response.Headers.Location);
+        Assert.Contains("Resolver unidades del Excel", preview);
+        Assert.Contains("name=\"targetUnit\"", preview);
+        var before = await ProductCountAsync();
+        var fields = new Dictionary<string, string>
+        {
+            ["token"] = HiddenValue(preview, "token"),
+            ["sourceUnit"] = "Sq. Foot:SQFT",
+            ["targetUnit"] = "EA"
+        };
+        var noCsrf = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=ResolveUnit", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
+        fields["__RequestVerificationToken"] = Antiforgery(preview);
+        var resolved = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=ResolveUnit", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, resolved.StatusCode);
+        var revised = await client.GetStringAsync(resolved.Headers.Location);
+        Assert.DoesNotContain("name=\"targetUnit\"", revised);
+        Assert.Contains("Confirmar importaci", revised);
+        Assert.Equal(before, await ProductCountAsync());
+    }
+
+    [Fact]
+    public async Task Duplicate_selector_accepts_source_choice_and_rebuilds_preview()
+    {
+        await EnsureAdminAsync();
+        using var client = await SignInAsync();
+        var html = await client.GetStringAsync("/Admin/Catalogs/Products/Import");
+        using var original = Workbook("PBAG-BBAG-XS");
+        using var book = new XLWorkbook(original);
+        var sheet = book.Worksheet(1);
+        sheet.Cell(2, 12).Value = "PBAG-BBAG-XS";
+        sheet.Row(2).CopyTo(sheet.Row(3));
+        sheet.Cell(3, 12).Value = "YY-RM-BBAG:PBAG-BBAG-XS";
+        using var stream = new MemoryStream();
+        book.SaveAs(stream);
+        using var upload = new MultipartFormDataContent();
+        upload.Add(new StringContent(Antiforgery(html)), "__RequestVerificationToken");
+        upload.Add(new ByteArrayContent(stream.ToArray()), "Upload", "products.xlsx");
+        var response = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=Upload", upload);
+        var preview = await client.GetStringAsync(response.Headers.Location);
+        Assert.Contains("Resolver productos repetidos", preview);
+        Assert.Contains("YY-RM-BBAG:PBAG-BBAG-XS", preview);
+        var before = await ProductCountAsync();
+        var fields = new Dictionary<string, string>
+        {
+            ["token"] = HiddenValue(preview, "token"),
+            ["sku"] = "PBAG-BBAG-XS",
+            ["choices[Referencia completa]"] = "YY-RM-BBAG:PBAG-BBAG-XS"
+        };
+        var noCsrf = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=ResolveDuplicate", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.BadRequest, noCsrf.StatusCode);
+        fields["__RequestVerificationToken"] = Antiforgery(preview);
+        var resolved = await client.PostAsync("/Admin/Catalogs/Products/Import?handler=ResolveDuplicate", new FormUrlEncodedContent(fields));
+        Assert.Equal(HttpStatusCode.Redirect, resolved.StatusCode);
+        var revised = await client.GetStringAsync(resolved.Headers.Location);
+        Assert.DoesNotContain("Resolver productos repetidos", revised);
+        Assert.Contains("YY-RM-BBAG:PBAG-BBAG-XS", revised);
+        Assert.Contains("Confirmar importaci", revised);
+        Assert.Equal(before, await ProductCountAsync());
+    }
+
     private async Task EnsureAdminAsync()
     {
         await using var scope = factory.Services.CreateAsyncScope();

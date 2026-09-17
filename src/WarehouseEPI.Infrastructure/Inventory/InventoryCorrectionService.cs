@@ -90,10 +90,11 @@ public sealed class InventoryCorrectionService(
                 .Include(link => link.WorkOrder)
                 .Include(link => link.OperationLines).ThenInclude(line => line.Operation)
                 .Include(link => link.InventoryMovementLine)
+                .Include(link => link.Lots)
                 .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.Reservations)
                 .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.IssueLinks).ThenInclude(issue => issue.InventoryMovementLine)
                 .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.SupplyRequest).ThenInclude(request => request.Events)
-                .SingleOrDefaultAsync(link => originalLineIds.Contains(link.InventoryMovementLineId), cancellationToken);
+                .SingleOrDefaultAsync(link => link.InventoryMovementLineId.HasValue && originalLineIds.Contains(link.InventoryMovementLineId.Value), cancellationToken);
             if (materialIssue is not null)
             {
                 var reversedMaterialOperations = await dbContext.ProductionMaterialOperations.AsNoTracking()
@@ -115,9 +116,9 @@ public sealed class InventoryCorrectionService(
                 if (normalized.Replacement is { } supplyReplacement && materialIssue.SupplyRequestLine is { } supplyLine)
                 {
                     var deliveredByOthers = supplyLine.IssueLinks.Where(x => x.Id != materialIssue.Id)
-                        .Sum(x => x.InventoryMovementLine.Quantity);
+                        .Sum(x => x.Quantity - x.CancelledQuantity);
                     if (supplyReplacement.Lines.Single().Quantity > supplyLine.RequiredQuantity -
-                        supplyLine.CancelledQuantity - deliveredByOthers)
+                        supplyLine.CancelledQuantity + supplyLine.ReopenedQuantity - deliveredByOthers)
                         return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
                             Errors: ["El reemplazo supera el pendiente permitido por la solicitud de surtimiento."]), cancellationToken);
                 }
@@ -175,13 +176,19 @@ public sealed class InventoryCorrectionService(
             dbContext.InventoryMovementCorrections.Add(correction);
             if (materialIssue is not null)
             {
-                var originalQuantity = materialIssue.InventoryMovementLine.Quantity;
+                var originalQuantity = materialIssue.Quantity;
                 var replacementQuantity = normalized.Replacement?.Lines.Single().Quantity ?? 0;
                 if (replacementResult?.MovementId is Guid replacementId)
                 {
-                    var replacementLine = await dbContext.InventoryMovementLines
+                    var replacementLine = await dbContext.InventoryMovementLines.Include(x => x.BalanceChanges)
                         .SingleAsync(line => line.MovementId == replacementId, cancellationToken);
                     materialIssue.InventoryMovementLineId = replacementLine.Id;
+                    materialIssue.ProductId = replacementLine.ProductId;
+                    materialIssue.WipLocationId = replacementLine.DestinationLocationId!.Value;
+                    materialIssue.Quantity = replacementLine.Quantity;
+                    dbContext.ProductionMaterialIssueLots.RemoveRange(materialIssue.Lots);
+                    foreach (var change in replacementLine.BalanceChanges.Where(x => x.DeltaQuantity > 0 && x.LotId.HasValue))
+                        materialIssue.Lots.Add(new ProductionMaterialIssueLot { LotId = change.LotId!.Value, Quantity = change.DeltaQuantity });
                 }
                 else
                 {

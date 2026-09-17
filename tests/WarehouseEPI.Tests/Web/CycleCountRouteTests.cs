@@ -358,7 +358,7 @@ public sealed class CycleCountRouteTests
         Assert.Contains("10000", export, StringComparison.Ordinal);
         Assert.Contains("ExportCycleCountsToExcelAsync", export, StringComparison.Ordinal);
         Assert.Contains("ExportCycleCountsToCsvAsync", export, StringComparison.Ordinal);
-        Assert.Contains("/Operations/CycleCounts/Index", layout, StringComparison.Ordinal);
+        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Operations/CycleCounts/Index");
         Assert.Contains("/Operations/CycleCounts/Index", analytics, StringComparison.Ordinal);
     }
 

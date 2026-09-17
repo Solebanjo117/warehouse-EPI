@@ -249,10 +249,9 @@ public sealed class InventoryMovementService(
                 .Where(x => x.ProductId == group.Key.ProductId && x.LocationId == group.Key.LocationId)
                 .SumAsync(x => x.Quantity, token);
             var links = await dbContext.ProductionMaterialIssueLinks.AsNoTracking()
-                .Include(x => x.InventoryMovementLine).Include(x => x.OperationLines).ThenInclude(x => x.Operation)
-                .Where(x => x.InventoryMovementLine.ProductId == group.Key.ProductId &&
-                    x.InventoryMovementLine.DestinationLocationId == group.Key.LocationId).ToListAsync(token);
-            var reserved = links.Sum(link => link.InventoryMovementLine.Quantity - link.OperationLines
+                .Include(x => x.OperationLines).ThenInclude(x => x.Operation)
+                .Where(x => x.ProductId == group.Key.ProductId && x.WipLocationId == group.Key.LocationId).ToListAsync(token);
+            var reserved = links.Sum(link => link.Quantity - link.CancelledQuantity - link.OperationLines
                 .Where(line => line.Operation.Type != ProductionMaterialOperationType.Reversal && !reversed.Contains(line.Operation.Id))
                 .Sum(line => line.Quantity));
             var requested = group.Sum(x => x.Quantity);
@@ -300,11 +299,10 @@ public sealed class InventoryMovementService(
                 .ThenBy(x => x.Lot!.CreatedAt).ThenBy(x => x.Lot!.NormalizedNumber)
                 .ToListAsync(token);
             var links = await dbContext.ProductionMaterialIssueLinks.AsNoTracking()
-                .Include(x => x.InventoryMovementLine).ThenInclude(x => x.BalanceChanges)
+                .Include(x => x.Lots).ThenInclude(x => x.Lot)
                 .Include(x => x.OperationLines).ThenInclude(x => x.Operation)
                 .Include(x => x.OperationLines).ThenInclude(x => x.InventoryMovementLine).ThenInclude(x => x.BalanceChanges)
-                .Where(x => x.InventoryMovementLine.ProductId == line.ProductId &&
-                    x.InventoryMovementLine.DestinationLocationId == locationId).ToListAsync(token);
+                .Where(x => x.ProductId == line.ProductId && x.WipLocationId == locationId).ToListAsync(token);
             var reserved = links.SelectMany(link => RemainingLots(link, reversed))
                 .GroupBy(x => x.LotId).ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity));
             var remaining = line.Quantity;
@@ -333,14 +331,17 @@ public sealed class InventoryMovementService(
         var used = link.OperationLines
             .Where(x => x.Operation.Type != ProductionMaterialOperationType.Reversal && !reversed.Contains(x.Operation.Id))
             .SelectMany(x => x.InventoryMovementLine.BalanceChanges)
-            .Where(x => x.LocationId == link.InventoryMovementLine.DestinationLocationId && x.DeltaQuantity < 0)
+            .Where(x => x.LocationId == link.WipLocationId && x.DeltaQuantity < 0)
             .GroupBy(x => x.LotId!.Value).ToDictionary(x => x.Key, x => -x.Sum(y => y.DeltaQuantity));
-        return link.InventoryMovementLine.BalanceChanges
-            .Where(x => x.LocationId == link.InventoryMovementLine.DestinationLocationId && x.DeltaQuantity > 0)
-            .OrderBy(x => x.LotDateSnapshot == null).ThenBy(x => x.LotDateSnapshot).ThenBy(x => x.LotNumberSnapshot)
-            .Select(x => new InventoryLotSelection(x.LotId!.Value,
-                Math.Max(0, x.DeltaQuantity - used.GetValueOrDefault(x.LotId.Value))))
-            .Where(x => x.Quantity > 0);
+        var cancelled = link.CancelledQuantity;
+        var result = new List<InventoryLotSelection>();
+        foreach (var lot in link.Lots.OrderBy(x => x.Lot.LotDate == null).ThenBy(x => x.Lot.LotDate).ThenBy(x => x.Lot.NormalizedNumber))
+        {
+            var available = Math.Max(0, lot.Quantity - used.GetValueOrDefault(lot.LotId));
+            var cancelledHere = Math.Min(cancelled, available); cancelled -= cancelledHere; available -= cancelledHere;
+            if (available > 0) result.Add(new(lot.LotId, available));
+        }
+        return result;
     }
 
     private async Task<InventoryMovementResult> AbortAsync(

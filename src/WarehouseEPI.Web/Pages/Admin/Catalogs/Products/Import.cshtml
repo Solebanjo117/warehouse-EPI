@@ -5,7 +5,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div>
         <h1 class="h2 mb-1">Importar productos</h1>
-        <p class="text-muted mb-0">Valida y previsualiza la hoja ITEMS antes de insertar productos.</p>
+        <p class="text-muted mb-0">Compara el Excel con el catálogo y confirma las altas y actualizaciones.</p>
     </div>
     <a asp-page="Index" class="btn btn-outline-secondary">Volver a productos</a>
 </div>
@@ -32,12 +32,85 @@
                 <button type="submit" class="btn btn-primary btn-lg w-100">Analizar archivo</button>
             </div>
         </div>
-        <div class="form-text mt-2">Solo .xlsx, máximo 10 MB y 10,000 filas. Debe contener la hoja ITEMS con las columnas originales.</div>
+        <div class="mt-3">
+            <label asp-for="UpdateExisting" class="form-label fw-semibold">Acción sobre el catálogo</label>
+            <select asp-for="UpdateExisting" class="form-select form-select-lg">
+                <option value="true">Agregar nuevos y actualizar existentes</option>
+                <option value="false">Solo agregar nuevos (omitir SKU existentes)</option>
+            </select>
+        </div>
+        <div class="form-text mt-2">Solo .xlsx, máximo 10 MB y 10,000 filas. Hojas admitidas: ITEMS o ITEM LISTING, con sus columnas originales. Si hay ambas, se utiliza ITEMS.</div>
+        <p class="small mt-2 mb-0">Al actualizar, las celdas vacías conservan el valor actual. En productos nuevos, U/M vacía usa “Sin asignar”. Las clases nuevas se crean al confirmar, con el código como nombre. Solo se modifican descripción, referencia, clase y unidad; la unidad no puede cambiar si hay movimientos. Los productos ausentes del Excel se conservan.</p>
     </form>
 </div>
 
 @if (Model.Preview is { } preview)
 {
+    @if (preview.Source is { Conflicts.Count: > 0 } source)
+    {
+        <section class="card card-body mb-3" aria-labelledby="resolve-duplicates-heading">
+            <h2 id="resolve-duplicates-heading" class="h4">Resolver productos repetidos</h2>
+            <p>Elige qué valor conservar en cada campo diferente. Los campos vacíos se completan con los disponibles. Esta selección recalcula la vista previa; no modifica el Excel ni guarda productos.</p>
+            @{ var fieldNumber = 0; }
+            @foreach (var conflict in source.Conflicts)
+            {
+                <form method="post" asp-page-handler="ResolveDuplicate" class="border rounded p-3 mb-3">
+                    <input type="hidden" name="token" value="@preview.Token" />
+                    <input type="hidden" name="sku" value="@conflict.Sku" />
+                    <h3 class="h5 text-break">@conflict.Sku</h3>
+                    <p class="text-body-secondary">Filas: @string.Join(", ", conflict.Rows.SelectMany(x => x.SourceRows))</p>
+                    @foreach (var field in conflict.Fields)
+                    {
+                        if (field.Value.Length > 1)
+                        {
+                            var controlId = $"duplicate-field-{fieldNumber++}";
+                            <div class="mb-3">
+                                <label for="@controlId" class="form-label fw-semibold">@field.Key que se conservará</label>
+                                <select id="@controlId" name="choices[@field.Key]" class="form-select form-select-lg" required>
+                                    <option value="">Selecciona un valor</option>
+                                    @foreach (var value in field.Value)
+                                    {
+                                        <option value="@value">@value</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            <p class="text-break mb-2"><strong>@field.Key:</strong> @(field.Value.SingleOrDefault() ?? "Vacío")</p>
+                        }
+                    }
+                    <button type="submit" class="btn btn-outline-primary btn-lg mt-2">Consolidar y volver a comparar</button>
+                </form>
+            }
+        </section>
+    }
+    @if (preview.UnresolvedUnits.Count > 0)
+    {
+        <section class="card card-body mb-3" aria-labelledby="resolve-unit-heading">
+            <h2 id="resolve-unit-heading" class="h4">Resolver unidades del Excel</h2>
+            <p>Selecciona la unidad del catálogo que corresponde a cada valor. Se recalculará la comparación para todas sus filas, sin guardar productos todavía.</p>
+            @for (var i = 0; i < preview.UnresolvedUnits.Count; i++)
+            {
+                var sourceUnit = preview.UnresolvedUnits[i];
+                <form method="post" asp-page-handler="ResolveUnit" class="row g-2 align-items-end mb-3">
+                    <input type="hidden" name="token" value="@preview.Token" />
+                    <input type="hidden" name="sourceUnit" value="@sourceUnit" />
+                    <div class="col-12 col-md-8">
+                        <label class="form-label fw-semibold" for="resolve-unit-@i">Unidad para “@sourceUnit”</label>
+                        <select id="resolve-unit-@i" name="targetUnit" class="form-select form-select-lg" required>
+                            <option value="">Selecciona una unidad</option>
+                            @foreach (var unit in preview.UnitOptions)
+                            {
+                                <option value="@unit.Code">@unit.Code — @unit.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-4"><button class="btn btn-outline-primary btn-lg" type="submit">Usar unidad y comparar</button></div>
+                </form>
+            }
+        </section>
+    }
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
             <h2 class="h4 mb-1">Vista previa</h2>
@@ -47,15 +120,23 @@
         {
             <form method="post" asp-page-handler="Confirm">
                 <input type="hidden" name="token" value="@preview.Token" />
-                <button type="submit" class="btn btn-success btn-lg">Confirmar importación</button>
+                <button type="submit" class="btn btn-success btn-lg">Confirmar importación: @preview.NewCount altas y @preview.UpdatedCount actualizaciones</button>
             </form>
         }
         else
         {
-            <button type="button" class="btn btn-secondary btn-lg" disabled>Corrige los errores para confirmar</button>
+            <span class="text-body-secondary">No hay cambios válidos para aplicar o el archivo contiene errores bloqueantes.</span>
         }
     </div>
 
+    @if (preview.UpdateExisting)
+    {
+        <div class="alert alert-info" role="status">
+            <strong>@preview.UpdatedCount por actualizar · @preview.UnchangedCount sin cambios.</strong>
+            Se aplicarán únicamente los productos válidos. Incidencias de error: @preview.ErrorCount.
+            Las filas indicadas con error se omiten; revisa las incidencias antes de confirmar.
+        </div>
+    }
     <div class="row row-cols-2 row-cols-lg-4 g-2 mb-3">
         <div class="col"><div class="card card-body h-100"><span class="text-muted">Filas fuente</span><strong class="fs-4">@preview.SourceRowCount.ToString("N0")</strong></div></div>
         <div class="col"><div class="card card-body h-100"><span class="text-muted">Productos nuevos</span><strong class="fs-4 text-success">@preview.NewCount.ToString("N0")</strong></div></div>
@@ -88,7 +169,7 @@
     }
 
     <nav class="nav nav-pills flex-wrap gap-1 mb-3" aria-label="Filtros de la vista previa">
-        @foreach (var option in new[] { ("all", "Todos"), ("new", "Nuevos"), ("existing", "Omitidos"), ("consolidated", "Consolidados"), ("warnings", "Advertencias"), ("errors", "Errores") })
+        @foreach (var option in new[] { ("all", "Todos"), ("new", "Nuevos"), ("existing", "Existentes"), ("updated", "Por actualizar"), ("unchanged", "Sin cambios"), ("consolidated", "Consolidados"), ("warnings", "Advertencias"), ("errors", "Errores") })
         {
             <a class="nav-link @(Model.Filter == option.Item1 ? "active" : "")" asp-route-token="@preview.Token" asp-route-filter="@option.Item1">@option.Item2</a>
         }
@@ -96,7 +177,7 @@
 
     <div class="table-responsive">
         <table class="table table-striped align-middle">
-            <thead><tr><th>Fila(s)</th><th>SKU / descripción</th><th>Unidad</th><th>Clase</th><th>Referencia</th><th>Resultado</th></tr></thead>
+            <thead><tr><th>Fila(s)</th><th>SKU / descripción propuesta</th><th>Unidad propuesta</th><th>Clase propuesta</th><th>Referencia propuesta</th><th>Resultado / comparación</th></tr></thead>
             <tbody>
             @if (Model.Rows.Count == 0)
             {
@@ -114,11 +195,22 @@
                         <td class="text-break">@(row.ExternalReference ?? "—")</td>
                         <td>
                             @if (row.HasError) { <span class="badge text-bg-danger">Error</span> }
-                            else if (row.IsExisting) { <span class="badge text-bg-secondary">Omitir</span> }
+                            else if (row.IsUpdate) { <span class="badge text-bg-primary">Actualizar</span> }
+                            else if (row.IsExisting) { <span class="badge text-bg-secondary">@(preview.UpdateExisting ? "Sin cambios" : "Omitir")</span> }
                             else if (row.IsConsolidated) { <span class="badge text-bg-info">Consolidado</span> }
                             else { <span class="badge text-bg-success">Nuevo</span> }
                             @if (row.HasWarning) { <span class="badge text-bg-warning">Advertencia</span> }
                             @if (row.Message is not null) { <div class="small mt-1">@row.Message</div> }
+                            @if (preview.UpdateExisting && row.Changes.Count > 0)
+                            {
+                                <dl class="small text-break mt-2 mb-0">
+                                @foreach (var change in row.Changes)
+                                {
+                                    <dt>@change.Field</dt>
+                                    <dd>Actual: @(change.Before ?? "—")<br />Propuesto: @(change.After ?? "—")</dd>
+                                }
+                                </dl>
+                            }
                         </td>
                     </tr>
                 }

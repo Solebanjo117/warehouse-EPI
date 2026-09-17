@@ -170,12 +170,14 @@ public static partial class ProductionModelConfiguration
         line.ToTable("production_supply_request_lines", t => t.HasCheckConstraint("ck_production_supply_request_line_quantities", "required_quantity > 0 AND cancelled_quantity >= 0 AND cancelled_quantity <= required_quantity"));
         line.HasKey(x => x.Id);
         line.Property(x => x.Id).HasColumnName("id"); line.Property(x => x.SupplyRequestId).HasColumnName("supply_request_id"); line.Property(x => x.MaterialPlanId).HasColumnName("material_plan_id");
-        line.Property(x => x.ProductId).HasColumnName("product_id"); line.Property(x => x.UnitId).HasColumnName("unit_id"); line.Property(x => x.RequiredQuantity).HasColumnName("required_quantity").HasPrecision(18, 4); line.Property(x => x.CancelledQuantity).HasColumnName("cancelled_quantity").HasPrecision(18, 4);
-        line.HasIndex(x => x.MaterialPlanId).IsUnique();
+        line.Property(x => x.ProductId).HasColumnName("product_id"); line.Property(x => x.UnitId).HasColumnName("unit_id"); line.Property(x => x.RequiredQuantity).HasColumnName("required_quantity").HasPrecision(18, 4); line.Property(x => x.CancelledQuantity).HasColumnName("cancelled_quantity").HasPrecision(18, 4); line.Property(x => x.ReopenedQuantity).HasColumnName("reopened_quantity").HasPrecision(18, 4);
+        line.Property(x => x.DestinationLocationId).HasColumnName("destination_location_id"); line.Property(x => x.DestinationCode).HasColumnName("destination_code").HasMaxLength(80);
+        line.HasIndex(x => x.MaterialPlanId).IsUnique().HasFilter("rework_case_id IS NULL");
         line.HasOne(x => x.SupplyRequest).WithMany(x => x.Lines).HasForeignKey(x => x.SupplyRequestId).OnDelete(DeleteBehavior.Cascade);
         line.HasOne(x => x.MaterialPlan).WithMany().HasForeignKey(x => x.MaterialPlanId).OnDelete(DeleteBehavior.Restrict);
         line.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
         line.HasOne(x => x.Unit).WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict);
+        line.HasOne(x => x.DestinationLocation).WithMany().HasForeignKey(x => x.DestinationLocationId).OnDelete(DeleteBehavior.Restrict);
 
         var reservation = modelBuilder.Entity<ProductionWarehouseReservation>();
         reservation.ToTable("production_warehouse_reservations", t => t.HasCheckConstraint("ck_production_warehouse_reservation_quantities", "quantity > 0 AND released_quantity >= 0 AND released_quantity <= quantity"));
@@ -194,5 +196,53 @@ public static partial class ProductionModelConfiguration
         supplyEvent.HasIndex(x => x.OperationId).IsUnique(); supplyEvent.HasIndex(x => new { x.SupplyRequestId, x.RecordedAt });
         supplyEvent.HasOne(x => x.SupplyRequest).WithMany(x => x.Events).HasForeignKey(x => x.SupplyRequestId).OnDelete(DeleteBehavior.Restrict); supplyEvent.HasOne(x => x.SupplyRequestLine).WithMany().HasForeignKey(x => x.SupplyRequestLineId).OnDelete(DeleteBehavior.Restrict);
         supplyEvent.HasOne(x => x.ResponsibleUser).WithMany().HasForeignKey(x => x.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict); supplyEvent.HasOne(x => x.InventoryMovement).WithMany().HasForeignKey(x => x.InventoryMovementId).OnDelete(DeleteBehavior.Restrict);
+
+        var preparation = modelBuilder.Entity<ProductionSupplyPreparation>();
+        preparation.ToTable("production_supply_preparations"); preparation.HasKey(x => x.Id);
+        preparation.Property(x => x.Id).HasColumnName("id"); preparation.Property(x => x.OperationId).HasColumnName("operation_id");
+        preparation.Property(x => x.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength();
+        preparation.Property(x => x.SupplyRequestLineId).HasColumnName("supply_request_line_id"); preparation.Property(x => x.DestinationLocationId).HasColumnName("destination_location_id");
+        preparation.Property(x => x.Status).HasColumnName("status").HasMaxLength(20).HasConversion<string>(); preparation.Property(x => x.ResponsibleUserId).HasColumnName("responsible_user_id");
+        preparation.Property(x => x.Version).HasColumnName("version").IsConcurrencyToken(); preparation.Property(x => x.CreatedAt).HasColumnName("created_at"); preparation.Property(x => x.UpdatedAt).HasColumnName("updated_at");
+        preparation.HasIndex(x => x.OperationId).IsUnique(); preparation.HasIndex(x => x.SupplyRequestLineId).IsUnique().HasFilter("status = 'Open'");
+        preparation.HasOne(x => x.SupplyRequestLine).WithMany(x => x.Preparations).HasForeignKey(x => x.SupplyRequestLineId).OnDelete(DeleteBehavior.Restrict);
+        preparation.HasOne(x => x.DestinationLocation).WithMany().HasForeignKey(x => x.DestinationLocationId).OnDelete(DeleteBehavior.Restrict);
+        preparation.HasOne(x => x.ResponsibleUser).WithMany().HasForeignKey(x => x.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var source = modelBuilder.Entity<ProductionSupplyPreparationSource>();
+        source.ToTable("production_supply_preparation_sources", t => t.HasCheckConstraint("ck_production_supply_preparation_source_quantity", "quantity > 0")); source.HasKey(x => x.Id);
+        source.Property(x => x.Id).HasColumnName("id"); source.Property(x => x.PreparationId).HasColumnName("preparation_id"); source.Property(x => x.Kind).HasColumnName("kind").HasMaxLength(20).HasConversion<string>();
+        source.Property(x => x.LocationId).HasColumnName("location_id"); source.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        source.HasIndex(x => new { x.PreparationId, x.Kind, x.LocationId }).IsUnique();
+        source.HasOne(x => x.Preparation).WithMany(x => x.Sources).HasForeignKey(x => x.PreparationId).OnDelete(DeleteBehavior.Cascade);
+        source.HasOne(x => x.Location).WithMany().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict);
+
+        var confirmation = modelBuilder.Entity<ProductionSupplyConfirmation>();
+        confirmation.ToTable("production_supply_confirmations", table => table.HasCheckConstraint("ck_production_supply_confirmation_quantity", "quantity > 0"));
+        confirmation.HasKey(x => x.Id);
+        confirmation.Property(x => x.Id).HasColumnName("id"); confirmation.Property(x => x.OperationId).HasColumnName("operation_id");
+        confirmation.Property(x => x.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength();
+        confirmation.Property(x => x.SupplyRequestLineId).HasColumnName("supply_request_line_id"); confirmation.Property(x => x.PreparationId).HasColumnName("preparation_id");
+        confirmation.Property(x => x.DestinationLocationId).HasColumnName("destination_location_id"); confirmation.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        confirmation.Property(x => x.ResponsibleUserId).HasColumnName("responsible_user_id"); confirmation.Property(x => x.RecordedAt).HasColumnName("recorded_at");
+        confirmation.HasIndex(x => x.OperationId).IsUnique(); confirmation.HasIndex(x => x.PreparationId).IsUnique();
+        confirmation.HasOne(x => x.SupplyRequestLine).WithMany().HasForeignKey(x => x.SupplyRequestLineId).OnDelete(DeleteBehavior.Restrict);
+        confirmation.HasOne(x => x.Preparation).WithOne().HasForeignKey<ProductionSupplyConfirmation>(x => x.PreparationId).OnDelete(DeleteBehavior.Restrict);
+        confirmation.HasOne(x => x.DestinationLocation).WithMany().HasForeignKey(x => x.DestinationLocationId).OnDelete(DeleteBehavior.Restrict);
+        confirmation.HasOne(x => x.ResponsibleUser).WithMany().HasForeignKey(x => x.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var confirmationMovement = modelBuilder.Entity<ProductionSupplyConfirmationMovement>();
+        confirmationMovement.ToTable("production_supply_confirmation_movements");
+        confirmationMovement.HasKey(x => new { x.ConfirmationId, x.InventoryMovementId });
+        confirmationMovement.Property(x => x.ConfirmationId).HasColumnName("confirmation_id"); confirmationMovement.Property(x => x.InventoryMovementId).HasColumnName("inventory_movement_id");
+        confirmationMovement.HasOne(x => x.Confirmation).WithMany(x => x.Movements).HasForeignKey(x => x.ConfirmationId).OnDelete(DeleteBehavior.Cascade);
+        confirmationMovement.HasOne(x => x.InventoryMovement).WithMany().HasForeignKey(x => x.InventoryMovementId).OnDelete(DeleteBehavior.Restrict);
+
+        var confirmationIssue = modelBuilder.Entity<ProductionSupplyConfirmationIssue>();
+        confirmationIssue.ToTable("production_supply_confirmation_issues");
+        confirmationIssue.HasKey(x => new { x.ConfirmationId, x.IssueLinkId });
+        confirmationIssue.Property(x => x.ConfirmationId).HasColumnName("confirmation_id"); confirmationIssue.Property(x => x.IssueLinkId).HasColumnName("issue_link_id");
+        confirmationIssue.HasOne(x => x.Confirmation).WithMany(x => x.Issues).HasForeignKey(x => x.ConfirmationId).OnDelete(DeleteBehavior.Cascade);
+        confirmationIssue.HasOne(x => x.IssueLink).WithMany().HasForeignKey(x => x.IssueLinkId).OnDelete(DeleteBehavior.Restrict);
     }
 }

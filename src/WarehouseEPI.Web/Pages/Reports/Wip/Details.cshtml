@@ -2,21 +2,25 @@
 @model WarehouseEPI.Web.Pages.Reports.Wip.DetailsModel
 @{ ViewData["Title"] = "Detalle WIP"; }
 
-<div class="container py-4">
+<div class="container py-4 wip-report-detail">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
             <a asp-page="Index">← Reporte WIP</a>
             <h1 class="h2 mt-2 mb-1">@Model.Issue.ProductSku: @Model.Issue.SourceLocation → @Model.Issue.WipArea</h1>
-            <p class="mb-0">Salida original @Model.Issue.OccurredAt.ToString("dd/MM/yyyy HH:mm") · @Model.Issue.Responsible · folio @Model.Issue.MovementId</p>
+            <dl class="wip-detail-facts mb-0">
+                <div><dt>Salida original</dt><dd>@Model.Issue.OccurredAt.ToString("dd/MM/yyyy HH:mm")</dd></div>
+                <div><dt>Responsable</dt><dd>@Model.Issue.Responsible</dd></div>
+                <div><dt>Folio</dt><dd>@Model.Issue.MovementId</dd></div>
+            </dl>
         </div>
         <span class="badge text-bg-secondary fs-6">Historial legado de solo lectura</span>
     </div>
 
     <div class="row g-3 mb-4">
         <div class="col"><div class="card card-body"><span>Enviado</span><strong>@Model.Issue.Issued.ToString("0.####") @Model.Issue.Unit</strong></div></div>
-        <div class="col"><div class="card card-body"><span>Devuelto a bodega</span><strong>@Model.Issue.WarehouseReturned.ToString("0.####")</strong></div></div>
-        <div class="col"><div class="card card-body"><span>Devuelto a proveedor</span><strong>@Model.Issue.SupplierReturned.ToString("0.####")</strong></div></div>
-        <div class="col"><div class="card card-body border-warning"><span>Consumo asumido</span><strong>@Model.Issue.AssumedConsumed.ToString("0.####")</strong></div></div>
+        <div class="col"><div class="card card-body"><span>Devuelto a bodega</span><strong>@Model.Issue.WarehouseReturned.ToString("0.####") @Model.Issue.Unit</strong></div></div>
+        <div class="col"><div class="card card-body"><span>Devuelto a proveedor</span><strong>@Model.Issue.SupplierReturned.ToString("0.####") @Model.Issue.Unit</strong></div></div>
+        <div class="col"><div class="card card-body border-warning"><span>Consumo asumido</span><strong>@Model.Issue.AssumedConsumed.ToString("0.####") @Model.Issue.Unit</strong></div></div>
     </div>
 
     <h2 class="h4">Devoluciones y compensaciones</h2>
@@ -31,15 +35,17 @@
                 @foreach (var row in Model.Dispositions)
                 {
                     <tr class="@(row.IsReversal || row.WasReversed ? "table-secondary" : null)">
-                        <td>@row.OccurredAt.ToString("dd/MM/yyyy HH:mm")</td>
-                        <td>@(row.Type == "WarehouseReturn" ? "A bodega" : "A proveedor")</td>
-                        <td>@row.Quantity.ToString("0.####") @Model.Issue.Unit</td>
-                        <td>@row.Responsible</td>
-                        <td>@row.Reference</td>
-                        <td>@(row.IsReversal ? "Compensación" : row.WasReversed ? "Corregida" : "Vigente")</td>
+                        <td data-label="Fecha">@row.OccurredAt.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td data-label="Tipo">@(row.Type == "WarehouseReturn" ? "A bodega" : "A proveedor")</td>
+                        <td data-label="Cantidad">@row.Quantity.ToString("0.####") @Model.Issue.Unit</td>
+                        <td data-label="Responsable">@row.Responsible</td>
+                        <td data-label="Referencia">@row.Reference</td>
+                        <td data-label="Estado">@(row.IsReversal ? "Compensación" : row.WasReversed ? "Corregida" : "Vigente")</td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
 </div>
+
+@section Styles { <link rel="stylesheet" href="~/css/wip-report-details.css" asp-append-version="true" /> }

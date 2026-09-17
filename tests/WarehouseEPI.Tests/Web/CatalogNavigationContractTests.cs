@@ -8,12 +8,13 @@ public sealed class CatalogNavigationContractTests
         var layout = File.ReadAllText(RepositoryPath(
             "src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
 
-        Assert.Contains("asp-page=\"/Admin/Catalogs/ProductTypes/Index\"", layout, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"/Admin/Catalogs/ProductClasses/Index\"", layout, StringComparison.Ordinal);
-        Assert.Contains("IsSection(\"/Admin/Catalogs/ProductTypes\")", layout, StringComparison.Ordinal);
-        Assert.Contains("IsSection(\"/Admin/Catalogs/ProductClasses\")", layout, StringComparison.Ordinal);
-        Assert.Contains("aria-current=\"@(IsSection(\"/Admin/Catalogs/ProductTypes\") ? \"page\" : null)\"", layout, StringComparison.Ordinal);
-        Assert.Contains("aria-current=\"@(IsSection(\"/Admin/Catalogs/ProductClasses\") ? \"page\" : null)\"", layout, StringComparison.Ordinal);
+        foreach (var name in new[] { "ProductTypes", "ProductClasses" })
+        {
+            Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Page == $"/Admin/Catalogs/{name}/Index");
+            Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Page == $"/Admin/Catalogs/{name}/Index");
+            Assert.Equal("catalogs", WarehouseEPI.Web.Navigation.ModuleNavigation.Active($"/Admin/Catalogs/{name}/Index", null, true)?.Key);
+        }
+        Assert.Contains("ModuleNavigation.GetVisible(isAdmin)", layout, StringComparison.Ordinal);
     }
 
     [Theory]

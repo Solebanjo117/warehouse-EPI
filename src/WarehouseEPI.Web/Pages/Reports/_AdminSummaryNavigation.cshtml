@@ -19,4 +19,7 @@
        aria-current="@(activeView == "team" ? "page" : null)"
        asp-page="/Reports/Workload/Index"
        asp-route-view="activity">Equipo</a>
+    <a class="@(activeView == "production" ? "active" : null)"
+       aria-current="@(activeView == "production" ? "page" : null)"
+       asp-page="/Reports/Production/Index">Producción</a>
 </nav>

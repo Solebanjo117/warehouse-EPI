@@ -19,10 +19,11 @@ public sealed record ProcessRow(Guid Id, string Code, string Name, bool IsActive
 public sealed record ProcessListPage(IReadOnlyList<ProcessRow> Items, int PageNumber, bool HasPrevious, bool HasNext);
 public sealed record ProcessEditView(Guid Id, string Code, string Name, bool IsActive, uint Version,
     IReadOnlyList<WipTargetOption> Areas, IReadOnlyList<WipTargetOption> Rows, IReadOnlyList<WipTargetOption> Racks,
-    string DefaultWipTargetKey, string DefaultWipTargetLabel, bool DefaultWipTargetAvailable);
+    string DefaultWipTargetKey, string DefaultWipTargetLabel, bool DefaultWipTargetAvailable,
+    int? InactivityAlertHours, int? ReworkAlertHours);
 public sealed record SaveProcessCommand(Guid OperationId, Guid Id, string Code, string Name, bool IsActive, uint ExpectedVersion,
     IReadOnlyList<Guid> AreaIds, IReadOnlyList<string> Rows, IReadOnlyList<WipRackKey> Racks, string? Reason, string Pin,
-    string? DefaultWipTargetKey = null);
+    string? DefaultWipTargetKey = null, int? InactivityAlertHours = null, int? ReworkAlertHours = null);
 
 public sealed class ProductionProcessConfigurationService(WarehouseDbContext db, UserPinService pins,
     TimeProvider timeProvider, ILogger<ProductionProcessConfigurationService> logger,
@@ -97,7 +98,8 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             ? new WipDefaultChoice(defaultKey, string.IsNullOrEmpty(defaultKey) ? "Sin predeterminado" : defaultKey, "Destino WIP", "", string.IsNullOrEmpty(defaultKey))
             : await wipDefaults.DescribeAsync(stage.Id, defaultKey, token);
         return new(isNew ? Guid.Empty : stage.Id, stage.Code, stage.Name, stage.IsActive,
-            await VersionAsync(token), areas, rows, racks, defaultKey, defaultChoice.Label, defaultChoice.IsAvailable);
+            await VersionAsync(token), areas, rows, racks, defaultKey, defaultChoice.Label, defaultChoice.IsAvailable,
+            stage.InactivityAlertHours, stage.ReworkAlertHours);
     }
 
     public async Task<IReadOnlyList<WipTargetSuggestion>> SearchWipTargetsAsync(string? search,
@@ -154,6 +156,8 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
         var code = command.Code.Trim().ToUpperInvariant(); var name = command.Name.Trim();
         if (code.Length is < 1 or > 40 || name.Length is < 1 or > 120)
             return Invalid("Indica un código y un nombre válidos.");
+        if (command.InactivityAlertHours is <= 0 or > 8760 || command.ReworkAlertHours is <= 0 or > 8760)
+            return Invalid("Los umbrales deben estar entre 1 y 8,760 horas, o quedar vacíos.");
         await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(token) : null;
         try
         {
@@ -187,9 +191,11 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
                 .ToHashSet(StringComparer.Ordinal).SetEquals(command.Rows);
             var rackChanged = stage.WipTargets.Where(x => x.RowCode != null && x.RackNumber != null).Select(x => new WipRackKey(x.RowCode!, x.RackNumber!.Value)).ToHashSet()
                 .SetEquals(command.Racks.Select(x => new WipRackKey(x.RowCode.Trim().ToUpperInvariant(), x.RackNumber))) == false;
-            if ((rowChanged || rackChanged || defaultChanged) && string.IsNullOrWhiteSpace(command.Reason))
-                return await Abort(transaction, Invalid("Indica el motivo del cambio en filas o racks, o del WIP predeterminado."), token);
-            var before = JsonSerializer.Serialize(new { stage.Code, stage.Name, stage.IsActive,
+            var alertChanged = stage.InactivityAlertHours != command.InactivityAlertHours
+                || stage.ReworkAlertHours != command.ReworkAlertHours;
+            if ((rowChanged || rackChanged || defaultChanged || alertChanged) && string.IsNullOrWhiteSpace(command.Reason))
+                return await Abort(transaction, Invalid("Indica el motivo del cambio en filas o racks, WIP predeterminado o umbrales de alerta."), token);
+            var before = JsonSerializer.Serialize(new { stage.Code, stage.Name, stage.IsActive, stage.InactivityAlertHours, stage.ReworkAlertHours,
                 DefaultWipTarget = ProductionWipDefaultService.Key(stage.DefaultWipLocationId, stage.DefaultWipRowCode, stage.DefaultWipRackNumber),
                 Areas = stage.WipTargets.Where(x => x.LocationId != null).Select(x => x.LocationId).OrderBy(x => x),
                 Rows = stage.WipTargets.Where(x => x.RowCode != null && x.RackNumber == null).Select(x => x.RowCode).OrderBy(x => x),
@@ -200,6 +206,8 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             stage.DefaultWipLocationId = defaultTarget.LocationId;
             stage.DefaultWipRowCode = defaultTarget.RowCode;
             stage.DefaultWipRackNumber = defaultTarget.RackNumber;
+            stage.InactivityAlertHours = command.InactivityAlertHours;
+            stage.ReworkAlertHours = command.ReworkAlertHours;
             db.ProductionProcessWipTargets.RemoveRange(stage.WipTargets);
             stage.WipTargets = command.AreaIds.Distinct().Select(id => new ProductionProcessWipTarget { LocationId = id, CreatedAt = timeProvider.GetUtcNow() })
                 .Concat(command.Rows.Select(row => new ProductionProcessWipTarget { RowCode = row, CreatedAt = timeProvider.GetUtcNow() }))
@@ -209,6 +217,7 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
                 RequestFingerprint = fingerprint, ProductionStage = stage, AuthorizedByUserId = user.Id,
                 Reason = command.Reason?.Trim() ?? "Actualización del proceso", BeforeJson = before,
                 AfterJson = JsonSerializer.Serialize(new { Code = code, Name = name, IsActive = command.IsActive,
+                    command.InactivityAlertHours, command.ReworkAlertHours,
                     DefaultWipTarget = ProductionWipDefaultService.Key(defaultTarget.LocationId, defaultTarget.RowCode, defaultTarget.RackNumber),
                     Areas = command.AreaIds.Distinct().OrderBy(x => x), Rows = command.Rows.OrderBy(x => x),
                     Racks = command.Racks.Select(x => new { x.RowCode, x.RackNumber }).Distinct().OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber) }),

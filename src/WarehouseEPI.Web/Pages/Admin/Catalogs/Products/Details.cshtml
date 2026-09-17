@@ -1,12 +1,242 @@
 @page "{id:guid}"
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.DetailsModel
-@{ ViewData["Title"] = "Ficha de producto"; var coverage = Model.Product.Minimum > 0 ? Model.Product.Quantity / Model.Product.Minimum * 100 : (decimal?)null; }
+@{
+    ViewData["Title"] = "Ficha de producto";
+    var product = Model.Product;
+    var coverage = product.Minimum > 0 ? product.Quantity / product.Minimum * 100 : (decimal?)null;
+    var belowMinimum = product.Quantity < product.Minimum;
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/product-details.css" asp-append-version="true" />
+}
+
+<div class="product-sheet">
+    @if (TempData["Success"] is string success)
+    {
+        <div class="alert alert-success" role="status">@success</div>
+    }
+
+    <header class="product-sheet-header">
+        <div class="product-sheet-identity">
+            <div class="product-sheet-context">
+                <a asp-page="Index" class="product-sheet-back">← Volver a productos</a>
+                <span class="product-sheet-status @(product.IsActive ? "is-active" : "")">@(product.IsActive ? "Activo" : "Inactivo")</span>
+            </div>
+            <p class="product-sheet-eyebrow">Ficha de producto</p>
+            <h1>@product.Sku</h1>
+            <p class="product-sheet-description">@(product.Description ?? "Sin descripción")</p>
+        </div>
+        <a asp-page="Edit" asp-route-id="@product.Id" class="btn btn-primary product-sheet-edit">Editar producto</a>
+    </header>
+
+    <section class="product-sheet-metrics" aria-label="Resumen de inventario">
+        <div class="product-sheet-metric product-sheet-metric-primary">
+            <span>Existencia actual</span>
+            <strong class="@(product.Quantity < 0 ? "text-danger" : "")">@product.Quantity.ToString("0.####") <small>@product.Unit</small>
+</strong>
+            <a asp-page="/Inventory/Index" asp-route-productId="@product.Id">Consultar existencias →</a>
+        </div>
+        <div class="product-sheet-metric">
+            <span>Mínimo de inventario</span>
+            <strong>@product.Minimum.ToString("0.####") <small>@product.Unit</small>
+</strong>
+            <p class="@(belowMinimum ? "text-danger" : "")">Diferencia: @((product.Quantity - product.Minimum).ToString("0.####")) @product.Unit</p>
+        </div>
+        <div class="product-sheet-metric">
+            <span>Cobertura del mínimo</span>
+            <strong>@(coverage is null ? "No aplica" : $"{coverage:0.#}%")</strong>
+            <p>@(coverage is null ? "Sin mínimo configurado" : belowMinimum ? "Por debajo del mínimo" : "Mínimo cubierto")</p>
+        </div>
+        <div class="product-sheet-metric">
+            <span>Ubicaciones con saldo</span>
+            <strong>@product.LocationsWithBalance</strong>
+            <p class="@(product.NegativePositions > 0 ? "text-danger" : "")">@product.NegativePositions con saldo negativo</p>
+        </div>
+    </section>
+
+    @if (product.Quantity < 0 || belowMinimum || product.NegativePositions > 0)
+    {
+        <div class="product-sheet-attention" role="status">
+            <svg class="app-icon" aria-hidden="true">
+<use href="#icon-alert" />
+</svg>
+            <div>
+                <strong>Inventario que requiere atención</strong>
+                <span>@(product.Quantity < 0 ? "La existencia total es negativa." : belowMinimum ? "La existencia está por debajo del mínimo." : "Hay ubicaciones con saldo negativo.") Revisa la distribución y los movimientos del producto.</span>
+            </div>
+            <a href="#product-locations">Revisar ubicaciones →</a>
+        </div>
+    }
+
+    <nav class="product-sheet-nav" aria-label="Secciones de la ficha">
+        <a href="#product-summary">Resumen</a>
+        <a href="#product-locations">Ubicaciones</a>
+        <a href="#product-production-summary">Producción</a>
+        <a href="#product-lots">Lotes</a>
+        <a href="#product-movements">Movimientos</a>
+    </nav>
+
+    <section id="product-summary" class="card product-sheet-panel" aria-labelledby="product-summary-heading">
+        <div class="card-body">
+            <div class="product-sheet-section-heading">
+                <div>
+<span class="product-sheet-eyebrow">Identificación</span>
+<h2 id="product-summary-heading">Datos generales</h2>
+</div>
+                <svg class="app-icon" aria-hidden="true">
+<use href="#icon-inventory" />
+</svg>
+            </div>
+            <dl class="product-sheet-facts">
+                <div>
+<dt>Referencia</dt>
+<dd>@(product.Reference ?? "Sin referencia")</dd>
+</div>
+                <div>
+<dt>Unidad de medida</dt>
+<dd>@product.Unit</dd>
+</div>
+                <div>
+<dt>Tipo</dt>
+<dd>@(product.Type ?? "Sin tipo")</dd>
+</div>
+                <div>
+<dt>Clase</dt>
+<dd>@(product.Class ?? "Sin clase")</dd>
+</div>
+            </dl>
+        </div>
+    </section>
+<section id="product-locations" class="card product-sheet-panel" aria-labelledby="product-locations-heading">
+<div class="card-body">
+<div class="product-sheet-section-heading">
+<div>
+<span class="product-sheet-eyebrow">Inventario</span>
+<h2 id="product-locations-heading">Distribución por ubicación</h2>
+</div>
+<a asp-page="/Admin/Catalogs/Locations/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">Croquis y ubicaciones →</a>
+</div>
+<div class="table-responsive">
+<table class="table align-middle mb-0">
+<thead>
+<tr>
+<th>Ubicación</th>
+<th>Relación</th>
+<th>Estado</th>
+<th class="text-end">Saldo</th>
+</tr>
+</thead>
+<tbody>@if(Model.Product.Locations.Count == 0){<tr>
+<td colspan="4" class="text-center text-body-secondary">Sin asignaciones ni saldos.</td>
+</tr>}@foreach(var item in Model.Product.Locations){<tr>
+<td>
+<a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@item.Id" class="fw-semibold">@item.Code</a>
+<div class="small">@item.Description</div>
+</td>
+<td>@(item.IsAssigned ? "Asignación activa" : "Saldo sin asignación")</td>
+<td>@if(!item.IsActive){<span class="badge text-bg-secondary">Inactiva</span>} @if(item.IsBlocked){<span class="badge text-bg-warning">Bloqueada</span>}</td>
+<td class="text-end @(item.Quantity < 0 ? "text-danger" : "")">@item.Quantity.ToString("0.####") @Model.Product.Unit</td>
+</tr>}</tbody>
+</table>
+</div>
+</div>
+</section>
+<section id="product-production-summary" class="card product-sheet-panel" aria-labelledby="product-production-summary-heading">
+<div class="card-body">
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+<div>
+<span class="eyebrow">Producción</span>
+<h2 id="product-production-summary-heading" class="h4 mb-1">Receta y materiales</h2>
+</div>
+<a asp-page="Edit" asp-route-id="@Model.Product.Id" asp-fragment="product-production" class="btn btn-outline-primary">@(Model.Production.ActiveRecipe is null ? "Configurar receta" : Model.Production.ActiveRecipe.IsComplete ? "Editar receta" : "Completar receta")</a>
+</div>@if(Model.Production.RouteId is null){<div class="product-editor-empty mt-3">
+<strong class="d-block">La ruta de producción está pendiente.</strong>
+<span>Puedes definir los materiales antes de crear y ordenar los procesos.</span>
+</div>}else{<div class="production-product-route my-3">
+<div>
+<small class="text-body-secondary d-block">Ruta activa</small>
+<strong>@Model.Production.RouteName</strong>
+</div>
+<ol class="production-product-stages mb-0" aria-label="Etapas de la ruta activa">@foreach(var stage in Model.Production.Stages){<li>
+<span>@stage.Sequence</span>@stage.Name</li>}</ol>
+</div>}@if(Model.Production.ActiveRecipe is null){<div class="product-editor-empty mt-3">
+<strong class="d-block">Este producto todavía no tiene lista de materiales.</strong>
+<span>Define los materiales y sus cantidades; las etapas pueden asignarse después.</span>
+</div>}else{var recipe=Model.Production.ActiveRecipe;<div class="d-flex flex-wrap gap-3 align-items-center my-3">
+<span class="badge text-bg-primary">Receta @recipe.Version</span>
+<span class="badge @(recipe.IsComplete ? "text-bg-success" : "text-bg-warning")">@(recipe.IsComplete ? "Lista para producción" : "Lista incompleta")</span>
+<span>Cantidad base: <strong>@recipe.BaseQuantity.ToString("0.####") @Model.Product.Unit</strong>
+</span>
+</div>
+<div class="table-responsive">
+<table class="table align-middle mb-0">
+<thead>
+<tr>
+<th>Etapa</th>
+<th>Material</th>
+<th class="text-end">Cantidad</th>
+</tr>
+</thead>
+<tbody>@foreach(var line in recipe.Lines){<tr>
+<td>@(line.Stage ?? "Requiere etapa")</td>
+<td>
+<strong>@line.Material.Split(" · ")[0]</strong>
+<small class="d-block text-body-secondary">@line.Material</small>
+</td>
+<td class="text-end">@line.Quantity.ToString("0.####") @line.Unit</td>
+</tr>}</tbody>
+</table>
+</div>}</div>
+</section>
+<div class="product-sheet-wip">
 <partial name="_ProductionWipDefaultsSummary" model="Model" />
-@if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
-<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3"><div><div class="d-flex gap-2 align-items-center"><h1 class="h2 mb-0">@Model.Product.Sku</h1>@if(!Model.Product.IsActive){<span class="badge text-bg-secondary">Inactivo</span>}</div><p class="mb-1">@(Model.Product.Description ?? "Sin descripción")</p><small class="text-body-secondary">@(Model.Product.Reference ?? "Sin referencia") · @Model.Product.Unit · @(Model.Product.Type ?? "Sin tipo") / @(Model.Product.Class ?? "Sin clase")</small></div><div class="d-flex gap-2"><a asp-page="Edit" asp-route-id="@Model.Product.Id" class="btn btn-primary">Editar producto</a><a asp-page="Index" class="btn btn-outline-secondary">Volver a productos</a></div></div>
-<div class="row row-cols-2 row-cols-lg-6 g-2 mb-4"><div class="col"><div class="card card-body h-100"><small>Existencia</small><strong>@Model.Product.Quantity.ToString("0.####") @Model.Product.Unit</strong></div></div><div class="col"><div class="card card-body h-100"><small>Mínimo</small><strong>@Model.Product.Minimum.ToString("0.####")</strong></div></div><div class="col"><div class="card card-body h-100"><small>Diferencia</small><strong class="@(Model.Product.Quantity < Model.Product.Minimum ? "text-danger" : "")">@(Model.Product.Quantity - Model.Product.Minimum)</strong></div></div><div class="col"><div class="card card-body h-100"><small>Cobertura</small><strong>@(coverage is null ? "No aplica" : $"{coverage:0.#}%")</strong></div></div><div class="col"><div class="card card-body h-100"><small>Ubicaciones</small><strong>@Model.Product.LocationsWithBalance</strong></div></div><div class="col"><div class="card card-body h-100"><small>Negativas</small><strong class="@(Model.Product.NegativePositions > 0 ? "text-danger" : "")">@Model.Product.NegativePositions</strong></div></div></div>
-<div class="d-flex flex-wrap gap-2 mb-4"><a asp-page="/Inventory/Index" asp-route-productId="@Model.Product.Id" class="btn btn-outline-primary">Existencias</a><a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-primary">Movimientos</a><a asp-page="/Admin/Inventory/Lots/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-primary">Lotes</a><a asp-page="/Admin/Catalogs/Locations/Index" asp-route-search="@Model.Product.Sku" class="btn btn-outline-primary">Croquis y ubicaciones</a></div>
-<section class="card mb-4" aria-labelledby="product-production-summary-heading"><div class="card-body"><div class="d-flex flex-wrap justify-content-between align-items-start gap-3"><div><span class="eyebrow">Producción</span><h2 id="product-production-summary-heading" class="h4 mb-1">Receta y materiales</h2></div><a asp-page="Edit" asp-route-id="@Model.Product.Id" asp-fragment="product-production" class="btn btn-outline-primary">@(Model.Production.ActiveRecipe is null ? "Configurar receta" : Model.Production.ActiveRecipe.IsComplete ? "Editar receta" : "Completar receta")</a></div>@if(Model.Production.RouteId is null){<div class="product-editor-empty mt-3"><strong class="d-block">La ruta de producción está pendiente.</strong><span>Puedes definir los materiales antes de crear y ordenar los procesos.</span></div>}else{<div class="production-product-route my-3"><div><small class="text-body-secondary d-block">Ruta activa</small><strong>@Model.Production.RouteName</strong></div><ol class="production-product-stages mb-0" aria-label="Etapas de la ruta activa">@foreach(var stage in Model.Production.Stages){<li><span>@stage.Sequence</span>@stage.Name</li>}</ol></div>}@if(Model.Production.ActiveRecipe is null){<div class="product-editor-empty mt-3"><strong class="d-block">Este producto todavía no tiene lista de materiales.</strong><span>Define los materiales y sus cantidades; las etapas pueden asignarse después.</span></div>}else{var recipe=Model.Production.ActiveRecipe;<div class="d-flex flex-wrap gap-3 align-items-center my-3"><span class="badge text-bg-primary">Receta @recipe.Version</span><span class="badge @(recipe.IsComplete ? "text-bg-success" : "text-bg-warning")">@(recipe.IsComplete ? "Lista lista para producción" : "Lista incompleta")</span><span>Cantidad base: <strong>@recipe.BaseQuantity.ToString("0.####") @Model.Product.Unit</strong></span></div><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Etapa</th><th>Material</th><th class="text-end">Cantidad</th></tr></thead><tbody>@foreach(var line in recipe.Lines){<tr><td>@(line.Stage ?? "Requiere etapa")</td><td><strong>@line.Material.Split(" · ")[0]</strong><small class="d-block text-body-secondary">@line.Material</small></td><td class="text-end">@line.Quantity.ToString("0.####") @line.Unit</td></tr>}</tbody></table></div>}</div></section>
-<section class="card mb-4"><div class="card-body"><h2 class="h4">Distribución por ubicación</h2><div class="table-responsive"><table class="table align-middle mb-0"><thead><tr><th>Ubicación</th><th>Relación</th><th>Estado</th><th class="text-end">Saldo</th></tr></thead><tbody>@if(Model.Product.Locations.Count == 0){<tr><td colspan="4" class="text-center text-body-secondary">Sin asignaciones ni saldos.</td></tr>}@foreach(var item in Model.Product.Locations){<tr><td><a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@item.Id" class="fw-semibold">@item.Code</a><div class="small">@item.Description</div></td><td>@(item.IsAssigned ? "Asignación activa" : "Saldo sin asignación")</td><td>@if(!item.IsActive){<span class="badge text-bg-secondary">Inactiva</span>} @if(item.IsBlocked){<span class="badge text-bg-warning">Bloqueada</span>}</td><td class="text-end @(item.Quantity < 0 ? "text-danger" : "")">@item.Quantity.ToString("0.####") @Model.Product.Unit</td></tr>}</tbody></table></div></div></section>
-<section class="card"><div class="card-body"><h2 class="h4">Lotes internos</h2>@if(Model.Product.Lots.Count == 0){<p class="text-body-secondary">Sin lotes internos.</p>}else{<ul class="list-group list-group-flush">@foreach(var item in Model.Product.Lots){<li class="list-group-item d-flex justify-content-between"><a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@item.Id">@item.Number</a><span>@item.Quantity.ToString("0.####") @Model.Product.Unit</span></li>}</ul>}</div></section>
-<section class="card mt-3"><div class="card-body"><h2 class="h4">Movimientos recientes</h2><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Fecha local</th><th>Tipo</th><th>Trayecto</th><th>Responsable</th><th class="text-end">Cantidad</th></tr></thead><tbody>@if(Model.Product.Movements.Count == 0){<tr><td colspan="5" class="text-center text-body-secondary">Sin movimientos.</td></tr>}@foreach(var item in Model.Product.Movements){<tr><td><a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@item.Id">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</a></td><td>@item.Type</td><td>@item.Route</td><td>@item.Responsible</td><td class="text-end">@item.Quantity.ToString("0.####") @Model.Product.Unit</td></tr>}</tbody></table></div></div></section>
+</div>
+<section id="product-lots" class="card product-sheet-panel" aria-labelledby="product-lots-heading">
+<div class="card-body">
+<div class="product-sheet-section-heading">
+<div>
+<span class="product-sheet-eyebrow">Trazabilidad</span>
+<h2 id="product-lots-heading">Lotes internos</h2>
+</div>
+<a asp-page="/Admin/Inventory/Lots/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">Consultar lotes →</a>
+</div>@if(Model.Product.Lots.Count == 0){<p class="text-body-secondary">Sin lotes internos.</p>}else{<ul class="list-group list-group-flush">@foreach(var item in Model.Product.Lots){<li class="list-group-item d-flex justify-content-between">
+<a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@item.Id">@item.Number</a>
+<span>@item.Quantity.ToString("0.####") @Model.Product.Unit</span>
+</li>}</ul>}</div>
+</section>
+<section id="product-movements" class="card product-sheet-panel" aria-labelledby="product-movements-heading">
+<div class="card-body">
+<div class="product-sheet-section-heading">
+<div>
+<span class="product-sheet-eyebrow">Actividad</span>
+<h2 id="product-movements-heading">Movimientos recientes</h2>
+</div>
+<a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">Consultar movimientos →</a>
+</div>
+<div class="table-responsive">
+<table class="table mb-0">
+<thead>
+<tr>
+<th>Fecha local</th>
+<th>Tipo</th>
+<th>Trayecto</th>
+<th>Responsable</th>
+<th class="text-end">Cantidad</th>
+</tr>
+</thead>
+<tbody>@if(Model.Product.Movements.Count == 0){<tr>
+<td colspan="5" class="text-center text-body-secondary">Sin movimientos.</td>
+</tr>}@foreach(var item in Model.Product.Movements){<tr>
+<td>
+<a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@item.Id">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</a>
+</td>
+<td>@item.Type</td>
+<td>@item.Route</td>
+<td>@item.Responsible</td>
+<td class="text-end">@item.Quantity.ToString("0.####") @Model.Product.Unit</td>
+</tr>}</tbody>
+</table>
+</div>
+</div>
+</section>
+</div>

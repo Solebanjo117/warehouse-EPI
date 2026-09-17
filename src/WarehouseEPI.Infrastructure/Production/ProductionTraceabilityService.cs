@@ -17,7 +17,7 @@ public sealed record BatchMaterialInput(Guid IssueLinkId, decimal Quantity);
 public sealed record RecordBatchResultCommand(Guid OperationId, Guid WorkOrderId, Guid BatchId,
     Guid StageId, Guid ShiftId, bool IsRework, decimal InputQuantity, decimal GoodQuantity,
     decimal ReworkQuantity, decimal ScrapQuantity, IReadOnlyList<BatchMaterialInput> Materials,
-    uint ExpectedOrderVersion, string? DifferenceReason, string Pin);
+    uint ExpectedOrderVersion, string? DifferenceReason, string Pin, Guid? ReworkCaseId = null, Guid? ReasonId = null, string? AdminPin = null);
 public sealed record ProductionTraceabilityResult(bool Success, Guid? Id = null,
     IReadOnlyList<string>? Errors = null, bool Conflict = false);
 public sealed record ProductionRecipeView(Guid Id, Guid ProductId, string Product,
@@ -37,7 +37,7 @@ public sealed record ProductionTraceLinkView(string BatchNumber, string Finished
     string MaterialLot, string MaterialSku, decimal Quantity, string Unit, string Stage,
     string Responsible, DateTimeOffset RecordedAt);
 public sealed record ProductionDeliveryView(Guid Id, Guid BatchId, string BatchNumber, Guid SourceStageId,
-    Guid TargetStageId, decimal Delivered, decimal Pending, DateTimeOffset RecordedAt);
+    Guid TargetStageId, decimal Delivered, decimal Pending, DateTimeOffset RecordedAt, string SourceStage = "", string TargetStage = "", string Responsible = "");
 public sealed record ProductionBatchResultView(Guid Id, Guid BatchId, string Stage, string Shift, bool IsRework,
     decimal Input, decimal Good, decimal Rework, decimal Scrap, string Responsible, DateTimeOffset RecordedAt,
     bool CanReverse);
@@ -101,6 +101,7 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         if (!plan.Unit.AllowsDecimals && decimal.Truncate(quantity) != quantity)
             return Invalid("La unidad del material no admite decimales.");
         if (plan.WorkOrder.Version != expectedVersion) return new(false, Errors: ["La orden cambió."], Conflict: true);
+        if (plan.WorkOrder.Status != ProductionWorkOrderStatus.Draft) return Invalid("Utiliza Ajustar orden para conciliar plan, solicitudes y reservas.");
         plan.PlannedQuantity = quantity;
         plan.AdjustmentReason = reason.Trim();
         plan.AdjustedByUserId = user.Id;
@@ -125,9 +126,10 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         var order = await db.ProductionWorkOrders.Include(x => x.Batches).Include(x => x.Product).Include(x => x.Unit)
             .SingleOrDefaultAsync(x => x.Id == command.WorkOrderId, token);
         if (order is null || !order.UsesBatchTraceability) return Invalid("La orden no tiene seguimiento por lotes.");
-        if (order.Status is ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.Cancelled)
+        if (order.Status is ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.Cancelled or ProductionWorkOrderStatus.PrincipalClosed)
             return Invalid("La orden ya no admite lotes.");
         if (order.Version != command.ExpectedOrderVersion) return new(false, Errors: ["La orden cambió."], Conflict: true);
+        if (order.Batches.Count > 0) return Invalid("La orden ya tiene su lote. No se permiten lotes adicionales.");
         if (command.AssignedQuantity <= 0 || decimal.Round(command.AssignedQuantity, 4) != command.AssignedQuantity ||
             (!order.Unit.AllowsDecimals && decimal.Truncate(command.AssignedQuantity) != command.AssignedQuantity) ||
             order.Batches.Sum(x => x.AssignedQuantity) + command.AssignedQuantity > order.AuthorizedQuantity)
@@ -138,7 +140,7 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
             NormalizedNumber = number.ToUpperInvariant(), CreatedAt = timeProvider.GetUtcNow() };
         var batch = new ProductionBatch { Id = id, CreateOperationId = command.OperationId,
             CreateFingerprint = fp, WorkOrderId = order.Id, Number = number,
-            AssignedQuantity = command.AssignedQuantity, FinishedProductLot = lot,
+            AssignedQuantity = order.AuthorizedQuantity, FinishedProductLot = lot,
             CreatedByUserId = user.Id, CreatedAt = timeProvider.GetUtcNow() };
         db.ProductionBatches.Add(batch);
         order.Version++;
@@ -163,11 +165,14 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
     public async Task<ProductionTraceabilityResult> RecordResultAsync(RecordBatchResultCommand command,
         CancellationToken token = default)
     {
-        var fp = Fingerprint(command with { Pin = "" });
-        var prior = await db.ProductionBatchResults.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
-        if (prior is not null) return prior.RequestFingerprint == fp ? new(true, prior.Id) : new(false, Conflict: true);
         var user = await pins.AuthenticateAsync(command.Pin, token);
         if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return Invalid("NIP inválido.");
+        var administrator = user.Role.Code == "ADMIN" ? user : string.IsNullOrEmpty(command.AdminPin) ? null : await pins.AuthenticateAsync(command.AdminPin, token);
+        if (administrator?.Role.Code != "ADMIN") administrator = null;
+        var fp = Fingerprint(new { Command = command with { Pin = "", AdminPin = null }, UserId = user.Id, AdminId = administrator?.Id });
+        var prior = await db.ProductionBatchResults.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
+        if (prior is not null) return prior.RequestFingerprint == fp ? new(true, prior.Id) : new(false, Conflict: true);
+        if (command.IsRework != command.ReworkCaseId.HasValue) return Invalid("Selecciona un caso únicamente al atender retrabajo.");
         if (command.InputQuantity <= 0 || command.GoodQuantity < 0 || command.ReworkQuantity < 0 || command.ScrapQuantity < 0 ||
             command.GoodQuantity + command.ReworkQuantity + command.ScrapQuantity != command.InputQuantity)
             return Invalid("Bueno, retrabajo y merma deben sumar la cantidad procesada.");
@@ -181,7 +186,7 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
             var stage = order?.Stages.SingleOrDefault(x => x.Id == command.StageId);
             if (order is null || batch is null || stage is null || order.Version != command.ExpectedOrderVersion)
                 return await Abort(tx, new(false, Errors: ["La orden cambió o el lote ya no está disponible."], Conflict: true), token);
-            if (order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress))
+            if (order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed))
                 return await Abort(tx, Invalid("La orden no está disponible para producción."), token);
             if (!await db.ProductionShifts.AnyAsync(x => x.Id == command.ShiftId && x.IsActive, token))
                 return await Abort(tx, Invalid("Selecciona un turno activo."), token);
@@ -200,25 +205,49 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
                 ? batch.AssignedQuantity
                 : order.Events.Where(x => x.BatchId == batch.Id && x.RelatedStageId == stage.Id && x.Type == ProductionEventType.Received)
                     .Sum(x => x.Quantity);
+                        if (order.Status == ProductionWorkOrderStatus.PrincipalClosed && !command.IsRework && stage.Sequence == 1)
+                return await Abort(tx, Invalid("La fabricación principal está cerrada; sólo admite retrabajo y su avance posterior."), token);
+            var execution = new ProductionExecutionService(db, pins, timeProvider);
+            ReworkView? selectedCase = null;
+            if (command.IsRework)
+            {
+                var cases = (await execution.GetReworkAsync(order.Id, token)).Where(x => x.BatchId == batch.Id && x.StageId == stage.Id && x.Pending > 0).ToArray();
+                selectedCase = command.ReworkCaseId is Guid caseId ? cases.SingleOrDefault(x => x.Id == caseId) : cases.Length == 1 ? cases[0] : null;
+                if (selectedCase is null) return await Abort(tx, Invalid("Selecciona el pendiente de retrabajo de este lote y proceso."), token);
+                rework = selectedCase.Pending;
+                if (command.ScrapQuantity > 0 && administrator is null)
+                    return await Abort(tx, Invalid("El descarte de retrabajo requiere NIP ADMIN."), token);
+            }
+            string? reasonSnapshot = command.DifferenceReason;
+            var reasonCategory = command.IsRework || command.ReworkQuantity > 0 ? ProductionReasonCategory.Rework : command.ScrapQuantity > 0 ? ProductionReasonCategory.Scrap : ProductionReasonCategory.Difference;
+            if (command.ReasonId is null && !string.IsNullOrWhiteSpace(command.DifferenceReason))
+                reasonSnapshot = await execution.ResolveReasonAsync(ProductionModelConfiguration.ReasonId(reasonCategory), reasonCategory, command.DifferenceReason, token);
+            if (command.ReasonId is Guid reasonId)
+            {
+                reasonSnapshot = await execution.ResolveReasonAsync(reasonId, reasonCategory, command.DifferenceReason, token);
+                if (reasonSnapshot is null) return await Abort(tx, Invalid("Selecciona un motivo activo y completa su comentario."), token);
+            }
+            if ((command.IsRework || command.ReworkQuantity > 0 || command.ScrapQuantity > 0) && string.IsNullOrWhiteSpace(reasonSnapshot))
+                return await Abort(tx, Invalid("Indica el motivo de retrabajo o merma."), token);
             var available = command.IsRework ? rework : stageInput - processed;
             if (command.InputQuantity > available) return await Abort(tx, Invalid("La cantidad excede lo disponible en el lote para este proceso."), token);
             var planned = order.MaterialPlan.Where(x => x.WorkOrderStageId == stage.Id).ToArray();
             var requested = command.Materials.Where(x => x.Quantity > 0).GroupBy(x => x.IssueLinkId)
                 .Select(x => new ProductionMaterialSelection(x.Key, x.Sum(y => y.Quantity))).ToArray();
             var issued = requested.Length == 0 ? [] : await db.ProductionMaterialIssueLinks
-                .Include(x => x.InventoryMovementLine).Where(x => requested.Select(y => y.IssueLinkId).Contains(x.Id)).ToArrayAsync(token);
-            var actualByProduct = issued.GroupBy(x => x.InventoryMovementLine.ProductId)
+                .Where(x => requested.Select(y => y.IssueLinkId).Contains(x.Id)).ToArrayAsync(token);
+            var actualByProduct = issued.GroupBy(x => x.ProductId)
                 .ToDictionary(x => x.Key, x => x.Sum(y => requested.Single(r => r.IssueLinkId == y.Id).Quantity));
             var differs = !command.IsRework && (planned.Any(x => decimal.Round(x.PlannedQuantity * command.InputQuantity / order.AuthorizedQuantity, 4) != actualByProduct.GetValueOrDefault(x.MaterialProductId)) ||
                           actualByProduct.Keys.Any(x => planned.All(p => p.MaterialProductId != x)));
-            if (differs && string.IsNullOrWhiteSpace(command.DifferenceReason))
+            if (differs && string.IsNullOrWhiteSpace(reasonSnapshot))
                 return await Abort(tx, Invalid("El consumo difiere de la receta. Indica el motivo."), token);
             ProductionMaterialOperation? materialOperation = null;
             if (requested.Length > 0)
             {
                 var applied = await materialService.ApplyAsync(new ProductionMaterialCommand(command.OperationId,
                     order.Id, stage.Id, order.Version, ProductionMaterialOperationType.Consumption, requested,
-                    command.Pin, Notes: command.DifferenceReason), token);
+                    command.Pin, Notes: reasonSnapshot, ReworkCaseId: selectedCase?.Id), token);
                 if (applied.Status != ProductionMaterialStatus.Success)
                     return await Abort(tx, Invalid(applied.Errors?.FirstOrDefault() ?? "No fue posible consumir los materiales."), token);
                 materialOperation = await db.ProductionMaterialOperations.Include(x => x.Lines)
@@ -230,22 +259,34 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
                 BatchId = batch.Id, WorkOrderStageId = stage.Id, ShiftId = command.ShiftId,
                 ResponsibleUserId = user.Id, IsRework = command.IsRework, InputQuantity = command.InputQuantity,
                 GoodQuantity = command.GoodQuantity, ReworkQuantity = command.ReworkQuantity,
-                ScrapQuantity = command.ScrapQuantity, DifferenceReason = Normalize(command.DifferenceReason),
+                ScrapQuantity = command.ScrapQuantity, DifferenceReason = Normalize(reasonSnapshot),
                 RecordedAt = timeProvider.GetUtcNow() };
             if (materialOperation is not null)
                 foreach (var line in materialOperation.Lines)
                     foreach (var change in line.InventoryMovementLine.BalanceChanges.Where(x => x.DeltaQuantity < 0 && x.LotId.HasValue))
                         result.Materials.Add(new ProductionBatchMaterialConsumption { IssueLinkId = line.IssueLinkId,
                             MaterialLotId = change.LotId!.Value, Quantity = -change.DeltaQuantity });
+                        db.ProductionExecutionAudits.Add(new() { OperationId = command.OperationId, WorkOrderId = order.Id,
+                Fingerprint = fp, Action = command.IsRework ? "rework" : "result", ResponsibleUserId = user.Id,
+                AuthorizedByUserId = administrator?.Id, Reason = reasonSnapshot ?? "Resultado conforme",
+                BeforeJson = JsonSerializer.Serialize(new { order.Version, PendingRework = selectedCase?.Pending }),
+                AfterJson = JsonSerializer.Serialize(new { result.Id, result.BatchId, result.WorkOrderStageId,
+                    result.InputQuantity, result.GoodQuantity, result.ReworkQuantity, result.ScrapQuantity, CaseId = selectedCase?.Id }),
+                RecordedAt = timeProvider.GetUtcNow() });
             db.ProductionBatchResults.Add(result);
-            order.Status = ProductionWorkOrderStatus.InProgress;
+            if (selectedCase is not null)
+                db.ProductionReworkAttempts.Add(new() { ReworkCaseId = selectedCase.Id, Result = result });
+            else if (result.ReworkQuantity > 0)
+                db.ProductionReworkCases.Add(new() { WorkOrderId = order.Id, BatchId = batch.Id,
+                    WorkOrderStageId = stage.Id, OriginResult = result, InitialQuantity = result.ReworkQuantity, OriginAt = result.RecordedAt });
+            if (order.Status != ProductionWorkOrderStatus.PrincipalClosed) order.Status = ProductionWorkOrderStatus.InProgress;
             db.ProductionEvents.Add(new ProductionEvent { OperationId = command.OperationId, RequestFingerprint = fp,
                 WorkOrderId = order.Id, WorkOrderStageId = stage.Id, ResponsibleUserId = user.Id,
                 BatchId = batch.Id,
                 ShiftId = command.ShiftId, Type = command.IsRework ? ProductionEventType.Reworked : ProductionEventType.Processed,
                 Quantity = command.InputQuantity, GoodQuantity = command.GoodQuantity,
                 ReworkQuantity = command.ReworkQuantity, ScrapQuantity = command.ScrapQuantity,
-                Reason = Normalize(command.DifferenceReason), RecordedAt = timeProvider.GetUtcNow() });
+                Reason = Normalize(reasonSnapshot), RecordedAt = timeProvider.GetUtcNow() });
             order.Version++;
             await db.SaveChangesAsync(token);
             if (tx is not null) await tx.CommitAsync(token);
@@ -324,12 +365,13 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
                 .SingleOrDefaultAsync(x => x.Id == resultId, token);
             if (result is null) return await Abort(activeTransaction, Invalid("El resultado no existe."), token);
             var order = result.Batch.WorkOrder;
+            if (order.Status is ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.PrincipalClosed) return await Abort(activeTransaction, Invalid("Reabre la orden antes de corregir resultados."), token);
             if (order.Version != expectedVersion) return await Abort(activeTransaction, new(false, Errors: ["La orden cambió."], Conflict: true), token);
             var originalEvent = order.Events.SingleOrDefault(x => x.OperationId == result.OperationId && x.Type is ProductionEventType.Processed or ProductionEventType.Reworked);
             if (originalEvent is null || order.Events.Any(x => x.Type == ProductionEventType.ResultReversed && x.RelatedEventId == originalEvent.Id))
                 return await Abort(activeTransaction, Invalid("El resultado no existe o ya fue revertido."), token);
             if (order.Events.Any(x => x.BatchId == result.BatchId && x.OperationId != result.OperationId &&
-                                      x.RecordedAt >= result.RecordedAt && x.Type != ProductionEventType.ResultReversed))
+                                      x.RecordedAt >= result.RecordedAt && x.Type != ProductionEventType.ResultReversed && !order.Events.Any(r => r.Type == ProductionEventType.ResultReversed && r.RelatedEventId == x.Id)))
                 return await Abort(activeTransaction, Invalid("Resuelve primero los resultados, entregas o recepciones posteriores de este lote."), token);
             var materialOperation = await db.ProductionMaterialOperations.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == result.OperationId, token);
             if (materialOperation is not null)
@@ -413,8 +455,8 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
                 !db.ProductionEvents.Any(e => e.Type == ProductionEventType.ResultReversed && e.RelatedEvent!.OperationId == x.BatchResult.OperationId))
             .OrderBy(x => x.BatchResult.RecordedAt).Select(x => new ProductionTraceLinkView(x.BatchResult.Batch.Number,
                 x.BatchResult.Batch.FinishedProductLot.Number, x.BatchResult.Batch.WorkOrder.Product.Sku,
-                x.MaterialLot.Number, x.IssueLink.InventoryMovementLine.Product.Sku, x.Quantity,
-                x.IssueLink.InventoryMovementLine.Product.BaseUnit.Code, x.BatchResult.WorkOrderStage.Name,
+                x.MaterialLot.Number, x.IssueLink.Product.Sku, x.Quantity,
+                x.IssueLink.Product.BaseUnit.Code, x.BatchResult.WorkOrderStage.Name,
                 x.BatchResult.ResponsibleUser.FullName, x.BatchResult.RecordedAt)).ToListAsync(token);
 
     public async Task<IReadOnlyList<ProductionTraceLinkView>> SearchTraceAsync(string? search, CancellationToken token = default)
@@ -427,24 +469,24 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
                         x.BatchResult.Batch.FinishedProductLot.Number.Contains(search) ||
                         x.MaterialLot.Number.Contains(search) ||
                         x.BatchResult.Batch.WorkOrder.Product.Sku.Contains(search) ||
-                        x.IssueLink.InventoryMovementLine.Product.Sku.Contains(search)))
+                        x.IssueLink.Product.Sku.Contains(search)))
             .OrderByDescending(x => x.BatchResult.RecordedAt).Take(200)
             .Select(x => new ProductionTraceLinkView(x.BatchResult.Batch.Number,
                 x.BatchResult.Batch.FinishedProductLot.Number, x.BatchResult.Batch.WorkOrder.Product.Sku,
-                x.MaterialLot.Number, x.IssueLink.InventoryMovementLine.Product.Sku, x.Quantity,
-                x.IssueLink.InventoryMovementLine.Product.BaseUnit.Code, x.BatchResult.WorkOrderStage.Name,
+                x.MaterialLot.Number, x.IssueLink.Product.Sku, x.Quantity,
+                x.IssueLink.Product.BaseUnit.Code, x.BatchResult.WorkOrderStage.Name,
                 x.BatchResult.ResponsibleUser.FullName, x.BatchResult.RecordedAt)).ToListAsync(token);
     }
 
     public async Task<IReadOnlyList<ProductionDeliveryView>> GetPendingDeliveriesAsync(Guid orderId, CancellationToken token = default)
     {
-        var events = await db.ProductionEvents.AsNoTracking().Where(x => x.WorkOrderId == orderId && x.BatchId != null).ToListAsync(token);
+        var events = await db.ProductionEvents.AsNoTracking().Include(x=>x.WorkOrderStage).Include(x=>x.RelatedStage).Include(x=>x.ResponsibleUser).Where(x => x.WorkOrderId == orderId && x.BatchId != null).ToListAsync(token);
         var batchNumbers = await db.ProductionBatches.AsNoTracking().Where(x => x.WorkOrderId == orderId).ToDictionaryAsync(x => x.Id, x => x.Number, token);
         return events.Where(x => x.Type == ProductionEventType.Delivered).Select(x => new ProductionDeliveryView(x.Id,
             x.BatchId!.Value, batchNumbers.GetValueOrDefault(x.BatchId.Value) ?? "Lote", x.WorkOrderStageId!.Value,
             x.RelatedStageId!.Value, x.Quantity,
             x.Quantity - events.Where(y => y.RelatedEventId == x.Id && y.Type is ProductionEventType.Received or ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost).Sum(y => y.Quantity),
-            x.RecordedAt)).Where(x => x.Pending > 0).OrderBy(x => x.RecordedAt).ToArray();
+            x.RecordedAt,x.WorkOrderStage!.Name,x.RelatedStage!.Name,x.ResponsibleUser.FullName)).Where(x => x.Pending > 0).OrderBy(x => x.RecordedAt).ToArray();
     }
 
     private static ProductionTraceabilityResult Invalid(string error) => new(false, Errors: [error]);

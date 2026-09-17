@@ -2,10 +2,10 @@
 @using WarehouseEPI.Core.Entities
 @{
     var view = Model.PlanningView;
-    var editable = Model.Order.Status == ProductionWorkOrderStatus.Draft && User.IsInRole("ADMIN");
+    var editable = Model.Order.Status == ProductionWorkOrderStatus.Draft;
     var lookupUrl = Url.Page("Work", "PlanningTargets", new { id = Model.Order.Id });
 }
-<section class="card mb-4" aria-labelledby="production-planning-heading" data-production-planning data-target-lookup-url="@lookupUrl">
+<section class="card mb-4" aria-labelledby="production-planning-heading">
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-3 mb-3">
             <div><span class="eyebrow">P2 · Fotografía de la orden</span><h2 id="production-planning-heading" class="h4 mb-1">Planificación de materiales</h2><p class="text-body-secondary mb-0">Estos destinos pertenecen a esta orden; no reservan ni mueven inventario.</p></div>
@@ -34,7 +34,7 @@
         @if (editable)
         {
             <details class="mt-3" @(view.Blockers.Count > 0 ? "open" : null)><summary class="btn btn-outline-primary">Revisar o cambiar destinos</summary>
-                <form method="post" asp-page-handler="Planning" class="mt-3" data-planning-form>
+                <form method="post" asp-page-handler="Planning" class="mt-3" data-planning-form data-production-planning data-target-lookup-url="@lookupUrl">
                     <input asp-for="Planning.OperationId" type="hidden" /><input asp-for="Planning.ExpectedVersion" type="hidden" value="@Model.Order.Version" />
                     @for (var index = 0; index < view.Rows.Count; index++)
                     {

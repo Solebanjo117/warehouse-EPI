@@ -1,0 +1,41 @@
+@page "/Modules/{module}"
+@model WarehouseEPI.Web.Pages.Modules.IndexModel
+@{
+    ViewData["Title"] = Model.Module.Title;
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/module-hub.css" asp-append-version="true" />
+}
+<div class="module-hub">
+    <header class="module-hub-header">
+        <span class="eyebrow">Módulos del almacén</span>
+        <h1>@Model.Module.Title</h1>
+        <p>@Model.Module.Description</p>
+    </header>
+    @foreach (var group in Model.Module.Sections)
+    {
+        <section class="module-hub-section" aria-label="@group.Title">
+            <h2>@group.Title</h2>
+            <div class="module-hub-actions">
+                @foreach (var action in group.Actions)
+                {
+                    <a class="module-hub-action" asp-page="@action.Page" asp-all-route-data="@action.RouteValues"
+                       data-supply-count-root="@(action.SupplyCount ? "true" : null)"
+                       data-supply-label="@(action.SupplyCount ? action.Title : null)"
+                       data-snapshot-url="@(action.SupplyCount ? Url.Page("/Operations/ProductionSupply/Index", "Snapshot") : null)">
+                        <svg class="app-icon module-hub-icon" aria-hidden="true"><use href="@("#icon-" + action.Icon)" /></svg>
+                        <span class="module-hub-action-text">
+                            <strong>@action.Title</strong>
+                            <span>@action.Description</span>
+                        </span>
+                        @if (action.SupplyCount)
+                        {
+                            <span class="notification-count" data-supply-count hidden>0</span>
+                        }
+                        <span class="module-hub-arrow" aria-hidden="true">→</span>
+                    </a>
+                }
+            </div>
+        </section>
+    }
+</div>

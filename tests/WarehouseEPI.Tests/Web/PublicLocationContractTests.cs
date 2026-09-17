@@ -28,10 +28,10 @@ public sealed class PublicLocationContractTests
         var inventory = Read("src", "WarehouseEPI.Web", "Pages", "Inventory", "Index.cshtml");
         var query = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml");
 
-        Assert.Contains("var locationsIndexPage = isAdmin ? \"/Admin/Catalogs/Locations/Index\" : \"/Locations/Index\";", layout, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"@locationsIndexPage\"", layout, StringComparison.Ordinal);
-        Assert.Contains("IsSection(\"/Locations\") || (isAdmin && IsSection(\"/Admin/Catalogs/Locations\"))", layout, StringComparison.Ordinal);
-        Assert.Equal(1, layout.Split("<span>Ubicaciones</span>", StringSplitOptions.None).Length - 1);
+        Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Page == "/Admin/Catalogs/Locations/Index");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Locations/Index");
+        Assert.Equal("inventory", WarehouseEPI.Web.Navigation.ModuleNavigation.Active("/Locations/Details", null, false)?.Key);
+        Assert.Single(ModuleNavigationTestSupport.Actions(), action => action.Title == "Ubicaciones");
         Assert.DoesNotContain("<span>Administrar ubicaciones</span>", layout, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Locations/Details\"", inventory, StringComparison.Ordinal);
         Assert.Contains("value=\"unavailable\"", query, StringComparison.Ordinal);
@@ -68,6 +68,26 @@ public sealed class PublicLocationContractTests
         Assert.DoesNotContain("data-heatmap-layer", legacyPage, StringComparison.Ordinal);
         Assert.Contains("/Admin/Catalogs/Locations/Index", legacyModel, StringComparison.Ordinal);
         Assert.Contains("HeatmapQueryNormalizer", legacyModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Location_search_reuses_inventory_autocomplete_for_products_and_locations()
+    {
+        var page = Read("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml");
+        var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "location-index.js");
+        var styles = Read("src", "WarehouseEPI.Web", "wwwroot", "css", "locations-index.css");
+
+        Assert.Contains("data-location-search-url=\"@Url.Page(\"/Operations/Lookup\")\"", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"combobox\"", page, StringComparison.Ordinal);
+        Assert.Contains("role=\"listbox\"", page, StringComparison.Ordinal);
+        Assert.Contains("aria-autocomplete=\"list\"", page, StringComparison.Ordinal);
+        Assert.Contains("handler\", \"InventorySearch\"", script, StringComparison.Ordinal);
+        Assert.Contains("event.key === \"ArrowDown\"", script, StringComparison.Ordinal);
+        Assert.Contains("event.key === \"Escape\"", script, StringComparison.Ordinal);
+        Assert.Contains("form.requestSubmit()", script, StringComparison.Ordinal);
+        Assert.Contains(".locations-index-workspace .location-search-results .list-group-item", styles, StringComparison.Ordinal);
+        Assert.Contains("flex: 0 0 auto", styles, StringComparison.Ordinal);
+        Assert.Contains("overflow-wrap: anywhere", styles, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -265,9 +265,8 @@ public sealed class ProductionPlanningService(WarehouseDbContext db, UserPinServ
         var total = await target.SumAsync(x => x.Quantity, token);
         var destinationIds = await target.Select(x => x.LocationId).Distinct().ToListAsync(token);
         var reserved = await db.ProductionMaterialIssueLinks.AsNoTracking()
-            .Where(x => x.InventoryMovementLine.ProductId == plan.MaterialProductId &&
-                x.InventoryMovementLine.DestinationLocationId.HasValue && destinationIds.Contains(x.InventoryMovementLine.DestinationLocationId.Value))
-            .SumAsync(x => x.InventoryMovementLine.Quantity - x.OperationLines.Where(line => line.Operation.Type != ProductionMaterialOperationType.Reversal &&
+            .Where(x => x.ProductId == plan.MaterialProductId && destinationIds.Contains(x.WipLocationId))
+            .SumAsync(x => x.Quantity - x.CancelledQuantity - x.OperationLines.Where(line => line.Operation.Type != ProductionMaterialOperationType.Reversal &&
                 !db.ProductionMaterialOperations.Any(reverse => reverse.ReversesOperationId == line.Operation.Id)).Sum(line => line.Quantity), token);
         return (warehouse, total - reserved);
     }

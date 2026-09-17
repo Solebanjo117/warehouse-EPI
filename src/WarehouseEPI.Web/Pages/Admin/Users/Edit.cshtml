@@ -4,14 +4,15 @@
     ViewData["Title"] = "Editar usuario";
 }
 
-<div class="row justify-content-center">
+<div class="row justify-content-center admin-form-workspace">
     <div class="col-12 col-lg-7">
-        <h1 class="h2 mb-4">Editar usuario</h1>
-        <form method="post" class="card shadow-sm">
+        <h1 class="h2 mb-4 admin-form-title">Editar usuario</h1>
+        <form method="post" class="card admin-form-card">
             <div class="card-body p-4">
                 <input type="hidden" asp-for="Input.Id" />
                 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
+                <fieldset class="admin-form-section"><legend>Identificación y rol</legend>
                 <div class="mb-3">
                     <label asp-for="Input.FullName" class="form-label">Nombre completo</label>
                     <input asp-for="Input.FullName" class="form-control form-control-lg" autocomplete="off" autofocus />
@@ -24,7 +25,8 @@
                     <span asp-validation-for="Input.RoleId" class="text-danger"></span>
                 </div>
 
-                <p class="fw-semibold mb-2">Cambiar NIP</p>
+                </fieldset>
+                <fieldset class="admin-form-section"><legend>Cambiar NIP</legend>
                 <p class="text-muted small">Déjalo vacío para conservar el NIP actual.</p>
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -41,12 +43,15 @@
                     </div>
                 </div>
 
+                </fieldset>
+                <fieldset class="admin-form-section"><legend>Estado del usuario</legend>
                 <div class="form-check form-switch mb-4">
                     <input asp-for="Input.IsActive" class="form-check-input" />
                     <label asp-for="Input.IsActive" class="form-check-label">Usuario activo</label>
                 </div>
 
-                <div class="d-flex gap-2">
+                </fieldset>
+                <div class="d-flex gap-2 admin-form-actions">
                     <button type="submit" class="btn btn-primary btn-lg">Guardar cambios</button>
                     <a asp-page="Index" class="btn btn-outline-secondary btn-lg">Cancelar</a>
                 </div>
@@ -58,3 +63,5 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
+
+@section Styles { <link rel="stylesheet" href="~/css/admin-forms.css" asp-append-version="true" /> }

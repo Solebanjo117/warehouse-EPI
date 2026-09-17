@@ -366,3 +366,21 @@
 
     .lots-description { max-width: none; }
 }
+
+/* Jerarquía visual del catálogo de lotes. */
+.lots-page { max-width: 1440px; margin: 0 auto; }
+.lots-page .lots-header h1 { font-size: clamp(1.75rem, 3vw, 2.25rem); font-weight: 650; letter-spacing: -.025em; }
+.lots-page .lots-header p { font-size: .95rem; }
+.lots-page .lots-tally { border-radius: .5rem; background: var(--bs-body-bg); padding: .65rem 1rem; }
+.lots-page .lots-tally strong { font-family: inherit; font-variant-numeric: tabular-nums; }
+.lots-page .lots-note { padding: .75rem 1rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); font-size: .85rem; }
+.lots-page .lots-filters { border-radius: .65rem; padding: 1.15rem; box-shadow: none; }
+.lots-page .form-label { font-size: .8rem; font-weight: 500; color: var(--bs-secondary-color); }
+.lots-page .form-control, .lots-page .form-select { font-size: .9rem; min-height: 44px; background-color: var(--bs-tertiary-bg); }
+.lots-page .lots-table th { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); font-size: .72rem; font-weight: 600; }
+.lots-page .lots-table td { font-size: .9rem; overflow-wrap: anywhere; }
+.lots-page .lots-description { white-space: normal; overflow: visible; text-overflow: clip; }
+.lots-page .lots-number, .lots-page .lots-sku { min-height: 44px; display: inline-flex; align-items: center; font-size: 1rem; }
+.lots-page .lots-balance { font-family: inherit; font-variant-numeric: tabular-nums; font-weight: 650; }
+.lots-page .btn { min-height: 44px; font-size: .85rem; }
+.lots-page a:focus-visible, .lots-page button:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 2px; }

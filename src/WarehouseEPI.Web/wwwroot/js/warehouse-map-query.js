@@ -9,6 +9,8 @@
   const ZOOM_STEP = 1.25;
   const highlightedLocationId = mapRoot.dataset.highlightLocation;
   let zoom = MIN_ZOOM;
+  let pinchGesture = null;
+  let suppressClicksUntil = 0;
   const applyZoom = (nextZoom, reset = false) => {
     if (!svg || !viewport) return;
     const previousZoom = zoom;
@@ -25,6 +27,52 @@
     viewport.scrollLeft = centerX * scale - viewport.clientWidth / 2;
     viewport.scrollTop = centerY * scale - viewport.clientHeight / 2;
   };
+  const touchDistance = (touches) => Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY);
+  const touchMidpoint = (touches) => ({
+    x: (touches[0].clientX + touches[1].clientX) / 2,
+    y: (touches[0].clientY + touches[1].clientY) / 2
+  });
+  const finishPinch = () => {
+    if (!pinchGesture) return;
+    pinchGesture = null;
+    suppressClicksUntil = performance.now() + 500;
+  };
+  viewport?.addEventListener("touchstart", (event) => {
+    if (event.touches.length !== 2) return;
+    event.preventDefault();
+    const midpoint = touchMidpoint(event.touches);
+    const bounds = viewport.getBoundingClientRect();
+    const viewportX = midpoint.x - bounds.left;
+    const viewportY = midpoint.y - bounds.top;
+    pinchGesture = {
+      distance: Math.max(touchDistance(event.touches), 1),
+      zoom,
+      contentX: (viewport.scrollLeft + viewportX) / zoom,
+      contentY: (viewport.scrollTop + viewportY) / zoom
+    };
+  }, { passive: false });
+  viewport?.addEventListener("touchmove", (event) => {
+    if (!pinchGesture || event.touches.length !== 2) return;
+    event.preventDefault();
+    const midpoint = touchMidpoint(event.touches);
+    const bounds = viewport.getBoundingClientRect();
+    const viewportX = midpoint.x - bounds.left;
+    const viewportY = midpoint.y - bounds.top;
+    const nextZoom = pinchGesture.zoom * touchDistance(event.touches) / pinchGesture.distance;
+    zoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, nextZoom));
+    svg.style.setProperty("--warehouse-map-query-zoom", `${zoom * 100}%`);
+    viewport.scrollLeft = pinchGesture.contentX * zoom - viewportX;
+    viewport.scrollTop = pinchGesture.contentY * zoom - viewportY;
+  }, { passive: false });
+  viewport?.addEventListener("touchend", (event) => { if (event.touches.length < 2) finishPinch(); });
+  viewport?.addEventListener("touchcancel", finishPinch);
+  viewport?.addEventListener("click", (event) => {
+    if (performance.now() >= suppressClicksUntil) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
   const open = (id) => {
     mapRoot.querySelectorAll("[data-map-detail]").forEach((item) => { item.hidden = item.dataset.mapDetail !== id; });
     mapRoot.querySelectorAll("[data-map-open]").forEach((item) => item.classList.toggle("is-selected", item.dataset.mapOpen === id));

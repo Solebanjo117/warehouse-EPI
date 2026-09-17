@@ -15,6 +15,8 @@ public sealed class WipExitFlowContractTests
         Assert.Contains("Surtir WIP", page, StringComparison.Ordinal);
         Assert.Contains("existencia real", page, StringComparison.Ordinal);
         Assert.Contains("data-wip-destination-step", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Orden y proceso", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("WipLinkMode", page, StringComparison.Ordinal);
         Assert.Contains("WipLocations", script, StringComparison.Ordinal);
         Assert.Contains("clearSelection(\"destination\")", script, StringComparison.Ordinal);
         Assert.Contains("item.isWip === true", script, StringComparison.Ordinal);
@@ -34,7 +36,7 @@ public sealed class WipExitFlowContractTests
     [InlineData("WIP", ExitMode.Wip)]
     public async Task Exit_only_prefills_an_explicit_valid_mode(string? mode, ExitMode? expected)
     {
-        var pageModel = new ExitModel(null!, null!, null!);
+        var pageModel = new ExitModel(null!, null!, null!, null!);
 
         await pageModel.OnGetAsync(null, null, null, null, mode, CancellationToken.None);
 

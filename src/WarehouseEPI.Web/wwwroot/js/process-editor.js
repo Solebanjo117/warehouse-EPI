@@ -54,8 +54,9 @@
       .map(item => item.dataset.targetKey));
     const changed = currentGroupedTargetKeys.size !== originalGroupedTargetKeys.size
       || [...currentGroupedTargetKeys].some(key => !originalGroupedTargetKeys.has(key));
-    reason.classList.toggle("d-none", !changed);
-    reason.setAttribute("aria-hidden", changed ? "false" : "true");
+    reason.dataset.groupedTargetsChanged = changed ? "true" : "false";
+    reason.classList.remove("d-none");
+    reason.setAttribute("aria-hidden", "false");
   };
 
   const createSelection = item => {

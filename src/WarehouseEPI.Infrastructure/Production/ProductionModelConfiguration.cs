@@ -8,6 +8,7 @@ public static partial class ProductionModelConfiguration
     public static void ConfigureProduction(this ModelBuilder modelBuilder)
     {
         ConfigureTraceability(modelBuilder);
+        ConfigureExecution(modelBuilder);
         var stage = modelBuilder.Entity<ProductionStage>();
         stage.ToTable("production_stages"); stage.HasKey(x => x.Id);
         stage.Property(x => x.Id).HasColumnName("id"); stage.Property(x => x.Code).HasColumnName("code").HasMaxLength(40).IsRequired();
@@ -15,6 +16,9 @@ public static partial class ProductionModelConfiguration
         stage.Property(x => x.DefaultWipLocationId).HasColumnName("default_wip_location_id");
         stage.Property(x => x.DefaultWipRowCode).HasColumnName("default_wip_row_code").HasMaxLength(20);
         stage.Property(x => x.DefaultWipRackNumber).HasColumnName("default_wip_rack_number");
+        stage.Property(x => x.InactivityAlertHours).HasColumnName("inactivity_alert_hours");
+        stage.Property(x => x.ReworkAlertHours).HasColumnName("rework_alert_hours");
+        stage.ToTable(table => table.HasCheckConstraint("ck_production_stages_alert_hours", "(inactivity_alert_hours IS NULL OR inactivity_alert_hours > 0) AND (rework_alert_hours IS NULL OR rework_alert_hours > 0)"));
         stage.ToTable(table => table.HasCheckConstraint("ck_production_stages_default_wip_shape", "(default_wip_location_id IS NULL AND default_wip_row_code IS NULL AND default_wip_rack_number IS NULL) OR (default_wip_location_id IS NOT NULL AND default_wip_row_code IS NULL AND default_wip_rack_number IS NULL) OR (default_wip_location_id IS NULL AND default_wip_row_code IS NOT NULL AND default_wip_rack_number IS NOT NULL)"));
         stage.HasOne(x => x.DefaultWipLocation).WithMany().HasForeignKey(x => x.DefaultWipLocationId).OnDelete(DeleteBehavior.Restrict);
         stage.HasIndex(x => x.Code).IsUnique();
@@ -87,16 +91,37 @@ public static partial class ProductionModelConfiguration
         issue.Property(x => x.WorkOrderStageId).HasColumnName("work_order_stage_id");
         issue.Property(x => x.InventoryMovementLineId).HasColumnName("inventory_movement_line_id");
         issue.Property(x => x.SupplyRequestLineId).HasColumnName("supply_request_line_id");
+        issue.Property(x => x.ProductId).HasColumnName("product_id");
+        issue.Property(x => x.WipLocationId).HasColumnName("wip_location_id");
+        issue.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        issue.Property(x => x.CancelledQuantity).HasColumnName("cancelled_quantity").HasPrecision(18, 4);
+        issue.Property(x => x.Source).HasColumnName("source").HasMaxLength(20).HasConversion<string>();
         issue.Property(x => x.CreatedAt).HasColumnName("created_at");
         issue.HasIndex(x => x.InventoryMovementLineId).IsUnique();
+        issue.ToTable("production_material_issue_links", table => table.HasCheckConstraint(
+            "ck_production_material_issue_link_cancelled", "cancelled_quantity >= 0 AND cancelled_quantity <= quantity"));
         issue.HasIndex(x => new { x.WorkOrderId, x.WorkOrderStageId });
         issue.HasIndex(x => x.SupplyRequestLineId);
         issue.HasOne(x => x.WorkOrder).WithMany(x => x.MaterialIssues).HasForeignKey(x => x.WorkOrderId).OnDelete(DeleteBehavior.Restrict);
         issue.HasOne(x => x.WorkOrderStage).WithMany(x => x.MaterialIssues).HasForeignKey(x => x.WorkOrderStageId).OnDelete(DeleteBehavior.Restrict);
         issue.HasOne(x => x.InventoryMovementLine).WithOne(x => x.MaterialIssueLink)
             .HasForeignKey<ProductionMaterialIssueLink>(x => x.InventoryMovementLineId).OnDelete(DeleteBehavior.Restrict);
+        issue.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+        issue.HasOne(x => x.WipLocation).WithMany().HasForeignKey(x => x.WipLocationId).OnDelete(DeleteBehavior.Restrict);
         issue.HasOne(x => x.SupplyRequestLine).WithMany(x => x.IssueLinks)
             .HasForeignKey(x => x.SupplyRequestLineId).OnDelete(DeleteBehavior.Restrict);
+
+        var issueLot = modelBuilder.Entity<ProductionMaterialIssueLot>();
+        issueLot.ToTable("production_material_issue_lots", table => table.HasCheckConstraint(
+            "ck_production_material_issue_lot_quantity", "quantity > 0"));
+        issueLot.HasKey(x => x.Id);
+        issueLot.Property(x => x.Id).HasColumnName("id");
+        issueLot.Property(x => x.IssueLinkId).HasColumnName("issue_link_id");
+        issueLot.Property(x => x.LotId).HasColumnName("lot_id");
+        issueLot.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        issueLot.HasIndex(x => new { x.IssueLinkId, x.LotId }).IsUnique();
+        issueLot.HasOne(x => x.IssueLink).WithMany(x => x.Lots).HasForeignKey(x => x.IssueLinkId).OnDelete(DeleteBehavior.Cascade);
+        issueLot.HasOne(x => x.Lot).WithMany().HasForeignKey(x => x.LotId).OnDelete(DeleteBehavior.Restrict);
 
         var operation = modelBuilder.Entity<ProductionMaterialOperation>();
         operation.ToTable("production_material_operations", table => table.HasCheckConstraint(
@@ -108,13 +133,14 @@ public static partial class ProductionModelConfiguration
         operation.Property(x => x.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength();
         operation.Property(x => x.WorkOrderId).HasColumnName("work_order_id");
         operation.Property(x => x.WorkOrderStageId).HasColumnName("work_order_stage_id");
+        operation.Property(x => x.ReturnEffect).HasColumnName("return_effect").HasMaxLength(20).HasConversion<string>();
         operation.Property(x => x.Type).HasColumnName("type").HasMaxLength(24).HasConversion(
             x => x == ProductionMaterialOperationType.Consumption ? "CONSUMPTION" :
                  x == ProductionMaterialOperationType.WarehouseReturn ? "WAREHOUSE_RETURN" :
-                 x == ProductionMaterialOperationType.SupplierReturn ? "SUPPLIER_RETURN" : "REVERSAL",
+                 x == ProductionMaterialOperationType.SupplierReturn ? "SUPPLIER_RETURN" : x == ProductionMaterialOperationType.Scrap ? "SCRAP" : "REVERSAL",
             x => x == "CONSUMPTION" ? ProductionMaterialOperationType.Consumption :
                  x == "WAREHOUSE_RETURN" ? ProductionMaterialOperationType.WarehouseReturn :
-                 x == "SUPPLIER_RETURN" ? ProductionMaterialOperationType.SupplierReturn : ProductionMaterialOperationType.Reversal);
+                 x == "SUPPLIER_RETURN" ? ProductionMaterialOperationType.SupplierReturn : x == "SCRAP" ? ProductionMaterialOperationType.Scrap : ProductionMaterialOperationType.Reversal);
         operation.Property(x => x.ResponsibleUserId).HasColumnName("responsible_user_id");
         operation.Property(x => x.ReversesOperationId).HasColumnName("reverses_operation_id");
         operation.Property(x => x.Reference).HasColumnName("reference").HasMaxLength(120);

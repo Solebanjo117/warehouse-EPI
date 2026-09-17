@@ -11,9 +11,72 @@ namespace WarehouseEPI.Tests.Production;
 public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture fixture)
 {
     [Fact]
+    public async Task Guided_supply_combines_warehouse_and_existing_wip_atomically_on_postgresql()
+    {
+        await using var db = fixture.CreateDbContext();
+        var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
+        var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        var admin = new User { FullName = $"Admin P4 {suffix}", RoleId = 1, PinLookup = "", PinHash = "" };
+        var user = new User { FullName = $"Operador P4 {suffix}", RoleId = 2, PinLookup = "", PinHash = "" };
+        await pins.AssignAsync(admin, "3842");
+        await pins.AssignAsync(user, "3843");
+        var material = new Product { Sku = $"P4-MP-{suffix}", Description = "Material P4 PG", BaseUnitId = 1 };
+        var finished = new Product { Sku = $"P4-PT-{suffix}", Description = "Terminado P4 PG", BaseUnitId = 1 };
+        var source = new Location { Code = $"S-{suffix}", Kind = LocationKind.Rack };
+        var wip = new Location { Code = $"W-{suffix}", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
+        var process = new ProductionStage { Code = $"P4-{suffix}", Name = "Proceso P4 PG" };
+        process.WipTargets.Add(new ProductionProcessWipTarget { Location = wip });
+        var route = new ProductionRoute { Product = finished, Name = $"Ruta P4 {suffix}" };
+        route.Stages.Add(new ProductionRouteStage { Stage = process, Sequence = 1 });
+        db.AddRange(admin, user, material, source, wip, route);
+        await db.SaveChangesAsync();
+
+        var movements = new InventoryMovementService(db, pins, TimeProvider.System);
+        var production = new ProductionService(db, pins, movements, TimeProvider.System);
+        var trace = new ProductionTraceabilityService(db, pins,
+            new ProductionMaterialService(db, pins, movements, TimeProvider.System), TimeProvider.System);
+        Assert.True((await trace.SaveRecipeAsync(new(finished.Id, 1,
+            [new(material.Id, process.Id, 1)], "Receta P4 PG", "3842"))).Success);
+        Assert.Equal(InventoryMovementStatus.Success, (await movements.ConfirmAsync(new(Guid.NewGuid(),
+            InventoryMovementType.Entry, "3843", [new InventoryMovementLineCommand(material.Id, 8,
+                DestinationLocationId: source.Id)]))).Status);
+        Assert.Equal(InventoryMovementStatus.Success, (await movements.ConfirmAsync(new(Guid.NewGuid(),
+            InventoryMovementType.Entry, "3843", [new InventoryMovementLineCommand(material.Id, 2,
+                DestinationLocationId: wip.Id)]))).Status);
+        var created = await production.CreateOrderAsync(new(Guid.NewGuid(), finished.Id, 10, null, null, null, "3842"));
+        var order = await db.ProductionWorkOrders.SingleAsync(x => x.Id == created.WorkOrderId);
+        Assert.Equal(ProductionCommandStatus.Success,
+            (await production.ReleaseAsync(new(Guid.NewGuid(), order.Id, order.Version, "3842"))).Status);
+
+        var supplies = new ProductionSupplyService(db, pins, TimeProvider.System);
+        var preparations = new ProductionSupplyPreparationService(db, pins, movements, TimeProvider.System);
+        var line = Assert.Single(await supplies.GetQueueAsync(), x => x.WorkOrderId == order.Id);
+        var view = Assert.IsType<ProductionSupplyPreparationView>(await preparations.GetAsync(line.LineId));
+        var saved = await preparations.SaveAsync(new(Guid.NewGuid(), line.LineId, line.RequestVersion, wip.Id,
+            null, 0, [new(ProductionSupplySourceKind.Warehouse, source.Id, 3),
+                new(ProductionSupplySourceKind.ExistingWip, wip.Id, 2)], "3843"));
+        Assert.Equal(ProductionSupplyCommandStatus.Success, saved.Status);
+        view = Assert.IsType<ProductionSupplyPreparationView>(await preparations.GetAsync(line.LineId));
+        var operationId = Guid.NewGuid();
+        var confirmed = await preparations.ConfirmAsync(new(operationId, view.PreparationId!.Value,
+            view.PreparationVersion, view.Line.RequestVersion, "3843"));
+        Assert.Equal(ProductionSupplyCommandStatus.Success, confirmed.Status);
+
+        var proof = Assert.IsType<ProductionSupplyConfirmationResult>(
+            await preparations.GetConfirmationResultAsync(operationId));
+        Assert.Equal(5, proof.ConfirmedQuantity);
+        Assert.Equal(5, proof.PendingQuantity);
+        Assert.Equal(1, proof.MovementCount);
+        Assert.Equal(1, proof.WipAssignmentCount);
+        Assert.Equal(2, await db.ProductionMaterialIssueLinks.CountAsync(x => x.SupplyRequestLineId == line.LineId));
+    }
+
+    [Fact]
     public async Task Existing_order_and_history_survive_batch_traceability_migration()
     {
         await using var db = fixture.CreateDbContext();
+        await db.Database.ExecuteSqlRawAsync(
+            "TRUNCATE TABLE production_work_orders, production_routes, production_recipes, inventory_movements, products, locations, users, production_stages RESTART IDENTITY CASCADE;");
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         var user = new User { FullName = "Admin legado PG", RoleId = 1, PinLookup = $"legacy-{suffix}", PinHash = "legacy" };
         var product = new Product { Sku = $"PG-LEG-{suffix}", Description = "Producto legado", BaseUnitId = 1 };
@@ -30,15 +93,22 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         await db.SaveChangesAsync();
         var orderId = order.Id;
 
-        db.ChangeTracker.Clear();
-        await db.Database.MigrateAsync("20260910185035_ProductionMaterialOrderLinks");
-        await db.Database.MigrateAsync();
-        db.ChangeTracker.Clear();
+        try
+        {
+            db.ChangeTracker.Clear();
+            await db.Database.MigrateAsync("20260910185035_ProductionMaterialOrderLinks");
+            await db.Database.MigrateAsync();
+            db.ChangeTracker.Clear();
 
-        var migrated = await db.ProductionWorkOrders.Include(x => x.Events).SingleAsync(x => x.Id == orderId);
-        Assert.False(migrated.UsesBatchTraceability);
-        Assert.Null(migrated.RecipeVersion);
-        Assert.Contains(migrated.Events, x => x.Type == ProductionEventType.Created);
+            var migrated = await db.ProductionWorkOrders.Include(x => x.Events).SingleAsync(x => x.Id == orderId);
+            Assert.False(migrated.UsesBatchTraceability);
+            Assert.Null(migrated.RecipeVersion);
+            Assert.Contains(migrated.Events, x => x.Type == ProductionEventType.Created);
+        }
+        finally
+        {
+            await db.Database.MigrateAsync();
+        }
     }
 
     [Fact]
@@ -100,41 +170,41 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
             InventoryMovementType.Transfer, "2843", [new InventoryMovementLineCommand(material.Id, 5, SourceLocationId: source.Id, DestinationLocationId: wip.Id)],
             Purpose: InventoryMovementPurpose.ProductionIssue, OperationalAreaId: wip.Id), order.Id, stageId, order.Version)).Status);
         await db.Entry(order).ReloadAsync();
-        var batch2 = await trace.CreateBatchAsync(new(Guid.NewGuid(), order.Id, 5, order.Version, "2842"));
+        var rejectedSecondBatch = await trace.CreateBatchAsync(new(Guid.NewGuid(), order.Id, 5, order.Version, "2842"));
+        Assert.False(rejectedSecondBatch.Success);
         await db.Entry(order).ReloadAsync();
         var issue2 = await db.ProductionMaterialIssueLinks.Where(x => x.WorkOrderId == order.Id &&
-            x.InventoryMovementLine.BalanceChanges.Any(c => c.LotId == rawLot2.Id && c.DeltaQuantity > 0)).SingleAsync();
-        var result2 = await trace.RecordResultAsync(new(Guid.NewGuid(), order.Id, batch2.Id!.Value, stageId, shift.Id,
+            x.InventoryMovementLine!.BalanceChanges.Any(c => c.LotId == rawLot2.Id && c.DeltaQuantity > 0)).SingleAsync();
+        var result2 = await trace.RecordResultAsync(new(Guid.NewGuid(), order.Id, batch.Id!.Value, stageId, shift.Id,
             false, 5, 5, 0, 0, [new(issue2.Id, 5)], order.Version, null, "2843"));
         Assert.True(result2.Success, string.Join("; ", result2.Errors ?? []));
 
-        Assert.Equal(ProductionCommandStatus.Success, (await production.ReceiveWarehouseAsync(new(Guid.NewGuid(), order.Id,
-            stageId, 2, destination.Id, "2843", BatchId: batch.Id))).Status);
-        Assert.Equal(ProductionCommandStatus.Success, (await production.ReceiveWarehouseAsync(new(Guid.NewGuid(), order.Id,
-            stageId, 3, destination.Id, "2843", BatchId: batch.Id))).Status);
-
-        var links = await trace.GetTraceAsync(batch.Id.Value);
-        var links2 = await trace.GetTraceAsync(batch2.Id.Value);
+        var links = await trace.GetTraceAsync(batch.Id!.Value);
+        Assert.Equal(2, links.Count);
+        Assert.All(links, x => Assert.Equal(5, x.Quantity));
+        Assert.NotEqual(links[0].MaterialLot, links[1].MaterialLot);
+        Assert.Equal(links[0].BatchNumber, links[1].BatchNumber);
         var batchEntity = await db.ProductionBatches.SingleAsync(x => x.Id == batch.Id);
-        var receiptLots = await db.InventoryBalanceChanges.Where(x => x.LocationId == destination.Id && x.DeltaQuantity > 0)
-            .Select(x => x.LotId).Distinct().ToListAsync();
-        Assert.Equal(5, Assert.Single(links).Quantity);
-        Assert.Equal(5, Assert.Single(links2).Quantity);
-        Assert.NotEqual(links[0].MaterialLot, links2[0].MaterialLot);
-        Assert.Equal((await db.ProductionBatches.SingleAsync(x => x.Id == batch.Id)).Number,
-            Assert.Single(await trace.SearchTraceAsync(links[0].MaterialLot)).BatchNumber);
-        Assert.Equal(batch2.Id, (await db.ProductionBatches.SingleAsync(x => x.Number == links2[0].BatchNumber)).Id);
-        Assert.Equal(batchEntity.FinishedProductLotId, Assert.Single(receiptLots));
-        Assert.NotEmpty(await trace.SearchTraceAsync(links[0].MaterialLot));
+        Assert.Equal(batchEntity.Number, Assert.Single(await trace.SearchTraceAsync(links[0].MaterialLot)).BatchNumber);
         Assert.NotEmpty(await trace.SearchTraceAsync(links[0].FinishedLot));
         var page = await new ProductionQueryService(db).SearchOrdersAsync(new(batchEntity.Number, null, null, null, null, false));
         Assert.Equal(order.Id, Assert.Single(page.Items).Id);
         await db.Entry(order).ReloadAsync();
         var reversed = await trace.ReverseResultAsync(Guid.NewGuid(), result2.Id!.Value, order.Version,
-            "Validación de reverso PG", "2842");
+            "Validación de reverso PG antes de recepción", "2842");
         Assert.True(reversed.Success, string.Join("; ", reversed.Errors ?? []));
-        Assert.Empty(await trace.GetTraceAsync(batch2.Id.Value));
+        Assert.Single(await trace.GetTraceAsync(batch.Id.Value));
         Assert.Equal(5, (await materialService.GetIssuesAsync(order.Id)).Single(x => x.IssueLinkId == issue2.Id).Pending);
+
+        Assert.Equal(ProductionCommandStatus.Success, (await production.ReceiveWarehouseAsync(new(Guid.NewGuid(), order.Id,
+            stageId, 2, destination.Id, "2843", BatchId: batch.Id))).Status);
+        Assert.Equal(ProductionCommandStatus.Success, (await production.ReceiveWarehouseAsync(new(Guid.NewGuid(), order.Id,
+            stageId, 3, destination.Id, "2843", BatchId: batch.Id))).Status);
+        var receiptLots = await db.InventoryBalanceChanges.Where(x => x.LocationId == destination.Id && x.DeltaQuantity > 0)
+            .Select(x => x.LotId).Distinct().ToListAsync();
+        Assert.Equal(batchEntity.FinishedProductLotId, Assert.Single(receiptLots));
+        Assert.False((await trace.ReverseResultAsync(Guid.NewGuid(), result.Id!.Value, order.Version,
+            "Requiere conciliar recepción", "2842")).Success);
     }
 
     [Fact]
@@ -175,7 +245,7 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
             "1843", [new InventoryMovementLineCommand(material.Id, 6, SourceLocationId: source.Id, DestinationLocationId: wip.Id)],
             Purpose: InventoryMovementPurpose.ProductionIssue, OperationalAreaId: wip.Id), order.Id, stage.Id, order.Version);
         Assert.Equal(InventoryMovementStatus.Success, issue.Status);
-        var link = await db.ProductionMaterialIssueLinks.SingleAsync();
+        var link = await db.ProductionMaterialIssueLinks.SingleAsync(x => x.WorkOrderId == order.Id);
 
         var consumption = await service.ApplyAsync(new ProductionMaterialCommand(Guid.NewGuid(), order.Id, stage.Id,
             order.Version, ProductionMaterialOperationType.Consumption,

@@ -155,14 +155,10 @@ public sealed class DashboardRouteTests
         var workload = File.ReadAllText(RepositoryPath(
             "src", "WarehouseEPI.Web", "Pages", "Reports", "Workload", "Index.cshtml"));
 
-        Assert.Contains("isAdminSummarySection", layout, StringComparison.Ordinal);
-        Assert.Contains("isWorkloadPending", layout, StringComparison.Ordinal);
-        Assert.Contains("<span>Resumen operativo</span>", layout, StringComparison.Ordinal);
-        Assert.Contains("<span>Pendientes</span>", layout, StringComparison.Ordinal);
-        Assert.DoesNotContain("<span>Informe ejecutivo</span>", layout, StringComparison.Ordinal);
-        Assert.Contains("<span>Tablero diario</span>", layout, StringComparison.Ordinal);
-        Assert.Contains("<span>Carga de trabajo</span>", layout, StringComparison.Ordinal);
-
+        Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Resumen operativo" && action.Page == "/Reports/Dashboard/Index");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Pendientes" && action.RouteValues["view"] == "pending");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Tablero diario");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Carga de trabajo");
         Assert.Contains("asp-page=\"/Reports/Dashboard/Index\">Hoy</a>", summaryNavigation, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Reports/Executive/Index\">Gestión</a>", summaryNavigation, StringComparison.Ordinal);
         Assert.Contains("asp-route-view=\"activity\">Equipo</a>", summaryNavigation, StringComparison.Ordinal);

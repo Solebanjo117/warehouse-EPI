@@ -42,7 +42,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
             recipe.Lines.All(line => line.MaterialProduct.IsActive && line.StageId.HasValue &&
                 route.Stages.Any(stage => stage.StageId == line.StageId.Value && stage.Stage.IsActive));
         var id=Guid.NewGuid(); var number=$"OT-{timeProvider.GetUtcNow():yyyy}-{id.ToString("N")[..6].ToUpperInvariant()}";
-        var order=new ProductionWorkOrder { Id=id, CreateOperationId=command.OperationId, CreateFingerprint=fingerprint, Number=number, ExternalReference=Trim(command.ExternalReference,120), ProductId=product.Id, UnitId=product.BaseUnitId, TargetQuantity=command.TargetQuantity, AuthorizedQuantity=command.TargetQuantity, DueDate=command.DueDate, Notes=Trim(command.Notes,500), CreatedByUserId=user.Id, CreatedAt=timeProvider.GetUtcNow(), UsesBatchTraceability=canSnapshotRecipe, RecipeVersion=canSnapshotRecipe ? recipe!.Version : null };
+        var order=new ProductionWorkOrder { Id=id, CreateOperationId=command.OperationId, CreateFingerprint=fingerprint, Number=number, ExternalReference=Trim(command.ExternalReference,120), ProductId=product.Id, UnitId=product.BaseUnitId, OriginalTargetQuantity=command.TargetQuantity, TargetQuantity=command.TargetQuantity, AuthorizedQuantity=command.TargetQuantity, DueDate=command.DueDate, Notes=Trim(command.Notes,500), CreatedByUserId=user.Id, CreatedAt=timeProvider.GetUtcNow(), UsesBatchTraceability=canSnapshotRecipe, RecipeVersion=canSnapshotRecipe ? recipe!.Version : null };
         if(route is not null)
             foreach(var item in route.Stages.OrderBy(x=>x.Sequence)) order.Stages.Add(new ProductionWorkOrderStage { SourceStageId=item.StageId, Sequence=item.Sequence, Code=item.Stage.Code, Name=item.Stage.Name });
         if(canSnapshotRecipe)
@@ -69,7 +69,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
         var result=await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>
         {
             if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
-            if(order.Status!=ProductionWorkOrderStatus.Draft)return Invalid("La orden sólo se puede liberar desde Borrador.");
+            if(!ProductionActionPolicy.Allows(order.Status,"release"))return Invalid("La orden sólo se puede liberar desde Borrador.");
             var errors=await new ProductionPlanningService(db,pins,timeProvider).ValidateReleaseAsync(order,token);
             if(errors.Count>0)return new(ProductionCommandStatus.ValidationFailed,order.Id,Errors:errors);
             order.Status=ProductionWorkOrderStatus.Released;order.ReleasedAt=timeProvider.GetUtcNow();
@@ -90,33 +90,43 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
     {
         var user=await AdminAsync(command.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);
         if(string.IsNullOrWhiteSpace(command.Reason))return Invalid("Indica el motivo de la cancelación.");var fp=Fingerprint(command with{Pin=""});
-        return await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>{if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);if(order.Status!=ProductionWorkOrderStatus.Draft)return Invalid("Sólo se puede cancelar una orden en borrador.");order.Status=ProductionWorkOrderStatus.Cancelled;order.Events.Add(Event(command.OperationId,fp,order,user,ProductionEventType.Cancelled,reason:command.Reason));await Task.CompletedTask;return Success(order.Id);},token);
+        return await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>{if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);if(!ProductionActionPolicy.Allows(order.Status,"cancel"))return Invalid("Sólo se puede cancelar una orden en borrador.");order.Status=ProductionWorkOrderStatus.Cancelled;order.Events.Add(Event(command.OperationId,fp,order,user,ProductionEventType.Cancelled,reason:command.Reason));await Task.CompletedTask;return Success(order.Id);},token);
     }
 
-    public async Task<ProductionCommandResult> AuthorizeAdditionalAsync(ProductionOrderActionCommand command,CancellationToken token=default)
+    public async Task<ProductionCommandResult> AuthorizeAdditionalAsync(ProductionOrderActionCommand command, CancellationToken token = default)
     {
-        var user=await AdminAsync(command.Pin,token); if(user is null)return new(ProductionCommandStatus.InvalidPin);
-        if(command.Quantity<=0 || string.IsNullOrWhiteSpace(command.Reason))return Invalid("Indica una cantidad adicional positiva y el motivo.");
-        return await MutateAsync(command.OperationId,command.WorkOrderId,Fingerprint(command with{Pin=""}),async order=>{
-            if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
-            if(order.UsesSupplyRequests)return Invalid("La orden ya tiene solicitudes de surtimiento. La conciliación de cambios se habilitará en una fase posterior.");
-            if(order.Status is ProductionWorkOrderStatus.Draft or ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.Cancelled)return Invalid("La orden no admite ampliaciones en su estado actual.");
-            order.AuthorizedQuantity+=command.Quantity; order.Events.Add(Event(command.OperationId,Fingerprint(command with{Pin=""}),order,user,ProductionEventType.QuantityAuthorized,quantity:command.Quantity,reason:command.Reason)); await Task.CompletedTask; return Success(order.Id);
-        },token);
+        if (await AdminAsync(command.Pin, token) is null) return new(ProductionCommandStatus.InvalidPin);
+        var existing = await db.ProductionExecutionAudits.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
+        if (existing is not null)
+        {
+            using var before = JsonDocument.Parse(existing.BeforeJson);
+            using var after = JsonDocument.Parse(existing.AfterJson);
+            if (existing.WorkOrderId != command.WorkOrderId || existing.Action != "adjust" || !after.RootElement.TryGetProperty("Input", out var input)) return new(ProductionCommandStatus.IdempotencyConflict);
+            var previous = input.Deserialize<ProductionExecutionCommand>();
+            if (previous is null || previous.Comment != command.Reason || previous.Version != (command.ExpectedVersion ?? uint.MaxValue) ||
+                previous.Authorized - before.RootElement.GetProperty("AuthorizedQuantity").GetDecimal() != command.Quantity) return new(ProductionCommandStatus.IdempotencyConflict);
+            return await new ProductionExecutionService(db, pins, timeProvider).ApplyAsync(previous with { Pin = command.Pin }, token);
+        }
+        var order = await db.ProductionWorkOrders.AsNoTracking().Include(x => x.MaterialPlan).SingleOrDefaultAsync(x => x.Id == command.WorkOrderId, token);
+        if (order is null || command.Quantity <= 0 || order.AuthorizedQuantity <= 0) return Invalid("Indica una orden y cantidad adicional válidas.");
+        return await new ProductionExecutionService(db, pins, timeProvider).ApplyAsync(new(command.OperationId, order.Id,
+            command.ExpectedVersion ?? uint.MaxValue, "adjust", command.Pin, ProductionModelConfiguration.ReasonId(ProductionReasonCategory.Adjustment),
+            command.Reason, Target: order.TargetQuantity, Authorized: order.AuthorizedQuantity + command.Quantity, DueDate: order.DueDate,
+            Materials: order.MaterialPlan.Select(x => new ExecutionMaterial(x.Id, decimal.Round(x.PlannedQuantity * (order.AuthorizedQuantity + command.Quantity) / order.AuthorizedQuantity, 4))).ToArray()), token);
     }
-
     public async Task<ProductionCommandResult> ProcessAsync(RecordProductionCommand command,CancellationToken token=default)
     {
         var user=await OperatorAsync(command.Pin,token); if(user is null)return new(ProductionCommandStatus.InvalidPin);
         if(command.InputQuantity<=0 || command.GoodQuantity<0 || command.ReworkQuantity<0 || command.ScrapQuantity<0 || command.GoodQuantity+command.ReworkQuantity+command.ScrapQuantity!=command.InputQuantity)return Invalid("La cantidad buena, retrabajo y merma deben sumar la cantidad procesada.");
         var fp=Fingerprint(command with{Pin=""});
         return await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>{
+            if(order.UsesBatchTraceability)return Invalid("Registra el resultado y consumo en el lote de la orden.");
             if(order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress))return Invalid("La orden no está disponible para producción.");
             var stage=order.Stages.SingleOrDefault(x=>x.Id==command.StageId); if(stage is null)return Invalid("La etapa no pertenece a la orden.");
             if(!await db.ProductionShifts.AnyAsync(x=>x.Id==command.ShiftId&&x.IsActive,token))return Invalid("El turno no existe o está inactivo.");
             var progress=BuildProgress(order).Single(x=>x.Id==stage.Id); var available=command.IsRework?progress.Rework:progress.AvailableInput;
             if(command.InputQuantity>available)return Invalid(command.IsRework?"La cantidad excede el retrabajo pendiente.":"La cantidad excede el material disponible en la etapa.");
-            order.Status=ProductionWorkOrderStatus.InProgress; order.Events.Add(Event(command.OperationId,fp,order,user,command.IsRework?ProductionEventType.Reworked:ProductionEventType.Processed,stage.Id,null,command.ShiftId,command.InputQuantity,command.GoodQuantity,command.ReworkQuantity,command.ScrapQuantity,command.Reason)); return Success(order.Id);
+            if(order.Status!=ProductionWorkOrderStatus.PrincipalClosed)order.Status=ProductionWorkOrderStatus.InProgress; order.Events.Add(Event(command.OperationId,fp,order,user,command.IsRework?ProductionEventType.Reworked:ProductionEventType.Processed,stage.Id,null,command.ShiftId,command.InputQuantity,command.GoodQuantity,command.ReworkQuantity,command.ScrapQuantity,command.Reason)); return Success(order.Id);
         },token);
     }
 
@@ -134,7 +144,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
         try{
             var order=await LoadOrderAsync(command.WorkOrderId,token); if(order is null)return await AbortAsync(tx,new(ProductionCommandStatus.NotFound),token);
             if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return await AbortAsync(tx,new(ProductionCommandStatus.ConcurrencyConflict),token);
-            if(order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress))return await AbortAsync(tx,Invalid("La orden no admite recepción final."),token);
+            if(order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed))return await AbortAsync(tx,Invalid("La orden no admite recepción final."),token);
             var final=order.Stages.OrderBy(x=>x.Sequence).Last(); if(final.Id!=command.FinalStageId)return await AbortAsync(tx,Invalid("La recepción debe provenir de la última etapa."),token);
             ProductionBatch? batch=null;
             decimal available;
@@ -151,30 +161,21 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
             if(command.Quantity>available)return await AbortAsync(tx,Invalid("La cantidad excede el producto terminado disponible."),token);
             var movement=await movements.ConfirmAuthorizedAsync(new InventoryMovementCommand(command.OperationId,InventoryMovementType.Entry,command.Pin,[new(order.ProductId,command.Quantity,DestinationLocationId:command.DestinationLocationId,DestinationLotId:batch?.FinishedProductLotId)],order.Number,"Recepción de producción",command.ApprovedSharedAssignments,InventoryMovementPurpose.ProductionReceipt),user,cancellationToken:token);
             if(movement.Status!=InventoryMovementStatus.Success)return await AbortAsync(tx,MapMovement(movement,order.Id),token);
-            order.Status=ProductionWorkOrderStatus.InProgress; var receiptEvent=Event(command.OperationId,fp,order,user,ProductionEventType.WarehouseReceived,final.Id,quantity:command.Quantity,movementId:movement.MovementId,batchId:batch?.Id); order.Events.Add(receiptEvent); db.Entry(receiptEvent).State=EntityState.Added; order.Version++; await db.SaveChangesAsync(token); if(tx is not null)await tx.CommitAsync(token); return new(ProductionCommandStatus.Success,order.Id,movement.MovementId);
+            if(order.Status!=ProductionWorkOrderStatus.PrincipalClosed)order.Status=ProductionWorkOrderStatus.InProgress; var receiptEvent=Event(command.OperationId,fp,order,user,ProductionEventType.WarehouseReceived,final.Id,quantity:command.Quantity,movementId:movement.MovementId,batchId:batch?.Id); order.Events.Add(receiptEvent); db.Entry(receiptEvent).State=EntityState.Added; order.Version++; await db.SaveChangesAsync(token); if(tx is not null)await tx.CommitAsync(token); return new(ProductionCommandStatus.Success,order.Id,movement.MovementId);
         }catch(DbUpdateConcurrencyException){return await AbortAsync(tx,new(ProductionCommandStatus.ConcurrencyConflict),token);}catch{if(tx is not null)await tx.RollbackAsync(token);throw;}
     }
 
-    public async Task<ProductionCommandResult> CloseAsync(ProductionOrderActionCommand command,CancellationToken token=default)
-    {
-        var user=await AdminAsync(command.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);var fp=Fingerprint(command with{Pin=""});
-        return await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>{
-            if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
-            if(order.Status is ProductionWorkOrderStatus.Draft or ProductionWorkOrderStatus.Cancelled or ProductionWorkOrderStatus.Closed)return Invalid("La orden no se puede cerrar en su estado actual.");
-            var progress=BuildProgress(order); if(progress.Any(x=>x.AvailableInput>0||x.Rework>0||x.PendingReceipt>0||x.AvailableToDeliver>0))return Invalid("Resuelve material disponible, retrabajos, entregas y diferencias antes de cerrar.");
-            if(order.UsesBatchTraceability){var reversedMaterial=await db.ProductionMaterialOperations.AsNoTracking().Where(x=>x.ReversesOperationId!=null).Select(x=>x.ReversesOperationId!.Value).ToListAsync(token);var materialLinks=await db.ProductionMaterialIssueLinks.Include(x=>x.InventoryMovementLine).Include(x=>x.OperationLines).ThenInclude(x=>x.Operation).Where(x=>x.WorkOrderId==order.Id).ToListAsync(token);if(materialLinks.Any(x=>x.InventoryMovementLine.Quantity-x.OperationLines.Where(line=>line.Operation.Type!=ProductionMaterialOperationType.Reversal&&!reversedMaterial.Contains(line.Operation.Id)).Sum(line=>line.Quantity)>0))return Invalid("Consume o devuelve todo el material WIP reservado antes de cerrar.");}
-            var received=order.Events.Where(x=>x.Type==ProductionEventType.WarehouseReceived).Sum(x=>x.Quantity); if(received!=order.TargetQuantity&&string.IsNullOrWhiteSpace(command.Reason))return Invalid("El cierre con faltante o excedente requiere un motivo.");
-            order.Status=ProductionWorkOrderStatus.Closed;order.ClosedAt=timeProvider.GetUtcNow();order.Events.Add(Event(command.OperationId,fp,order,user,ProductionEventType.Closed,quantity:received,reason:command.Reason));await Task.CompletedTask;return Success(order.Id);
-        },token);
-    }
-
+    public Task<ProductionCommandResult> CloseAsync(ProductionOrderActionCommand command, CancellationToken token = default) =>
+        new ProductionExecutionService(db, pins, timeProvider).ApplyAsync(new(command.OperationId, command.WorkOrderId,
+            command.ExpectedVersion ?? uint.MaxValue, "definitive", command.Pin,
+            ProductionModelConfiguration.ReasonId(ProductionReasonCategory.Difference), command.Reason), token);
     private async Task<ProductionCommandResult> HandoffAsync(ProductionHandoffCommand command,ProductionEventType type,CancellationToken token,bool admin=false,bool lost=false)
     {
         var user=admin?await AdminAsync(command.Pin,token):await OperatorAsync(command.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);
         if(command.Quantity<=0 || ((type is ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost)&&string.IsNullOrWhiteSpace(command.Reason)))return Invalid("Indica una cantidad positiva y el motivo cuando concilies una diferencia.");var fp=Fingerprint(command with{Pin=""});
         return await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>{
             if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
-            if(order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress))return Invalid("La orden no está disponible para captura.");
+            if(order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed))return Invalid("La orden no está disponible para captura.");
             var stages=order.Stages.OrderBy(x=>x.Sequence).ToArray();var source=stages.SingleOrDefault(x=>x.Id==command.SourceStageId);var target=stages.SingleOrDefault(x=>x.Id==command.TargetStageId);
             if(source is null||target is null||target.Sequence!=source.Sequence+1)return Invalid("La entrega debe realizarse entre etapas consecutivas.");
             decimal available;
@@ -187,7 +188,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
                     var good=await db.ProductionBatchResults.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&
                         !db.ProductionEvents.Any(e=>e.Type==ProductionEventType.ResultReversed&&e.RelatedEvent!.OperationId==x.OperationId)).SumAsync(x=>x.GoodQuantity,token);
                     var delivered=order.Events.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&x.Type==ProductionEventType.Delivered).Sum(x=>x.Quantity);
-                    available=good-delivered;
+                    available=good-delivered+order.Events.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&x.Type==ProductionEventType.DifferenceReturned).Sum(x=>x.Quantity);
                 }
                 else
                 {
@@ -200,12 +201,12 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
             }
             else {var p=BuildProgress(order).Single(x=>x.Id==source.Id);available=type==ProductionEventType.Delivered?p.AvailableToDeliver:p.PendingReceipt;}
             if(command.Quantity>available)return Invalid(type==ProductionEventType.Delivered?"La cantidad excede lo disponible para entregar.":"La cantidad excede lo pendiente de esta entrega.");
-            order.Status=ProductionWorkOrderStatus.InProgress;order.Events.Add(Event(command.OperationId,fp,order,user,type,source.Id,target.Id,quantity:command.Quantity,reason:command.Reason,batchId:command.BatchId,relatedEventId:relatedEventId));await Task.CompletedTask;return Success(order.Id);
+            if(order.Status!=ProductionWorkOrderStatus.PrincipalClosed)order.Status=ProductionWorkOrderStatus.InProgress;order.Events.Add(Event(command.OperationId,fp,order,user,type,source.Id,target.Id,quantity:command.Quantity,reason:command.Reason,batchId:command.BatchId,relatedEventId:relatedEventId));await Task.CompletedTask;return Success(order.Id);
         },token);
     }
 
     private async Task<ProductionCommandResult> AdminStateAsync(ProductionOrderActionCommand c,ProductionWorkOrderStatus? expected,ProductionWorkOrderStatus next,ProductionEventType type,string error,CancellationToken token,params ProductionWorkOrderStatus[] allowed)
-    {var user=await AdminAsync(c.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);var fp=Fingerprint(c with{Pin=""});return await MutateAsync(c.OperationId,c.WorkOrderId,fp,async o=>{if(c.ExpectedVersion.HasValue&&o.Version!=c.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);if(expected.HasValue?o.Status!=expected:!allowed.Contains(o.Status))return Invalid(error);o.Status=next;if(next==ProductionWorkOrderStatus.Released)o.ReleasedAt=timeProvider.GetUtcNow();o.Events.Add(Event(c.OperationId,fp,o,user,type,reason:c.Reason));await Task.CompletedTask;return Success(o.Id);},token);}
+    {var user=await AdminAsync(c.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);var fp=Fingerprint(c with{Pin=""});return await MutateAsync(c.OperationId,c.WorkOrderId,fp,async o=>{if(c.ExpectedVersion.HasValue&&o.Version!=c.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);if(!ProductionActionPolicy.Allows(o.Status,type==ProductionEventType.Paused?"pause":type==ProductionEventType.Resumed?"resume":"release") || (expected.HasValue?o.Status!=expected:!allowed.Contains(o.Status)))return Invalid(error);o.Status=next;if(next==ProductionWorkOrderStatus.Released)o.ReleasedAt=timeProvider.GetUtcNow();o.Events.Add(Event(c.OperationId,fp,o,user,type,reason:c.Reason));await Task.CompletedTask;return Success(o.Id);},token);}
     private async Task<ProductionCommandResult> MutateAsync(Guid operationId,Guid orderId,string fp,Func<ProductionWorkOrder,Task<ProductionCommandResult>> change,CancellationToken token)
     {var prior=await ExistingAsync(operationId,fp,token);if(prior is not null)return prior;var order=await LoadOrderAsync(orderId,token);if(order is null)return new(ProductionCommandStatus.NotFound);var result=await change(order);if(result.Status!=ProductionCommandStatus.Success)return result;var newEvent=order.Events.Single(x=>x.OperationId==operationId);db.Entry(newEvent).State=EntityState.Added;order.Version++;try{await db.SaveChangesAsync(token);return result;}catch(DbUpdateConcurrencyException ex){var detail=string.Join(", ",ex.Entries.Select(x=>$"{x.Metadata.ClrType.Name}:{x.State}"));db.ChangeTracker.Clear();return new(ProductionCommandStatus.ConcurrencyConflict,Errors:[$"{ex.Message} ({detail})"]);}catch(DbUpdateException){db.ChangeTracker.Clear();return await ExistingAsync(operationId,fp,token)??new(ProductionCommandStatus.IdempotencyConflict);}}
     private Task<ProductionWorkOrder?> LoadOrderAsync(Guid id,CancellationToken t)=>db.ProductionWorkOrders.Include(x=>x.Product).ThenInclude(x=>x.BaseUnit).Include(x=>x.Stages).Include(x=>x.Events).Include(x=>x.MaterialPlan).ThenInclude(x=>x.WorkOrderStage).Include(x=>x.MaterialPlan).ThenInclude(x=>x.MaterialProduct).SingleOrDefaultAsync(x=>x.Id==id,t);
@@ -216,7 +217,14 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
     private static string Fingerprint<T>(T value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
     private ProductionEvent Event(Guid op,string fp,ProductionWorkOrder o,User u,ProductionEventType type,Guid? stage=null,Guid? related=null,Guid? shift=null,decimal quantity=0,decimal good=0,decimal rework=0,decimal scrap=0,string? reason=null,Guid? movementId=null,Guid? batchId=null,Guid? relatedEventId=null)=>new(){OperationId=op,RequestFingerprint=fp,WorkOrder=o,WorkOrderStageId=stage,RelatedStageId=related,BatchId=batchId,RelatedEventId=relatedEventId,Type=type,ResponsibleUserId=u.Id,ShiftId=shift,Quantity=quantity,GoodQuantity=good,ReworkQuantity=rework,ScrapQuantity=scrap,Reason=Trim(reason,500),InventoryMovementId=movementId,RecordedAt=timeProvider.GetUtcNow()};
     internal static IReadOnlyList<ProductionStageProgress> BuildProgress(ProductionWorkOrder order)
-    {var ordered=order.Stages.OrderBy(x=>x.Sequence).ToArray();var list=new List<ProductionStageProgress>();var reversed=order.Events.Where(x=>x.Type==ProductionEventType.ResultReversed&&x.RelatedEventId.HasValue).Select(x=>x.RelatedEventId!.Value).ToHashSet();var effective=order.Events.Where(x=>!reversed.Contains(x.Id)&&x.Type!=ProductionEventType.ResultReversed).ToArray();foreach(var s in ordered){var ev=effective;var processed=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.Processed).Sum(x=>x.Quantity);var good=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked).Sum(x=>x.GoodQuantity);var rework=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked).Sum(x=>x.ReworkQuantity)-ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.Reworked).Sum(x=>x.Quantity);var scrap=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked).Sum(x=>x.ScrapQuantity);var delivered=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.Delivered).Sum(x=>x.Quantity);var returned=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.DifferenceReturned).Sum(x=>x.Quantity);var received=ev.Where(x=>x.RelatedStageId==s.Id&&x.Type==ProductionEventType.Received).Sum(x=>x.Quantity);var pending=delivered-ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Received or ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost).Sum(x=>x.Quantity);var input=s.Sequence==1?order.AuthorizedQuantity:received;var warehouse=s.Sequence==ordered.Length?ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.WarehouseReceived).Sum(x=>x.Quantity):0;list.Add(new(s.Id,s.Sequence,s.Code,s.Name,input-processed,processed,good,rework,scrap,good-delivered+returned-warehouse,delivered,received,pending));}return list;}
+    {var ordered=order.Stages.OrderBy(x=>x.Sequence).ToArray();var list=new List<ProductionStageProgress>();var reversed=order.Events.Where(x=>x.Type==ProductionEventType.ResultReversed&&x.RelatedEventId.HasValue).Select(x=>x.RelatedEventId!.Value).ToHashSet();var effective=order.Events.Where(x=>!reversed.Contains(x.Id)&&x.Type!=ProductionEventType.ResultReversed).ToArray();foreach(var s in ordered){var ev=effective;var processed=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.Processed).Sum(x=>x.Quantity);var good=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked).Sum(x=>x.GoodQuantity);var rework=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked).Sum(x=>x.ReworkQuantity)-ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.Reworked).Sum(x=>x.Quantity);var scrap=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked).Sum(x=>x.ScrapQuantity);var delivered=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.Delivered).Sum(x=>x.Quantity);var returned=ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.DifferenceReturned).Sum(x=>x.Quantity);var received=ev.Where(x=>x.RelatedStageId==s.Id&&x.Type==ProductionEventType.Received).Sum(x=>x.Quantity);var pending=delivered-ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Received or ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost).Sum(x=>x.Quantity);var input=s.Sequence==1?order.AuthorizedQuantity:received;var warehouse=s.Sequence==ordered.Length?ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type==ProductionEventType.WarehouseReceived).Sum(x=>x.Quantity):0;var inputSince=s.Sequence==1?order.CreatedAt:OldestPending(ev.Where(x=>x.RelatedStageId==s.Id&&x.Type==ProductionEventType.Received).Select(x=>(x.RecordedAt,x.Id,x.Quantity)),processed);
+        var goodSince=OldestPending(ev.Where(x=>x.WorkOrderStageId==s.Id&&x.Type is ProductionEventType.Processed or ProductionEventType.Reworked or ProductionEventType.DifferenceReturned).Select(x=>(x.RecordedAt,x.Id,x.Type==ProductionEventType.DifferenceReturned?x.Quantity:x.GoodQuantity)),delivered+warehouse);
+        list.Add(new(s.Id,s.Sequence,s.Code,s.Name,input-processed,processed,good,rework,scrap,good-delivered+returned-warehouse,delivered,received,pending,inputSince,goodSince));}return list;}
+    private static DateTimeOffset? OldestPending(IEnumerable<(DateTimeOffset At,Guid Id,decimal Quantity)> entries,decimal removed)
+    {
+        foreach(var entry in entries.OrderBy(x=>x.At).ThenBy(x=>x.Id)) { if(entry.Quantity>removed)return entry.At;removed-=entry.Quantity; }
+        return null;
+    }
     private static ProductionCommandResult MapMovement(InventoryMovementResult r,Guid id)=>r.Status switch{InventoryMovementStatus.InvalidPin=>new(ProductionCommandStatus.InvalidPin,id),InventoryMovementStatus.RequiresLocationSharingConfirmation=>new(ProductionCommandStatus.RequiresLocationSharingConfirmation,id,Conflicts:r.Conflicts),InventoryMovementStatus.IdempotencyConflict=>new(ProductionCommandStatus.IdempotencyConflict,id),InventoryMovementStatus.BalanceChanged=>new(ProductionCommandStatus.ConcurrencyConflict,id),_=>new(ProductionCommandStatus.ValidationFailed,id,Errors:r.ValidationErrors)};
     private static async Task<ProductionCommandResult> AbortAsync(Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? tx,ProductionCommandResult r,CancellationToken t){if(tx is not null)await tx.RollbackAsync(t);return r;}
 }

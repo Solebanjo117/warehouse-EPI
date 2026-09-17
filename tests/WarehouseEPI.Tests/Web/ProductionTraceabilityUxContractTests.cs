@@ -21,7 +21,8 @@ public sealed class ProductionTraceabilityUxContractTests
         Assert.Contains("Confirmar resultado y consumo", trace);
         Assert.Contains("data-batch-filter", trace);
         Assert.Contains("Procedencia del lote", trace);
-        Assert.Contains("Ajustar previsto", trace);
+        Assert.Contains("asp-page=\"Execution\"", trace);
+        Assert.DoesNotContain("asp-page-handler=\"AdjustPlan\"", trace);
         Assert.Contains("ReverseResult", trace);
         Assert.DoesNotContain("onchange=", trace, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("<script", trace, StringComparison.OrdinalIgnoreCase);
@@ -87,6 +88,24 @@ public sealed class ProductionTraceabilityUxContractTests
         Assert.Contains("Indica una cantidad mayor que cero", recipeScript, StringComparison.Ordinal);
         var search = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Trace.cshtml"));
         Assert.Contains("lote de materia prima", search, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void P5_execution_keeps_server_confirmation_accessibility_and_admin_reason_boundary()
+    {
+        var root = FindRoot();
+        var page = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Execution.cshtml"));
+        var handler = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Execution.cshtml.cs"));
+        var reasons = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Admin", "Production", "Reasons.cshtml.cs"));
+        Assert.Contains("method=\"post\"", page);
+        Assert.Contains("asp-for=\"Input.OperationId\"", page);
+        Assert.Contains("asp-for=\"Input.Version\"", page);
+        Assert.Contains("asp-for=\"Input.AdminPin\"", page);
+        Assert.Contains("production-execution.js", page);
+        Assert.DoesNotContain("onclick=", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<script>", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Input.Pin = Input.AdminPin = \"\"", handler);
+        Assert.Contains("Authorize(Policy = \"AdminOnly\")", reasons);
     }
 
     private static string FindRoot()

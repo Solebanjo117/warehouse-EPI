@@ -8,14 +8,15 @@
     <link rel="stylesheet" href="~/css/products-index.css" asp-append-version="true" />
 }
 
+<div class="product-catalog-workbench">
 <header class="product-catalog-header mb-3">
     <div>
         <span class="product-catalog-eyebrow">Catálogo</span>
         <h1 class="h2 mb-1">Productos</h1>
-        <p class="text-body-secondary mb-0">Consulta el catálogo; la edición permanece como una acción administrativa.</p>
+        <p class="text-body-secondary mb-0">Existencias, ubicaciones y recetas de producción.</p>
     </div>
     <div class="product-catalog-header-actions">
-        <a asp-page="Import" class="btn btn-outline-primary">Importar Excel</a>
+        <a asp-page="Import" class="btn btn-outline-secondary">Importar Excel</a>
         <a asp-page="Create" class="btn btn-primary">Crear producto</a>
     </div>
 </header>
@@ -55,6 +56,7 @@
 
 <form method="get" class="product-catalog-filters mb-3" role="search" data-product-catalog-search-form
       data-lookup-url="@Url.Page("/Operations/Lookup")">
+    <div class="product-catalog-filter-heading"><h2>Buscar y filtrar</h2><span>Catálogo de productos</span></div>
     <div class="product-catalog-filter-grid">
         <div class="product-catalog-search">
             <label for="search" class="form-label">Buscar producto</label>
@@ -168,7 +170,7 @@
 
 <div class="product-catalog-results-bar mb-3" role="status">
     <div>
-        <strong>@Model.TotalResults @(Model.TotalResults == 1 ? "producto" : "productos")</strong>
+        <h2 class="product-catalog-results-title">Productos <span>@Model.TotalResults</span></h2>
         @if (Model.TotalResults > 0)
         {
             <span class="text-body-secondary">Mostrando @Model.FirstResult–@Model.LastResult</span>
@@ -259,7 +261,7 @@
             <h2 id="empty-products-title" class="h5 mb-0">El catálogo está vacío</h2>
             <p class="mb-0">Importa el archivo de productos o crea el primer SKU para comenzar.</p>
             <div class="product-catalog-empty-actions">
-                <a asp-page="Import" class="btn btn-outline-primary">Importar Excel</a>
+                <a asp-page="Import" class="btn btn-outline-secondary">Importar Excel</a>
                 <a asp-page="Create" class="btn btn-primary">Crear producto</a>
             </div>
         }
@@ -267,7 +269,8 @@
 }
 else
 {
-    <div data-product-recipe-catalog data-recipe-summary-url="@Url.Page("Index", "RecipeSummary")">
+    <div data-product-recipe-catalog data-recipe-summary-url="@Url.Page("Index", "RecipeSummary")"
+         data-product-details-url="@Url.Page("Details", new { id = Guid.Empty })">
     <div class="product-catalog-table d-none d-lg-block">
         <table class="table table-hover align-middle mb-0">
             <caption class="visually-hidden">Catálogo de productos filtrado</caption>
@@ -293,7 +296,7 @@ else
                             {
                                 <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                                     <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
-                                    <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? "Lista lista" : "Lista incompleta")</span>
+                                    <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? "Lista completa" : "Lista incompleta")</span>
                                     <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
                                        class="btn btn-sm btn-outline-secondary product-recipe-action">@(item.ActiveRecipeIsComplete ? "Editar receta" : "Completar receta")</a>
                                 </div>
@@ -355,7 +358,7 @@ else
                     </button>
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
-                        <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? "Lista lista" : "Lista incompleta")</span>
+                        <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? "Lista completa" : "Lista incompleta")</span>
                     </div>
                     <section id="product-recipe-mobile-@item.Id" class="product-recipe-panel mt-2" hidden
                              aria-label="Receta de @item.Sku" data-product-recipe-panel data-product-recipe-content></section>
@@ -393,6 +396,8 @@ else
         <p class="product-catalog-pagination-hint mb-0">Página @Model.CurrentPage de @Model.TotalPages · @Model.TotalResults @(Model.TotalResults == 1 ? "producto" : "productos")</p>
     </nav>
 }
+
+</div>
 
 @section Scripts {
     <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>

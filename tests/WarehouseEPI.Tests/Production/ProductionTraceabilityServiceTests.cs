@@ -7,7 +7,7 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Tests.Production;
 
-public sealed class ProductionTraceabilityServiceTests
+public sealed partial class ProductionTraceabilityServiceTests
 {
     private const string Key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 

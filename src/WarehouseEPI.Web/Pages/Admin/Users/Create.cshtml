@@ -4,13 +4,14 @@
     ViewData["Title"] = "Crear usuario";
 }
 
-<div class="row justify-content-center">
+<div class="row justify-content-center admin-form-workspace">
     <div class="col-12 col-lg-7">
-        <h1 class="h2 mb-4">Crear usuario</h1>
-        <form method="post" class="card shadow-sm">
+        <h1 class="h2 mb-4 admin-form-title">Crear usuario</h1>
+        <form method="post" class="card admin-form-card">
             <div class="card-body p-4">
                 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
+                <fieldset class="admin-form-section"><legend>Identificación y rol</legend>
                 <div class="mb-3">
                     <label asp-for="Input.FullName" class="form-label">Nombre completo</label>
                     <input asp-for="Input.FullName" class="form-control form-control-lg" autocomplete="off" autofocus />
@@ -25,6 +26,8 @@
                     <span asp-validation-for="Input.RoleId" class="text-danger"></span>
                 </div>
 
+                </fieldset>
+                <fieldset class="admin-form-section"><legend>NIP</legend>
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label asp-for="Input.Pin" class="form-label">NIP</label>
@@ -40,12 +43,15 @@
                     </div>
                 </div>
 
+                </fieldset>
+                <fieldset class="admin-form-section"><legend>Estado del usuario</legend>
                 <div class="form-check form-switch mb-4">
                     <input asp-for="Input.IsActive" class="form-check-input" />
                     <label asp-for="Input.IsActive" class="form-check-label">Usuario activo</label>
                 </div>
 
-                <div class="d-flex gap-2">
+                </fieldset>
+                <div class="d-flex gap-2 admin-form-actions">
                     <button type="submit" class="btn btn-primary btn-lg">Guardar</button>
                     <a asp-page="Index" class="btn btn-outline-secondary btn-lg">Cancelar</a>
                 </div>
@@ -57,3 +63,5 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
+
+@section Styles { <link rel="stylesheet" href="~/css/admin-forms.css" asp-append-version="true" /> }

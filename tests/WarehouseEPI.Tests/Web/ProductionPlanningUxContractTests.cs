@@ -15,8 +15,9 @@ public sealed class ProductionPlanningUxContractTests
         Assert.Contains("Estado", partial);
         Assert.Contains("role=\"combobox\"", partial);
         Assert.Contains("aria-live=\"polite\"", partial);
-        Assert.Contains("User.IsInRole(\"ADMIN\")", partial);
-        Assert.Contains("!User.IsInRole(\"ADMIN\")", File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Work.cshtml.cs")));
+        Assert.DoesNotContain("User.IsInRole(\"ADMIN\")", partial);
+        Assert.Contains("Planning.Pin", partial);
+        Assert.DoesNotContain("!User.IsInRole(\"ADMIN\")", File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "Work.cshtml.cs")));
         Assert.DoesNotContain("<script", partial, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("production-planning.js", page);
         Assert.Contains("ArrowDown", script);

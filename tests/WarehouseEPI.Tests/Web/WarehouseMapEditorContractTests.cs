@@ -247,7 +247,7 @@ public sealed class WarehouseMapEditorContractTests
     }
 
     [Fact]
-    public void Query_map_zoom_expands_a_scrollable_canvas_without_changing_the_viewbox()
+    public void Query_map_zoom_supports_controls_scroll_and_touch_pinch_without_changing_the_viewbox()
     {
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
         var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js"));
@@ -259,6 +259,11 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("const MAX_ZOOM = 4", script, StringComparison.Ordinal);
         Assert.Contains("svg.style.setProperty(\"--warehouse-map-query-zoom\"", script, StringComparison.Ordinal);
         Assert.Contains("viewport.scrollLeft = 0", script, StringComparison.Ordinal);
+        Assert.Contains("addEventListener(\"touchstart\"", script, StringComparison.Ordinal);
+        Assert.Contains("addEventListener(\"touchmove\"", script, StringComparison.Ordinal);
+        Assert.Contains("{ passive: false }", script, StringComparison.Ordinal);
+        Assert.Contains("pinchGesture.contentX * zoom - viewportX", script, StringComparison.Ordinal);
+        Assert.Contains("suppressClicksUntil", script, StringComparison.Ordinal);
         Assert.DoesNotContain("setAttribute(\"viewBox\"", script, StringComparison.Ordinal);
     }
 

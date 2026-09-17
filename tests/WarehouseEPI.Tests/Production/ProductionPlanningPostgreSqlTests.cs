@@ -97,6 +97,7 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
         finally
         {
             db.ChangeTracker.Clear();
+            await db.Database.MigrateAsync();
             var storedRecipe = await db.ProductionRecipes.Include(x => x.Lines).SingleAsync(x => x.Id == recipe.Id);
             db.ProductionRecipes.Remove(storedRecipe);
             db.Products.RemoveRange(await db.Products.Where(x => x.Id == finished.Id || x.Id == material.Id).ToListAsync());

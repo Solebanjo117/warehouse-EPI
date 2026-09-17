@@ -23,6 +23,25 @@ public sealed class ProductionProcessConfigurationServiceTests
     private const string Key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 
     [Fact]
+    public async Task Alert_thresholds_require_reason_and_are_preserved_in_the_audit()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var withoutReason = await fixture.Service.SaveProcessAsync(new(Guid.NewGuid(), Guid.Empty, "COS", "Costura", true, 0,
+            [], [], [], null, fixture.Pin, InactivityAlertHours: 12, ReworkAlertHours: 24));
+        var saved = await fixture.Service.SaveProcessAsync(new(Guid.NewGuid(), Guid.Empty, "COS", "Costura", true, 0,
+            [], [], [], "Umbrales iniciales", fixture.Pin, InactivityAlertHours: 12, ReworkAlertHours: 24));
+
+        Assert.Equal(ProcessConfigurationStatus.ValidationFailed, withoutReason.Status);
+        Assert.Equal(ProcessConfigurationStatus.Success, saved.Status);
+        var stage = await fixture.Db.ProductionStages.SingleAsync(x => x.Id == saved.ProcessId);
+        Assert.Equal(12, stage.InactivityAlertHours);
+        Assert.Equal(24, stage.ReworkAlertHours);
+        var revision = await fixture.Db.ProductionProcessRevisions.SingleAsync();
+        Assert.Contains("InactivityAlertHours", revision.AfterJson);
+        Assert.Contains("Umbrales iniciales", revision.Reason);
+    }
+
+    [Fact]
     public async Task Process_can_link_one_area_and_one_complete_wip_rack_without_inventory_changes()
     {
         await using var fixture = await Fixture.CreateAsync();

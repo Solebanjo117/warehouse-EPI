@@ -1,0 +1,91 @@
+@page "/Reports/Production"
+@using WarehouseEPI.Core.Entities
+@model WarehouseEPI.Web.Pages.Reports.Production.IndexModel
+@{
+    ViewData["Title"] = "Reportes de producción";
+    var report = Model.Report;
+    var currentRoutes = Request.Query.ToDictionary(x => x.Key, x => x.Value.ToString());
+    currentRoutes.Remove("pageNumber");
+}
+
+<div class="production-report-page @(Model.Print ? "production-print-mode" : null)">
+    @await Html.PartialAsync("/Pages/Reports/_AdminSummaryNavigation.cshtml", "production")
+    <header class="production-report-header">
+        <div>
+            <span class="eyebrow">Consulta ADMIN</span>
+            <h1 class="h2 mb-1">Reportes de producción</h1>
+            <p class="text-muted mb-0">Explica avance, materiales, retrabajo y registros desde la cadena auditada.</p>
+        </div>
+        <div class="production-report-actions d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" asp-page-handler="Export" asp-route-format="csv"
+               asp-all-route-data="currentRoutes">CSV</a>
+            <a class="btn btn-outline-secondary" asp-page-handler="Export" asp-route-format="xlsx"
+               asp-all-route-data="currentRoutes">Excel</a>
+            <button type="button" class="btn btn-outline-secondary" data-production-print>Imprimir</button>
+        </div>
+    </header>
+
+    <nav class="analytics-tabs production-report-tabs" aria-label="Vistas del reporte de producción">
+        <a asp-all-route-data="currentRoutes" asp-route-view="orders" class="@(Model.View == "orders" ? "active" : null)" aria-current="@(Model.View == "orders" ? "page" : null)">Órdenes</a>
+        <a asp-all-route-data="currentRoutes" asp-route-view="materials" class="@(Model.View == "materials" ? "active" : null)" aria-current="@(Model.View == "materials" ? "page" : null)">Materiales</a>
+        <a asp-all-route-data="currentRoutes" asp-route-view="rework" class="@(Model.View == "rework" ? "active" : null)" aria-current="@(Model.View == "rework" ? "page" : null)">Retrabajo y merma</a>
+        <a asp-all-route-data="currentRoutes" asp-route-view="records" class="@(Model.View == "records" ? "active" : null)" aria-current="@(Model.View == "records" ? "page" : null)">Registros</a>
+    </nav>
+
+    <section class="production-metrics" aria-label="Resumen de producción">
+        <article><span>Órdenes</span><strong>@report.Summary.Orders</strong><small>@report.Summary.OpenOrders abiertas</small></article>
+        <article class="metric-warning"><span>Con alertas</span><strong>@report.Summary.OrdersWithAlerts</strong><small>@report.Summary.OverdueOrders vencidas</small></article>
+        <article><span>Con retrabajo abierto</span><strong>@report.Summary.OrdersWithOpenRework</strong><small>órdenes que requieren atención</small></article>
+        <article><span>Con recepción</span><strong>@report.Summary.OrdersWithReceipt</strong><small>órdenes con entrada en bodega</small></article>
+    </section>
+
+    <form method="get" class="analytics-filter-card production-report-filters" role="search">
+        <input type="hidden" name="view" value="@Model.View" />
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-lg-4"><label asp-for="Search" class="form-label">Buscar</label><input asp-for="Search" class="form-control" type="search" placeholder="Orden, referencia, SKU o descripción" /></div>
+            <div class="col-6 col-lg-2"><label asp-for="Period" class="form-label">Periodo</label><select asp-for="Period" class="form-select"><option value="today">Hoy</option><option value="week">Esta semana</option><option value="month">Este mes</option><option value="30">Últimos 30 días</option><option value="custom">Personalizado</option></select></div>
+            <div class="col-6 col-lg-2"><label asp-for="ProductId" class="form-label">Producto</label><select asp-for="ProductId" asp-items="Model.Products" class="form-select"><option value="">Todos</option></select></div>
+            <div class="col-6 col-lg-2"><label asp-for="StageId" class="form-label">Proceso</label><select asp-for="StageId" asp-items="Model.Stages" class="form-select"><option value="">Todos</option></select></div>
+            <div class="col-6 col-lg-2"><label asp-for="ShiftId" class="form-label">Turno</label><select asp-for="ShiftId" asp-items="Model.Shifts" class="form-select"><option value="">Todos</option></select></div>
+            <div class="col-6 col-lg-2"><label asp-for="From" class="form-label">Desde</label><input asp-for="From" class="form-control" type="date" /></div>
+            <div class="col-6 col-lg-2"><label asp-for="To" class="form-label">Hasta</label><input asp-for="To" class="form-control" type="date" /></div>
+            <div class="col-6 col-lg-2"><label asp-for="Status" class="form-label">Estado</label><select asp-for="Status" class="form-select"><option value="">Todos</option>@foreach (var state in Enum.GetValues<ProductionWorkOrderStatus>()) { <option value="@state">@StateLabel(state)</option> }</select></div>
+            <div class="col-6 col-lg-2"><label asp-for="PageSize" class="form-label">Filas</label><select asp-for="PageSize" class="form-select"><option>10</option><option>25</option><option>50</option><option>100</option></select></div>
+            <div class="col-12 col-lg-2"><div class="form-check production-alert-filter"><input asp-for="AlertsOnly" class="form-check-input" /><label asp-for="AlertsOnly" class="form-check-label">Solo alertas</label></div></div>
+            <div class="col-8 col-lg-1"><button class="btn btn-primary w-100">Aplicar</button></div>
+            <div class="col-4 col-lg-1"><a asp-route-view="@Model.View" class="btn btn-outline-secondary w-100" aria-label="Limpiar filtros">Limpiar</a></div>
+        </div>
+    </form>
+
+    <div class="production-report-meta"><span>@report.PeriodLabel</span><span>Actualizado @report.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm") · @report.TimeZoneId</span></div>
+
+    <section class="card production-report-table" aria-labelledby="result-heading">
+        <header class="card-header"><h2 id="result-heading" class="h5 mb-0">@ViewLabel(Model.View)</h2><span>@report.TotalCount filas</span></header>
+        <div class="table-responsive">
+            @if (Model.View == "materials") { <partial name="_Materials" model="report.Materials" /> }
+            else if (Model.View == "rework") { <partial name="_Rework" model="report.Rework" /> }
+            else if (Model.View == "records") { <partial name="_Records" model="report.Records" /> }
+            else { <partial name="_Orders" model="report.Orders" /> }
+        </div>
+        @if (report.TotalCount == 0) { <div class="production-empty">No hay datos para los filtros seleccionados.</div> }
+    </section>
+
+    @if (report.TotalPages > 1)
+    {
+        <nav class="production-pagination" aria-label="Páginas del reporte">
+            <a class="btn btn-outline-secondary @(report.Page <= 1 ? "disabled" : null)" asp-all-route-data="currentRoutes" asp-route-pageNumber="@(report.Page - 1)">Anterior</a>
+            <span>Página @report.Page de @report.TotalPages</span>
+            <a class="btn btn-outline-secondary @(report.Page >= report.TotalPages ? "disabled" : null)" asp-all-route-data="currentRoutes" asp-route-pageNumber="@(report.Page + 1)">Siguiente</a>
+        </nav>
+    }
+
+    <details class="production-method card"><summary>Cómo se calcula</summary><div class="card-body">Los totales usan registros efectivos. Los reversos permanecen visibles en Registros, pero no vuelven a sumar su operación original. Las cantidades de productos y materiales conservan su unidad y no se agregan entre unidades distintas.</div></details>
+</div>
+
+@functions {
+    static string ViewLabel(string view) => view switch { "materials" => "Materiales por orden y proceso", "rework" => "Retrabajo y merma", "records" => "Cronología de registros", _ => "Órdenes de producción" };
+    static string StateLabel(ProductionWorkOrderStatus state) => state switch { ProductionWorkOrderStatus.Draft => "Borrador", ProductionWorkOrderStatus.Released => "Liberada", ProductionWorkOrderStatus.InProgress => "En proceso", ProductionWorkOrderStatus.Paused => "Pausada", ProductionWorkOrderStatus.PrincipalClosed => "Cierre principal", ProductionWorkOrderStatus.Closed => "Cerrada", _ => "Cancelada" };
+}
+
+@section Styles { <link rel="stylesheet" href="~/css/production-report.css" asp-append-version="true" /> }
+@section Scripts { <script src="~/js/production-report.js" asp-append-version="true" defer></script> }

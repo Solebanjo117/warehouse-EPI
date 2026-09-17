@@ -39,7 +39,8 @@ public sealed class ProcessEditModel(ProductionProcessConfigurationService proce
         var process = await processes.GetAsync(id ?? Guid.Empty, token); if (process is null) return NotFound();
         Process = process; Input = new() { Id = process.Id, Code = process.Code, Name = process.Name, IsActive = process.IsActive,
             ExpectedVersion = process.Version, Targets = process.Areas.Concat(process.Rows).Concat(process.Racks).Where(x => x.Selected).Select(x => x.Key).ToList(),
-            DefaultWipTargetKey = process.DefaultWipTargetKey };
+            DefaultWipTargetKey = process.DefaultWipTargetKey, InactivityAlertHours = process.InactivityAlertHours,
+            ReworkAlertHours = process.ReworkAlertHours };
         return Page();
     }
 
@@ -59,7 +60,7 @@ public sealed class ProcessEditModel(ProductionProcessConfigurationService proce
             else ModelState.AddModelError(nameof(Input.Targets), "Una asociación seleccionada no es válida.");
         }
         if (!ModelState.IsValid) { await Reload(token); return Page(); }
-        var result = await processes.SaveProcessAsync(new(Input.OperationId, Input.Id, Input.Code, Input.Name, Input.IsActive, Input.ExpectedVersion, areas, rows, racks, Input.Reason, Input.Pin, Input.DefaultWipTargetKey), token);
+        var result = await processes.SaveProcessAsync(new(Input.OperationId, Input.Id, Input.Code, Input.Name, Input.IsActive, Input.ExpectedVersion, areas, rows, racks, Input.Reason, Input.Pin, Input.DefaultWipTargetKey, Input.InactivityAlertHours, Input.ReworkAlertHours), token);
         Input.Pin = "";
         if (result.Status == ProcessConfigurationStatus.Success) { TempData["Success"] = "Proceso guardado."; return RedirectToPage("Processes"); }
         ModelState.AddModelError(string.Empty, result.Status switch
@@ -83,6 +84,8 @@ public sealed class ProcessEditModel(ProductionProcessConfigurationService proce
         public uint ExpectedVersion { get; set; }
         public List<string> Targets { get; set; } = [];
         public string? DefaultWipTargetKey { get; set; }
+        [Range(1, 8760)] public int? InactivityAlertHours { get; set; }
+        [Range(1, 8760)] public int? ReworkAlertHours { get; set; }
         [StringLength(500)] public string? Reason { get; set; }
         [Required, RegularExpression("^[0-9]{4,8}$")] public string Pin { get; set; } = "";
     }

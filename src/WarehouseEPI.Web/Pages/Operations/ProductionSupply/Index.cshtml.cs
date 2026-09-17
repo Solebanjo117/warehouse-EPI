@@ -8,18 +8,19 @@ namespace WarehouseEPI.Web.Pages.Operations.ProductionSupply;
 public sealed class IndexModel(ProductionSupplyService supplies) : PageModel
 {
     public IReadOnlyList<ProductionSupplyQueueRow> Rows { get; private set; } = [];
+    [BindProperty(SupportsGet=true)]public int PageNumber {get;set;}=1;
+    public ProductionSupplyQueuePage QueuePage {get;private set;}=new([],1,0,1,"",DateTimeOffset.MinValue);
     public int PendingOrders { get; private set; }
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Condition { get; set; }
 
     public async Task OnGetAsync(CancellationToken token)
     {
-        Rows = await supplies.GetQueueAsync(Search, Condition, token);
-        PendingOrders = await supplies.GetPendingOrderCountAsync(token);
+        QueuePage = await supplies.GetQueuePageAsync(Search,Condition,PageNumber,token);
+        PageNumber=QueuePage.Page;Rows=QueuePage.Rows;PendingOrders=QueuePage.TotalOrders;
     }
 
-    public async Task<IActionResult> OnGetSnapshotAsync(CancellationToken token) =>
-        new JsonResult(new { pendingOrders = await supplies.GetPendingOrderCountAsync(token) });
+    public async Task<IActionResult> OnGetSnapshotAsync(CancellationToken token) {return new JsonResult(await supplies.GetQueueSnapshotAsync(Search,Condition,token));}
 
     public async Task<IActionResult> OnPostStartAsync(Guid requestId, uint expectedVersion, string pin, CancellationToken token) =>
         Handle(await supplies.StartPreparationAsync(new(Guid.NewGuid(), requestId, expectedVersion, pin), token));
@@ -47,6 +48,6 @@ public sealed class IndexModel(ProductionSupplyService supplies) : PageModel
             ProductionSupplyCommandStatus.NotFound => "La solicitud ya no está disponible.",
             _ => string.Join(" ", result.ValidationErrors)
         };
-        return RedirectToPage(new { Search, Condition });
+        return RedirectToPage(new { Search, Condition, PageNumber });
     }
 }

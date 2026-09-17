@@ -10,6 +10,7 @@
         : "/Locations/Rack/Print";
 }
 
+<div class="locations-index-workspace">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div><h1 class="h2 mb-1">@(Model.IsAdministrativeView ? "Administrar ubicaciones" : "Ubicaciones")</h1><p class="text-muted mb-0">@(Model.IsAdministrativeView ? "Consulta y mantenimiento protegido del almacén." : "Consulta física y operativa del almacén.")</p></div>
     @if(Model.IsAdministrativeView){<div class="d-flex flex-wrap gap-2"><a asp-page="/Admin/Catalogs/Locations/Generate" class="btn btn-outline-primary btn-lg">Preparar racks</a><a asp-page="/Admin/Catalogs/Locations/Area" class="btn btn-primary btn-lg">Crear área</a></div>}
@@ -27,18 +28,18 @@
     @if(Model.ViewMode=="map") { <div><strong>@Model.Map.WithInventory</strong><span>Con saldo</span></div><div><strong>@Model.Map.Negative</strong><span>Negativas</span></div><div><strong>@Model.Map.Unplaced.Count</strong><span>Sin colocar</span></div> }
 </div>
 
-<form method="get" class="card card-body mb-3" data-location-search-form><input type="hidden" name="viewMode" value="@Model.ViewMode"/>@if(Model.ViewMode=="map"){<input type="hidden" name="mapMetric" value="@Model.MapMetric"/><input type="hidden" name="period" value="@Model.HeatmapPeriod"/><input type="hidden" name="from" value="@Model.HeatmapFrom?.ToString("yyyy-MM-dd")"/><input type="hidden" name="to" value="@Model.HeatmapTo?.ToString("yyyy-MM-dd")"/>}<div class="row g-2">
-    <div class="col-12 col-lg-4"><label for="search" class="form-label">Buscar ubicación o producto</label><input id="search" name="search" value="@Model.Search" class="form-control form-control-lg" placeholder="Código, SKU, descripción, referencia o barras" data-location-search-input /></div>
+<form method="get" class="card card-body mb-3" data-location-search-form data-location-search-url="@Url.Page("/Operations/Lookup")"><input type="hidden" name="viewMode" value="@Model.ViewMode"/>@if(Model.ViewMode=="map"){<input type="hidden" name="mapMetric" value="@Model.MapMetric"/><input type="hidden" name="period" value="@Model.HeatmapPeriod"/><input type="hidden" name="from" value="@Model.HeatmapFrom?.ToString("yyyy-MM-dd")"/><input type="hidden" name="to" value="@Model.HeatmapTo?.ToString("yyyy-MM-dd")"/>}<div class="row g-2">
+    <div class="col-12 col-lg-4"><label for="search" class="form-label">Buscar ubicación o producto</label><div class="lookup-field"><input id="search" name="search" value="@Model.Search" type="search" autocomplete="off" autocapitalize="characters" class="form-control form-control-lg" placeholder="Código, SKU, descripción, referencia o barras" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="location-search-results" aria-describedby="location-search-feedback" data-location-search-input /><div id="location-search-results" class="lookup-results list-group location-search-results" role="listbox" data-location-search-results></div></div><div id="location-search-feedback" class="form-text" role="status" aria-live="polite" data-location-search-feedback>Escribe para buscar y selecciona un producto o una ubicación.</div></div>
     <div class="col-6 col-md-4 col-lg-2"><label for="status" class="form-label">Estado</label><select id="status" name="status" class="form-select form-select-lg"><option value="active" selected="@(Model.Status=="active")">Disponibles</option><option value="blocked" selected="@(Model.Status=="blocked")">Bloqueadas</option><option value="inactive" selected="@(Model.Status=="inactive")">Inactivas</option>@if(Model.ViewMode=="table"){<option value="retired" selected="@(Model.Status=="retired")">Retiradas</option>}@if(!Model.IsAdministrativeView){<option value="unavailable" selected="@(Model.Status=="unavailable")">No disponibles</option>}<option value="all" selected="@(Model.Status=="all")">Todas</option></select></div>
     @if(Model.ViewMode == "racks"){<input type="hidden" name="kind" value="rack"/>}else{<div class="col-6 col-md-4 col-lg-2"><label for="kind" class="form-label">Tipo</label><select id="kind" name="kind" class="form-select form-select-lg"><option value="all">Todos</option><option value="rack" selected="@(Model.Kind=="rack")">Rack</option><option value="area" selected="@(Model.Kind=="area")">Área</option></select></div>}
     <div class="col-6 col-md-4 col-lg-2"><label for="rowCode" class="form-label">Fila</label><select id="rowCode" name="rowCode" class="form-select form-select-lg"><option value="">Todas</option>@foreach(var row in Model.Rows){<option value="@row" selected="@(Model.RowCode==row)">@row</option>}</select></div>
-    <div class="col-6 col-lg-2 d-flex align-items-end gap-1"><button class="btn btn-outline-primary btn-lg flex-grow-1">Buscar</button><a asp-page="Index" asp-route-viewMode="@Model.ViewMode" class="btn btn-outline-secondary btn-lg" title="Limpiar filtros">×</a></div>
+    <div class="col-6 col-lg-2 d-flex align-items-end gap-1"><button class="btn btn-outline-primary btn-lg flex-grow-1">Buscar</button><a asp-page="Index" asp-route-viewMode="@Model.ViewMode" class="btn btn-outline-secondary btn-lg" title="Limpiar filtros" aria-label="Limpiar filtros">×</a></div>
 </div></form>
 
 <div class="nav nav-pills mb-3" aria-label="Vista de ubicaciones">
-    <a class="nav-link @(Model.ViewMode=="map"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="map">Croquis</a>
-    <a class="nav-link @(Model.ViewMode=="racks"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="rack" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks">Racks</a>
-    <a class="nav-link @(Model.ViewMode=="table"?"active":"")" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="table">@(Model.IsAdministrativeView ? "Tabla administrativa" : "Lista")</a>
+    <a class="nav-link @(Model.ViewMode=="map"?"active":"")" aria-current="@(Model.ViewMode=="map" ? "page" : null)" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="map">Croquis</a>
+    <a class="nav-link @(Model.ViewMode=="racks"?"active":"")" aria-current="@(Model.ViewMode=="racks" ? "page" : null)" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="rack" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="racks">Racks</a>
+    <a class="nav-link @(Model.ViewMode=="table"?"active":"")" aria-current="@(Model.ViewMode=="table" ? "page" : null)" asp-route-search="@Model.Search" asp-route-status="@Model.Status" asp-route-kind="@Model.Kind" asp-route-rowCode="@Model.RowCode" asp-route-viewMode="table">@(Model.IsAdministrativeView ? "Tabla administrativa" : "Lista")</a>
 </div>
 
 @if(Model.ViewMode=="map")
@@ -265,6 +266,8 @@ else
 }
 
 @if(Model.IsAdministrativeView){<div class="modal fade" id="blockModal" tabindex="-1" aria-labelledby="blockModalLabel" aria-hidden="true"><div class="modal-dialog"><div class="modal-content"><form method="post" asp-page-handler="Block"><div class="modal-header"><h2 class="modal-title fs-5" id="blockModalLabel">Bloquear ubicación</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><input type="hidden" id="blockLocationId" name="id"/><p id="blockLocationText"></p><label for="blockReason" class="form-label">Motivo</label><textarea id="blockReason" name="reason" class="form-control" maxlength="200" rows="3" required></textarea></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-warning">Bloquear</button></div></form></div></div></div>}
+
+</div>
 
 @functions{
     private Dictionary<string,string?> RouteValues(int pageNumber) => new()

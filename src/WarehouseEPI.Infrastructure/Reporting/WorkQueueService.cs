@@ -46,7 +46,8 @@ public sealed class WorkQueueService(
         var query = dbContext.ProductionWorkOrders.AsNoTracking()
             .Where(item => item.Status == ProductionWorkOrderStatus.Released ||
                            item.Status == ProductionWorkOrderStatus.InProgress ||
-                           item.Status == ProductionWorkOrderStatus.Paused);
+                           item.Status == ProductionWorkOrderStatus.Paused ||
+                           item.Status == ProductionWorkOrderStatus.PrincipalClosed);
 
         if (search is not null)
         {
@@ -103,9 +104,12 @@ public sealed class WorkQueueService(
             {
                 ProductionWorkOrderStatus.Released => "Trabajar",
                 ProductionWorkOrderStatus.InProgress => "Continuar",
+                ProductionWorkOrderStatus.PrincipalClosed => "Atender pendientes",
                 _ => "Ver orden"
             },
-            $"/Operations/Production/Work?id={item.Id}"))
+            item.Status == ProductionWorkOrderStatus.PrincipalClosed
+                ? $"/Operations/Production/Execution?id={item.Id}"
+                : $"/Operations/Production/Work?id={item.Id}"))
             .ToArray();
 
         return new(items, total);

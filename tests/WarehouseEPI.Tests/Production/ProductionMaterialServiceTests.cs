@@ -7,7 +7,7 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Tests.Production;
 
-public sealed class ProductionMaterialServiceTests
+public sealed partial class ProductionMaterialServiceTests
 {
     [Fact]
     public async Task Linked_issue_and_partial_consumption_preserve_the_order_reservation()

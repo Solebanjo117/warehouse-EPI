@@ -60,6 +60,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductionRouteStage> ProductionRouteStages => Set<ProductionRouteStage>();
     public DbSet<ProductionWorkOrder> ProductionWorkOrders => Set<ProductionWorkOrder>();
     public DbSet<ProductionWorkOrderStage> ProductionWorkOrderStages => Set<ProductionWorkOrderStage>();
+    public DbSet<ProductionReason> ProductionReasons => Set<ProductionReason>();
+    public DbSet<ProductionExecutionAudit> ProductionExecutionAudits => Set<ProductionExecutionAudit>();
+    public DbSet<ProductionReworkCase> ProductionReworkCases => Set<ProductionReworkCase>();
+    public DbSet<ProductionReworkAttempt> ProductionReworkAttempts => Set<ProductionReworkAttempt>();
+    public DbSet<ProductionReworkRetention> ProductionReworkRetentions => Set<ProductionReworkRetention>();
     public DbSet<ProductionEvent> ProductionEvents => Set<ProductionEvent>();
     public DbSet<ProductionProcessWipTarget> ProductionProcessWipTargets => Set<ProductionProcessWipTarget>();
     public DbSet<ProductionProcessConfiguration> ProductionProcessConfigurations => Set<ProductionProcessConfiguration>();
@@ -67,6 +72,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductionMaterialWipDefault> ProductionMaterialWipDefaults => Set<ProductionMaterialWipDefault>();
     public DbSet<ProductionMaterialWipRevision> ProductionMaterialWipRevisions => Set<ProductionMaterialWipRevision>();
     public DbSet<ProductionMaterialIssueLink> ProductionMaterialIssueLinks => Set<ProductionMaterialIssueLink>();
+    public DbSet<ProductionMaterialIssueLot> ProductionMaterialIssueLots => Set<ProductionMaterialIssueLot>();
     public DbSet<ProductionMaterialOperation> ProductionMaterialOperations => Set<ProductionMaterialOperation>();
     public DbSet<ProductionMaterialOperationLine> ProductionMaterialOperationLines => Set<ProductionMaterialOperationLine>();
     public DbSet<ProductionRecipe> ProductionRecipes => Set<ProductionRecipe>();
@@ -80,6 +86,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductionSupplyRequestLine> ProductionSupplyRequestLines => Set<ProductionSupplyRequestLine>();
     public DbSet<ProductionWarehouseReservation> ProductionWarehouseReservations => Set<ProductionWarehouseReservation>();
     public DbSet<ProductionSupplyEvent> ProductionSupplyEvents => Set<ProductionSupplyEvent>();
+    public DbSet<ProductionSupplyPreparation> ProductionSupplyPreparations => Set<ProductionSupplyPreparation>();
+    public DbSet<ProductionSupplyPreparationSource> ProductionSupplyPreparationSources => Set<ProductionSupplyPreparationSource>();
+    public DbSet<ProductionSupplyConfirmation> ProductionSupplyConfirmations => Set<ProductionSupplyConfirmation>();
+    public DbSet<ProductionSupplyConfirmationMovement> ProductionSupplyConfirmationMovements => Set<ProductionSupplyConfirmationMovement>();
+    public DbSet<ProductionSupplyConfirmationIssue> ProductionSupplyConfirmationIssues => Set<ProductionSupplyConfirmationIssue>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -1321,7 +1332,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     private void EnsureMovementHistoryIsImmutable()
     {
         var changedHistory = ChangeTracker.Entries()
-            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption or ProductionSupplyEvent) &&
+            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption or ProductionSupplyEvent or ProductionExecutionAudit or ProductionReworkCase or ProductionReworkAttempt) &&
                 (entry.State is EntityState.Modified or EntityState.Deleted))
             .Select(entry => entry.Metadata.ClrType.Name)
             .Distinct()

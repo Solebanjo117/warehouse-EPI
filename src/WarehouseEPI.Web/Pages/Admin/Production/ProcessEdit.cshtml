@@ -74,11 +74,10 @@
                 </div>
                 <span asp-validation-for="Input.Targets" class="text-danger"></span>
             </div>
-            <div class="col-12 @(Model.HasGroupedTargetChanges ? null : "d-none")" data-process-rack-reason
-                 aria-hidden="@(Model.HasGroupedTargetChanges ? "false" : "true")">
-                <label asp-for="Input.Reason" class="form-label">Motivo del cambio en filas o racks</label>
+            <div class="col-12" data-process-rack-reason aria-hidden="false">
+                <label asp-for="Input.Reason" class="form-label">Motivo del cambio</label>
                 <textarea asp-for="Input.Reason" class="form-control" rows="2" maxlength="500"></textarea>
-                <div class="form-text">Obligatorio cuando agregas o retiras una fila completa o un rack.</div>
+                <div class="form-text">Obligatorio al cambiar destinos WIP o umbrales de alerta.</div>
             </div>
             <div class="col-12" data-wip-default-picker>
                 <label for="process-default-wip-search" class="form-label fw-semibold">WIP predeterminado del proceso <span class="text-body-secondary fw-normal">(opcional)</span></label>
@@ -101,6 +100,22 @@
                 {
                     <div class="alert alert-warning mt-2 mb-0">El destino guardado ya no está disponible. Selecciona otro o déjalo sin predeterminado.</div>
                 }
+            </div>
+            <div class="col-12">
+                <h2 class="h5 mb-1">Alertas de producción</h2>
+                <p class="text-body-secondary mb-2">Vacío muestra la antigüedad sin clasificarla como atraso.</p>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.InactivityAlertHours" class="form-label">Inactividad del proceso (horas)</label>
+                        <input asp-for="Input.InactivityAlertHours" class="form-control form-control-lg" inputmode="numeric" min="1" max="8760" />
+                        <span asp-validation-for="Input.InactivityAlertHours" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.ReworkAlertHours" class="form-label">Antigüedad del retrabajo (horas)</label>
+                        <input asp-for="Input.ReworkAlertHours" class="form-control form-control-lg" inputmode="numeric" min="1" max="8760" />
+                        <span asp-validation-for="Input.ReworkAlertHours" class="text-danger"></span>
+                    </div>
+                </div>
             </div>
             <div class="col-12 col-md-4">
                 <label asp-for="Input.Pin" class="form-label">NIP ADMIN</label>

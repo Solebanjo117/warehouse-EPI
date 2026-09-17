@@ -5,6 +5,7 @@
   if (!root) return;
 
   const endpoint = root.dataset.recipeSummaryUrl;
+  const productDetailsUrl = root.dataset.productDetailsUrl;
   const cache = new Map();
   const number = new Intl.NumberFormat("es-MX", { maximumFractionDigits: 4 });
   let openButton = null;
@@ -58,7 +59,10 @@
     for (const line of summary.lines) {
       const article = element("article", "product-recipe-line");
       const material = element("div", "product-recipe-material");
-      material.append(element("strong", "product-catalog-sku", line.materialSku));
+      const materialLink = element("a", "product-catalog-sku", line.materialSku);
+      materialLink.href = productDetailsUrl.replace("00000000-0000-0000-0000-000000000000", encodeURIComponent(line.materialProductId));
+      materialLink.setAttribute("aria-label", `Ver ficha de ${line.materialSku}`);
+      material.append(materialLink);
       material.append(element("span", "text-body-secondary", line.materialDescription || "Sin descripción"));
       const facts = element("dl", "product-recipe-facts mb-0");
       const addFact = (label, value) => {
@@ -93,6 +97,8 @@
   };
 
   const load = async (button, panel, refresh = false) => {
+    // Preserve the desktop row and its spanning cell; mobile uses the panel itself.
+    panel = panel.querySelector("[data-product-recipe-content]") || panel;
     const productId = button.dataset.productId;
     if (!refresh && cache.has(productId)) {
       renderSummary(panel, cache.get(productId));

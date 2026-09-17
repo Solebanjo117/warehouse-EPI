@@ -1,12 +1,13 @@
 namespace WarehouseEPI.Core.Entities;
 
-public enum ProductionWorkOrderStatus { Draft, Released, InProgress, Paused, Closed, Cancelled }
+public enum ProductionWorkOrderStatus { Draft, Released, InProgress, Paused, Closed, Cancelled, PrincipalClosed }
 public enum ProductionEventType
 {
     Created, Released, QuantityAuthorized, Processed, Reworked, Delivered, Received,
     DifferenceReturned, DifferenceLost, WarehouseReceived, Paused, Resumed, Closed, Cancelled, ResultReversed, MaterialPlanAdjusted
 }
-public enum ProductionMaterialOperationType { Consumption, WarehouseReturn, SupplierReturn, Reversal }
+public enum ProductionMaterialOperationType { Consumption, WarehouseReturn, SupplierReturn, Reversal, Scrap }
+public enum ProductionMaterialReturnEffect { Replenish, Surplus }
 
 public sealed class ProductionStage
 {
@@ -17,6 +18,8 @@ public sealed class ProductionStage
     public Guid? DefaultWipLocationId { get; set; }
     public string? DefaultWipRowCode { get; set; }
     public short? DefaultWipRackNumber { get; set; }
+    public int? InactivityAlertHours { get; set; }
+    public int? ReworkAlertHours { get; set; }
     public Location? DefaultWipLocation { get; set; }
     public ICollection<ProductionProcessWipTarget> WipTargets { get; set; } = [];
 }
@@ -122,6 +125,8 @@ public sealed class ProductionWorkOrder
     public string? ExternalReference { get; set; }
     public Guid ProductId { get; set; }
     public short UnitId { get; set; }
+    public decimal OriginalTargetQuantity { get; set; }
+    public DateTimeOffset? PrincipalClosedAt { get; set; }
     public decimal TargetQuantity { get; set; }
     public decimal AuthorizedQuantity { get; set; }
     public DateOnly? DueDate { get; set; }
@@ -168,19 +173,41 @@ public sealed class ProductionMaterialIssueLink
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid WorkOrderId { get; set; }
     public Guid WorkOrderStageId { get; set; }
-    public Guid InventoryMovementLineId { get; set; }
+    public Guid? InventoryMovementLineId { get; set; }
     public Guid? SupplyRequestLineId { get; set; }
+    public Guid ProductId { get; set; }
+    public Guid WipLocationId { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal CancelledQuantity { get; set; }
+    public ProductionMaterialSupplySource Source { get; set; } = ProductionMaterialSupplySource.Transfer;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public ProductionWorkOrder WorkOrder { get; set; } = null!;
     public ProductionWorkOrderStage WorkOrderStage { get; set; } = null!;
-    public InventoryMovementLine InventoryMovementLine { get; set; } = null!;
+    public InventoryMovementLine? InventoryMovementLine { get; set; }
+    public Product Product { get; set; } = null!;
+    public Location WipLocation { get; set; } = null!;
     public ProductionSupplyRequestLine? SupplyRequestLine { get; set; }
     public ICollection<ProductionMaterialOperationLine> OperationLines { get; set; } = [];
+    public ICollection<ProductionMaterialIssueLot> Lots { get; set; } = [];
+}
+
+public enum ProductionMaterialSupplySource { Transfer, WipAssignment }
+
+public sealed class ProductionMaterialIssueLot
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid IssueLinkId { get; set; }
+    public Guid LotId { get; set; }
+    public decimal Quantity { get; set; }
+    public ProductionMaterialIssueLink IssueLink { get; set; } = null!;
+    public ProductLot Lot { get; set; } = null!;
 }
 
 public enum ProductionSupplyPriority { Normal, Urgent }
 public enum ProductionSupplyRequestStatus { Pending, InProgress, Completed, Cancelled }
-public enum ProductionSupplyEventType { Created, PreparationStarted, PreparationContinued, StockReserved, ProblemReported, QuantityCancelled, PriorityChanged, Delivered, DeliveryReversed }
+public enum ProductionSupplyEventType { Created, PreparationStarted, PreparationContinued, StockReserved, ProblemReported, QuantityCancelled, PriorityChanged, Delivered, DeliveryReversed, PreparationSaved, PreparationDiscarded, DestinationChanged, WipAssigned, WipAssignmentCancelled }
+public enum ProductionSupplyPreparationStatus { Open, Confirmed, Discarded }
+public enum ProductionSupplySourceKind { Warehouse, ExistingWip }
 
 public sealed class ProductionSupplyRequest
 {
@@ -203,17 +230,88 @@ public sealed class ProductionSupplyRequestLine
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid SupplyRequestId { get; set; }
+    public Guid? ReworkCaseId { get; set; }
+    public ProductionReworkCase? ReworkCase { get; set; }
     public Guid MaterialPlanId { get; set; }
     public Guid ProductId { get; set; }
     public short UnitId { get; set; }
     public decimal RequiredQuantity { get; set; }
     public decimal CancelledQuantity { get; set; }
+    public decimal ReopenedQuantity { get; set; }
+    public Guid? DestinationLocationId { get; set; }
+    public string? DestinationCode { get; set; }
     public ProductionSupplyRequest SupplyRequest { get; set; } = null!;
     public ProductionOrderMaterialPlan MaterialPlan { get; set; } = null!;
     public Product Product { get; set; } = null!;
     public Unit Unit { get; set; } = null!;
+    public Location? DestinationLocation { get; set; }
     public ICollection<ProductionWarehouseReservation> Reservations { get; set; } = [];
     public ICollection<ProductionMaterialIssueLink> IssueLinks { get; set; } = [];
+    public ICollection<ProductionSupplyPreparation> Preparations { get; set; } = [];
+}
+
+public sealed class ProductionSupplyPreparation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public Guid SupplyRequestLineId { get; set; }
+    public Guid DestinationLocationId { get; set; }
+    public ProductionSupplyPreparationStatus Status { get; set; } = ProductionSupplyPreparationStatus.Open;
+    public Guid ResponsibleUserId { get; set; }
+    public uint Version { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public ProductionSupplyRequestLine SupplyRequestLine { get; set; } = null!;
+    public Location DestinationLocation { get; set; } = null!;
+    public User ResponsibleUser { get; set; } = null!;
+    public ICollection<ProductionSupplyPreparationSource> Sources { get; set; } = [];
+}
+
+public sealed class ProductionSupplyPreparationSource
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid PreparationId { get; set; }
+    public ProductionSupplySourceKind Kind { get; set; }
+    public Guid LocationId { get; set; }
+    public decimal Quantity { get; set; }
+    public ProductionSupplyPreparation Preparation { get; set; } = null!;
+    public Location Location { get; set; } = null!;
+}
+
+public sealed class ProductionSupplyConfirmation
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid OperationId { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public Guid SupplyRequestLineId { get; set; }
+    public Guid PreparationId { get; set; }
+    public Guid DestinationLocationId { get; set; }
+    public decimal Quantity { get; set; }
+    public Guid ResponsibleUserId { get; set; }
+    public DateTimeOffset RecordedAt { get; set; }
+    public ProductionSupplyRequestLine SupplyRequestLine { get; set; } = null!;
+    public ProductionSupplyPreparation Preparation { get; set; } = null!;
+    public Location DestinationLocation { get; set; } = null!;
+    public User ResponsibleUser { get; set; } = null!;
+    public ICollection<ProductionSupplyConfirmationMovement> Movements { get; set; } = [];
+    public ICollection<ProductionSupplyConfirmationIssue> Issues { get; set; } = [];
+}
+
+public sealed class ProductionSupplyConfirmationMovement
+{
+    public Guid ConfirmationId { get; set; }
+    public Guid InventoryMovementId { get; set; }
+    public ProductionSupplyConfirmation Confirmation { get; set; } = null!;
+    public InventoryMovement InventoryMovement { get; set; } = null!;
+}
+
+public sealed class ProductionSupplyConfirmationIssue
+{
+    public Guid ConfirmationId { get; set; }
+    public Guid IssueLinkId { get; set; }
+    public ProductionSupplyConfirmation Confirmation { get; set; } = null!;
+    public ProductionMaterialIssueLink IssueLink { get; set; } = null!;
 }
 
 public sealed class ProductionWarehouseReservation
@@ -257,6 +355,7 @@ public sealed class ProductionMaterialOperation
     public Guid WorkOrderId { get; set; }
     public Guid WorkOrderStageId { get; set; }
     public ProductionMaterialOperationType Type { get; set; }
+    public ProductionMaterialReturnEffect? ReturnEffect { get; set; }
     public Guid ResponsibleUserId { get; set; }
     public Guid? ReversesOperationId { get; set; }
     public string? Reference { get; set; }

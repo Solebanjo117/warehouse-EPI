@@ -5,6 +5,7 @@
     ViewData["Title"] = "Operación confirmada";
     var typeName = Model.Receipt.Purpose switch
     {
+        InventoryMovementPurpose.ProductionReceipt => "Recepción de producción",
         InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
         InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP a bodega",
         InventoryMovementPurpose.WipConsumption => "Consumo WIP",
@@ -20,6 +21,7 @@
     }};
     var newPage = Model.Receipt.Purpose switch
     {
+        InventoryMovementPurpose.ProductionReceipt => "/Operations/Production/Index",
         InventoryMovementPurpose.ProductionIssue => "/Operations/Exit",
         InventoryMovementPurpose.WipWarehouseReturn => "/Operations/WipProcess",
         InventoryMovementPurpose.WipConsumption => "/Operations/WipProcess",
@@ -33,6 +35,7 @@
         InventoryMovementType.Adjustment => "/Operations/Adjustment",
         _ => "/Index"
     }};
+    var superseded = Model.Receipt.Purpose == InventoryMovementPurpose.ProductionReceipt && Model.Receipt.Correction is not null && Model.Receipt.Correction.ReplacementMovementId != Model.Receipt.MovementId;
     var newMode = Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue ? "wip" : null;
     var canGeneratePalletPlate = Model.Receipt.Type == InventoryMovementType.Entry &&
         (Model.Receipt.Correction is null || Model.Receipt.Correction.ReplacementMovementId == Model.Receipt.MovementId);
@@ -42,9 +45,10 @@
     <div class="receipt-status @(Model.Receipt.HasNegativeBalance ? "receipt-warning" : "receipt-success")">
         <span class="receipt-icon" aria-hidden="true">@(Model.Receipt.HasNegativeBalance ? "!" : "✓")</span>
         <div>
-            <h1 class="h3 mb-1">@typeName confirmada</h1>
+            <h1 class="h3 mb-1">@typeName @(superseded ? "corregida · antecedente" : "confirmada")</h1>
             <p class="mb-0">
-                @if (Model.Receipt.HasNegativeBalance)
+                @if (superseded) { <text>Este movimiento no representa una recepción vigente. Consulta la corrección.</text> }
+                else if (Model.Receipt.HasNegativeBalance)
                 {
                     <text>La operación se guardó, pero existe un saldo negativo.</text>
                 }
@@ -67,6 +71,22 @@
             }
         </div>
     </section>
+    @if(Model.Receipt.Purpose == InventoryMovementPurpose.ProductionReceipt) {
+        <section class="operation-card border-primary" data-production-receipt>
+        @if(Model.Production is { } production) {
+            var productionUnit=Model.Receipt.Lines.FirstOrDefault()?.UnitCode;
+            <h2 class="h5">@production.OrderNumber · @(production.BatchNumber ?? "Seguimiento histórico sin lote")</h2>
+            <p>Cantidad de esta recepción: @production.Quantity.ToString("0.####") @productionUnit</p>
+            <p>Acumulado actual: @production.Received.ToString("0.####") @productionUnit · Disponible para otra recepción: @production.Pending.ToString("0.####") @productionUnit</p>
+            <p class="small text-body-secondary">Acumulado y pendiente consultados al abrir este comprobante.</p>
+            <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary btn-lg" asp-page="/Operations/Production/Work" asp-route-id="@production.OrderId" asp-route-BatchId="@production.BatchId">Volver a la orden</a>
+            @if(!superseded && production.CanReceive && production.Pending>0) { <a class="btn btn-primary btn-lg" asp-page="/Operations/Production/Work" asp-route-id="@production.OrderId" asp-route-BatchId="@production.BatchId" asp-route-Task="warehouse">Recibir otra parcialidad</a> }
+            @if(production.BatchId.HasValue) { <a class="btn btn-outline-secondary btn-lg" asp-page="/Operations/Production/BatchLabel" asp-route-id="@production.BatchId">Etiqueta del lote</a> }
+            </div>
+        } else { <p>Este antecedente no conserva un vínculo completo con la orden y el lote.</p><a class="btn btn-primary btn-lg" asp-page="/Operations/Production/Index" asp-route-View="all">Buscar en producción</a> }
+        </section>
+    }
     @if (Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue)
     {
         <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">El surtimiento transfirió existencias al WIP y conservó los lotes del origen.</p></section>
@@ -139,6 +159,6 @@
 
     <div class="operation-actions">
         <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">Menú</a>
-        <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">Nueva operación</a>
+        @if(Model.Receipt.Purpose != InventoryMovementPurpose.ProductionReceipt) { <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">Nueva operación</a> }
     </div>
 </div>

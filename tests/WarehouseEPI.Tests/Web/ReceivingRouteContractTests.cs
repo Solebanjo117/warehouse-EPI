@@ -13,10 +13,8 @@ public sealed class ReceivingRouteContractTests
         var receive = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Receiving", "Receive.cshtml"));
         var trace = File.ReadAllText(Path.Combine(Root, "src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Trace", "Index.cshtml.cs"));
         Assert.Contains("ReceivingService", program, StringComparison.Ordinal);
-        Assert.Contains("/Operations/Receiving/Index", layout, StringComparison.Ordinal);
-        Assert.Contains("/Admin/Inventory/Trace/Index", layout, StringComparison.Ordinal);
-        Assert.Contains("Navegación temporalmente oculta: Recepciones contra documento", layout, StringComparison.Ordinal);
-        Assert.Contains("Navegación temporalmente oculta: Trazabilidad unificada", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(), action => action.Page == "/Operations/Receiving/Index");
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(), action => action.Page == "/Admin/Inventory/Trace/Index");
         Assert.Contains("Input.Pin", create, StringComparison.Ordinal);
         Assert.Contains("Input.Pin", receive, StringComparison.Ordinal);
         Assert.Contains("[Authorize(Policy = \"AdminOnly\")]", trace, StringComparison.Ordinal);

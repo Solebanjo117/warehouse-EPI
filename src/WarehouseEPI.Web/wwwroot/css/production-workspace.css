@@ -1,0 +1,7 @@
+.production-page .btn,.production-page .form-control,.production-page .form-select,.production-page summary,.supply-queue .btn,.supply-queue .form-control,.supply-queue summary { min-height:44px; }
+[data-work-capture] form[hidden] {display:none!important;}
+[data-work-capture] { min-width:0; }
+[data-work-capture] .row {--bs-gutter-y:1rem;}
+.production-page .form-check {min-height:44px;display:flex;align-items:center;gap:.5rem;}
+.production-page :focus-visible,.supply-queue :focus-visible {outline:3px solid var(--bs-primary);outline-offset:3px;}
+@media(max-width:1024px){[data-work-capture] form {width:100%;margin-left:0;margin-right:0;} .production-page .table-responsive{max-width:100%;}}

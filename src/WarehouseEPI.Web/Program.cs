@@ -119,7 +119,9 @@ builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionWipD
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionPlanningService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionMaterialService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionSupplyService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionSupplyPreparationService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionTraceabilityService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionExecutionService>();
 builder.Services.AddScoped<InventoryCorrectionService>();
 builder.Services.AddScoped<WipDispositionService>();
 builder.Services.AddScoped<WipDispositionCorrectionService>();
@@ -140,6 +142,7 @@ builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelDocumentServi
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.PalletLicensePlateService>();
 builder.Services.AddScoped<MovementReportService>();
 builder.Services.AddScoped<ReportExportService>();
+builder.Services.AddScoped<ProductionReportService>();
 builder.Services.AddScoped<DailyDashboardService>();
 builder.Services.AddScoped<InventoryAnalyticsService>();
 builder.Services.AddScoped<OperationalAlertService>();

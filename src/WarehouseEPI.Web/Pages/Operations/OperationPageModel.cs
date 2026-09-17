@@ -3,15 +3,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
-using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
 public abstract class OperationPageModel(
     InventoryMovementService movementService,
     InventoryQueryService inventoryQuery,
-    OperationalInventoryQueryService operationalQuery,
-    ProductionMaterialService? productionMaterials = null) : PageModel
+    OperationalInventoryQueryService operationalQuery) : PageModel
 {
     [BindProperty]
     public OperationInput Input { get; set; } = new();
@@ -26,8 +24,6 @@ public abstract class OperationPageModel(
     public IReadOnlyList<SharedLocationConflict> SharingConflicts { get; private set; } = [];
     public string? PrefillWarning { get; private set; }
     public bool NeedsSharingApproval => SharingConflicts.Count > 0;
-    public ProductionMaterialTarget? SelectedProductionTarget { get; private set; }
-
     public abstract InventoryMovementType MovementType { get; }
     public virtual InventoryMovementPurpose MovementPurpose => InventoryMovementPurpose.Standard;
     protected virtual InventoryMovementType CommandMovementType => MovementType;
@@ -35,7 +31,7 @@ public abstract class OperationPageModel(
     public abstract string PageTitle { get; }
     public abstract string PageHelp { get; }
 
-    public async Task OnGetAsync(Guid? productId, Guid? sourceLocationId,
+    public virtual async Task<IActionResult> OnGetAsync(Guid? productId, Guid? sourceLocationId,
         Guid? destinationLocationId, Guid? locationId, string? mode,
         CancellationToken cancellationToken = default)
     {
@@ -50,19 +46,12 @@ public abstract class OperationPageModel(
                 "wip" => ExitMode.Wip,
                 _ => null
             };
-            if (Input.ExitMode == ExitMode.Wip) Input.WipLinkMode = WipLinkMode.Order;
         }
 
         Input.ProductId = productId;
         Input.SourceLocationId = sourceLocationId;
         Input.DestinationLocationId = destinationLocationId;
         Input.LocationId = locationId;
-        var query = PageContext?.HttpContext?.Request.Query;
-        Input.WorkOrderId = Guid.TryParse(query?["workOrderId"].ToString(), out var workOrderId) ? workOrderId : null;
-        Input.WorkOrderStageId = Guid.TryParse(query?["workOrderStageId"].ToString(), out var workOrderStageId) ? workOrderStageId : null;
-        Input.SupplyRequestLineId = Guid.TryParse(query?["supplyRequestLineId"].ToString(), out var supplyRequestLineId) ? supplyRequestLineId : null;
-        Input.ExpectedSupplyVersion = uint.TryParse(query?["expectedSupplyVersion"].ToString(), out var expectedSupplyVersion) ? expectedSupplyVersion : null;
-        Input.ExpectedWorkOrderVersion = uint.TryParse(query?["expectedWorkOrderVersion"].ToString(), out var expectedWorkOrderVersion) ? expectedWorkOrderVersion : null;
         await LoadSelectionAsync(cancellationToken);
 
         var invalidFields = ModelState.Where(item => item.Value?.Errors.Count > 0)
@@ -71,7 +60,7 @@ public abstract class OperationPageModel(
         {
             if (MovementType == InventoryMovementType.Adjustment && LocationBalance is not null)
                 Input.ExpectedBalanceVersion = LocationBalance.Version;
-            return;
+            return Page();
         }
 
         foreach (var field in invalidFields)
@@ -83,6 +72,7 @@ public abstract class OperationPageModel(
         }
         ModelState.Clear();
         PrefillWarning = "Parte de la precarga ya no está disponible o no es compatible; vuelve a seleccionarla.";
+        return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
@@ -109,11 +99,7 @@ public abstract class OperationPageModel(
             MovementPurpose,
             MovementPurpose == InventoryMovementPurpose.ProductionIssue ? Input.DestinationLocationId : null);
 
-        var result = MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.WipLinkMode == WipLinkMode.Order
-            ? await productionMaterials!.IssueAsync(command, Input.WorkOrderId!.Value,
-                Input.WorkOrderStageId!.Value, Input.ExpectedWorkOrderVersion!.Value,
-                Input.SupplyRequestLineId, Input.ExpectedSupplyVersion, cancellationToken)
-            : await movementService.ConfirmAsync(command, cancellationToken);
+        var result = await movementService.ConfirmAsync(command, cancellationToken);
         ClearPin();
 
         if (result.Status == InventoryMovementStatus.Success && result.MovementId is Guid movementId)
@@ -208,12 +194,6 @@ public abstract class OperationPageModel(
         }
         if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.DestinationLocationId is null)
             ModelState.AddModelError("Input.DestinationLocationId", "Selecciona la ubicación WIP destino.");
-        if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.WipLinkMode == WipLinkMode.Order &&
-            (Input.WorkOrderId is null || Input.WorkOrderStageId is null))
-            ModelState.AddModelError("Input.WorkOrderStageId", "Selecciona la orden y el proceso destino.");
-        if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.WipLinkMode == WipLinkMode.Order &&
-            Input.ExpectedWorkOrderVersion is null)
-            ModelState.AddModelError("Input.WorkOrderStageId", "Vuelve a seleccionar la orden para confirmar su versión actual.");
     }
 
     private async Task LoadSelectionAsync(CancellationToken cancellationToken)
@@ -258,10 +238,6 @@ public abstract class OperationPageModel(
             DestinationBalance = await inventoryQuery.GetBalanceAsync(selectedProductId, selectedDestinationId, cancellationToken);
         if (Input.LocationId is Guid selectedLocationId)
             LocationBalance = await inventoryQuery.GetBalanceAsync(selectedProductId, selectedLocationId, cancellationToken);
-        if (productionMaterials is not null && Input.DestinationLocationId is Guid wipId &&
-            Input.WorkOrderId is Guid orderId && Input.WorkOrderStageId is Guid stageId)
-            SelectedProductionTarget = (await productionMaterials.SearchTargetsAsync(wipId, null, cancellationToken))
-                .SingleOrDefault(x => x.WorkOrderId == orderId && x.WorkOrderStageId == stageId);
     }
 
     private InventoryMovementLineCommand BuildLine() => CommandMovementType switch
@@ -306,12 +282,6 @@ public abstract class OperationPageModel(
         public Guid? DestinationLocationId { get; set; }
         public Guid? LocationId { get; set; }
         public ExitMode? ExitMode { get; set; }
-        public WipLinkMode WipLinkMode { get; set; } = WipLinkMode.Order;
-        public Guid? WorkOrderId { get; set; }
-        public Guid? WorkOrderStageId { get; set; }
-        public uint? ExpectedWorkOrderVersion { get; set; }
-        public Guid? SupplyRequestLineId { get; set; }
-        public uint? ExpectedSupplyVersion { get; set; }
         public uint? ExpectedBalanceVersion { get; set; }
         public decimal? Quantity { get; set; }
         [StringLength(120)] public string? Reference { get; set; }
@@ -326,5 +296,3 @@ public enum ExitMode
     General,
     Wip
 }
-
-public enum WipLinkMode { Order, General }

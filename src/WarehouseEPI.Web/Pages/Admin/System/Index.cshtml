@@ -128,10 +128,10 @@
                         @foreach (var failure in Model.Status.RecentFailures)
                         {
                             <tr>
-                                <td><time datetime="@failure.OccurredAt.ToString("o")">@failure.OccurredAt.LocalDateTime.ToString("g")</time></td>
-                                <td>@failure.Category</td>
-                                <td><span class="sys-status-code">@failure.StatusCode</span></td>
-                                <td><code>@failure.CorrelationId</code></td>
+                                <td data-label="Fecha"><time datetime="@failure.OccurredAt.ToString("o")">@failure.OccurredAt.LocalDateTime.ToString("g")</time></td>
+                                <td data-label="Categoría">@failure.Category</td>
+                                <td data-label="HTTP"><span class="sys-status-code">@failure.StatusCode</span></td>
+                                <td data-label="Correlación"><code>@failure.CorrelationId</code></td>
                             </tr>
                         }
                     </tbody>

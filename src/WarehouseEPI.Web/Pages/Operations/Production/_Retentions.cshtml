@@ -1,0 +1,29 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.ExecutionModel
+<section data-execution-panel="retain" class="card mb-3"><div class="card-body">
+    <p>Revisa la selección completa. El almacén no retenido se libera y se cancela su pendiente. El WIP no retenido requiere devolución o anulación.</p>
+    @for (var i = 0; i < Model.Input.Retentions.Count; i++)
+    {
+        var entry = Model.Input.Retentions[i];
+        var issue = Model.Issues.SingleOrDefault(x => x.IssueLinkId == entry.IssueLinkId);
+        var line = Model.Order.SupplyRequests.SelectMany(x => x.Lines).FirstOrDefault(x => x.Reservations.Any(r => r.Id == entry.ReservationId));
+        var reservation = line?.Reservations.SingleOrDefault(x => x.Id == entry.ReservationId);
+        var plan = line is null ? null : Model.Order.MaterialPlan.Single(x => x.Id == line.MaterialPlanId);
+        var label = issue is not null ? $"{issue.ProductSku} · {issue.WipCode} · {issue.Unit}" : reservation is not null ? $"{plan!.MaterialProduct.Sku} · {reservation.Location.Code} · {plan.Unit.Code}" : "Origen ya no disponible: revisa la captura";
+        var available = issue?.Pending ?? (reservation is null ? 0 : reservation.Quantity - reservation.ReleasedQuantity);
+        var current = Model.CurrentRetentions.SingleOrDefault(x => entry.IssueLinkId.HasValue ? x.IssueLinkId == entry.IssueLinkId : x.WarehouseReservationId == entry.ReservationId);
+        <div class="row g-2 mb-3" data-retention-row data-label="@label" data-available="@available.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-kind="@(entry.ReservationId.HasValue?"warehouse":"wip")">
+            <input asp-for="Input.Retentions[i].IssueLinkId" type="hidden"/>
+            <input asp-for="Input.Retentions[i].ReservationId" type="hidden"/>
+            <div class="col-md-5"><label asp-for="Input.Retentions[i].Selected"><input asp-for="Input.Retentions[i].Selected" class="form-check-input"/> @label</label>
+                <p>Disponible @available · Retenido actualmente @(current?.Quantity ?? 0)</p>
+            </div>
+            <div class="col-md-4"><label asp-for="Input.Retentions[i].CaseId">Caso de retrabajo</label>
+                <select asp-for="Input.Retentions[i].CaseId" class="form-select"><option value="00000000-0000-0000-0000-000000000000">Selecciona…</option>
+                    @foreach(var item in Model.Rework.Where(x => x.NeedsAttention)) { <option value="@item.Id">@item.Stage · @item.Pending pendientes</option> }
+                    @if(entry.CaseId != Guid.Empty && !Model.Rework.Any(x=>x.Id==entry.CaseId&&x.NeedsAttention)){<option value="@entry.CaseId">Caso anterior no disponible: revisar</option>}
+                </select>
+            </div>
+            <div class="col-md-3"><label asp-for="Input.Retentions[i].Quantity">Propuesta a retener</label><input asp-for="Input.Retentions[i].Quantity" class="form-control" inputmode="decimal"/></div>
+        </div>
+    }
+</div></section>

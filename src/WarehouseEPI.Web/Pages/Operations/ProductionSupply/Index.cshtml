@@ -3,7 +3,7 @@
 @using WarehouseEPI.Core.Entities
 @{ ViewData["Title"] = "Surtimientos a producción"; }
 
-<div class="supply-queue" data-supply-queue data-snapshot-url="@Url.Page(null, "Snapshot")" data-pending-orders="@Model.PendingOrders">
+<div class="supply-queue" data-supply-queue data-snapshot-url="@Url.Page(null, "Snapshot",new{Model.Search,Model.Condition,Model.PageNumber})" data-signature="@Model.QueuePage.Signature" data-checked-at="@Model.QueuePage.CheckedAt.ToString("O")" data-pending-orders="@Model.PendingOrders">
     <header class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
         <div><span class="eyebrow">Operación</span><h1 class="h2 mb-1">Surtimientos a producción</h1><p class="text-body-secondary mb-0">Prepara lo pendiente y entrégalo al WIP indicado por la orden.</p></div>
         <div class="supply-count"><strong>@Model.PendingOrders</strong><span>órdenes pendientes</span></div>
@@ -22,7 +22,10 @@
     else
     {
         <div class="supply-list">
-        @foreach (var row in Model.Rows)
+        @foreach (var group in Model.Rows.GroupBy(x=>new{x.WorkOrderId,x.WorkOrderStageId}))
+        {
+        <section aria-label="Orden y proceso"><h2 class="h5">@group.First().WorkOrderNumber · @group.First().Process</h2>
+        @foreach (var row in group)
         {
             var blocked = row.OrderStatus == ProductionWorkOrderStatus.Paused;
             <article class="card supply-card @(row.Priority == ProductionSupplyPriority.Urgent ? "supply-card-urgent" : null)">
@@ -35,20 +38,25 @@
                     <div class="supply-actions">
                         @if (!blocked)
                         {
-                            <a class="btn btn-primary" asp-page="/Operations/Exit" asp-route-mode="wip" asp-route-productId="@row.ProductId" asp-route-sourceLocationId="@row.SuggestedSourceLocationId" asp-route-destinationLocationId="@row.DestinationLocationId" asp-route-workOrderId="@row.WorkOrderId" asp-route-workOrderStageId="@row.WorkOrderStageId" asp-route-supplyRequestLineId="@row.LineId" asp-route-expectedSupplyVersion="@row.RequestVersion" asp-route-expectedWorkOrderVersion="@row.WorkOrderVersion">Preparar entrega</a>
+                            <a class="btn btn-primary" asp-page="/Operations/ProductionSupply/Prepare" asp-route-lineId="@row.LineId" asp-route-QueueSearch="@Model.Search" asp-route-QueueCondition="@Model.Condition" asp-route-QueuePage="@Model.PageNumber">Preparar entrega</a>
                         }
                         <details><summary class="btn btn-outline-secondary">Más acciones</summary><div class="supply-action-panel">
-                            <form method="post" asp-page-handler="Start"><input type="hidden" name="requestId" value="@row.RequestId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><label class="form-label">NIP para iniciar o continuar</label><div class="input-group"><input class="form-control" name="pin" type="password" inputmode="numeric" required/><button class="btn btn-outline-primary">Registrar preparación</button></div></form>
+                            <form method="post" asp-route-Search="@Model.Search" asp-route-Condition="@Model.Condition" asp-route-PageNumber="@Model.PageNumber" asp-page-handler="Start"><input type="hidden" name="requestId" value="@row.RequestId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><label class="form-label">Marcar participación no bloquea la preparación; otro operador puede continuar. NIP</label><div class="input-group"><input class="form-control" name="pin" type="password" inputmode="numeric" required/><button class="btn btn-outline-primary">Marcar que estoy preparando</button></div></form>
                             @if (row.Shortage > 0) { <form method="post" asp-page-handler="Reserve"><input type="hidden" name="lineId" value="@row.LineId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><label class="form-label">Reservar existencia disponible</label><div class="input-group"><input class="form-control" name="quantity" type="number" min="0.0001" max="@row.Shortage" step="0.0001" value="@row.Shortage" required/><input class="form-control" name="pin" type="password" inputmode="numeric" placeholder="NIP" required/><button class="btn btn-outline-primary">Reservar</button></div></form> }
                             <form method="post" asp-page-handler="Problem"><input type="hidden" name="requestId" value="@row.RequestId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><label class="form-label">Reportar problema</label><input class="form-control mb-2" name="reason" maxlength="500" required/><div class="input-group"><input class="form-control" name="pin" type="password" inputmode="numeric" placeholder="NIP" required/><button class="btn btn-outline-warning">Reportar</button></div></form>
-                            @if (User.IsInRole("ADMIN")) { <form method="post" asp-page-handler="Priority"><input type="hidden" name="requestId" value="@row.RequestId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><input type="hidden" name="priority" value="@(row.Priority == ProductionSupplyPriority.Urgent ? "Normal" : "Urgent")"/><label class="form-label">Cambiar prioridad</label><input class="form-control mb-2" name="reason" maxlength="500" required/><div class="input-group"><input class="form-control" name="pin" type="password" inputmode="numeric" placeholder="NIP ADMIN" required/><button class="btn btn-outline-secondary">Marcar @(row.Priority == ProductionSupplyPriority.Urgent ? "normal" : "urgente")</button></div></form><form method="post" asp-page-handler="Cancel"><input type="hidden" name="lineId" value="@row.LineId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><label class="form-label">Cancelar pendiente</label><input class="form-control mb-2" name="reason" maxlength="500" required/><div class="input-group"><input class="form-control" name="quantity" type="number" min="0.0001" max="@row.Pending" step="0.0001" value="@row.Pending" required/><input class="form-control" name="pin" type="password" inputmode="numeric" placeholder="NIP ADMIN" required/><button class="btn btn-outline-danger">Cancelar</button></div></form> }
+                            @{ <form method="post" asp-page-handler="Priority"><input type="hidden" name="requestId" value="@row.RequestId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><input type="hidden" name="priority" value="@(row.Priority == ProductionSupplyPriority.Urgent ? "Normal" : "Urgent")"/><label class="form-label">Cambiar prioridad</label><input class="form-control mb-2" name="reason" maxlength="500" required/><div class="input-group"><input class="form-control" name="pin" type="password" inputmode="numeric" placeholder="NIP ADMIN" required/><button class="btn btn-outline-secondary">Marcar @(row.Priority == ProductionSupplyPriority.Urgent ? "normal" : "urgente")</button></div></form><form method="post" asp-page-handler="Cancel"><input type="hidden" name="lineId" value="@row.LineId"/><input type="hidden" name="expectedVersion" value="@row.RequestVersion"/><label class="form-label">Cancelar pendiente</label><input class="form-control mb-2" name="reason" maxlength="500" required/><div class="input-group"><input class="form-control" name="quantity" type="number" min="0.0001" max="@row.Pending" step="0.0001" value="@row.Pending" required/><input class="form-control" name="pin" type="password" inputmode="numeric" placeholder="NIP ADMIN" required/><button class="btn btn-outline-danger">Cancelar</button></div></form> }
                         </div></details>
                     </div>
                 </div>
             </article>
         }
+        </section>
+        }
         </div>
     }
-    <p class="visually-hidden" role="status" aria-live="polite" data-supply-live></p>
+    <nav class="d-flex justify-content-between my-3" aria-label="Paginación por órdenes"><a class="btn btn-outline-primary @(Model.PageNumber<=1?"disabled":null)" asp-route-Search="@Model.Search" asp-route-Condition="@Model.Condition" asp-route-PageNumber="@(Model.PageNumber-1)">Anterior</a><span>Página @Model.PageNumber de @Model.QueuePage.TotalPages · @Model.PendingOrders órdenes</span><a class="btn btn-outline-primary @(Model.PageNumber>=Model.QueuePage.TotalPages?"disabled":null)" asp-route-Search="@Model.Search" asp-route-Condition="@Model.Condition" asp-route-PageNumber="@(Model.PageNumber+1)">Siguiente</a></nav>
+    <button class="btn btn-outline-primary" type="button" data-queue-refresh>Actualizar</button><p role="status" aria-live="polite" data-supply-live></p>
 </div>
 @section Scripts { <script src="~/js/production-supply-queue.js" asp-append-version="true"></script> }
+
+@section Styles { <link rel="stylesheet" href="~/css/production-workspace.css" asp-append-version="true"/> }

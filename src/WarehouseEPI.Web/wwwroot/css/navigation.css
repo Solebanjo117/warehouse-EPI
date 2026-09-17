@@ -5,9 +5,8 @@
    no sale de los tokens de Bootstrap sino de los del propio panel
    (--app-teal, --app-navy-deep) y de blancos con alfa. Ningún hex nuevo.
 
-   Tesis: son treinta enlaces en seis grupos. Lo caro no es añadir adorno, es
-   quitar peso: ritmo claro entre grupos, un estado activo que se lea sin
-   gritar y trazos finos. */
+   Inicio y los módulos comparten un menú corto; los accesos específicos viven
+   en las tarjetas de cada módulo. Conserva el estado activo y el rail. */
 
 /* Ritmo: los grupos se separan por aire y una hairline, no por un salto seco. */
 .app-nav { padding: .75rem .6rem 1rem; }
@@ -138,3 +137,13 @@
     .app-nav-link,
     .app-nav-link .app-icon { transition: none; }
 }
+
+/* Retorno contextual de las páginas pertenecientes a un módulo. */
+.module-back-link { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: .75rem; color: var(--bs-secondary-color); font-size: .9rem; text-decoration: none; }
+.module-back-link:hover { color: var(--bs-primary); text-decoration: underline; }
+.module-back-link:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 2px; }
+.camera-active .module-back-link { display: none; }
+@media print { .module-back-link { display: none !important; } }
+
+/* El contador sigue visible en rail aunque se oculten los textos del módulo. */
+.app-nav-link > .notification-count:not([hidden]) { display: inline-block; }

@@ -52,19 +52,19 @@
                 @foreach (var user in Model.Users)
                 {
                     <tr class="@(user.IsActive ? null : "is-inactive")">
-                        <td class="users-cell-name">
+                        <td data-label="Nombre" class="users-cell-name">
                             <span class="users-name">@user.FullName</span>
                         </td>
-                        <td class="users-cell-role">
+                        <td data-label="Rol" class="users-cell-role">
                             <span class="users-role">
                                 <span class="role-chip @(string.Equals(user.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase) ? "is-admin" : null)">@user.RoleCode</span>
                                 <span class="role-name">@user.RoleName</span>
                             </span>
                         </td>
-                        <td class="users-cell-state">
+                        <td data-label="Estado" class="users-cell-state">
                             <span class="users-state @(user.IsActive ? "is-active" : "is-inactive")">@(user.IsActive ? "Activo" : "Inactivo")</span>
                         </td>
-                        <td class="users-cell-action text-end">
+                        <td data-label="Acción" class="users-cell-action text-end">
                             <a asp-page="Edit" asp-route-id="@user.Id" class="btn btn-outline-primary" aria-label="Editar a @user.FullName">Editar</a>
                         </td>
                     </tr>

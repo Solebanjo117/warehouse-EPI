@@ -129,7 +129,7 @@
         var summary = report.Summary;
         var totalPages = Math.Max(1, (int)Math.Ceiling((double)report.TotalCount / report.PageSize));
         <section aria-labelledby="activity-heading">
-            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3"><div><h2 id="activity-heading" class="h4 mb-1">Actividad realizada</h2><p class="text-muted mb-0">Movimientos efectivos registrados. Estos datos describen volumen operativo, no productividad ni horas trabajadas.</p></div>@if (Model.IsAdmin) { <div class="d-flex flex-wrap gap-2"><a asp-page="Index" asp-page-handler="Export" asp-route-format="excel" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-success">Excel</a><a asp-page="Index" asp-page-handler="Export" asp-route-format="csv" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary">CSV</a></div> }</div>
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3"><div><h2 id="activity-heading" class="h4 mb-1">Actividad realizada</h2><p class="text-muted mb-0">Movimientos efectivos registrados. Estos datos describen volumen operativo, no productividad ni horas trabajadas.</p></div>@if (Model.IsAdmin) { <div class="d-flex flex-wrap gap-2"><a asp-page="Index" asp-page-handler="Export" asp-route-format="excel" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary">Excel</a><a asp-page="Index" asp-page-handler="Export" asp-route-format="csv" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary">CSV</a></div> }</div>
 
             <div class="row g-3 mb-4">
                 <div class="col-6 col-lg-3"><div class="card workload-metric h-100"><div class="card-body"><span>Operaciones efectivas</span><strong>@summary.TotalOperations.ToString("N0")</strong><small>@report.PeriodLabel</small></div></div></div>
@@ -140,7 +140,7 @@
 
             <form method="get" class="analytics-filter-card mb-4">
                 <input type="hidden" name="view" value="activity" />
-                <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Períodos rápidos">@foreach (var quick in new[] { ("today", "Hoy"), ("yesterday", "Ayer"), ("this-week", "Esta semana"), ("this-month", "Este mes"), ("last-month", "Mes pasado"), ("30", "30 días") }) { <a asp-page="Index" asp-route-view="activity" asp-route-period="@quick.Item1" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" class="btn btn-sm @(Model.Period == quick.Item1 ? "btn-primary" : "btn-outline-secondary")">@quick.Item2</a> }</div>
+                <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Períodos rápidos">@foreach (var quick in new[] { ("today", "Hoy"), ("yesterday", "Ayer"), ("this-week", "Esta semana"), ("this-month", "Este mes"), ("last-month", "Mes pasado"), ("30", "30 días") }) { <a asp-page="Index" asp-route-view="activity" asp-route-period="@quick.Item1" aria-current="@(Model.Period == quick.Item1 ? "page" : null)" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" class="btn btn-sm @(Model.Period == quick.Item1 ? "btn-primary" : "btn-outline-secondary")">@quick.Item2</a> }</div>
                 <input type="hidden" name="period" value="custom" />
                 <div class="row g-3">
                     <div class="col-6 col-md-3"><label for="from" class="form-label">Desde</label><input id="from" name="from" type="date" class="form-control" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
@@ -158,7 +158,7 @@
                 <div class="col-12 col-lg-4"><section class="card h-100"><div class="card-header"><h3 class="h6 mb-0">Por franja horaria</h3></div><div class="list-group list-group-flush">@foreach (var item in report.TimeBandBreakdown) { <div class="list-group-item d-flex justify-content-between gap-3"><span>@item.Label</span><strong>@item.Operations op.</strong></div> }</div></section></div>
             </div>
 
-            <section class="card mb-4"><div class="card-header"><h3 class="h6 mb-0">Actividad por día</h3></div><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Fecha local</th><th class="text-end">Operaciones</th><th class="text-end">Líneas</th></tr></thead><tbody>@if (report.DailyBreakdown.Count == 0) { <tr><td colspan="3" class="text-center text-muted py-4">No hay actividad en el período.</td></tr> } else { @foreach (var day in report.DailyBreakdown) { <tr><td>@day.Label</td><td class="text-end">@day.Operations</td><td class="text-end">@day.Lines</td></tr> } }</tbody></table></div></section>
+            <section class="card mb-4"><div class="card-header"><h3 class="h6 mb-0">Actividad por día</h3></div><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Fecha local</th><th class="text-end">Operaciones</th><th class="text-end">Líneas</th></tr></thead><tbody>@if (report.DailyBreakdown.Count == 0) { <tr><td colspan="3" class="text-center text-muted py-4">No hay actividad en el período.</td></tr> } else { @foreach (var day in report.DailyBreakdown) { <tr><td data-label="Fecha local">@day.Label</td><td data-label="Operaciones" class="text-end">@day.Operations</td><td data-label="Líneas" class="text-end">@day.Lines</td></tr> } }</tbody></table></div></section>
 
             @if (Model.IsAdmin)
             {
@@ -169,6 +169,8 @@
         </section>
     }
 </div>
+
+@section Styles { <link rel="stylesheet" href="~/css/workload-report.css" asp-append-version="true" /> }
 
 @functions {
     static string ProductionStatusLabel(ProductionWorkOrderStatus status) => status switch { ProductionWorkOrderStatus.Released => "Liberada", ProductionWorkOrderStatus.InProgress => "En progreso", ProductionWorkOrderStatus.Paused => "Pausada", _ => status.ToString() };
