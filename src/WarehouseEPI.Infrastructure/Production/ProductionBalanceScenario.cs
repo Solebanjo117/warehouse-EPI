@@ -44,8 +44,19 @@ public sealed partial class ProductionDailyBalanceService
                     var stages = Enum.GetValues<ProductionDailyArea>().Select((area, i) => new ProductionWorkOrderStage
                     { Id = Guid.NewGuid(), SourceStageId = Stage(area), Sequence = i + 1, Code = area.ToString(), Name = area.ToString() }).ToArray();
                     var order = new ProductionWorkOrder { Id = addition.Id, Number = "PREVIEW", CreateFingerprint = "PREVIEW", Status = ProductionWorkOrderStatus.Released, Stages = stages };
-                    lines.Add(new ProductionScheduleLine { Id = addition.Id, WeekId = week.Id, Week = week, ProductId = addition.ProductId,
-                        Quantity = extra, PlannedDate = scenario.Date, Sequence = lines.Where(x => x.WeekId == week.Id).Select(x => x.Sequence).DefaultIfEmpty().Max() + 1, IsExtra = true, WorkOrderId = order.Id, WorkOrder = order });
+                    lines.Add(new ProductionScheduleLine
+                    {
+                        Id = addition.Id,
+                        WeekId = week.Id,
+                        Week = week,
+                        ProductId = addition.ProductId,
+                        Quantity = extra,
+                        PlannedDate = scenario.Date,
+                        Sequence = lines.Where(x => x.WeekId == week.Id).Select(x => x.Sequence).DefaultIfEmpty().Max() + 1,
+                        IsExtra = true,
+                        WorkOrderId = order.Id,
+                        WorkOrder = order
+                    });
                 }
             }
             captures.Add(new(addition.Id, addition.ProductId, addition.Area, scenario.Date, addition.ShiftId, addition.Quantity, true, week.Id, 0, false, captures.Select(x => x.RecordedAt).DefaultIfEmpty(DateTimeOffset.UnixEpoch).Max().AddTicks(1)));

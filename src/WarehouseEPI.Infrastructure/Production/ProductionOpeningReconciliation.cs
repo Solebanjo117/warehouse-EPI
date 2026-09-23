@@ -60,8 +60,18 @@ public sealed partial class ProductionScheduleImportService
             .Select(x => new { x.Id, x.Sku, x.IsActive, x.BaseUnitId }).ToListAsync(token);
         var stages = await db.ProductionStages.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive }).ToListAsync(token);
         var shifts = await db.ProductionShifts.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive }).ToListAsync(token);
-        return Hash(JsonSerializer.Serialize(new { config.CuttingStageId, config.SewingStageId, config.ReadyToPackStageId,
-            config.Shift1Id, config.Shift2Id, config.Version, products, stages, shifts }));
+        return Hash(JsonSerializer.Serialize(new
+        {
+            config.CuttingStageId,
+            config.SewingStageId,
+            config.ReadyToPackStageId,
+            config.Shift1Id,
+            config.Shift2Id,
+            config.Version,
+            products,
+            stages,
+            shifts
+        }));
     }
 
     private static ProductionImportCell ReadEvidence(IXLCell cell, string table, string header, string? sku)
@@ -99,19 +109,19 @@ public sealed partial class ProductionScheduleImportService
         var sheet = workbook.Worksheet(prior.Sheet);
         var evidence = new List<ProductionImportCell>();
         foreach (var source in weeks)
-        foreach (var table in workbook.Worksheet(source.Sheet).Tables)
-        {
-            var hs = table.HeadersRow().Cells().Select(c => c.GetString()).ToArray();
-            var skuColumn = Array.FindIndex(hs, h => Normalize(h) is "partnumber" or "item");
-            if (skuColumn < 0 || table.DataRange is null) continue;
-            foreach (var row in table.DataRange.Rows())
+            foreach (var table in workbook.Worksheet(source.Sheet).Tables)
             {
-                var sku = Text(row.Cell(skuColumn + 1));
-                if (string.IsNullOrWhiteSpace(sku) || Normalize(sku) is "total" or "totals") continue;
-                for (var c = 0; c < hs.Length; c++)
-                    if (IsOpeningEvidenceHeader(hs[c])) evidence.Add(ReadEvidence(row.Cell(c + 1), table.Name, hs[c], sku));
+                var hs = table.HeadersRow().Cells().Select(c => c.GetString()).ToArray();
+                var skuColumn = Array.FindIndex(hs, h => Normalize(h) is "partnumber" or "item");
+                if (skuColumn < 0 || table.DataRange is null) continue;
+                foreach (var row in table.DataRange.Rows())
+                {
+                    var sku = Text(row.Cell(skuColumn + 1));
+                    if (string.IsNullOrWhiteSpace(sku) || Normalize(sku) is "total" or "totals") continue;
+                    for (var c = 0; c < hs.Length; c++)
+                        if (IsOpeningEvidenceHeader(hs[c])) evidence.Add(ReadEvidence(row.Cell(c + 1), table.Name, hs[c], sku));
+                }
             }
-        }
         var candidates = sheet.Tables.Where(t => ClosingName(t.Name)).ToArray();
         var closing = resolutions.ClosingTable is null ? (candidates.Length == 1 ? candidates[0] : null)
             : candidates.SingleOrDefault(t => t.Name == resolutions.ClosingTable);
@@ -127,20 +137,20 @@ public sealed partial class ProductionScheduleImportService
             context.Issue(prior.Sheet, null, "El cierre no tiene las columnas de pendientes requeridas.",
                 ProductionScheduleImportIssueKind.OpeningReconciliation, ProductionScheduleImportTable.Carryover);
         if (validClosing && closing!.DataRange is not null)
-        foreach (var row in closing.DataRange.Rows())
-        {
-            var sku = Text(row.Cell(closingColumns!["item"]));
-            if (string.IsNullOrWhiteSpace(sku) || Normalize(sku) is "total" or "totals") continue;
-            var id = context.Product(sku);
-            if (id is null)
+            foreach (var row in closing.DataRange.Rows())
             {
-                context.Issue(prior.Sheet, row.RowNumber(), $"SKU de arrastre sin resolver: {sku}.",
-                    ProductionScheduleImportIssueKind.UnknownSku, ProductionScheduleImportTable.Carryover, sku);
-                continue;
+                var sku = Text(row.Cell(closingColumns!["item"]));
+                if (string.IsNullOrWhiteSpace(sku) || Normalize(sku) is "total" or "totals") continue;
+                var id = context.Product(sku);
+                if (id is null)
+                {
+                    context.Issue(prior.Sheet, row.RowNumber(), $"SKU de arrastre sin resolver: {sku}.",
+                        ProductionScheduleImportIssueKind.UnknownSku, ProductionScheduleImportTable.Carryover, sku);
+                    continue;
+                }
+                if (!closingRows.TryGetValue(id.Value, out var rows)) closingRows[id.Value] = rows = [];
+                rows.Add((row.RowNumber(), keys.Select(k => ReadEvidence(row.Cell(closingColumns[k]), closing.Name, k, sku).Number).ToArray(), sku));
             }
-            if (!closingRows.TryGetValue(id.Value, out var rows)) closingRows[id.Value] = rows = [];
-            rows.Add((row.RowNumber(), keys.Select(k => ReadEvidence(row.Cell(closingColumns[k]), closing.Name, k, sku).Number).ToArray(), sku));
-        }
         var ids = prior.Lines.Select(x => x.ProductId).Concat(prior.Captures.Select(x => x.ProductId))
             .Concat(closingRows.Keys).Concat(draft.Lines.Where(x => x.IsCarryover).Select(x => x.ProductId)).Distinct().Order().ToArray();
         var products = await db.Products.AsNoTracking().Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, token);

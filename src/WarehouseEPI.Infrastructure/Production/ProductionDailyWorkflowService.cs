@@ -122,8 +122,12 @@ public sealed partial class ProductionDailyScheduleService
         var product = await db.Products.SingleAsync(x => x.Id == capture.ProductId, token);
         var line = new ProductionScheduleLine
         {
-            WeekId = week.Id, Sequence = week.Lines.Select(x => x.Sequence).DefaultIfEmpty().Max() + 1,
-            ProductId = product.Id, PlannedDate = capture.EffectiveDate, Quantity = quantity, IsExtra = true,
+            WeekId = week.Id,
+            Sequence = week.Lines.Select(x => x.Sequence).DefaultIfEmpty().Max() + 1,
+            ProductId = product.Id,
+            PlannedDate = capture.EffectiveDate,
+            Quantity = quantity,
+            IsExtra = true,
             Notes = "Producción extra de captura diaria"
         };
         db.ProductionScheduleLines.Add(line);

@@ -31,9 +31,15 @@ public sealed class ProductionImportDraftService(WarehouseDbContext db, Producti
     {
         if (!await IsAdmin(actor, token)) throw new UnauthorizedAccessException();
         if (bytes.Length is 0 or > MaxBytes) throw new ArgumentException("Selecciona un archivo XLSX de hasta 15 MB.", nameof(bytes));
-        var draft = new ProductionImportDraft { OwnerId = actor, FileName = Path.GetFileName(fileName),
-            FileHash = Convert.ToHexString(SHA256.HashData(bytes)), FileBytes = bytes,
-            CreatedAt = clock.GetUtcNow(), UpdatedAt = clock.GetUtcNow() };
+        var draft = new ProductionImportDraft
+        {
+            OwnerId = actor,
+            FileName = Path.GetFileName(fileName),
+            FileHash = Convert.ToHexString(SHA256.HashData(bytes)),
+            FileBytes = bytes,
+            CreatedAt = clock.GetUtcNow(),
+            UpdatedAt = clock.GetUtcNow()
+        };
         var preview = await ReadAsync(draft, ProductionScheduleImportResolutions.None, token);
         AddRevision(draft, ProductionScheduleImportResolutions.None, preview, actor, "Uploaded");
         db.ProductionImportDrafts.Add(draft);
@@ -161,9 +167,18 @@ public sealed class ProductionImportDraftService(WarehouseDbContext db, Producti
         draft.Version++;
         draft.UpdatedAt = clock.GetUtcNow();
         draft.Status = preview.CanConfirm ? ProductionImportDraftStatus.Ready : ProductionImportDraftStatus.Reviewing;
-        var revision = new ProductionImportRevision { DraftId = draft.Id, Number = draft.Version, ActorId = actor,
-            CreatedAt = draft.UpdatedAt, Action = action, ResolutionsJson = JsonSerializer.Serialize(resolutions, Json),
-            PreviewJson = JsonSerializer.Serialize(preview, Json), Fingerprint = preview.Fingerprint, OperationId = operation };
+        var revision = new ProductionImportRevision
+        {
+            DraftId = draft.Id,
+            Number = draft.Version,
+            ActorId = actor,
+            CreatedAt = draft.UpdatedAt,
+            Action = action,
+            ResolutionsJson = JsonSerializer.Serialize(resolutions, Json),
+            PreviewJson = JsonSerializer.Serialize(preview, Json),
+            Fingerprint = preview.Fingerprint,
+            OperationId = operation
+        };
         draft.Revisions.Add(revision);
         db.Entry(revision).State = EntityState.Added;
     }

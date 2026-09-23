@@ -30,13 +30,30 @@ public sealed class ProductionDailyModuleTests
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         config.CuttingStageId = cutting.Id; config.SewingStageId = sewing.Id; config.ReadyToPackStageId = ready.Id;
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
-        db.ProductionRoutes.Add(new ProductionRoute { ProductId = product.Id, Name = "Ruta sin costura",
-            Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 }, new ProductionRouteStage { StageId = ready.Id, Sequence = 2 } } });
-        var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "A".PadLeft(64, 'A'),
-            WeekStart = new(2026, 9, 21), WeekEnd = new(2026, 9, 26), Status = ProductionScheduleWeekStatus.Open,
-            CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
-        week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = week.WeekStart, ProductId = product.Id,
-            Quantity = 100, OrderReference1 = "=unsafe" });
+        db.ProductionRoutes.Add(new ProductionRoute
+        {
+            ProductId = product.Id,
+            Name = "Ruta sin costura",
+            Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 }, new ProductionRouteStage { StageId = ready.Id, Sequence = 2 } }
+        });
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "A".PadLeft(64, 'A'),
+            WeekStart = new(2026, 9, 21),
+            WeekEnd = new(2026, 9, 26),
+            Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        week.Lines.Add(new ProductionScheduleLine
+        {
+            Sequence = 1,
+            PlannedDate = week.WeekStart,
+            ProductId = product.Id,
+            Quantity = 100,
+            OrderReference1 = "=unsafe"
+        });
         week.Captures.Add(Capture(week, product, cutting, t1, admin, ProductionDailyArea.Cutting, 120));
         week.Captures.Add(Capture(week, product, ready, t1, admin, ProductionDailyArea.ReadyToPack, 80));
         db.Add(week);
@@ -272,9 +289,16 @@ public sealed class ProductionDailyModuleTests
         config.CuttingStageId = cutting.Id; config.SewingStageId = sewing.Id; config.ReadyToPackStageId = ready.Id;
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
         var monday = new DateOnly(2026, 9, 21);
-        var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "B".PadLeft(64, 'B'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), Status = ProductionScheduleWeekStatus.Open,
-            CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "B".PadLeft(64, 'B'),
+            WeekStart = monday,
+            WeekEnd = monday.AddDays(5),
+            Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         week.Lines.Add(LineWithOrder(week, product, cutting, admin, 1, monday, 5));
         week.Lines.Add(LineWithOrder(week, product, cutting, admin, 2, monday.AddDays(1), 7));
         db.Add(week); await db.SaveChangesAsync();
@@ -297,9 +321,16 @@ public sealed class ProductionDailyModuleTests
         await db.Database.EnsureCreatedAsync();
         var capture = new ProductionDailyCapture
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = "C".PadLeft(64, 'C'), WeekId = Guid.NewGuid(),
-            EffectiveDate = new(2026, 9, 21), Area = ProductionDailyArea.Cutting, StageId = Guid.NewGuid(),
-            ShiftId = Guid.NewGuid(), ProductId = Guid.NewGuid(), Quantity = 10, ResponsibleUserId = Guid.NewGuid(),
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "C".PadLeft(64, 'C'),
+            WeekId = Guid.NewGuid(),
+            EffectiveDate = new(2026, 9, 21),
+            Area = ProductionDailyArea.Cutting,
+            StageId = Guid.NewGuid(),
+            ShiftId = Guid.NewGuid(),
+            ProductId = Guid.NewGuid(),
+            Quantity = 10,
+            ResponsibleUserId = Guid.NewGuid(),
             RecordedAt = DateTimeOffset.UtcNow
         };
         db.ProductionDailyCaptures.Add(capture); await db.SaveChangesAsync();
@@ -323,14 +354,25 @@ public sealed class ProductionDailyModuleTests
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         config.CuttingStageId = cutting.Id; config.SewingStageId = sewing.Id; config.ReadyToPackStageId = ready.Id;
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
-        db.ProductionRoutes.Add(new ProductionRoute { ProductId = product.Id, Name = "Ruta completa",
+        db.ProductionRoutes.Add(new ProductionRoute
+        {
+            ProductId = product.Id,
+            Name = "Ruta completa",
             Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 },
                 new ProductionRouteStage { StageId = sewing.Id, Sequence = 2 },
-                new ProductionRouteStage { StageId = ready.Id, Sequence = 3 } } });
+                new ProductionRouteStage { StageId = ready.Id, Sequence = 3 } }
+        });
         var priorMonday = new DateOnly(2026, 9, 14);
-        var prior = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "D".PadLeft(64, 'D'),
-            WeekStart = priorMonday, WeekEnd = priorMonday.AddDays(5), Status = ProductionScheduleWeekStatus.Closed,
-            CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+        var prior = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "D".PadLeft(64, 'D'),
+            WeekStart = priorMonday,
+            WeekEnd = priorMonday.AddDays(5),
+            Status = ProductionScheduleWeekStatus.Closed,
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         prior.Lines.Add(LineWithOrder(prior, product, cutting, admin, 1, priorMonday, 100));
         var priorLine = prior.Lines.Single();
         var priorOrder = priorLine.WorkOrder!;
@@ -342,14 +384,23 @@ public sealed class ProductionDailyModuleTests
         foreach (var capture in prior.Captures)
             capture.Allocations.Add(new ProductionDailyCaptureAllocation
             {
-                ScheduleLine = priorLine, WorkOrder = priorOrder,
+                ScheduleLine = priorLine,
+                WorkOrder = priorOrder,
                 WorkOrderStage = priorOrder.Stages.Single(x => x.SourceStageId == capture.StageId),
-                Quantity = capture.Quantity, ProcessOperationId = Guid.NewGuid()
+                Quantity = capture.Quantity,
+                ProcessOperationId = Guid.NewGuid()
             });
         var currentMonday = priorMonday.AddDays(7);
-        var current = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "E".PadLeft(64, 'E'),
-            WeekStart = currentMonday, WeekEnd = currentMonday.AddDays(5), Status = ProductionScheduleWeekStatus.Open,
-            CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+        var current = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "E".PadLeft(64, 'E'),
+            WeekStart = currentMonday,
+            WeekEnd = currentMonday.AddDays(5),
+            Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         db.AddRange(prior, current); await db.SaveChangesAsync();
 
         var balance = await new ProductionDailyBalanceService(db).GetAsync(current.Id);
@@ -375,8 +426,12 @@ public sealed class ProductionDailyModuleTests
         var ready = new ProductionStage { Code = "RTP", Name = "Ready to Pack" };
         var t1 = new ProductionShift { Code = "T1", Name = "Shift 1" };
         var t2 = new ProductionShift { Code = "T2", Name = "Shift 2" };
-        var wip = new Location { Code = "WIP-DAILY", Kind = LocationKind.Area,
-            OperationalRole = LocationOperationalRole.Wip };
+        var wip = new Location
+        {
+            Code = "WIP-DAILY",
+            Kind = LocationKind.Area,
+            OperationalRole = LocationOperationalRole.Wip
+        };
         cutting.WipTargets.Add(new ProductionProcessWipTarget { Location = wip });
         db.AddRange(admin, first, replacement, material, cutting, sewing, ready, t1, t2, wip);
         await db.SaveChangesAsync();
@@ -385,17 +440,34 @@ public sealed class ProductionDailyModuleTests
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
         foreach (var product in new[] { first, replacement })
         {
-            db.ProductionRoutes.Add(new ProductionRoute { ProductId = product.Id, Name = $"Ruta {product.Sku}",
+            db.ProductionRoutes.Add(new ProductionRoute
+            {
+                ProductId = product.Id,
+                Name = $"Ruta {product.Sku}",
                 Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 },
                     new ProductionRouteStage { StageId = sewing.Id, Sequence = 2 },
-                    new ProductionRouteStage { StageId = ready.Id, Sequence = 3 } } });
-            db.ProductionRecipes.Add(new ProductionRecipe { ProductId = product.Id, Version = 1, BaseQuantity = 1,
-                Reason = "Receta diaria", CreatedByUserId = admin.Id,
-                Lines = { new ProductionRecipeLine { MaterialProductId = material.Id, StageId = cutting.Id, Quantity = 1 } } });
+                    new ProductionRouteStage { StageId = ready.Id, Sequence = 3 } }
+            });
+            db.ProductionRecipes.Add(new ProductionRecipe
+            {
+                ProductId = product.Id,
+                Version = 1,
+                BaseQuantity = 1,
+                Reason = "Receta diaria",
+                CreatedByUserId = admin.Id,
+                Lines = { new ProductionRecipeLine { MaterialProductId = material.Id, StageId = cutting.Id, Quantity = 1 } }
+            });
         }
         var monday = new DateOnly(2026, 9, 21);
-        var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "F".PadLeft(64, 'F'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "F".PadLeft(64, 'F'),
+            WeekStart = monday,
+            WeekEnd = monday.AddDays(5),
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = monday, ProductId = first.Id, Quantity = 10 });
         db.Add(week); await db.SaveChangesAsync();
         var service = new ProductionDailyScheduleService(db, pins,
@@ -429,10 +501,24 @@ public sealed class ProductionDailyModuleTests
             (await db.ProductionWorkOrders.AsNoTracking().SingleAsync(x => x.Id == finalLine.WorkOrderId)).Status);
 
         var nextMonday = monday.AddDays(7);
-        var carryoverWeek = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "G".PadLeft(64, 'G'),
-            WeekStart = nextMonday, WeekEnd = nextMonday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
-        carryoverWeek.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = nextMonday,
-            ProductId = first.Id, Quantity = 7, IsCarryover = true, StartArea = ProductionDailyArea.ReadyToPack });
+        var carryoverWeek = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "G".PadLeft(64, 'G'),
+            WeekStart = nextMonday,
+            WeekEnd = nextMonday.AddDays(5),
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        carryoverWeek.Lines.Add(new ProductionScheduleLine
+        {
+            Sequence = 1,
+            PlannedDate = nextMonday,
+            ProductId = first.Id,
+            Quantity = 7,
+            IsCarryover = true,
+            StartArea = ProductionDailyArea.ReadyToPack
+        });
         db.Add(carryoverWeek); await db.SaveChangesAsync();
         var carryoverPublished = await service.PublishAsync(new(Guid.NewGuid(), carryoverWeek.Id,
             carryoverWeek.Version, "4826", admin.Id));
@@ -467,17 +553,35 @@ public sealed class ProductionDailyModuleTests
         config.CuttingStageId = cutting.Id; config.SewingStageId = sewing.Id; config.ReadyToPackStageId = ready.Id;
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
         // New daily orders use all three stages even if the catalog route skips Sewing.
-        db.ProductionRoutes.Add(new ProductionRoute { ProductId = noSewing.Id, Name = "Ruta sin costura",
-            Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 }, new ProductionRouteStage { StageId = ready.Id, Sequence = 2 } } });
+        db.ProductionRoutes.Add(new ProductionRoute
+        {
+            ProductId = noSewing.Id,
+            Name = "Ruta sin costura",
+            Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 }, new ProductionRouteStage { StageId = ready.Id, Sequence = 2 } }
+        });
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var monday = today.AddDays(-7 - ((int)today.DayOfWeek + 6) % 7);
-        var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "H".PadLeft(64, 'H'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "H".PadLeft(64, 'H'),
+            WeekStart = monday,
+            WeekEnd = monday.AddDays(5),
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = monday, ProductId = plain.Id, Quantity = 10 });
         week.Lines.Add(new ProductionScheduleLine { Sequence = 2, PlannedDate = monday, ProductId = noSewing.Id, Quantity = 5 });
         // The route lacks the carryover area, so the order starts there and follows the daily processes.
-        week.Lines.Add(new ProductionScheduleLine { Sequence = 3, PlannedDate = monday, ProductId = noSewing.Id, Quantity = 3,
-            IsCarryover = true, StartArea = ProductionDailyArea.Sewing });
+        week.Lines.Add(new ProductionScheduleLine
+        {
+            Sequence = 3,
+            PlannedDate = monday,
+            ProductId = noSewing.Id,
+            Quantity = 3,
+            IsCarryover = true,
+            StartArea = ProductionDailyArea.Sewing
+        });
         db.Add(week); await db.SaveChangesAsync();
         var movements = new InventoryMovementService(db, pins, TimeProvider.System);
         var schedule = new ProductionDailyScheduleService(db, pins, movements, TimeProvider.System);
@@ -547,8 +651,15 @@ public sealed class ProductionDailyModuleTests
         config.CuttingStageId = cutting.Id; config.SewingStageId = sewing.Id; config.ReadyToPackStageId = ready.Id;
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
         var monday = new DateOnly(2026, 9, 21);
-        var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "I".PadLeft(64, 'I'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "I".PadLeft(64, 'I'),
+            WeekStart = monday,
+            WeekEnd = monday.AddDays(5),
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = monday, ProductId = product.Id, Quantity = 10 });
         db.Add(week); await db.SaveChangesAsync();
         var service = new ProductionDailyScheduleService(db, pins,
@@ -563,27 +674,57 @@ public sealed class ProductionDailyModuleTests
 
     private static ProductionDailyCapture Capture(ProductionScheduleWeek week, Product product,
         ProductionStage stage, ProductionShift shift, User user, ProductionDailyArea area, decimal quantity) => new()
-    {
-        OperationId = Guid.NewGuid(), RequestFingerprint = Guid.NewGuid().ToString("N").PadRight(64, '0'),
-        EffectiveDate = week.WeekStart, Area = area, StageId = stage.Id, ShiftId = shift.Id,
-        ProductId = product.Id, Quantity = quantity, ResponsibleUserId = user.Id, RecordedAt = DateTimeOffset.UtcNow
-    };
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = Guid.NewGuid().ToString("N").PadRight(64, '0'),
+            EffectiveDate = week.WeekStart,
+            Area = area,
+            StageId = stage.Id,
+            ShiftId = shift.Id,
+            ProductId = product.Id,
+            Quantity = quantity,
+            ResponsibleUserId = user.Id,
+            RecordedAt = DateTimeOffset.UtcNow
+        };
 
     private static ProductionScheduleLine LineWithOrder(ProductionScheduleWeek week, Product product,
         ProductionStage stage, User admin, int sequence, DateOnly date, decimal quantity)
     {
-        var order = new ProductionWorkOrder { CreateOperationId = Guid.NewGuid(), CreateFingerprint = Guid.NewGuid().ToString("N").PadRight(64, '0'),
-            Number = $"OT-{sequence}", ProductId = product.Id, UnitId = 1, OriginalTargetQuantity = quantity,
-            TargetQuantity = quantity, AuthorizedQuantity = quantity, Status = ProductionWorkOrderStatus.Released,
-            CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow, UsesBatchTraceability = true };
+        var order = new ProductionWorkOrder
+        {
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = Guid.NewGuid().ToString("N").PadRight(64, '0'),
+            Number = $"OT-{sequence}",
+            ProductId = product.Id,
+            UnitId = 1,
+            OriginalTargetQuantity = quantity,
+            TargetQuantity = quantity,
+            AuthorizedQuantity = quantity,
+            Status = ProductionWorkOrderStatus.Released,
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UsesBatchTraceability = true
+        };
         var orderStage = new ProductionWorkOrderStage { SourceStageId = stage.Id, Sequence = 1, Code = stage.Code, Name = stage.Name };
         order.Stages.Add(orderStage);
-        order.Batches.Add(new ProductionBatch { CreateOperationId = Guid.NewGuid(), CreateFingerprint = Guid.NewGuid().ToString("N").PadRight(64, '0'),
-            Number = $"OT-{sequence}-L001", AssignedQuantity = quantity,
+        order.Batches.Add(new ProductionBatch
+        {
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = Guid.NewGuid().ToString("N").PadRight(64, '0'),
+            Number = $"OT-{sequence}-L001",
+            AssignedQuantity = quantity,
             FinishedProductLot = new ProductLot { ProductId = product.Id, Number = $"LOT-{sequence}", NormalizedNumber = $"LOT-{sequence}" },
-            CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow });
-        return new ProductionScheduleLine { Sequence = sequence, PlannedDate = date, ProductId = product.Id,
-            Quantity = quantity, WorkOrder = order };
+            CreatedByUserId = admin.Id,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        return new ProductionScheduleLine
+        {
+            Sequence = sequence,
+            PlannedDate = date,
+            ProductId = product.Id,
+            Quantity = quantity,
+            WorkOrder = order
+        };
     }
 
     internal static async Task SeedImportCatalogAsync(WarehouseDbContext db)
@@ -602,9 +743,13 @@ public sealed class ProductionDailyModuleTests
     internal static async Task AddImportRouteAsync(WarehouseDbContext db, Guid productId)
     {
         var stages = await db.ProductionStages.ToListAsync();
-        db.ProductionRoutes.Add(new ProductionRoute { ProductId = productId, Name = "Import route",
+        db.ProductionRoutes.Add(new ProductionRoute
+        {
+            ProductId = productId,
+            Name = "Import route",
             Stages = new[] { "CUT", "SEW", "RTP" }.Select((code, i) => new ProductionRouteStage
-                { StageId = stages.Single(x => x.Code == code).Id, Sequence = i + 1 }).ToArray() });
+            { StageId = stages.Single(x => x.Code == code).Id, Sequence = i + 1 }).ToArray()
+        });
         await db.SaveChangesAsync();
     }
 

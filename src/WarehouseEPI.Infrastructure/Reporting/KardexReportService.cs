@@ -155,10 +155,15 @@ public sealed class KardexReportService(WarehouseDbContext dbContext)
             var changes = filter.LocationId is Guid locationId
                 ? line.BalanceChanges.Where(c => c.LocationId == locationId) : line.BalanceChanges.AsEnumerable();
             var lots = changes.GroupBy(c => new { c.LotId, c.LotNumberSnapshot, c.LotDateSnapshot })
-                .Select(g => new { g.Key.LotId, LotNumber = g.Key.LotNumberSnapshot, LotDate = g.Key.LotDateSnapshot,
+                .Select(g => new
+                {
+                    g.Key.LotId,
+                    LotNumber = g.Key.LotNumberSnapshot,
+                    LotDate = g.Key.LotDateSnapshot,
                     Delta = global && transfer ? 0m : g.Sum(c => c.DeltaQuantity),
                     Quantity = transfer && global ? g.Where(c => c.DeltaQuantity < 0).Sum(c => -c.DeltaQuantity)
-                        : Math.Abs(g.Sum(c => c.DeltaQuantity)) })
+                        : Math.Abs(g.Sum(c => c.DeltaQuantity))
+                })
                 .OrderBy(g => g.LotDate).ThenBy(g => g.LotNumber, StringComparer.Ordinal).ThenBy(g => g.LotId).ToArray();
             if (lots.Length == 0)
                 lots = [new { LotId = line.LotId, LotNumber = line.Lot?.Number, LotDate = line.Lot?.LotDate, Delta = 0m, Quantity = line.Quantity }];
@@ -193,10 +198,17 @@ public sealed class KardexReportService(WarehouseDbContext dbContext)
         var records = await dbContext.InventoryMovementCorrections.AsNoTracking()
             .Where(c => movementIds.Contains(c.OriginalMovementId) || movementIds.Contains(c.ReversalMovementId)
                 || (c.ReplacementMovementId.HasValue && movementIds.Contains(c.ReplacementMovementId.Value)))
-            .Select(c => new { c.Id, c.OriginalMovementId, c.ReversalMovementId, c.ReplacementMovementId,
-                Reason = includeDetails ? c.Reason : string.Empty, c.RecordedAt,
+            .Select(c => new
+            {
+                c.Id,
+                c.OriginalMovementId,
+                c.ReversalMovementId,
+                c.ReplacementMovementId,
+                Reason = includeDetails ? c.Reason : string.Empty,
+                c.RecordedAt,
                 RequestedBy = includeDetails ? c.RequestedByUser.FullName : string.Empty,
-                AuthorizedBy = includeDetails ? c.AuthorizedByUser.FullName : string.Empty }).ToListAsync(token);
+                AuthorizedBy = includeDetails ? c.AuthorizedByUser.FullName : string.Empty
+            }).ToListAsync(token);
         var result = new Dictionary<Guid, List<KardexCorrectionDetail>>();
         foreach (var record in records)
         {

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Localization;
-using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Inventory;
 

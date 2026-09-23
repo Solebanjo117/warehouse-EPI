@@ -16,7 +16,7 @@ public sealed record ProductionSupplyQueueRow(Guid RequestId, Guid LineId, uint 
     decimal Delivered, decimal Reserved, decimal Pending, decimal Shortage, string Destination,
     Guid? DestinationLocationId, Guid? SuggestedSourceLocationId, string? LastParticipant, string? Problem);
 
-public sealed record ProductionSupplyQueuePage(IReadOnlyList<ProductionSupplyQueueRow> Rows,int Page,int TotalOrders,int TotalPages,string Signature,DateTimeOffset CheckedAt);
+public sealed record ProductionSupplyQueuePage(IReadOnlyList<ProductionSupplyQueueRow> Rows, int Page, int TotalOrders, int TotalPages, string Signature, DateTimeOffset CheckedAt);
 public enum ProductionSupplyCommandStatus { Success, InvalidPin, NotFound, ValidationFailed, ConcurrencyConflict, IdempotencyConflict }
 public sealed record ProductionSupplyCommandResult(ProductionSupplyCommandStatus Status,
     Guid? RequestId = null, IReadOnlyList<string>? Errors = null)
@@ -50,7 +50,7 @@ public sealed class ProductionSupplyService(WarehouseDbContext db, UserPinServic
         var term = search?.Trim();
         if (!string.IsNullOrWhiteSpace(term)) query = query.Where(x => x.SupplyRequest.WorkOrder.Number.ToUpper().Contains(term.ToUpper()) ||
             x.SupplyRequest.WorkOrder.Product.Sku.ToUpper().Contains(term.ToUpper()) || x.Product.Sku.ToUpper().Contains(term.ToUpper()));
-        if(orderIds is not null)query=query.Where(x=>orderIds.Contains(x.SupplyRequest.WorkOrderId));
+        if (orderIds is not null) query = query.Where(x => orderIds.Contains(x.SupplyRequest.WorkOrderId));
         var rows = await query.ToListAsync(token);
         var result = rows.Select(ToRow);
         result = condition?.ToLowerInvariant() switch
@@ -64,35 +64,38 @@ public sealed class ProductionSupplyService(WarehouseDbContext db, UserPinServic
             .ThenBy(x => x.WorkOrderNumber).ThenBy(x => x.Process).ThenBy(x => x.Material).ToArray();
     }
 
-    private IQueryable<ProductionSupplyRequestLine> FilteredQueue(string? search,string? condition)
+    private IQueryable<ProductionSupplyRequestLine> FilteredQueue(string? search, string? condition)
     {
-        var q=db.ProductionSupplyRequestLines.AsNoTracking().Where(x=>x.RequiredQuantity-x.CancelledQuantity+x.ReopenedQuantity-x.IssueLinks.Sum(i=>i.Quantity-i.CancelledQuantity)>0);
-        var term=search?.Trim().ToUpperInvariant();
-        if(!string.IsNullOrEmpty(term))q=q.Where(x=>x.SupplyRequest.WorkOrder.Number.ToUpper().Contains(term)||x.SupplyRequest.WorkOrder.Product.Sku.ToUpper().Contains(term)||x.Product.Sku.ToUpper().Contains(term));
-        return condition?.ToLowerInvariant() switch {
-            "shortage"=>q.Where(x=>x.RequiredQuantity-x.CancelledQuantity+x.ReopenedQuantity-x.IssueLinks.Sum(i=>i.Quantity-i.CancelledQuantity)>x.Reservations.Sum(r=>r.Quantity-r.ReleasedQuantity)),
-            "partial"=>q.Where(x=>x.IssueLinks.Sum(i=>i.Quantity-i.CancelledQuantity)>0),
-            "blocked"=>q.Where(x=>x.SupplyRequest.WorkOrder.Status==ProductionWorkOrderStatus.Paused),_=>q};
+        var q = db.ProductionSupplyRequestLines.AsNoTracking().Where(x => x.RequiredQuantity - x.CancelledQuantity + x.ReopenedQuantity - x.IssueLinks.Sum(i => i.Quantity - i.CancelledQuantity) > 0);
+        var term = search?.Trim().ToUpperInvariant();
+        if (!string.IsNullOrEmpty(term)) q = q.Where(x => x.SupplyRequest.WorkOrder.Number.ToUpper().Contains(term) || x.SupplyRequest.WorkOrder.Product.Sku.ToUpper().Contains(term) || x.Product.Sku.ToUpper().Contains(term));
+        return condition?.ToLowerInvariant() switch
+        {
+            "shortage" => q.Where(x => x.RequiredQuantity - x.CancelledQuantity + x.ReopenedQuantity - x.IssueLinks.Sum(i => i.Quantity - i.CancelledQuantity) > x.Reservations.Sum(r => r.Quantity - r.ReleasedQuantity)),
+            "partial" => q.Where(x => x.IssueLinks.Sum(i => i.Quantity - i.CancelledQuantity) > 0),
+            "blocked" => q.Where(x => x.SupplyRequest.WorkOrder.Status == ProductionWorkOrderStatus.Paused),
+            _ => q
+        };
     }
-    public async Task<ProductionSupplyQueuePage> GetQueuePageAsync(string? search=null,string? condition=null,int page=1,CancellationToken token=default)
+    public async Task<ProductionSupplyQueuePage> GetQueuePageAsync(string? search = null, string? condition = null, int page = 1, CancellationToken token = default)
     {
-        var lines=FilteredQueue(search,condition);
-        var orders=db.ProductionWorkOrders.AsNoTracking().Where(x=>lines.Any(l=>l.SupplyRequest.WorkOrderId==x.Id));
-        var total=await orders.CountAsync(token);var pages=Math.Max(1,(total+24)/25);page=Math.Clamp(page,1,pages);
-        var ids=await orders.OrderByDescending(x=>x.SupplyPriority).ThenBy(x=>x.DueDate==null).ThenBy(x=>x.DueDate).ThenBy(x=>x.CreatedAt).ThenBy(x=>x.Id).Skip((page-1)*25).Take(25).Select(x=>x.Id).ToListAsync(token);
-        var rows=await GetQueueForOrdersAsync(search,condition,ids,token);
-        var positions=ids.Select((id,index)=>(id,index)).ToDictionary(x=>x.id,x=>x.index);
-        var ordered=rows.OrderBy(x=>positions[x.WorkOrderId]).ThenBy(x=>x.WorkOrderStageId).ThenBy(x=>x.RequestId).ThenBy(x=>x.Material).ToArray();
-        var snapshot=await GetQueueSnapshotAsync(search,condition,token);
-        return new(ordered,page,total,pages,snapshot.Signature,snapshot.CheckedAt);
+        var lines = FilteredQueue(search, condition);
+        var orders = db.ProductionWorkOrders.AsNoTracking().Where(x => lines.Any(l => l.SupplyRequest.WorkOrderId == x.Id));
+        var total = await orders.CountAsync(token); var pages = Math.Max(1, (total + 24) / 25); page = Math.Clamp(page, 1, pages);
+        var ids = await orders.OrderByDescending(x => x.SupplyPriority).ThenBy(x => x.DueDate == null).ThenBy(x => x.DueDate).ThenBy(x => x.CreatedAt).ThenBy(x => x.Id).Skip((page - 1) * 25).Take(25).Select(x => x.Id).ToListAsync(token);
+        var rows = await GetQueueForOrdersAsync(search, condition, ids, token);
+        var positions = ids.Select((id, index) => (id, index)).ToDictionary(x => x.id, x => x.index);
+        var ordered = rows.OrderBy(x => positions[x.WorkOrderId]).ThenBy(x => x.WorkOrderStageId).ThenBy(x => x.RequestId).ThenBy(x => x.Material).ToArray();
+        var snapshot = await GetQueueSnapshotAsync(search, condition, token);
+        return new(ordered, page, total, pages, snapshot.Signature, snapshot.CheckedAt);
     }
-    public async Task<ProductionQueueSnapshot> GetQueueSnapshotAsync(string? search=null,string? condition=null,CancellationToken token=default)
+    public async Task<ProductionQueueSnapshot> GetQueueSnapshotAsync(string? search = null, string? condition = null, CancellationToken token = default)
     {
-        var lines=FilteredQueue(search,condition);
+        var lines = FilteredQueue(search, condition);
         // Scalar projection only: fingerprints cover the entire filtered queue, including other pages.
-        var snapshot=await lines.OrderBy(x=>x.Id).Select(x=>new {x.Id,Problems=x.SupplyRequest.Events.Count(),Problem=x.SupplyRequest.Events.Where(e=>e.Type==ProductionSupplyEventType.ProblemReported).OrderByDescending(e=>e.RecordedAt).Select(e=>e.Reason).FirstOrDefault(),x.SupplyRequest.Version,x.SupplyRequest.WorkOrder.SupplyPriority,x.SupplyRequest.WorkOrder.DueDate,x.SupplyRequest.WorkOrder.Status,x.RequiredQuantity,x.CancelledQuantity,x.ReopenedQuantity,Delivered=x.IssueLinks.Sum(i=>i.Quantity-i.CancelledQuantity),Reserved=x.Reservations.Sum(r=>r.Quantity-r.ReleasedQuantity)}).ToListAsync(token);
-        var signature=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(snapshot))));
-        return new(signature,timeProvider.GetUtcNow());
+        var snapshot = await lines.OrderBy(x => x.Id).Select(x => new { x.Id, Problems = x.SupplyRequest.Events.Count(), Problem = x.SupplyRequest.Events.Where(e => e.Type == ProductionSupplyEventType.ProblemReported).OrderByDescending(e => e.RecordedAt).Select(e => e.Reason).FirstOrDefault(), x.SupplyRequest.Version, x.SupplyRequest.WorkOrder.SupplyPriority, x.SupplyRequest.WorkOrder.DueDate, x.SupplyRequest.WorkOrder.Status, x.RequiredQuantity, x.CancelledQuantity, x.ReopenedQuantity, Delivered = x.IssueLinks.Sum(i => i.Quantity - i.CancelledQuantity), Reserved = x.Reservations.Sum(r => r.Quantity - r.ReleasedQuantity) }).ToListAsync(token);
+        var signature = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(snapshot))));
+        return new(signature, timeProvider.GetUtcNow());
     }
 
     internal static async Task GenerateForReleaseAsync(WarehouseDbContext db, ProductionWorkOrder order,
@@ -102,13 +105,25 @@ public sealed class ProductionSupplyService(WarehouseDbContext db, UserPinServic
         order.UsesSupplyRequests = true;
         foreach (var group in order.MaterialPlan.GroupBy(x => new { x.WorkOrderStageId, x.WipTargetCode, x.WipLocationId }))
         {
-            var request = new ProductionSupplyRequest { WorkOrder = order, WorkOrderStageId = group.Key.WorkOrderStageId,
-                DestinationCode = group.Key.WipTargetCode ?? "WIP por seleccionar", DestinationLocationId = group.Key.WipLocationId, CreatedAt = now };
+            var request = new ProductionSupplyRequest
+            {
+                WorkOrder = order,
+                WorkOrderStageId = group.Key.WorkOrderStageId,
+                DestinationCode = group.Key.WipTargetCode ?? "WIP por seleccionar",
+                DestinationLocationId = group.Key.WipLocationId,
+                CreatedAt = now
+            };
             foreach (var plan in group)
             {
-                var line = new ProductionSupplyRequestLine { SupplyRequest = request, MaterialPlanId = plan.Id,
-                    ProductId = plan.MaterialProductId, Product = plan.MaterialProduct, UnitId = plan.UnitId,
-                    RequiredQuantity = plan.PlannedQuantity };
+                var line = new ProductionSupplyRequestLine
+                {
+                    SupplyRequest = request,
+                    MaterialPlanId = plan.Id,
+                    ProductId = plan.MaterialProductId,
+                    Product = plan.MaterialProduct,
+                    UnitId = plan.UnitId,
+                    RequiredQuantity = plan.PlannedQuantity
+                };
                 request.Lines.Add(line);
                 await AllocateAsync(db, line, plan.PlannedQuantity, now, token);
             }
@@ -272,9 +287,19 @@ public sealed class ProductionSupplyService(WarehouseDbContext db, UserPinServic
     internal static void UpdateStatus(ProductionSupplyRequest request) { if (request.Lines.All(x => x.RequiredQuantity - x.CancelledQuantity + x.ReopenedQuantity - x.IssueLinks.Sum(i => i.Quantity - i.CancelledQuantity) <= 0)) request.Status = request.Lines.All(x => x.CancelledQuantity == x.RequiredQuantity) ? ProductionSupplyRequestStatus.Cancelled : ProductionSupplyRequestStatus.Completed; else request.Status = ProductionSupplyRequestStatus.InProgress; }
     private void AddEvent(ProductionSupplyRequest request, ProductionSupplyRequestLine? line, Guid operationId, string fingerprint, ProductionSupplyEventType type, User user, decimal quantity = 0, string? reason = null, Guid? movementId = null)
     {
-        var supplyEvent = new ProductionSupplyEvent { OperationId = operationId, RequestFingerprint = fingerprint,
-            SupplyRequest = request, SupplyRequestLine = line, Type = type, ResponsibleUserId = user.Id,
-            Quantity = quantity, Reason = Trim(reason), InventoryMovementId = movementId, RecordedAt = timeProvider.GetUtcNow() };
+        var supplyEvent = new ProductionSupplyEvent
+        {
+            OperationId = operationId,
+            RequestFingerprint = fingerprint,
+            SupplyRequest = request,
+            SupplyRequestLine = line,
+            Type = type,
+            ResponsibleUserId = user.Id,
+            Quantity = quantity,
+            Reason = Trim(reason),
+            InventoryMovementId = movementId,
+            RecordedAt = timeProvider.GetUtcNow()
+        };
         request.Events.Add(supplyEvent);
         db.Entry(supplyEvent).State = EntityState.Added;
     }

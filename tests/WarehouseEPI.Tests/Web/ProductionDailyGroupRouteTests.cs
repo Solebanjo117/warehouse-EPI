@@ -105,8 +105,11 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Equal("3,5", Input(addedProduct, "Group.Rows[0].Quantity"));
         Assert.Equal(extraProduct.ToString(), Input(addedProduct, "Group.Rows[1].ProductId"));
         Assert.Contains("UNPLANNED-WEB", addedProduct);
-        var addedAgain = await Post("GroupAdd", addedProduct, new Dictionary<string, string>(fields) {
-            ["Group.Rows[1].ProductId"] = extraProduct.ToString(), ["Group.Rows[1].Quantity"] = "", ["Group.Rows[1].Notes"] = ""
+        var addedAgain = await Post("GroupAdd", addedProduct, new Dictionary<string, string>(fields)
+        {
+            ["Group.Rows[1].ProductId"] = extraProduct.ToString(),
+            ["Group.Rows[1].Quantity"] = "",
+            ["Group.Rows[1].Notes"] = ""
         });
         Assert.DoesNotContain("name=\"Group.Rows[2].ProductId\"", addedAgain);
         Assert.Equal("3,5", Input(addedAgain, "Group.Rows[0].Quantity"));
@@ -152,8 +155,16 @@ public sealed class ProductionDailyGroupRouteTests
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/Operations/Production?handler=" + handler);
             request.Headers.Add("RequestVerificationToken", Input(balanceHtml, "__RequestVerificationToken"));
-            request.Content = JsonContent.Create(new { operationId = editId, weekId, date = monday, reason = (string?)null, fingerprint, pin,
-                cells = new[] { new { productId, area = 0, shift = 1, observed = "2", requested } } });
+            request.Content = JsonContent.Create(new
+            {
+                operationId = editId,
+                weekId,
+                date = monday,
+                reason = (string?)null,
+                fingerprint,
+                pin,
+                cells = new[] { new { productId, area = 0, shift = 1, observed = "2", requested } }
+            });
             var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -171,8 +182,11 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Equal(5, await context.ProductionDailyCaptures.Where(x => x.Status == ProductionDailyCaptureStatus.Active).SumAsync(x => x.Quantity));
 
         var login = await client.GetStringAsync("/Admin/Login");
-        var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string> {
-            ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"), ["Input.Pin"] = "0123" }));
+        var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"),
+            ["Input.Pin"] = "0123"
+        }));
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         var admin = await context.Users.SingleAsync(x => x.FullName == "Group admin");
         var scheduleService = verify.ServiceProvider.GetRequiredService<ProductionDailyScheduleService>();

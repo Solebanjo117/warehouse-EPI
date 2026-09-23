@@ -99,11 +99,23 @@ public sealed partial class ProductionSupplyServiceTests
     public async Task Guided_preparation_persists_the_automatic_plate_composition_used_by_confirmation()
     {
         await using var fixture = await Fixture.CreateAsync(stock: 10);
-        var first = new PalletPlate { ProductId = fixture.Material.Id, LocationId = fixture.Source.Id,
-            Quantity = 3, Version = 1, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        var first = new PalletPlate
+        {
+            ProductId = fixture.Material.Id,
+            LocationId = fixture.Source.Id,
+            Quantity = 3,
+            Version = 1,
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2)
+        };
         first.Lots.Add(new() { Plate = first, LotId = fixture.MaterialLot.Id, Quantity = 3 });
-        var second = new PalletPlate { ProductId = fixture.Material.Id, LocationId = fixture.Source.Id,
-            Quantity = 4, Version = 1, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        var second = new PalletPlate
+        {
+            ProductId = fixture.Material.Id,
+            LocationId = fixture.Source.Id,
+            Quantity = 4,
+            Version = 1,
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1)
+        };
         second.Lots.Add(new() { Plate = second, LotId = fixture.MaterialLot.Id, Quantity = 4 });
         fixture.Db.PalletPlates.AddRange(first, second);
         await fixture.Db.SaveChangesAsync();
@@ -328,9 +340,15 @@ public sealed partial class ProductionSupplyServiceTests
             var route = await fixture.Production.CreateRouteAsync(new(Guid.NewGuid(), fixture.FinishedProduct.Id,
                 "Ruta P3", [stage.Id], fixture.AdminPin));
             Assert.Equal(ProductionCommandStatus.Success, route.Status);
-            db.ProductionRecipes.Add(new ProductionRecipe { ProductId = fixture.FinishedProduct.Id, Version = 1,
-                BaseQuantity = 1, Reason = "Receta P3", CreatedByUserId = admin.Id,
-                Lines = { new ProductionRecipeLine { MaterialProductId = fixture.Material.Id, StageId = stage.Id, Quantity = 1 } } });
+            db.ProductionRecipes.Add(new ProductionRecipe
+            {
+                ProductId = fixture.FinishedProduct.Id,
+                Version = 1,
+                BaseQuantity = 1,
+                Reason = "Receta P3",
+                CreatedByUserId = admin.Id,
+                Lines = { new ProductionRecipeLine { MaterialProductId = fixture.Material.Id, StageId = stage.Id, Quantity = 1 } }
+            });
             fixture.MaterialLot = new ProductLot { Product = fixture.Material, Number = "MP-P3-01", NormalizedNumber = "MP-P3-01", LotDate = new DateOnly(2026, 9, 1) };
             db.Add(fixture.MaterialLot); await db.SaveChangesAsync();
             db.InventoryBalances.Add(new InventoryBalance { ProductId = fixture.Material.Id, LocationId = fixture.Source.Id, LotId = fixture.MaterialLot.Id, Quantity = stock });
@@ -339,8 +357,13 @@ public sealed partial class ProductionSupplyServiceTests
 
         public async Task AddWipStockAsync(decimal quantity)
         {
-            Db.InventoryBalances.Add(new InventoryBalance { ProductId = Material.Id, LocationId = Wip.Id,
-                LotId = MaterialLot.Id, Quantity = quantity });
+            Db.InventoryBalances.Add(new InventoryBalance
+            {
+                ProductId = Material.Id,
+                LocationId = Wip.Id,
+                LotId = MaterialLot.Id,
+                Quantity = quantity
+            });
             await Db.SaveChangesAsync();
         }
 

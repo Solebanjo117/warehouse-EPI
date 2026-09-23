@@ -134,8 +134,15 @@ public sealed class ProductImportServiceTests
     public async Task Comparison_updates_only_basic_fields_and_preserves_blanks_and_inactive_state()
     {
         await using var fixture = Fixture.Create();
-        var product = new Product { Sku = "EXISTING", Description = "Antes", ExternalReference = "KEEP",
-            BaseUnitId = 1, MinimumStock = 12, IsActive = false };
+        var product = new Product
+        {
+            Sku = "EXISTING",
+            Description = "Antes",
+            ExternalReference = "KEEP",
+            BaseUnitId = 1,
+            MinimumStock = 12,
+            IsActive = false
+        };
         fixture.Db.Products.Add(product);
         await fixture.Db.SaveChangesAsync();
         using var stream = Workbook(("", " existing ", "Después", "", ""));

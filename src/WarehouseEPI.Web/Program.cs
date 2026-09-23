@@ -22,8 +22,8 @@ using WarehouseEPI.Web.Hosting;
 using WarehouseEPI.Web.Imports;
 using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Observability;
-using WarehouseEPI.Web.Security;
 using WarehouseEPI.Web.Reporting;
+using WarehouseEPI.Web.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddWindowsService(options => options.ServiceName = "WarehouseEPI");

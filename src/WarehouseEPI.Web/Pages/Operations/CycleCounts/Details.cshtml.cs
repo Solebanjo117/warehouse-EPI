@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using WarehouseEPI.Infrastructure.Inventory;
-using WarehouseEPI.Web.Security;
 using Microsoft.Extensions.Localization;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Security;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
 

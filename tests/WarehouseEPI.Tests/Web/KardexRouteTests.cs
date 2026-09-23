@@ -198,8 +198,14 @@ public sealed class KardexRouteTests
         await using (db)
         {
             var unit = new Unit { Id = 1, Code = "PZA", Name = "Pieza" };
-            var product = new Product { Sku = "SKU-INACTIVO", Description = "Filtro especial",
-                ExternalReference = "REF-ABC", BaseUnit = unit, IsActive = false };
+            var product = new Product
+            {
+                Sku = "SKU-INACTIVO",
+                Description = "Filtro especial",
+                ExternalReference = "REF-ABC",
+                BaseUnit = unit,
+                IsActive = false
+            };
             product.Barcodes.Add(new ProductBarcode { Product = product, Barcode = "001234500", IsActive = true });
             db.AddRange(unit, product);
             await db.SaveChangesAsync();

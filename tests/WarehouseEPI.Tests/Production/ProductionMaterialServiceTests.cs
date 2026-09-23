@@ -206,13 +206,23 @@ public sealed partial class ProductionMaterialServiceTests
             var process = new ProductionStage { Code = "COS", Name = "Costura" };
             var order = new ProductionWorkOrder
             {
-                CreateOperationId = Guid.NewGuid(), CreateFingerprint = "test", Number = "OT-0001",
-                Product = finished, UnitId = 1, TargetQuantity = 10, AuthorizedQuantity = 10,
-                Status = ProductionWorkOrderStatus.Released, CreatedByUser = admin
+                CreateOperationId = Guid.NewGuid(),
+                CreateFingerprint = "test",
+                Number = "OT-0001",
+                Product = finished,
+                UnitId = 1,
+                TargetQuantity = 10,
+                AuthorizedQuantity = 10,
+                Status = ProductionWorkOrderStatus.Released,
+                CreatedByUser = admin
             };
             var orderStage = new ProductionWorkOrderStage
             {
-                WorkOrder = order, SourceStage = process, Sequence = 1, Code = process.Code, Name = process.Name
+                WorkOrder = order,
+                SourceStage = process,
+                Sequence = 1,
+                Code = process.Code,
+                Name = process.Name
             };
             order.Stages.Add(orderStage);
             if (includeTarget)

@@ -1,5 +1,5 @@
-using WarehouseEPI.Core.Entities;
 using Microsoft.AspNetCore.Authorization;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
 namespace WarehouseEPI.Tests.Web;

@@ -608,8 +608,17 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
     {
         var baseRows = await dbContext.Locations.AsNoTracking()
             .Where(item => item.IsPhysicallyPresent)
-            .Select(item => new { item.Id, item.Code, item.PalletNumber, item.Description,
-                item.OperationalRole, item.IsActive, item.IsBlocked, item.BlockReason }).ToListAsync(token);
+            .Select(item => new
+            {
+                item.Id,
+                item.Code,
+                item.PalletNumber,
+                item.Description,
+                item.OperationalRole,
+                item.IsActive,
+                item.IsBlocked,
+                item.BlockReason
+            }).ToListAsync(token);
         // Keep the database queries simple here. PostgreSQL cannot translate the previous
         // aggregate projection reliably once Product.BaseUnit is joined inside GroupBy.
         // A warehouse map is an administrative view, so aggregate the already materialized

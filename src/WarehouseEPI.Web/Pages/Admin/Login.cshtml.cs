@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using WarehouseEPI.Infrastructure.Security;
 using Microsoft.Extensions.Localization;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin;

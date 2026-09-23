@@ -376,15 +376,25 @@ public sealed class ProductionOpeningImportTests
         };
         var draft = new ProductionImportDraft
         {
-            OwnerId = actor, FileName = "legacy.xlsx", FileBytes = bytes, FileHash = preview.FileHash,
-            CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow, Version = 1,
+            OwnerId = actor,
+            FileName = "legacy.xlsx",
+            FileBytes = bytes,
+            FileHash = preview.FileHash,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow,
+            Version = 1,
             Status = confirmed ? ProductionImportDraftStatus.Confirmed : ProductionImportDraftStatus.Reviewing
         };
         draft.Revisions.Add(new ProductionImportRevision
         {
-            DraftId = draft.Id, Number = 1, ActorId = actor, CreatedAt = draft.CreatedAt, Action = "Uploaded",
+            DraftId = draft.Id,
+            Number = 1,
+            ActorId = actor,
+            CreatedAt = draft.CreatedAt,
+            Action = "Uploaded",
             ResolutionsJson = System.Text.Json.JsonSerializer.Serialize(resolutions),
-            PreviewJson = System.Text.Json.JsonSerializer.Serialize(legacy), Fingerprint = legacy.Fingerprint
+            PreviewJson = System.Text.Json.JsonSerializer.Serialize(legacy),
+            Fingerprint = legacy.Fingerprint
         });
         db.Add(draft); await db.SaveChangesAsync();
         var service = Service(db); var view = (await service.GetAsync(draft.Id, actor))!;

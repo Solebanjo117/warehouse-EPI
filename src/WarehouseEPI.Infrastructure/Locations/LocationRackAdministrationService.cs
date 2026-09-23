@@ -191,8 +191,12 @@ public sealed class LocationRackAdministrationService(
             configuration.Version++;
         }
 
-        var before = JsonSerializer.Serialize(new { Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations)),
-            DirectProcessIds = previousProcessIds, InheritedRowProcessIds = inheritedProcessIds });
+        var before = JsonSerializer.Serialize(new
+        {
+            Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations)),
+            DirectProcessIds = previousProcessIds,
+            InheritedRowProcessIds = inheritedProcessIds
+        });
         var byPallet = locations.ToDictionary(item => item.PalletNumber!.Value);
         var now = timeProvider.GetUtcNow();
         foreach (var pallet in Enumerable.Range(1, 9).Select(value => (short)value))
@@ -238,8 +242,12 @@ public sealed class LocationRackAdministrationService(
             }
         }
 
-        var after = JsonSerializer.Serialize(new { Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations.OrderBy(item => item.PalletNumber).ToArray())),
-            DirectProcessIds = requestedProcessIds, InheritedRowProcessIds = inheritedProcessIds });
+        var after = JsonSerializer.Serialize(new
+        {
+            Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations.OrderBy(item => item.PalletNumber).ToArray())),
+            DirectProcessIds = requestedProcessIds,
+            InheritedRowProcessIds = inheritedProcessIds
+        });
         dbContext.LocationRackRevisions.Add(new LocationRackRevision
         {
             OperationId = command.OperationId,
@@ -380,8 +388,16 @@ public sealed class LocationRackAdministrationService(
                         RackCode = rackCode,
                         Removed = mapElements.Select(item => new
                         {
-                            item.Id, item.RowCode, item.RackNumber, item.X, item.Y,
-                            item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible
+                            item.Id,
+                            item.RowCode,
+                            item.RackNumber,
+                            item.X,
+                            item.Y,
+                            item.Width,
+                            item.Height,
+                            item.Rotation,
+                            item.ZIndex,
+                            item.IsVisible
                         })
                     }),
                     RequestedByUserId = requester.Id,

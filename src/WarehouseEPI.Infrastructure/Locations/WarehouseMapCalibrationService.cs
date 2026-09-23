@@ -106,8 +106,12 @@ public sealed class WarehouseMapCalibrationService(
             Revision = nextRevision,
             OriginLatitude = transform.OriginLatitude,
             OriginLongitude = transform.OriginLongitude,
-            A11 = transform.A11, A12 = transform.A12, A13 = transform.A13,
-            A21 = transform.A21, A22 = transform.A22, A23 = transform.A23,
+            A11 = transform.A11,
+            A12 = transform.A12,
+            A13 = transform.A13,
+            A21 = transform.A21,
+            A22 = transform.A22,
+            A23 = transform.A23,
             FitErrorMeters = transform.FitErrorMeters,
             CheckErrorMeters = transform.CheckErrorMeters,
             MaximumScaleSvgPerMeter = transform.MaximumScaleSvgPerMeter,
@@ -121,9 +125,13 @@ public sealed class WarehouseMapCalibrationService(
             {
                 Id = Guid.NewGuid(),
                 Kind = ParseKind(input.Kind),
-                Name = input.Name.Trim(), MapX = input.MapX, MapY = input.MapY,
-                Latitude = summary.Latitude, Longitude = summary.Longitude,
-                AccuracyMeters = summary.Accuracy, DispersionMeters = summary.Dispersion,
+                Name = input.Name.Trim(),
+                MapX = input.MapX,
+                MapY = input.MapY,
+                Latitude = summary.Latitude,
+                Longitude = summary.Longitude,
+                AccuracyMeters = summary.Accuracy,
+                DispersionMeters = summary.Dispersion,
                 SampleCount = input.Samples.Count,
                 SamplesJson = JsonSerializer.Serialize(input.Samples)
             });
@@ -131,10 +139,15 @@ public sealed class WarehouseMapCalibrationService(
         dbContext.WarehouseMapCalibrations.Add(calibration);
         dbContext.WarehouseMapCalibrationRevisions.Add(new WarehouseMapCalibrationRevision
         {
-            OperationId = command.OperationId, RequestFingerprint = fingerprint,
-            Calibration = calibration, Action = "PUBLISH", Reason = reason,
+            OperationId = command.OperationId,
+            RequestFingerprint = fingerprint,
+            Calibration = calibration,
+            Action = "PUBLISH",
+            Reason = reason,
             ChangesJson = JsonSerializer.Serialize(new { calibration.Revision, calibration.LayoutVersion, review.ReferenceCount, review.CheckCount, review.Warnings, Transform = transform }),
-            RequestedByUserId = command.RequestedByUserId, AuthorizedByUserId = auth.User.Id, RecordedAt = now
+            RequestedByUserId = command.RequestedByUserId,
+            AuthorizedByUserId = auth.User.Id,
+            RecordedAt = now
         });
         await dbContext.SaveChangesAsync(token);
         if (transaction is not null) await transaction.CommitAsync(token);
@@ -169,9 +182,15 @@ public sealed class WarehouseMapCalibrationService(
         active.DisabledByUserId = auth.User.Id;
         dbContext.WarehouseMapCalibrationRevisions.Add(new WarehouseMapCalibrationRevision
         {
-            OperationId = operationId, RequestFingerprint = fingerprint, CalibrationId = active.Id,
-            Action = "DISABLE", Reason = reason, ChangesJson = JsonSerializer.Serialize(new { active.Revision }),
-            RequestedByUserId = requestedByUserId, AuthorizedByUserId = auth.User.Id, RecordedAt = now
+            OperationId = operationId,
+            RequestFingerprint = fingerprint,
+            CalibrationId = active.Id,
+            Action = "DISABLE",
+            Reason = reason,
+            ChangesJson = JsonSerializer.Serialize(new { active.Revision }),
+            RequestedByUserId = requestedByUserId,
+            AuthorizedByUserId = auth.User.Id,
+            RecordedAt = now
         });
         await dbContext.SaveChangesAsync(token);
         if (transaction is not null) await transaction.CommitAsync(token);

@@ -2,8 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using WarehouseEPI.Infrastructure.Production;
 using Microsoft.Extensions.Localization;
+using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Production;
@@ -39,10 +39,18 @@ public sealed class ProcessEditModel(ProductionProcessConfigurationService proce
     public async Task<IActionResult> OnGetAsync(Guid? id, CancellationToken token)
     {
         var process = await processes.GetAsync(id ?? Guid.Empty, token); if (process is null) return NotFound();
-        Process = process; Input = new() { Id = process.Id, Code = process.Code, Name = process.Name, IsActive = process.IsActive,
-            ExpectedVersion = process.Version, Targets = process.Areas.Concat(process.Rows).Concat(process.Racks).Where(x => x.Selected).Select(x => x.Key).ToList(),
-            DefaultWipTargetKey = process.DefaultWipTargetKey, InactivityAlertHours = process.InactivityAlertHours,
-            ReworkAlertHours = process.ReworkAlertHours };
+        Process = process; Input = new()
+        {
+            Id = process.Id,
+            Code = process.Code,
+            Name = process.Name,
+            IsActive = process.IsActive,
+            ExpectedVersion = process.Version,
+            Targets = process.Areas.Concat(process.Rows).Concat(process.Racks).Where(x => x.Selected).Select(x => x.Key).ToList(),
+            DefaultWipTargetKey = process.DefaultWipTargetKey,
+            InactivityAlertHours = process.InactivityAlertHours,
+            ReworkAlertHours = process.ReworkAlertHours
+        };
         return Page();
     }
 

@@ -65,7 +65,7 @@ public sealed partial class ProductionDailyBalanceService
             if (!string.IsNullOrWhiteSpace(filter.Reference) && !days.SelectMany(x => x.References)
                 .Any(x => x.Contains(filter.Reference.Trim(), StringComparison.OrdinalIgnoreCase))) continue;
             if (filter.Area is { } area && !(area switch
-                { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack }).Applies) continue;
+            { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack }).Applies) continue;
             var planned = days.Sum(x => x.NewPlan);
             var work = intentions.Where(x => x.ProductId == productId).OrderBy(x => x.PlannedDate).ThenBy(x => x.Area)
                 .Select(x => new ProductionWeeklyIntention(x.PlannedDate, x.Area, x.Quantity)).ToArray();

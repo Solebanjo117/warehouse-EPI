@@ -1,8 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using WarehouseEPI.Web.Production;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Web.Production;
 
 namespace WarehouseEPI.Web.Pages.Operations.Production;
 

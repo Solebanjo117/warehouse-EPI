@@ -1,33 +1,36 @@
-using Microsoft.AspNetCore.Mvc.Filters;
-using WarehouseEPI.Web.Pages.Operations.Production;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Globalization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
-using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Pages.Operations.Production;
 
 namespace WarehouseEPI.Web.Pages.Operations.ProductionSupply;
 
 public sealed class PrepareModel(ProductionSupplyPreparationService preparations, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
-    [BindProperty(SupportsGet=true)]public string? QueueSearch{get;set;}
-    [BindProperty(SupportsGet=true)]public string? QueueCondition{get;set;}
-    [BindProperty(SupportsGet=true)]public int QueuePage{get;set;}=1;
+    [BindProperty(SupportsGet = true)] public string? QueueSearch { get; set; }
+    [BindProperty(SupportsGet = true)] public string? QueueCondition { get; set; }
+    [BindProperty(SupportsGet = true)] public int QueuePage { get; set; } = 1;
     public string? FailedHandler { get; private set; }
     public override async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context, PageHandlerExecutionDelegate next)
     {
-        if (HttpMethods.IsPost(Request.Method)) {
+        if (HttpMethods.IsPost(Request.Method))
+        {
             FailedHandler = Request.Query["handler"].ToString();
-            if (!ProductionCapture.ValidateOnly(this, nameof(Input))) {
+            if (!ProductionCapture.ValidateOnly(this, nameof(Input)))
+            {
                 context.Result = await HandleAsync(new(ProductionSupplyCommandStatus.ValidationFailed, Errors: [texts["Corrige las cantidades antes de confirmar."]]), token: HttpContext.RequestAborted);
                 return;
             }
         }
         await next();
     }
-    public async Task<IActionResult> OnGetSaveResultAsync(Guid operationId, Guid lineId, CancellationToken token) {
+    public async Task<IActionResult> OnGetSaveResultAsync(Guid operationId, Guid lineId, CancellationToken token)
+    {
         var result = await preparations.GetSaveResultAsync(operationId, lineId, token);
         return result is null ? NotFound() : new JsonResult(result);
     }
@@ -41,12 +44,16 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
         if (Detail is null) return NotFound();
         Input = new PreparationInput
         {
-            OperationId = Guid.NewGuid(), LineId = LineId, ExpectedRequestVersion = Detail.Line.RequestVersion,
-            DestinationLocationId = Detail.DestinationLocationId, PreparationId = Detail.PreparationId,
+            OperationId = Guid.NewGuid(),
+            LineId = LineId,
+            ExpectedRequestVersion = Detail.Line.RequestVersion,
+            DestinationLocationId = Detail.DestinationLocationId,
+            PreparationId = Detail.PreparationId,
             ExpectedPreparationVersion = Detail.PreparationVersion,
             Sources = Detail.Sources.Select(source => new SourceInput
             {
-                Kind = source.Kind, LocationId = source.LocationId,
+                Kind = source.Kind,
+                LocationId = source.LocationId,
                 Quantity = Detail.Selected.FirstOrDefault(x => x.Kind == source.Kind && x.LocationId == source.LocationId)?.Quantity ?? 0
             }).ToList()
         };
@@ -120,8 +127,8 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
         Detail = await preparations.GetAsync(Input.LineId, token);
         if (Detail is null) return NotFound();
         Input.Sources = captured.ToList();
-        foreach(var source in Detail.Sources.Where(source => !captured.Any(x=>x.Kind==source.Kind&&x.LocationId==source.LocationId)))
-            Input.Sources.Add(new SourceInput{Kind=source.Kind,LocationId=source.LocationId});
+        foreach (var source in Detail.Sources.Where(source => !captured.Any(x => x.Kind == source.Kind && x.LocationId == source.LocationId)))
+            Input.Sources.Add(new SourceInput { Kind = source.Kind, LocationId = source.LocationId });
         ModelState.AddModelError(string.Empty, message);
         return Page();
     }
@@ -138,13 +145,13 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
         public string Pin { get; set; } = string.Empty;
         public string Reason { get; set; } = string.Empty;
         public Guid IssueLinkId { get; set; }
-        [ProductionQuantity]public decimal CancelQuantity { get; set; }
+        [ProductionQuantity] public decimal CancelQuantity { get; set; }
     }
 
     public sealed class SourceInput
     {
         public ProductionSupplySourceKind Kind { get; set; }
         public Guid LocationId { get; set; }
-        [ProductionQuantity]public decimal Quantity { get; set; }
+        [ProductionQuantity] public decimal Quantity { get; set; }
     }
 }

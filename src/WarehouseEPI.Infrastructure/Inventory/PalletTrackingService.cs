@@ -329,8 +329,14 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
             query = isPlate ? query.Where(x => x.Id == id) : query.Where(x => x.OriginMovementId == id);
         }
         else if (!string.IsNullOrWhiteSpace(search)) query = query.Where(x => x.Product.Sku.Contains(search) || x.Location.Code.Contains(search));
-        query = status switch { "available" => query.Where(x => !x.IsVoided && x.Quantity > 0), "empty" => query.Where(x => !x.IsVoided && x.Quantity == 0),
-            "negative" => query.Where(x => !x.IsVoided && x.Quantity < 0), "void" => query.Where(x => x.IsVoided), _ => query };
+        query = status switch
+        {
+            "available" => query.Where(x => !x.IsVoided && x.Quantity > 0),
+            "empty" => query.Where(x => !x.IsVoided && x.Quantity == 0),
+            "negative" => query.Where(x => !x.IsVoided && x.Quantity < 0),
+            "void" => query.Where(x => x.IsVoided),
+            _ => query
+        };
         return (await query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((Math.Clamp(page, 1, 100000) - 1) * 50).Take(50).ToListAsync(token))
             .Select(x => Row(x)).ToArray();
     }
@@ -430,8 +436,15 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
             var assigned = await db.PalletPlateLots.Where(x => x.Plate.ProductId == source.ProductId && x.Plate.LocationId == command.LocationId && !x.Plate.IsVoided).ToListAsync(token);
             var free = balances.ToDictionary(x => x.LotId!.Value, x => x.Quantity - assigned.Where(a => a.LotId == x.LotId).Sum(a => a.Quantity));
             if (free.Values.Sum() < command.Quantity || free.Count == 0) return Invalid("El saldo sin placa no respalda la cantidad. Concilia el inventario antes de activar.");
-            var plate = new PalletPlate { Id = movement.Id, OriginMovementId = movement.Id, ProductId = source.ProductId, LocationId = command.LocationId,
-                CreatedAt = timeProvider.GetUtcNow(), IsVoided = true };
+            var plate = new PalletPlate
+            {
+                Id = movement.Id,
+                OriginMovementId = movement.Id,
+                ProductId = source.ProductId,
+                LocationId = command.LocationId,
+                CreatedAt = timeProvider.GetUtcNow(),
+                IsVoided = true
+            };
             var before = PalletPlateEngine.State(plate); plate.IsVoided = false;
             foreach (var a in PalletPlateEngine.Allocate(command.Quantity, balances.Select(x => x.Lot!), id => free.GetValueOrDefault(id), free.Keys.First()))
                 PalletPlateEngine.Change(plate, a.LotId, a.Quantity);

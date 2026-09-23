@@ -336,23 +336,63 @@ public sealed class KardexReportServiceTests
         var start = new DateTimeOffset(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
         for (var index = 0; index < 25; index++)
         {
-            var movement = new InventoryMovement { OperationId = Guid.NewGuid(), RequestFingerprint = $"page-{index}",
-                Type = InventoryMovementType.Entry, Purpose = InventoryMovementPurpose.Standard,
-                ResponsibleUser = user, OccurredAt = start.AddMinutes(index), RecordedAt = start.AddMinutes(index) };
-            var line = new InventoryMovementLine { Movement = movement, Product = product, Unit = unit,
-                DestinationLocation = location, Quantity = 1m, LineNumber = 1 };
-            line.BalanceChanges.Add(new InventoryBalanceChange { MovementLine = line, Location = location,
-                DeltaQuantity = 1m, PreviousQuantity = index, ResultingQuantity = index + 1 });
+            var movement = new InventoryMovement
+            {
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = $"page-{index}",
+                Type = InventoryMovementType.Entry,
+                Purpose = InventoryMovementPurpose.Standard,
+                ResponsibleUser = user,
+                OccurredAt = start.AddMinutes(index),
+                RecordedAt = start.AddMinutes(index)
+            };
+            var line = new InventoryMovementLine
+            {
+                Movement = movement,
+                Product = product,
+                Unit = unit,
+                DestinationLocation = location,
+                Quantity = 1m,
+                LineNumber = 1
+            };
+            line.BalanceChanges.Add(new InventoryBalanceChange
+            {
+                MovementLine = line,
+                Location = location,
+                DeltaQuantity = 1m,
+                PreviousQuantity = index,
+                ResultingQuantity = index + 1
+            });
             db.AddRange(movement, line);
         }
 
-        var exitMovement = new InventoryMovement { OperationId = Guid.NewGuid(), RequestFingerprint = "page-exit",
-            Type = InventoryMovementType.Exit, Purpose = InventoryMovementPurpose.GeneralExit,
-            ResponsibleUser = user, OccurredAt = start.AddMinutes(25), RecordedAt = start.AddMinutes(25) };
-        var exitLine = new InventoryMovementLine { Movement = exitMovement, Product = product, Unit = unit,
-            SourceLocation = location, Quantity = 30m, LineNumber = 1 };
-        exitLine.BalanceChanges.Add(new InventoryBalanceChange { MovementLine = exitLine, Location = location,
-            DeltaQuantity = -30m, PreviousQuantity = 25m, ResultingQuantity = -5m });
+        var exitMovement = new InventoryMovement
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "page-exit",
+            Type = InventoryMovementType.Exit,
+            Purpose = InventoryMovementPurpose.GeneralExit,
+            ResponsibleUser = user,
+            OccurredAt = start.AddMinutes(25),
+            RecordedAt = start.AddMinutes(25)
+        };
+        var exitLine = new InventoryMovementLine
+        {
+            Movement = exitMovement,
+            Product = product,
+            Unit = unit,
+            SourceLocation = location,
+            Quantity = 30m,
+            LineNumber = 1
+        };
+        exitLine.BalanceChanges.Add(new InventoryBalanceChange
+        {
+            MovementLine = exitLine,
+            Location = location,
+            DeltaQuantity = -30m,
+            PreviousQuantity = 25m,
+            ResultingQuantity = -5m
+        });
         db.AddRange(exitMovement, exitLine);
         db.InventoryBalances.Add(new InventoryBalance { Product = product, Location = location, Quantity = -5m });
         await db.SaveChangesAsync();

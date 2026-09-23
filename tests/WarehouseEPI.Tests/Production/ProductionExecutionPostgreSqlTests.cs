@@ -27,10 +27,20 @@ public sealed class ProductionExecutionPostgreSqlTests(PostgreSqlInventoryFixtur
         var process = new ProductionStage { Code = "P5-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(), Name = "Proceso final" };
         var shift = new ProductionShift { Code = "P5-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(), Name = "Turno P5" };
         var destination = new Location { Code = "P5-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(), Kind = LocationKind.Area };
-        var order = new ProductionWorkOrder { Product = product, UnitId = 1, CreatedByUser = admin,
-            CreateOperationId = Guid.NewGuid(), CreateFingerprint = "P5", Number = "P5-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
-            OriginalTargetQuantity = 10, TargetQuantity = 10, AuthorizedQuantity = 10, UsesBatchTraceability = true,
-            Status = ProductionWorkOrderStatus.Released };
+        var order = new ProductionWorkOrder
+        {
+            Product = product,
+            UnitId = 1,
+            CreatedByUser = admin,
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = "P5",
+            Number = "P5-" + Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
+            OriginalTargetQuantity = 10,
+            TargetQuantity = 10,
+            AuthorizedQuantity = 10,
+            UsesBatchTraceability = true,
+            Status = ProductionWorkOrderStatus.Released
+        };
         order.Stages.Add(new() { SourceStage = process, Sequence = 1, Code = process.Code, Name = process.Name });
         db.AddRange(order, worker, shift, destination); await db.SaveChangesAsync();
         var movement = new InventoryMovementService(db, pins, TimeProvider.System);
@@ -83,20 +93,57 @@ public sealed class ProductionExecutionPostgreSqlTests(PostgreSqlInventoryFixtur
         var product = new Product { Sku = "H-P5-" + suffix, BaseUnitId = 1 };
         var process = new ProductionStage { Code = "H-P5-" + suffix, Name = "Histórico" };
         var shift = new ProductionShift { Code = "H-P5-" + suffix, Name = "Histórico" };
-        var order = new ProductionWorkOrder { Product = product, UnitId = 1, CreatedByUser = user,
-            CreateOperationId = Guid.NewGuid(), CreateFingerprint = "history", Number = "H-P5-" + suffix,
-            TargetQuantity = 10, AuthorizedQuantity = 10, UsesBatchTraceability = true, Status = ProductionWorkOrderStatus.InProgress };
+        var order = new ProductionWorkOrder
+        {
+            Product = product,
+            UnitId = 1,
+            CreatedByUser = user,
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = "history",
+            Number = "H-P5-" + suffix,
+            TargetQuantity = 10,
+            AuthorizedQuantity = 10,
+            UsesBatchTraceability = true,
+            Status = ProductionWorkOrderStatus.InProgress
+        };
         var stage = new ProductionWorkOrderStage { SourceStage = process, Sequence = 1, Code = process.Code, Name = process.Name };
         order.Stages.Add(stage);
-        var batch = new ProductionBatch { WorkOrder = order, Number = order.Number + "-L001", CreateOperationId = Guid.NewGuid(),
-            CreateFingerprint = "history", AssignedQuantity = 10, CreatedByUser = user,
-            FinishedProductLot = new ProductLot { Product = product, Number = order.Number, NormalizedNumber = order.Number.ToUpperInvariant() } };
-        var origin = new ProductionBatchResult { Batch = batch, WorkOrderStage = stage, Shift = shift, ResponsibleUser = user,
-            OperationId = Guid.NewGuid(), RequestFingerprint = "history", InputQuantity = 10, ReworkQuantity = 10,
-            RecordedAt = DateTimeOffset.UtcNow.AddDays(-2) };
-        var attempt = new ProductionBatchResult { Batch = batch, WorkOrderStage = stage, Shift = shift, ResponsibleUser = user,
-            OperationId = Guid.NewGuid(), RequestFingerprint = "history", IsRework = true, InputQuantity = 10, GoodQuantity = 4, ReworkQuantity = 6,
-            RecordedAt = DateTimeOffset.UtcNow.AddDays(-1) };
+        var batch = new ProductionBatch
+        {
+            WorkOrder = order,
+            Number = order.Number + "-L001",
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = "history",
+            AssignedQuantity = 10,
+            CreatedByUser = user,
+            FinishedProductLot = new ProductLot { Product = product, Number = order.Number, NormalizedNumber = order.Number.ToUpperInvariant() }
+        };
+        var origin = new ProductionBatchResult
+        {
+            Batch = batch,
+            WorkOrderStage = stage,
+            Shift = shift,
+            ResponsibleUser = user,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "history",
+            InputQuantity = 10,
+            ReworkQuantity = 10,
+            RecordedAt = DateTimeOffset.UtcNow.AddDays(-2)
+        };
+        var attempt = new ProductionBatchResult
+        {
+            Batch = batch,
+            WorkOrderStage = stage,
+            Shift = shift,
+            ResponsibleUser = user,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "history",
+            IsRework = true,
+            InputQuantity = 10,
+            GoodQuantity = 4,
+            ReworkQuantity = 6,
+            RecordedAt = DateTimeOffset.UtcNow.AddDays(-1)
+        };
         db.AddRange(origin, attempt); await db.SaveChangesAsync();
         var assembly = db.GetService<IMigrationsAssembly>();
         var migration = assembly.CreateMigration(typeof(Phase135ProductionExecution).GetTypeInfo(), db.Database.ProviderName!);
@@ -109,9 +156,18 @@ public sealed class ProductionExecutionPostgreSqlTests(PostgreSqlInventoryFixtur
         Assert.Equal(attempt.Id, (await db.ProductionReworkAttempts.SingleAsync(x => x.ReworkCaseId == recovered.Id)).ResultId);
         await transaction.RollbackToSavepointAsync("before_backfill");
         db.ChangeTracker.Clear();
-        db.ProductionBatchResults.Add(new() { BatchId = batch.Id, WorkOrderStageId = stage.Id, ShiftId = shift.Id,
-            ResponsibleUserId = user.Id, OperationId = Guid.NewGuid(), RequestFingerprint = "ambiguous",
-            InputQuantity = 2, ReworkQuantity = 2, RecordedAt = origin.RecordedAt.AddHours(1) });
+        db.ProductionBatchResults.Add(new()
+        {
+            BatchId = batch.Id,
+            WorkOrderStageId = stage.Id,
+            ShiftId = shift.Id,
+            ResponsibleUserId = user.Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "ambiguous",
+            InputQuantity = 2,
+            ReworkQuantity = 2,
+            RecordedAt = origin.RecordedAt.AddHours(1)
+        });
         await db.SaveChangesAsync();
         var error = await Assert.ThrowsAsync<Npgsql.PostgresException>(() => db.Database.ExecuteSqlRawAsync(sql));
         Assert.Contains("orígenes posibles", error.MessageText);

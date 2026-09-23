@@ -1,12 +1,11 @@
-using System.Globalization;
 using System.Collections;
+using System.Globalization;
+using System.Net;
 using System.Resources;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -223,7 +223,9 @@ public sealed class LocalizationRouteTests : IClassFixture<AdminRouteTests.Wareh
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false, HandleCookies = false
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+            HandleCookies = false
         });
         client.DefaultRequestHeaders.Add("Cookie", $"{UiLanguage.CookieName}={language}");
         var response = await client.GetAsync(path);
@@ -240,7 +242,8 @@ public sealed class LocalizationRouteTests : IClassFixture<AdminRouteTests.Wareh
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false
         });
         var home = await client.GetAsync("/");
         Assert.Equal(HttpStatusCode.OK, home.StatusCode);
@@ -249,7 +252,9 @@ public sealed class LocalizationRouteTests : IClassFixture<AdminRouteTests.Wareh
         Assert.True(match.Success);
         var response = await client.PostAsync("/Preferences/Language", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["language"] = "en", ["returnUrl"] = "/Modules/operations", ["__RequestVerificationToken"] = WebUtility.HtmlDecode(match.Groups[1].Value)
+            ["language"] = "en",
+            ["returnUrl"] = "/Modules/operations",
+            ["__RequestVerificationToken"] = WebUtility.HtmlDecode(match.Groups[1].Value)
         }));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal("/Modules/operations", response.Headers.Location?.OriginalString);
@@ -264,7 +269,8 @@ public sealed class LocalizationRouteTests : IClassFixture<AdminRouteTests.Wareh
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
         var response = await client.PostAsync("/Preferences/Language", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["language"] = "en", ["returnUrl"] = "/"
+            ["language"] = "en",
+            ["returnUrl"] = "/"
         }));
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
@@ -294,7 +300,8 @@ public sealed class LocalizationRouteTests : IClassFixture<AdminRouteTests.Wareh
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false
         });
         client.DefaultRequestHeaders.Add("Cookie", $"{UiLanguage.CookieName}={language}");
         var login = await client.GetAsync("/Admin/Login");

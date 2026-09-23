@@ -1,8 +1,8 @@
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -87,8 +87,13 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
                 .Select(x => new WipTargetOption($"F:{x}", $"Fila {x}", false, true)))
             .OrderBy(x => x.Label).ToArray();
         var rackRows = await db.Locations.AsNoTracking().Where(x => x.Kind == LocationKind.Rack && x.RowCode != null && x.RackNumber != null)
-            .GroupBy(x => new { x.RowCode, x.RackNumber }).Select(g => new { g.Key.RowCode, g.Key.RackNumber,
-                IsWip = g.Any(x => x.OperationalRole == LocationOperationalRole.Wip), Active = g.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsActive && x.IsPhysicallyPresent && !x.IsBlocked) }).ToListAsync(token);
+            .GroupBy(x => new { x.RowCode, x.RackNumber }).Select(g => new
+            {
+                g.Key.RowCode,
+                g.Key.RackNumber,
+                IsWip = g.Any(x => x.OperationalRole == LocationOperationalRole.Wip),
+                Active = g.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsActive && x.IsPhysicallyPresent && !x.IsBlocked)
+            }).ToListAsync(token);
         var racks = rackRows.Where(x => x.IsWip || selectedRacks.Contains($"{x.RowCode}|{x.RackNumber}"))
             .OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber)
             .Select(x => new WipTargetOption($"R:{x.RowCode}:{x.RackNumber}", $"{x.RowCode}-{x.RackNumber}",
@@ -195,11 +200,18 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
                 || stage.ReworkAlertHours != command.ReworkAlertHours;
             if ((rowChanged || rackChanged || defaultChanged || alertChanged) && string.IsNullOrWhiteSpace(command.Reason))
                 return await Abort(transaction, Invalid("Indica el motivo del cambio en filas o racks, WIP predeterminado o umbrales de alerta."), token);
-            var before = JsonSerializer.Serialize(new { stage.Code, stage.Name, stage.IsActive, stage.InactivityAlertHours, stage.ReworkAlertHours,
+            var before = JsonSerializer.Serialize(new
+            {
+                stage.Code,
+                stage.Name,
+                stage.IsActive,
+                stage.InactivityAlertHours,
+                stage.ReworkAlertHours,
                 DefaultWipTarget = ProductionWipDefaultService.Key(stage.DefaultWipLocationId, stage.DefaultWipRowCode, stage.DefaultWipRackNumber),
                 Areas = stage.WipTargets.Where(x => x.LocationId != null).Select(x => x.LocationId).OrderBy(x => x),
                 Rows = stage.WipTargets.Where(x => x.RowCode != null && x.RackNumber == null).Select(x => x.RowCode).OrderBy(x => x),
-                Racks = stage.WipTargets.Where(x => x.RowCode != null && x.RackNumber != null).Select(x => new { x.RowCode, x.RackNumber }).OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber) });
+                Racks = stage.WipTargets.Where(x => x.RowCode != null && x.RackNumber != null).Select(x => new { x.RowCode, x.RackNumber }).OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber)
+            });
             if (command.Id == Guid.Empty) db.ProductionStages.Add(stage);
             stage.Code = code; stage.Name = name; stage.IsActive = command.IsActive;
             var defaultTarget = ProductionWipDefaultService.Parse(command.DefaultWipTargetKey);
@@ -213,15 +225,28 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
                 .Concat(command.Rows.Select(row => new ProductionProcessWipTarget { RowCode = row, CreatedAt = timeProvider.GetUtcNow() }))
                 .Concat(command.Racks.Distinct().Select(r => new ProductionProcessWipTarget { RowCode = r.RowCode.Trim().ToUpperInvariant(), RackNumber = r.RackNumber, CreatedAt = timeProvider.GetUtcNow() })).ToList();
             configuration.Version++;
-            db.ProductionProcessRevisions.Add(new ProductionProcessRevision { OperationId = command.OperationId,
-                RequestFingerprint = fingerprint, ProductionStage = stage, AuthorizedByUserId = user.Id,
-                Reason = command.Reason?.Trim() ?? "Actualización del proceso", BeforeJson = before,
-                AfterJson = JsonSerializer.Serialize(new { Code = code, Name = name, IsActive = command.IsActive,
-                    command.InactivityAlertHours, command.ReworkAlertHours,
+            db.ProductionProcessRevisions.Add(new ProductionProcessRevision
+            {
+                OperationId = command.OperationId,
+                RequestFingerprint = fingerprint,
+                ProductionStage = stage,
+                AuthorizedByUserId = user.Id,
+                Reason = command.Reason?.Trim() ?? "Actualización del proceso",
+                BeforeJson = before,
+                AfterJson = JsonSerializer.Serialize(new
+                {
+                    Code = code,
+                    Name = name,
+                    IsActive = command.IsActive,
+                    command.InactivityAlertHours,
+                    command.ReworkAlertHours,
                     DefaultWipTarget = ProductionWipDefaultService.Key(defaultTarget.LocationId, defaultTarget.RowCode, defaultTarget.RackNumber),
-                    Areas = command.AreaIds.Distinct().OrderBy(x => x), Rows = command.Rows.OrderBy(x => x),
-                    Racks = command.Racks.Select(x => new { x.RowCode, x.RackNumber }).Distinct().OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber) }),
-                RecordedAt = timeProvider.GetUtcNow() });
+                    Areas = command.AreaIds.Distinct().OrderBy(x => x),
+                    Rows = command.Rows.OrderBy(x => x),
+                    Racks = command.Racks.Select(x => new { x.RowCode, x.RackNumber }).Distinct().OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber)
+                }),
+                RecordedAt = timeProvider.GetUtcNow()
+            });
             await db.SaveChangesAsync(token); if (transaction is not null) await transaction.CommitAsync(token);
             return new(ProcessConfigurationStatus.Success, stage.Id);
         }

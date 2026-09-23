@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Localization;
 using WarehouseEPI.Infrastructure.Locations;
-using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Locations;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Map;
 

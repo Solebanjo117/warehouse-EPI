@@ -37,13 +37,13 @@ public sealed class IndexModel(
     internal static OperationalAlertSnapshotDto LocalizeSnapshot(
         OperationalAlertSnapshotDto snapshot,
         IStringLocalizer<CatalogTexts> texts) => snapshot with
-    {
-        Items = snapshot.Items.Select(item => item with
         {
-            Title = texts[item.Title],
-            Description = LocalizeDescription(item, texts)
-        }).ToArray()
-    };
+            Items = snapshot.Items.Select(item => item with
+            {
+                Title = texts[item.Title],
+                Description = LocalizeDescription(item, texts)
+            }).ToArray()
+        };
 
     private static string LocalizeDescription(
         OperationalAlertItemDto item,

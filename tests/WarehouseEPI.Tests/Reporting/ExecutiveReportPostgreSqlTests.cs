@@ -58,11 +58,15 @@ public sealed class ExecutiveReportPostgreSqlTests(PostgreSqlInventoryFixture fi
             (product, null, occupied, 4m));
         db.InventoryMovementCorrections.Add(new InventoryMovementCorrection
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = Guid.NewGuid().ToString(),
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = Guid.NewGuid().ToString(),
             Type = InventoryMovementCorrectionType.Replacement,
-            OriginalMovementId = original.Id, ReversalMovementId = reversal.Id,
-            ReplacementMovementId = replacement.Id, Reason = "Corrección PostgreSQL",
-            RequestedByUserId = user.Id, AuthorizedByUserId = user.Id,
+            OriginalMovementId = original.Id,
+            ReversalMovementId = reversal.Id,
+            ReplacementMovementId = replacement.Id,
+            Reason = "Corrección PostgreSQL",
+            RequestedByUserId = user.Id,
+            AuthorizedByUserId = user.Id,
             RecordedAt = new DateTimeOffset(2035, 6, 11, 10, 3, 0, TimeSpan.Zero)
         });
         await db.SaveChangesAsync();
@@ -106,10 +110,14 @@ public sealed class ExecutiveReportPostgreSqlTests(PostgreSqlInventoryFixture fi
     {
         var movement = new InventoryMovement
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = Guid.NewGuid().ToString(),
-            Type = type, Purpose = type == InventoryMovementType.Exit
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = Guid.NewGuid().ToString(),
+            Type = type,
+            Purpose = type == InventoryMovementType.Exit
                 ? InventoryMovementPurpose.GeneralExit : InventoryMovementPurpose.Standard,
-            ResponsibleUserId = user.Id, OccurredAt = occurredAt, RecordedAt = occurredAt
+            ResponsibleUserId = user.Id,
+            OccurredAt = occurredAt,
+            RecordedAt = occurredAt
         };
         for (var index = 0; index < lines.Length; index++)
         {
@@ -117,8 +125,11 @@ public sealed class ExecutiveReportPostgreSqlTests(PostgreSqlInventoryFixture fi
             movement.Lines.Add(new InventoryMovementLine
             {
                 LineNumber = index + 1,
-                ProductId = line.Product.Id, UnitId = 1, Quantity = line.Quantity,
-                SourceLocationId = line.Source?.Id, DestinationLocationId = line.Destination?.Id
+                ProductId = line.Product.Id,
+                UnitId = 1,
+                Quantity = line.Quantity,
+                SourceLocationId = line.Source?.Id,
+                DestinationLocationId = line.Destination?.Id
             });
         }
         db.InventoryMovements.Add(movement);

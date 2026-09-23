@@ -3,8 +3,8 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Labels;
 using WarehouseEPI.Infrastructure.Persistence;
-using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Tests.Inventory;
 
@@ -109,14 +109,33 @@ public sealed class PalletTrackingTests
         await f.Service.ConfirmAsync(entry with { Lines = [entry.Lines[0] with { PalletQuantities = null }] });
         var lot = await f.Db.ProductLots.SingleAsync();
         var requestLine = new ProductionSupplyRequestLine { ProductId = f.Product.Id, UnitId = 1, SupplyRequestId = Guid.NewGuid(), MaterialPlanId = Guid.NewGuid(), RequiredQuantity = 25 };
-        var preparation = new ProductionSupplyPreparation { OperationId = Guid.NewGuid(), RequestFingerprint = "prep", SupplyRequestLine = requestLine,
-            DestinationLocationId = f.Destination.Id, ResponsibleUserId = f.User.Id, Status = ProductionSupplyPreparationStatus.Open };
-        preparation.Sources.Add(new ProductionSupplyPreparationSource { Kind = ProductionSupplySourceKind.ExistingWip,
-            LocationId = f.Source.Id, Quantity = 25, PlatesJson = "[]" });
+        var preparation = new ProductionSupplyPreparation
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "prep",
+            SupplyRequestLine = requestLine,
+            DestinationLocationId = f.Destination.Id,
+            ResponsibleUserId = f.User.Id,
+            Status = ProductionSupplyPreparationStatus.Open
+        };
+        preparation.Sources.Add(new ProductionSupplyPreparationSource
+        {
+            Kind = ProductionSupplySourceKind.ExistingWip,
+            LocationId = f.Source.Id,
+            Quantity = 25,
+            PlatesJson = "[]"
+        });
         f.Db.ProductionSupplyPreparations.Add(preparation);
-        f.Db.ProductionMaterialIssueLinks.Add(new ProductionMaterialIssueLink { ProductId = f.Product.Id, WipLocationId = f.Source.Id,
-            WorkOrderId = Guid.NewGuid(), WorkOrderStageId = Guid.NewGuid(), Quantity = 10, PlateAllocationsJson = "[]",
-            Lots = [new ProductionMaterialIssueLot { LotId = lot.Id, Quantity = 10 }] });
+        f.Db.ProductionMaterialIssueLinks.Add(new ProductionMaterialIssueLink
+        {
+            ProductId = f.Product.Id,
+            WipLocationId = f.Source.Id,
+            WorkOrderId = Guid.NewGuid(),
+            WorkOrderStageId = Guid.NewGuid(),
+            Quantity = 10,
+            PlateAllocationsJson = "[]",
+            Lots = [new ProductionMaterialIssueLot { LotId = lot.Id, Quantity = 10 }]
+        });
         await f.Db.SaveChangesAsync();
         var summary = Assert.Single(await f.Tracking.IdentificationProductsAsync(f.Source.Id));
         Assert.Equal(35, summary.Protected); Assert.Equal(65, summary.Identifiable);
@@ -157,9 +176,17 @@ public sealed class PalletTrackingTests
         f.Source.OperationalRole = LocationOperationalRole.Wip; await f.Db.SaveChangesAsync();
         var entry = await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Entry, 100)); var p = Assert.Single(entry.Plates!);
         var assigned = await ProductionPlateAllocation.AssignAsync(f.Db, f.Product.Id, f.Source.Id, 60, [new(p.PlateId, 60, p.Version)], default);
-        var issue = new ProductionMaterialIssueLink { ProductId = f.Product.Id, WipLocationId = f.Source.Id, WorkOrderId = Guid.NewGuid(), WorkOrderStageId = Guid.NewGuid(),
-            Quantity = 60, Source = ProductionMaterialSupplySource.WipAssignment, PlateAllocationsJson = assigned.Plates,
-            Lots = assigned.Lots.Select(x => new ProductionMaterialIssueLot { LotId = x.LotId, Quantity = x.Quantity }).ToList() };
+        var issue = new ProductionMaterialIssueLink
+        {
+            ProductId = f.Product.Id,
+            WipLocationId = f.Source.Id,
+            WorkOrderId = Guid.NewGuid(),
+            WorkOrderStageId = Guid.NewGuid(),
+            Quantity = 60,
+            Source = ProductionMaterialSupplySource.WipAssignment,
+            PlateAllocationsJson = assigned.Plates,
+            Lots = assigned.Lots.Select(x => new ProductionMaterialIssueLot { LotId = x.LotId, Quantity = x.Quantity }).ToList()
+        };
         f.Db.ProductionMaterialIssueLinks.Add(issue); await f.Db.SaveChangesAsync();
         var forbidden = await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Exit, 50, plates: [new(p.PlateId, 50, p.Version)]));
         Assert.Equal(InventoryMovementStatus.ValidationFailed, forbidden.Status);
@@ -174,9 +201,17 @@ public sealed class PalletTrackingTests
             [new(f.Product.Id, 25, SourceLocationId: f.Source.Id, Plates: selections, MaterialIssueLinkId: issue.Id)], Purpose: InventoryMovementPurpose.WipConsumption, OperationalAreaId: f.Source.Id),
             (await f.Pins.AuthenticateAsync("2468"))!, allowReservedWip: true);
         Assert.Equal(InventoryMovementStatus.Success, consumed.Status);
-        var op = new ProductionMaterialOperation { OperationId = Guid.NewGuid(), RequestFingerprint = "test", WorkOrderId = issue.WorkOrderId, WorkOrderStageId = issue.WorkOrderStageId,
-            ResponsibleUserId = f.User.Id, Type = ProductionMaterialOperationType.Consumption, Lines = [new() { IssueLinkId = issue.Id,
-                InventoryMovementLineId = (await f.Db.InventoryMovementLines.SingleAsync(x => x.MovementId == consumed.MovementId)).Id, Quantity = 25 }] };
+        var op = new ProductionMaterialOperation
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "test",
+            WorkOrderId = issue.WorkOrderId,
+            WorkOrderStageId = issue.WorkOrderStageId,
+            ResponsibleUserId = f.User.Id,
+            Type = ProductionMaterialOperationType.Consumption,
+            Lines = [new() { IssueLinkId = issue.Id,
+                InventoryMovementLineId = (await f.Db.InventoryMovementLines.SingleAsync(x => x.MovementId == consumed.MovementId)).Id, Quantity = 25 }]
+        };
         f.Db.ProductionMaterialOperations.Add(op); await f.Db.SaveChangesAsync();
         Assert.Equal(35, (await ProductionPlateAllocation.RemainingAsync(f.Db, issue, default)).Sum(x => x.Quantity));
         var remaining = await ProductionPlateAllocation.SelectAsync(f.Db, issue, 35, default);
@@ -288,8 +323,14 @@ public sealed class PalletTrackingTests
         Assert.Equal(50, reused.Quantity);
 
         var lot = await f.Db.ProductLots.SingleAsync();
-        var duplicate = new PalletPlate { ProductId = f.Product.Id, LocationId = f.Source.Id, Quantity = 5,
-            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(1), Lots = [new() { LotId = lot.Id, Quantity = 5 }] };
+        var duplicate = new PalletPlate
+        {
+            ProductId = f.Product.Id,
+            LocationId = f.Source.Id,
+            Quantity = 5,
+            CreatedAt = DateTimeOffset.UtcNow.AddMinutes(1),
+            Lots = [new() { LotId = lot.Id, Quantity = 5 }]
+        };
         f.Db.PalletPlates.Add(duplicate);
         await f.Db.SaveChangesAsync();
         var consolidationId = Guid.NewGuid();
@@ -450,7 +491,7 @@ public sealed class PalletTrackingTests
             [new(f.Product.Id, 100, LocationId: f.Source.Id, ExpectedBalanceVersion: balance.Version,
                 PlateCounts: [new(plates[0].PlateId, 30, plates[0].Version), new(plates[1].PlateId, 70, plates[1].Version)])], Notes: "Conteo"));
         Assert.Equal(InventoryMovementStatus.Success, result.Status);
-        Assert.Equal(new[] {30m,70m}, (await f.Db.PalletPlates.ToListAsync()).Select(x => x.Quantity).Order());
+        Assert.Equal(new[] { 30m, 70m }, (await f.Db.PalletPlates.ToListAsync()).Select(x => x.Quantity).Order());
         Assert.Equal(100, await f.Db.InventoryBalances.SumAsync(x => x.Quantity));
     }
 
@@ -459,7 +500,7 @@ public sealed class PalletTrackingTests
     {
         await using var f = await Fixture.Create();
         var entry = await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Entry, 100)); var p = Assert.Single(entry.Plates!);
-        await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Transfer, 100, plates: [new(p.PlateId,100,p.Version)]));
+        await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Transfer, 100, plates: [new(p.PlateId, 100, p.Version)]));
         var loaded = await new PalletLicensePlateService(f.Db).LoadAsync(p.PlateId);
         Assert.True(loaded.Entry!.IsTracked); Assert.Equal(f.Destination.Code, loaded.Entry.Destination);
         Assert.Equal(p.Identifier, loaded.Entry.Identifier);

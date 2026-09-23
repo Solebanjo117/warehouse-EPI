@@ -52,27 +52,69 @@ public sealed class ProductionWeeklySummaryTests
         await ProductionDailyModuleTests.SeedImportCatalogAsync(db);
         var actor = new User { FullName = "Weekly report", RoleId = 1, PinHash = "", PinLookup = Guid.NewGuid().ToString("N") };
         var product = new Product { Sku = "ZZ-WEEK", Description = "Weekly product", BaseUnitId = 1 };
-        var week = new ProductionScheduleWeek { WeekStart = new(2026, 7, 6), WeekEnd = new(2026, 7, 11),
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('W', 64), CreatedByUser = actor };
+        var week = new ProductionScheduleWeek
+        {
+            WeekStart = new(2026, 7, 6),
+            WeekEnd = new(2026, 7, 11),
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('W', 64),
+            CreatedByUser = actor
+        };
         week.Lines.Add(new() { Product = product, Sequence = 1, PlannedDate = week.WeekStart, Quantity = 550 });
         week.Lines.Add(new() { Product = product, Sequence = 2, PlannedDate = week.WeekEnd, Quantity = 50 });
-        week.Lines.Add(new() { Product = product, Sequence = 3, PlannedDate = week.WeekStart,
-            Quantity = 3, IsCarryover = true, StartArea = ProductionDailyArea.Sewing });
+        week.Lines.Add(new()
+        {
+            Product = product,
+            Sequence = 3,
+            PlannedDate = week.WeekStart,
+            Quantity = 3,
+            IsCarryover = true,
+            StartArea = ProductionDailyArea.Sewing
+        });
         db.Add(week);
         await db.SaveChangesAsync();
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         for (var i = 0; i < 503; i++)
-            db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id, Area = ProductionDailyArea.Cutting,
-                StageId = config.CuttingStageId!.Value, ShiftId = i % 2 == 0 ? config.Shift1Id!.Value : config.Shift2Id!.Value,
-                Quantity = 1, EffectiveDate = i < 501 ? week.WeekStart : week.WeekEnd, ResponsibleUserId = actor.Id,
-                OperationId = Guid.NewGuid(), RequestFingerprint = new string('C', 64), Origin = ProductionScheduleOrigin.ExcelImport });
-        db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id, Area = ProductionDailyArea.Cutting,
-            StageId = config.CuttingStageId!.Value, ShiftId = config.Shift1Id!.Value, Quantity = 999,
-            Status = ProductionDailyCaptureStatus.Reversed, EffectiveDate = week.WeekStart, ResponsibleUserId = actor.Id,
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('R', 64), ReversedByUserId = actor.Id,
-            ReversedAt = DateTimeOffset.UtcNow, ReverseReason = "Test" });
-        db.ProductionCarryoverPlans.Add(new() { WeekId = week.Id, ProductId = product.Id, PlannedDate = week.WeekStart,
-            Area = ProductionDailyArea.Sewing, Quantity = 2, UpdatedByUserId = actor.Id });
+            db.ProductionDailyCaptures.Add(new()
+            {
+                WeekId = week.Id,
+                ProductId = product.Id,
+                Area = ProductionDailyArea.Cutting,
+                StageId = config.CuttingStageId!.Value,
+                ShiftId = i % 2 == 0 ? config.Shift1Id!.Value : config.Shift2Id!.Value,
+                Quantity = 1,
+                EffectiveDate = i < 501 ? week.WeekStart : week.WeekEnd,
+                ResponsibleUserId = actor.Id,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = new string('C', 64),
+                Origin = ProductionScheduleOrigin.ExcelImport
+            });
+        db.ProductionDailyCaptures.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Area = ProductionDailyArea.Cutting,
+            StageId = config.CuttingStageId!.Value,
+            ShiftId = config.Shift1Id!.Value,
+            Quantity = 999,
+            Status = ProductionDailyCaptureStatus.Reversed,
+            EffectiveDate = week.WeekStart,
+            ResponsibleUserId = actor.Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('R', 64),
+            ReversedByUserId = actor.Id,
+            ReversedAt = DateTimeOffset.UtcNow,
+            ReverseReason = "Test"
+        });
+        db.ProductionCarryoverPlans.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            PlannedDate = week.WeekStart,
+            Area = ProductionDailyArea.Sewing,
+            Quantity = 2,
+            UpdatedByUserId = actor.Id
+        });
         await db.SaveChangesAsync();
         var service = new ProductionDailyBalanceService(db);
         var filter = new ProductionWeeklyFilter(week.WeekStart.AddDays(2), "zz-week");
@@ -131,9 +173,17 @@ public sealed class ProductionWeeklySummaryTests
         Assert.Equal(0m, dailySheet.Cell(5, 4).GetValue<decimal>());
         Assert.Equal(49m, dailySheet.Cell(5, 5).GetValue<decimal>());
         Assert.Equal(summary.Through.ToDateTime(TimeOnly.MinValue), dailySheet.Cell(2, 1).GetDateTime());
-        db.ProductionScheduleLines.Add(new() { WeekId = week.Id, ProductId = product.Id, Sequence = 4,
-            PlannedDate = week.WeekStart.AddDays(2), Quantity = 7, IsCarryover = true,
-            StartArea = ProductionDailyArea.Sewing, Origin = ProductionScheduleOrigin.ExcelImport });
+        db.ProductionScheduleLines.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Sequence = 4,
+            PlannedDate = week.WeekStart.AddDays(2),
+            Quantity = 7,
+            IsCarryover = true,
+            StartArea = ProductionDailyArea.Sewing,
+            Origin = ProductionScheduleOrigin.ExcelImport
+        });
         await db.SaveChangesAsync();
         Assert.Equal(3, Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart)))!.Products).Sewing.Opening);
         var wednesday = Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart.AddDays(2))))!.Products);
@@ -151,12 +201,31 @@ public sealed class ProductionWeeklySummaryTests
         db.Add(inactive);
         // Duplicate plan lines must not duplicate suggestions, and a planned product sorts before catalog matches.
         foreach (var (product, i) in products.Take(12).Select((p, i) => (p, i)))
-            db.ProductionScheduleLines.Add(new() { WeekId = week.Id, ProductId = product.Id, Sequence = 10 + i,
-                PlannedDate = week.WeekStart, Quantity = 1 });
-        db.ProductionScheduleLines.Add(new() { WeekId = week.Id, ProductId = products[14].Id, Sequence = 29,
-            PlannedDate = week.WeekEnd, Quantity = 10 });
-        db.ProductionCarryoverPlans.Add(new() { WeekId = week.Id, ProductId = products[13].Id,
-            PlannedDate = week.WeekStart, Area = ProductionDailyArea.Cutting, Quantity = 2, UpdatedByUserId = actor.Id });
+            db.ProductionScheduleLines.Add(new()
+            {
+                WeekId = week.Id,
+                ProductId = product.Id,
+                Sequence = 10 + i,
+                PlannedDate = week.WeekStart,
+                Quantity = 1
+            });
+        db.ProductionScheduleLines.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = products[14].Id,
+            Sequence = 29,
+            PlannedDate = week.WeekEnd,
+            Quantity = 10
+        });
+        db.ProductionCarryoverPlans.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = products[13].Id,
+            PlannedDate = week.WeekStart,
+            Area = ProductionDailyArea.Cutting,
+            Quantity = 2,
+            UpdatedByUserId = actor.Id
+        });
         await db.SaveChangesAsync();
         var futureProduct = (await new ProductionDailyBalanceService(db).GetDailySummaryAsync(week.Id, new(week.WeekStart)))!
             .Products.Single(x => x.ProductId == products[14].Id);

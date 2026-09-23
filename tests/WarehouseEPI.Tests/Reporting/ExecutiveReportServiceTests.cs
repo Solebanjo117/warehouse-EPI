@@ -165,7 +165,10 @@ public sealed class ExecutiveReportServiceTests
         db.AddRange(product, blocked);
         db.InventoryBalances.Add(new InventoryBalance
         {
-            Id = Guid.NewGuid(), ProductId = product.Id, LocationId = blocked.Id, Quantity = 10m
+            Id = Guid.NewGuid(),
+            ProductId = product.Id,
+            LocationId = blocked.Id,
+            Quantity = 10m
         });
         await db.SaveChangesAsync();
 

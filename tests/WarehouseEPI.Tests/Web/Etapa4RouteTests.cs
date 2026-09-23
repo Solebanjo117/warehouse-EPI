@@ -9,9 +9,9 @@ using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Pages.Locations;
-using WorkloadModel = WarehouseEPI.Web.Pages.Reports.Workload.IndexModel;
-using HeatmapModel = WarehouseEPI.Web.Pages.Reports.Heatmap.IndexModel;
 using ExecutiveModel = WarehouseEPI.Web.Pages.Reports.Executive.IndexModel;
+using HeatmapModel = WarehouseEPI.Web.Pages.Reports.Heatmap.IndexModel;
+using WorkloadModel = WarehouseEPI.Web.Pages.Reports.Workload.IndexModel;
 
 namespace WarehouseEPI.Tests.Web;
 

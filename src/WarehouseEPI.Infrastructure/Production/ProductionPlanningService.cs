@@ -180,9 +180,14 @@ public sealed class ProductionPlanningService(WarehouseDbContext db, UserPinServ
         order.Version++;
         db.ProductionOrderPlanningRevisions.Add(new()
         {
-            OperationId = command.OperationId, RequestFingerprint = fingerprint, WorkOrder = order,
-            AuthorizedByUserId = user.Id, Reason = command.Reason.Trim(), BeforeJson = before,
-            AfterJson = Snapshot(order), RecordedAt = timeProvider.GetUtcNow()
+            OperationId = command.OperationId,
+            RequestFingerprint = fingerprint,
+            WorkOrder = order,
+            AuthorizedByUserId = user.Id,
+            Reason = command.Reason.Trim(),
+            BeforeJson = before,
+            AfterJson = Snapshot(order),
+            RecordedAt = timeProvider.GetUtcNow()
         });
         try { await db.SaveChangesAsync(token); return new(ProductionPlanningStatus.Success); }
         catch (DbUpdateConcurrencyException)
@@ -207,7 +212,10 @@ public sealed class ProductionPlanningService(WarehouseDbContext db, UserPinServ
         foreach (var item in route.Stages.OrderBy(x => x.Sequence))
             order.Stages.Add(new ProductionWorkOrderStage
             {
-                SourceStageId = item.StageId, Sequence = item.Sequence, Code = item.Stage.Code, Name = item.Stage.Name
+                SourceStageId = item.StageId,
+                Sequence = item.Sequence,
+                Code = item.Stage.Code,
+                Name = item.Stage.Name
             });
     }
 
@@ -222,9 +230,16 @@ public sealed class ProductionPlanningService(WarehouseDbContext db, UserPinServ
         {
             var stage = order.Stages.Single(x => x.SourceStageId == line.StageId!.Value);
             var planned = decimal.Round(line.Quantity * order.TargetQuantity / recipe.BaseQuantity, 4, MidpointRounding.AwayFromZero);
-            var plan = new ProductionOrderMaterialPlan { WorkOrder = order, WorkOrderStage = stage,
-                MaterialProduct = line.MaterialProduct, MaterialProductId = line.MaterialProductId,
-                UnitId = line.MaterialProduct.BaseUnitId, PlannedQuantity = planned, OriginalPlannedQuantity = planned };
+            var plan = new ProductionOrderMaterialPlan
+            {
+                WorkOrder = order,
+                WorkOrderStage = stage,
+                MaterialProduct = line.MaterialProduct,
+                MaterialProductId = line.MaterialProductId,
+                UnitId = line.MaterialProduct.BaseUnitId,
+                PlannedQuantity = planned,
+                OriginalPlannedQuantity = planned
+            };
             order.MaterialPlan.Add(plan);
             db.ProductionOrderMaterialPlans.Add(plan);
         }

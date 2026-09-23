@@ -148,10 +148,25 @@ public sealed class ProductionWipDefaultServiceTests
             db.Users.Add(admin);
             var product = new Product { Sku = "MP-1", BaseUnitId = 1 };
             var area = new Location { Code = "WIP-CORTE", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
-            var position = new Location { Code = "M-2-1", Kind = LocationKind.Rack, RowCode = "M", RackNumber = 2,
-                PalletNumber = 1, OperationalRole = LocationOperationalRole.Wip };
-            var second = new Location { Code = "M-2-2", Kind = LocationKind.Rack, RowCode = "M", RackNumber = 2,
-                PalletNumber = 2, OperationalRole = LocationOperationalRole.Wip, IsBlocked = true };
+            var position = new Location
+            {
+                Code = "M-2-1",
+                Kind = LocationKind.Rack,
+                RowCode = "M",
+                RackNumber = 2,
+                PalletNumber = 1,
+                OperationalRole = LocationOperationalRole.Wip
+            };
+            var second = new Location
+            {
+                Code = "M-2-2",
+                Kind = LocationKind.Rack,
+                RowCode = "M",
+                RackNumber = 2,
+                PalletNumber = 2,
+                OperationalRole = LocationOperationalRole.Wip,
+                IsBlocked = true
+            };
             var other = new Location { Code = "WIP-OTRO", Kind = LocationKind.Area, OperationalRole = LocationOperationalRole.Wip };
             var stage = new ProductionStage { Code = "COR", Name = "Corte" };
             stage.WipTargets.Add(new() { Location = area });
@@ -176,8 +191,12 @@ public sealed class ProductionWipDefaultPostgreSqlTests(PostgreSqlInventoryFixtu
         var admin = new User { FullName = "Admin WIP P1", RoleId = 1, PinLookup = "", PinHash = "" };
         Assert.Equal(PinAssignmentResult.Success, await pins.AssignAsync(admin, "8462"));
         var product = new Product { Sku = $"P1-{Guid.NewGuid():N}".ToUpperInvariant(), BaseUnitId = 1 };
-        var area = new Location { Code = $"P1-WIP-{Guid.NewGuid():N}"[..30].ToUpperInvariant(), Kind = LocationKind.Area,
-            OperationalRole = LocationOperationalRole.Wip };
+        var area = new Location
+        {
+            Code = $"P1-WIP-{Guid.NewGuid():N}"[..30].ToUpperInvariant(),
+            Kind = LocationKind.Area,
+            OperationalRole = LocationOperationalRole.Wip
+        };
         var stage = new ProductionStage { Code = $"P1{Guid.NewGuid():N}"[..20].ToUpperInvariant(), Name = "Proceso P1" };
         stage.WipTargets.Add(new() { Location = area });
         db.AddRange(admin, product, area, stage);
@@ -201,8 +220,12 @@ public sealed class ProductionWipDefaultPostgreSqlTests(PostgreSqlInventoryFixtu
         var admin = new User { FullName = "Admin atómico P1", RoleId = 1, PinLookup = "", PinHash = "" };
         Assert.Equal(PinAssignmentResult.Success, await pins.AssignAsync(admin, "8642"));
         var product = new Product { Sku = $"P1-ATOMIC-{Guid.NewGuid():N}".ToUpperInvariant(), BaseUnitId = 1 };
-        var unrelatedArea = new Location { Code = $"P1-X-{Guid.NewGuid():N}"[..30].ToUpperInvariant(), Kind = LocationKind.Area,
-            OperationalRole = LocationOperationalRole.Wip };
+        var unrelatedArea = new Location
+        {
+            Code = $"P1-X-{Guid.NewGuid():N}"[..30].ToUpperInvariant(),
+            Kind = LocationKind.Area,
+            OperationalRole = LocationOperationalRole.Wip
+        };
         var stage = new ProductionStage { Code = $"P1A{Guid.NewGuid():N}"[..20].ToUpperInvariant(), Name = "Proceso atómico P1" };
         db.AddRange(admin, product, unrelatedArea, stage);
         await using var transaction = await db.Database.BeginTransactionAsync();

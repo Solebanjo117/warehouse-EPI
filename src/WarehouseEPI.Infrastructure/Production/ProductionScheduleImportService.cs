@@ -148,14 +148,22 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
             var week = weeks[index];
             weeks[index] = week with
             {
-                FinalLines = week.FinalLines.Select(x => x with { Reference1 = Safe(x.Reference1, 120), Reference2 = Safe(x.Reference2, 120),
-                    Reference3 = Safe(x.Reference3, 120), Notes = Safe(x.Notes, 500), SourceSheet = x.SourceSheet ?? week.Sheet }).ToArray(),
+                FinalLines = week.FinalLines.Select(x => x with
+                {
+                    Reference1 = Safe(x.Reference1, 120),
+                    Reference2 = Safe(x.Reference2, 120),
+                    Reference3 = Safe(x.Reference3, 120),
+                    Notes = Safe(x.Notes, 500),
+                    SourceSheet = x.SourceSheet ?? week.Sheet
+                }).ToArray(),
                 Captures = week.Captures.Select(x => x with { Notes = Safe(x.Notes, 500), Reporter = Safe(x.Reporter, 160) }).ToArray()
             };
         }
         var preview = new ProductionScheduleImportPreview(fileName, hash, weeks.OrderBy(x => x.WeekStart).ToArray(), issues, context.Applied)
         {
-            OpeningReview = opening.Reviews, Evidence = opening.Evidence, ClosingCandidates = opening.Candidates,
+            OpeningReview = opening.Reviews,
+            Evidence = opening.Evidence,
+            ClosingCandidates = opening.Candidates,
             DependencyHash = await GetDependencyHashAsync(weeks, token, opening.Reviews.Select(x => x.ProductId))
         };
         return preview with { Fingerprint = CanonicalHash(new { Algorithm = "opening-v1", Preview = preview, Resolutions = resolutions }) };
@@ -400,9 +408,15 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
     }
     private static string ImportHeader(string text) => Normalize(text) switch
     {
-        "dia" => "day", "fecha" => "date", "sku" or "numerodeparte" => "partnumber",
-        "cantidad" => "qty", "piezascompletadas" => "piecescompleted", "turno" => "shift",
-        "reportadopor" => "reportedby", "notas" => "notes", "comentarios" => "comments",
+        "dia" => "day",
+        "fecha" => "date",
+        "sku" or "numerodeparte" => "partnumber",
+        "cantidad" => "qty",
+        "piezascompletadas" => "piecescompleted",
+        "turno" => "shift",
+        "reportadopor" => "reportedby",
+        "notas" => "notes",
+        "comentarios" => "comments",
         _ => Normalize(text)
     };
     private static DateOnly? Date(IXLCell cell, DateOnly weekStart)

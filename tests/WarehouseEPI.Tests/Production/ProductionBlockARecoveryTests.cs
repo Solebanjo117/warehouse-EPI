@@ -21,10 +21,14 @@ public sealed partial class ProductionSupplyServiceTests
         Assert.True((await f.Preparations.GetSaveResultAsync(command.OperationId, line.LineId))!.IsCurrent);
         Assert.Null(await f.Preparations.GetSaveResultAsync(command.OperationId, Guid.NewGuid()));
         detail = (await f.Preparations.GetAsync(line.LineId))!;
-        Assert.Equal(ProductionSupplyCommandStatus.Success, (await f.Preparations.SaveAsync(command with {
-            OperationId = Guid.NewGuid(), PreparationId = detail.PreparationId,
-            ExpectedPreparationVersion = detail.PreparationVersion, ExpectedRequestVersion = detail.Line.RequestVersion,
-            Sources = [new(source.Kind, source.LocationId, 3)] })).Status);
+        Assert.Equal(ProductionSupplyCommandStatus.Success, (await f.Preparations.SaveAsync(command with
+        {
+            OperationId = Guid.NewGuid(),
+            PreparationId = detail.PreparationId,
+            ExpectedPreparationVersion = detail.PreparationVersion,
+            ExpectedRequestVersion = detail.Line.RequestVersion,
+            Sources = [new(source.Kind, source.LocationId, 3)]
+        })).Status);
         Assert.False((await f.Preparations.GetSaveResultAsync(command.OperationId, line.LineId))!.IsCurrent);
         Assert.Equal(2, await f.Db.ProductionSupplyEvents.CountAsync(x => x.Type == ProductionSupplyEventType.PreparationSaved));
         Assert.Empty(f.Db.InventoryMovements);

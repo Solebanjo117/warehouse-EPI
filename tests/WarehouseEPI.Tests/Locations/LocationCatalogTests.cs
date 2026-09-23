@@ -12,10 +12,10 @@ using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
-using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Production;
-using WarehouseEPI.Web.Locations;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 using RackPrintModel = WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack.PrintModel;
 
@@ -434,17 +434,23 @@ public sealed class LocationCatalogTests
 
         var shrink = await service.ReviewAsync(command with
         {
-            OperationId = Guid.NewGuid(), CanvasWidth = 1975, CanvasHeight = 1000
+            OperationId = Guid.NewGuid(),
+            CanvasWidth = 1975,
+            CanvasHeight = 1000
         });
         Assert.Contains(shrink.Errors, error => error.Contains("solo puede agrandarse", StringComparison.Ordinal));
         var offGrid = await service.ReviewAsync(command with
         {
-            OperationId = Guid.NewGuid(), CanvasWidth = 2010, CanvasHeight = 1000
+            OperationId = Guid.NewGuid(),
+            CanvasWidth = 2010,
+            CanvasHeight = 1000
         });
         Assert.Contains(offGrid.Errors, error => error.Contains("incrementos de 25", StringComparison.Ordinal));
         var overMaximum = await service.ReviewAsync(command with
         {
-            OperationId = Guid.NewGuid(), CanvasWidth = 6425, CanvasHeight = 1000
+            OperationId = Guid.NewGuid(),
+            CanvasWidth = 6425,
+            CanvasHeight = 1000
         });
         Assert.Contains(overMaximum.Errors, error => error.Contains("6400 × 3600", StringComparison.Ordinal));
         Assert.Equal(3, await fixture.Db.WarehouseMapRevisions.CountAsync());
@@ -1272,8 +1278,14 @@ public sealed class LocationCatalogTests
         var layout = new WarehouseMapLayout { Id = 1, Version = 7 };
         var mapElement = new WarehouseMapElement
         {
-            Layout = layout, Kind = WarehouseMapElementKind.Rack, RowCode = "Z", RackNumber = 4,
-            X = 10, Y = 20, Width = 30, Height = 40
+            Layout = layout,
+            Kind = WarehouseMapElementKind.Rack,
+            RowCode = "Z",
+            RackNumber = 4,
+            X = 10,
+            Y = 20,
+            Width = 30,
+            Height = 40
         };
         var process = new ProductionStage { Code = "ROW-Z", Name = "Proceso de fila Z" };
         var rowTarget = new ProductionProcessWipTarget { ProductionStage = process, RowCode = "Z" };
@@ -1326,8 +1338,13 @@ public sealed class LocationCatalogTests
         var layout = new WarehouseMapLayout { Id = 1, Version = 3 };
         var mapElement = new WarehouseMapElement
         {
-            Layout = layout, Kind = WarehouseMapElementKind.Area, Location = area,
-            X = 10, Y = 20, Width = 30, Height = 40
+            Layout = layout,
+            Kind = WarehouseMapElementKind.Area,
+            Location = area,
+            X = 10,
+            Y = 20,
+            Width = 30,
+            Height = 40
         };
         fixture.Db.AddRange(role, user, area, layout, mapElement);
         await fixture.Db.SaveChangesAsync();

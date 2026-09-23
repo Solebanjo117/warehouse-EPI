@@ -3,11 +3,11 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Infrastructure.Settings;
-using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.Production;
@@ -24,20 +24,22 @@ public sealed class ExecutionModel(WarehouseDbContext db, ProductionExecutionSer
     public Dictionary<Guid, string> ReworkDates { get; } = [];
     public Dictionary<Guid, int> ReworkAge { get; } = [];
     public List<ProductionBlockingTask> ClosureWarnings { get; } = [];
-    [BindProperty(SupportsGet=true)]public string? SelectedAction{get;set;}
+    [BindProperty(SupportsGet = true)] public string? SelectedAction { get; set; }
     [BindProperty] public InputModel Input { get; set; } = new();
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken token)
     {
         if (!await LoadAsync(id, token)) return NotFound();
-        Input.Action=SelectedAction is not null&&ProductionActionPolicy.Allows(Order.Status,SelectedAction)?SelectedAction:ProductionActionPolicy.ExecutionActions(Order.Status).FirstOrDefault()?.Code??"";
+        Input.Action = SelectedAction is not null && ProductionActionPolicy.Allows(Order.Status, SelectedAction) ? SelectedAction : ProductionActionPolicy.ExecutionActions(Order.Status).FirstOrDefault()?.Code ?? "";
         Input.Version = Order.Version; Input.Target = Order.TargetQuantity; Input.Authorized = Order.AuthorizedQuantity; Input.DueDate = Order.DueDate;
         Input.Materials = Order.MaterialPlan.Select(x => new MaterialInput { PlanId = x.Id, Quantity = x.PlannedQuantity }).ToList();
-        Input.Retentions = Issues.Where(x=>x.Pending>0).Select(x=> {
-            var retained=CurrentRetentions.SingleOrDefault(r=>r.IssueLinkId==x.IssueLinkId);
-            return new RetentionInput{IssueLinkId=x.IssueLinkId,Selected=retained is not null,CaseId=retained?.ReworkCaseId??Guid.Empty,Quantity=retained?.Quantity??0};
-        }).Concat(Order.SupplyRequests.SelectMany(x=>x.Lines).SelectMany(x=>x.Reservations).Where(x=>x.Quantity>x.ReleasedQuantity).Select(x=>{
-            var retained=CurrentRetentions.SingleOrDefault(r=>r.WarehouseReservationId==x.Id);
-            return new RetentionInput{ReservationId=x.Id,Selected=retained is not null,CaseId=retained?.ReworkCaseId??Guid.Empty,Quantity=retained?.Quantity??0};
+        Input.Retentions = Issues.Where(x => x.Pending > 0).Select(x =>
+        {
+            var retained = CurrentRetentions.SingleOrDefault(r => r.IssueLinkId == x.IssueLinkId);
+            return new RetentionInput { IssueLinkId = x.IssueLinkId, Selected = retained is not null, CaseId = retained?.ReworkCaseId ?? Guid.Empty, Quantity = retained?.Quantity ?? 0 };
+        }).Concat(Order.SupplyRequests.SelectMany(x => x.Lines).SelectMany(x => x.Reservations).Where(x => x.Quantity > x.ReleasedQuantity).Select(x =>
+        {
+            var retained = CurrentRetentions.SingleOrDefault(r => r.WarehouseReservationId == x.Id);
+            return new RetentionInput { ReservationId = x.Id, Selected = retained is not null, CaseId = retained?.ReworkCaseId ?? Guid.Empty, Quantity = retained?.Quantity ?? 0 };
         })).ToList();
         return Page();
     }
@@ -74,20 +76,21 @@ public sealed class ExecutionModel(WarehouseDbContext db, ProductionExecutionSer
         ClosureWarnings.AddRange(ProductionActionPolicy.ClosureProgress(detail!.Stages));
         var retained = await db.ProductionReworkRetentions.AsNoTracking().Where(x => x.ReworkCase.WorkOrderId == id).ToListAsync(token);
         CurrentRetentions = retained;
-        foreach(var reservation in order.SupplyRequests.SelectMany(x=>x.Lines).SelectMany(x=>x.Reservations).Where(x=>x.Quantity>x.ReleasedQuantity&&!retained.Any(r=>r.WarehouseReservationId==x.Id&&r.Quantity>=x.Quantity-x.ReleasedQuantity)))
-            ClosureWarnings.Add(new($"Reserva en {reservation.Location.Code}: revisa qué conservar y qué liberar.","retain",Url:$"/Operations/Production/Execution?id={id}&SelectedAction=retain"));
-        if(order.Status==ProductionWorkOrderStatus.PrincipalClosed)foreach(var item in Rework.Where(x=>x.Pending>0))
-            ClosureWarnings.Add(new($"{item.Stage}: {item.Pending:0.####} de retrabajo antes del cierre definitivo.","rework",Url:$"/Operations/Production/Work?id={id}&BatchId={item.BatchId}&ReworkCaseId={item.Id}"));
-        if(HttpMethods.IsPost(Request.Method)&&Input.Action=="retain") {
-            foreach(var issue in Issues.Where(x=>x.Pending>0&&!Input.Retentions.Any(r=>r.IssueLinkId==x.IssueLinkId)))
-                Input.Retentions.Add(new RetentionInput{IssueLinkId=issue.IssueLinkId});
-            foreach(var reservation in order.SupplyRequests.SelectMany(x=>x.Lines).SelectMany(x=>x.Reservations).Where(x=>x.Quantity>x.ReleasedQuantity&&!Input.Retentions.Any(r=>r.ReservationId==x.Id)))
-                Input.Retentions.Add(new RetentionInput{ReservationId=reservation.Id});
+        foreach (var reservation in order.SupplyRequests.SelectMany(x => x.Lines).SelectMany(x => x.Reservations).Where(x => x.Quantity > x.ReleasedQuantity && !retained.Any(r => r.WarehouseReservationId == x.Id && r.Quantity >= x.Quantity - x.ReleasedQuantity)))
+            ClosureWarnings.Add(new($"Reserva en {reservation.Location.Code}: revisa qué conservar y qué liberar.", "retain", Url: $"/Operations/Production/Execution?id={id}&SelectedAction=retain"));
+        if (order.Status == ProductionWorkOrderStatus.PrincipalClosed) foreach (var item in Rework.Where(x => x.Pending > 0))
+            ClosureWarnings.Add(new($"{item.Stage}: {item.Pending:0.####} de retrabajo antes del cierre definitivo.", "rework", Url: $"/Operations/Production/Work?id={id}&BatchId={item.BatchId}&ReworkCaseId={item.Id}"));
+        if (HttpMethods.IsPost(Request.Method) && Input.Action == "retain")
+        {
+            foreach (var issue in Issues.Where(x => x.Pending > 0 && !Input.Retentions.Any(r => r.IssueLinkId == x.IssueLinkId)))
+                Input.Retentions.Add(new RetentionInput { IssueLinkId = issue.IssueLinkId });
+            foreach (var reservation in order.SupplyRequests.SelectMany(x => x.Lines).SelectMany(x => x.Reservations).Where(x => x.Quantity > x.ReleasedQuantity && !Input.Retentions.Any(r => r.ReservationId == x.Id)))
+                Input.Retentions.Add(new RetentionInput { ReservationId = reservation.Id });
         }
         foreach (var issue in Issues.Where(x => x.Pending > 0 && !retained.Any(r => r.IssueLinkId == x.IssueLinkId && r.Quantity >= x.Pending)))
-            ClosureWarnings.Add(new($"{issue.ProductSku}: conciliar {issue.Pending:0.####} {issue.Unit} en {issue.WipCode}; devolver o retener para retrabajo.",$"material-{issue.StageId}",issue.StageId));
+            ClosureWarnings.Add(new($"{issue.ProductSku}: conciliar {issue.Pending:0.####} {issue.Unit} en {issue.WipCode}; devolver o retener para retrabajo.", $"material-{issue.StageId}", issue.StageId));
         foreach (var line in order.SupplyRequests.SelectMany(x => x.Lines).Where(x => x.ReworkCaseId is null && ProductionExecutionService.Pending(x) > 0))
-            ClosureWarnings.Add(new($"{order.MaterialPlan.Single(x => x.Id == line.MaterialPlanId).MaterialProduct.Sku}: surtimiento ordinario pendiente de conciliar.","supply",Url:$"/Operations/ProductionSupply/Index?Search={Uri.EscapeDataString(order.Number)}"));
+            ClosureWarnings.Add(new($"{order.MaterialPlan.Single(x => x.Id == line.MaterialPlanId).MaterialProduct.Sku}: surtimiento ordinario pendiente de conciliar.", "supply", Url: $"/Operations/ProductionSupply/Index?Search={Uri.EscapeDataString(order.Number)}"));
         History = await db.ProductionExecutionAudits.AsNoTracking().Where(x => x.WorkOrderId == id).OrderByDescending(x => x.RecordedAt).Take(50).ToListAsync(token);
         foreach (var item in Rework)
         {
@@ -135,22 +138,22 @@ public sealed class ExecutionModel(WarehouseDbContext db, ProductionExecutionSer
         public string? AdminPin { get; set; }
         public Guid ReasonId { get; set; }
         [StringLength(300)] public string? Comment { get; set; }
-        [ProductionQuantity]public decimal Target { get; set; }
-        [ProductionQuantity]public decimal Authorized { get; set; }
+        [ProductionQuantity] public decimal Target { get; set; }
+        [ProductionQuantity] public decimal Authorized { get; set; }
         public DateOnly? DueDate { get; set; }
         public List<MaterialInput> Materials { get; set; } = [];
         public List<RetentionInput> Retentions { get; set; } = [];
         public Guid? CaseId { get; set; }
         public Guid? PlanId { get; set; }
-        [ProductionQuantity]public decimal Quantity { get; set; }
+        [ProductionQuantity] public decimal Quantity { get; set; }
     }
-    public sealed class MaterialInput { public Guid PlanId { get; set; } [ProductionQuantity]public decimal Quantity { get; set; } }
+    public sealed class MaterialInput { public Guid PlanId { get; set; } [ProductionQuantity] public decimal Quantity { get; set; } }
     public sealed class RetentionInput
     {
         public bool Selected { get; set; }
         public Guid CaseId { get; set; }
         public Guid? IssueLinkId { get; set; }
         public Guid? ReservationId { get; set; }
-        [ProductionQuantity]public decimal Quantity { get; set; }
+        [ProductionQuantity] public decimal Quantity { get; set; }
     }
 }

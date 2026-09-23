@@ -141,17 +141,27 @@ public sealed class ProductionWipDefaultService(
                 var parsed = Parse(item.TargetKey);
                 db.ProductionMaterialWipDefaults.Add(new()
                 {
-                    ProductId = command.ProductId, ProductionStageId = item.StageId, LocationId = parsed.LocationId,
-                    RowCode = parsed.RowCode, RackNumber = parsed.RackNumber, CreatedAt = now, UpdatedAt = now
+                    ProductId = command.ProductId,
+                    ProductionStageId = item.StageId,
+                    LocationId = parsed.LocationId,
+                    RowCode = parsed.RowCode,
+                    RackNumber = parsed.RackNumber,
+                    CreatedAt = now,
+                    UpdatedAt = now
                 });
             }
             if (db.Entry(configuration).State == EntityState.Detached) db.Add(configuration);
             configuration.Version++;
             db.ProductionMaterialWipRevisions.Add(new()
             {
-                OperationId = command.OperationId, RequestFingerprint = fingerprint, ProductId = command.ProductId,
-                AuthorizedByUserId = user.Id, Reason = command.Reason.Trim(), BeforeJson = before,
-                AfterJson = JsonSerializer.Serialize(normalized), RecordedAt = now
+                OperationId = command.OperationId,
+                RequestFingerprint = fingerprint,
+                ProductId = command.ProductId,
+                AuthorizedByUserId = user.Id,
+                Reason = command.Reason.Trim(),
+                BeforeJson = before,
+                AfterJson = JsonSerializer.Serialize(normalized),
+                RecordedAt = now
             });
             await db.SaveChangesAsync(token);
             if (transaction is not null) await transaction.CommitAsync(token);

@@ -37,8 +37,11 @@ public sealed partial class IndexModel
         var command = BalanceCommand(input);
         if (command is null) return new JsonResult(new { canConfirm = false, errors = new[] { texts["Indica una cantidad válida. Solo punto decimal."].Value } });
         var preview = await captures.PreviewBalanceEditAsync(command with { Pin = "" }, token);
-        return new JsonResult(preview with { Errors = preview.Errors.Select(BalanceError).ToArray(),
-            Cells = preview.Cells.Select(x => x with { Errors = x.Errors.Select(BalanceError).ToArray() }).ToArray() });
+        return new JsonResult(preview with
+        {
+            Errors = preview.Errors.Select(BalanceError).ToArray(),
+            Cells = preview.Cells.Select(x => x with { Errors = x.Errors.Select(BalanceError).ToArray() }).ToArray()
+        });
     }
 
     public async Task<IActionResult> OnPostBalanceEditConfirmAsync([FromBody] BalanceEditInput? input, CancellationToken token)

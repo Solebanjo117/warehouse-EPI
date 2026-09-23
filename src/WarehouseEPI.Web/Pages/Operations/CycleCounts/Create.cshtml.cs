@@ -2,10 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
-using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
@@ -67,9 +67,15 @@ public sealed class CreateModel(WarehouseDbContext dbContext, CycleCountService 
 
     private static int PalletOrder(short? palletNumber) => palletNumber switch
     {
-        7 => 0, 8 => 1, 9 => 2,
-        4 => 3, 5 => 4, 6 => 5,
-        1 => 6, 2 => 7, 3 => 8,
+        7 => 0,
+        8 => 1,
+        9 => 2,
+        4 => 3,
+        5 => 4,
+        6 => 5,
+        1 => 6,
+        2 => 7,
+        3 => 8,
         null => int.MaxValue,
         _ => 100 + palletNumber.Value
     };

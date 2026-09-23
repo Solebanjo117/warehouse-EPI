@@ -81,8 +81,15 @@ public sealed partial class ProductionDailyCaptureService
         var orderIds = state.SelectMany(x => x.Allocations).Select(x => x.WorkOrderId).Distinct().ToArray();
         var versions = await db.ProductionWorkOrders.AsNoTracking().Where(x => orderIds.Contains(x.Id) || ids.Contains(x.ProductId))
             .OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.Status }).ToListAsync(token);
-        var fingerprint = Fingerprint(new { command.WeekId, command.Date, week!.Version, Cells = reviews.Select(x => new { x.Cell, x.Current, x.Reversals, x.Additions }),
-            State = state.OrderBy(x => x.Id).Select(x => new { x.Id, x.Status, Allocations = x.Allocations.OrderBy(a => a.Id).Select(a => new { a.Id, a.Quantity }) }), versions });
+        var fingerprint = Fingerprint(new
+        {
+            command.WeekId,
+            command.Date,
+            week!.Version,
+            Cells = reviews.Select(x => new { x.Cell, x.Current, x.Reversals, x.Additions }),
+            State = state.OrderBy(x => x.Id).Select(x => new { x.Id, x.Status, Allocations = x.Allocations.OrderBy(a => a.Id).Select(a => new { a.Id, a.Quantity }) }),
+            versions
+        });
         var requiresAdmin = reviews.Any(x => x.Cell.Requested < x.Current);
         errors.AddRange(reviews.SelectMany(x => x.Errors.Select(e => $"{x.Sku}: {e}")));
         var projected = errors.Count == 0 ? await new ProductionDailyBalanceService(db).GetDailySummaryAsync(command.WeekId, new(command.Date),
@@ -127,17 +134,31 @@ public sealed partial class ProductionDailyCaptureService
             if (preview.RequiresAdmin && user.Role.Code != "ADMIN") return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP ADMIN inválido."]);
             if (preview.RequiresAdmin && string.IsNullOrWhiteSpace(command.Reason)) return NotReady("Indica el motivo del reverso.");
             if (preview.Fingerprint != command.ReviewedFingerprint) return new(ProductionDailyCommandStatus.ConcurrencyConflict, Errors: ["El balance cambió. Revisa nuevamente los cambios."]);
-            var edit = new ProductionBalanceEdit { OperationId = command.OperationId, RequestFingerprint = fingerprint, WeekId = command.WeekId,
-                EffectiveDate = command.Date, Reason = command.Reason?.Trim(), ResponsibleUserId = user.Id, RecordedAt = timeProvider.GetUtcNow() };
+            var edit = new ProductionBalanceEdit
+            {
+                OperationId = command.OperationId,
+                RequestFingerprint = fingerprint,
+                WeekId = command.WeekId,
+                EffectiveDate = command.Date,
+                Reason = command.Reason?.Trim(),
+                ResponsibleUserId = user.Id,
+                RecordedAt = timeProvider.GetUtcNow()
+            };
             foreach (var cell in preview.Cells)
             {
                 foreach (var captureId in cell.Reversals)
                 {
                     var reversed = await ReverseAsync(new(Derive(command.OperationId, captureId, Guid.Empty, "edit-reverse"), captureId, command.Reason!, command.Pin), token);
                     if (!reversed.Success) return await AbortAsync(transaction, reversed, token);
-                    edit.Items.Add(new() { ProductId = cell.Cell.ProductId, Area = cell.Cell.Area,
+                    edit.Items.Add(new()
+                    {
+                        ProductId = cell.Cell.ProductId,
+                        Area = cell.Cell.Area,
                         ShiftId = (await db.ProductionDailyCaptures.AsNoTracking().SingleAsync(x => x.Id == captureId, token)).ShiftId,
-                        PreviousTotal = cell.Current, RequestedTotal = cell.Cell.Requested, ReversedCaptureId = captureId });
+                        PreviousTotal = cell.Current,
+                        RequestedTotal = cell.Cell.Requested,
+                        ReversedCaptureId = captureId
+                    });
                 }
             }
             foreach (var cell in preview.Cells)
@@ -145,8 +166,16 @@ public sealed partial class ProductionDailyCaptureService
                 {
                     var created = await ConfirmAsync(new(addition.Id, command.Date, addition.Area, addition.ShiftId, addition.ProductId, addition.Quantity, addition.Notes, command.Pin), token);
                     if (!created.Success) return await AbortAsync(transaction, created, token);
-                    edit.Items.Add(new() { ProductId = addition.ProductId, Area = addition.Area, ShiftId = addition.ShiftId, PreviousTotal = cell.Current,
-                        RequestedTotal = cell.Cell.Requested, CreatedCaptureId = created.Id, ReversedCaptureId = cell.Reversals.LastOrDefault() is var id && id != Guid.Empty ? id : null });
+                    edit.Items.Add(new()
+                    {
+                        ProductId = addition.ProductId,
+                        Area = addition.Area,
+                        ShiftId = addition.ShiftId,
+                        PreviousTotal = cell.Current,
+                        RequestedTotal = cell.Cell.Requested,
+                        CreatedCaptureId = created.Id,
+                        ReversedCaptureId = cell.Reversals.LastOrDefault() is var id && id != Guid.Empty ? id : null
+                    });
                 }
             var actual = await new ProductionDailyBalanceService(db).GetDailySummaryAsync(command.WeekId, new(command.Date), token);
             var editedProducts = command.Cells.Select(x => x.ProductId).ToHashSet();

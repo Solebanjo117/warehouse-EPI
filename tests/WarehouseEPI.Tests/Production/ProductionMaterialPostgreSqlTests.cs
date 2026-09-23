@@ -81,14 +81,37 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         var user = new User { FullName = "Admin legado PG", RoleId = 1, PinLookup = $"legacy-{suffix}", PinHash = "legacy" };
         var product = new Product { Sku = $"PG-LEG-{suffix}", Description = "Producto legado", BaseUnitId = 1 };
         var stage = new ProductionStage { Code = $"L-{suffix}", Name = "Proceso legado" };
-        var order = new ProductionWorkOrder { CreateOperationId = Guid.NewGuid(), CreateFingerprint = $"legacy-{suffix}",
-            Number = $"OT-LEG-{suffix}", Product = product, UnitId = 1, TargetQuantity = 4, AuthorizedQuantity = 4,
-            Status = ProductionWorkOrderStatus.InProgress, CreatedByUser = user, UsesBatchTraceability = false };
-        var orderStage = new ProductionWorkOrderStage { WorkOrder = order, SourceStage = stage, Sequence = 1,
-            Code = stage.Code, Name = stage.Name };
+        var order = new ProductionWorkOrder
+        {
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = $"legacy-{suffix}",
+            Number = $"OT-LEG-{suffix}",
+            Product = product,
+            UnitId = 1,
+            TargetQuantity = 4,
+            AuthorizedQuantity = 4,
+            Status = ProductionWorkOrderStatus.InProgress,
+            CreatedByUser = user,
+            UsesBatchTraceability = false
+        };
+        var orderStage = new ProductionWorkOrderStage
+        {
+            WorkOrder = order,
+            SourceStage = stage,
+            Sequence = 1,
+            Code = stage.Code,
+            Name = stage.Name
+        };
         order.Stages.Add(orderStage);
-        order.Events.Add(new ProductionEvent { OperationId = Guid.NewGuid(), RequestFingerprint = $"event-{suffix}",
-            WorkOrder = order, Type = ProductionEventType.Created, ResponsibleUser = user, Quantity = 4 });
+        order.Events.Add(new ProductionEvent
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = $"event-{suffix}",
+            WorkOrder = order,
+            Type = ProductionEventType.Created,
+            ResponsibleUser = user,
+            Quantity = 4
+        });
         db.AddRange(user, stage, order);
         await db.SaveChangesAsync();
         var orderId = order.Id;
@@ -159,8 +182,13 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         Assert.True(result.Success, string.Join("; ", result.Errors ?? []));
 
         await db.Entry(order).ReloadAsync();
-        var rawLot2 = new ProductLot { ProductId = material.Id, Number = $"RAW-{suffix}-B",
-            NormalizedNumber = $"RAW-{suffix}-B", CreatedAt = DateTimeOffset.UtcNow };
+        var rawLot2 = new ProductLot
+        {
+            ProductId = material.Id,
+            Number = $"RAW-{suffix}-B",
+            NormalizedNumber = $"RAW-{suffix}-B",
+            CreatedAt = DateTimeOffset.UtcNow
+        };
         db.ProductLots.Add(rawLot2);
         await db.SaveChangesAsync();
         Assert.Equal(InventoryMovementStatus.Success, (await movements.ConfirmAsync(new InventoryMovementCommand(Guid.NewGuid(),
@@ -224,13 +252,23 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         process.WipTargets.Add(new ProductionProcessWipTarget { Location = wip });
         var order = new ProductionWorkOrder
         {
-            CreateOperationId = Guid.NewGuid(), CreateFingerprint = "pg-material", Number = "PG-OT-0001",
-            Product = finished, UnitId = 1, TargetQuantity = 10, AuthorizedQuantity = 10,
-            Status = ProductionWorkOrderStatus.Released, CreatedByUser = admin
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = "pg-material",
+            Number = "PG-OT-0001",
+            Product = finished,
+            UnitId = 1,
+            TargetQuantity = 10,
+            AuthorizedQuantity = 10,
+            Status = ProductionWorkOrderStatus.Released,
+            CreatedByUser = admin
         };
         var stage = new ProductionWorkOrderStage
         {
-            WorkOrder = order, SourceStage = process, Sequence = 1, Code = process.Code, Name = process.Name
+            WorkOrder = order,
+            SourceStage = process,
+            Sequence = 1,
+            Code = process.Code,
+            Name = process.Name
         };
         order.Stages.Add(stage);
         db.AddRange(admin, user, material, source, wip, process, order);

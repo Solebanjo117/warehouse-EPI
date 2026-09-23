@@ -15,8 +15,14 @@ public static partial class ProductionModelConfiguration
         reason.Property(x => x.Description).HasMaxLength(160);
         reason.Property(x => x.Version).IsConcurrencyToken();
         foreach (var category in Enum.GetValues<ProductionReasonCategory>())
-            reason.HasData(new ProductionReason { Id = ReasonId(category), Category = category,
-                Code = "OTRO", Description = "Otro", RequiresComment = true });
+            reason.HasData(new ProductionReason
+            {
+                Id = ReasonId(category),
+                Category = category,
+                Code = "OTRO",
+                Description = "Otro",
+                RequiresComment = true
+            });
         var audit = builder.Entity<ProductionExecutionAudit>();
         audit.ToTable("production_execution_audits");
         audit.HasKey(x => x.Id);

@@ -175,8 +175,11 @@ public sealed class ScheduleImportModel(
             ModelState.AddModelError(string.Empty, texts["Escribe tres cantidades válidas con punto decimal y un motivo de hasta 500 caracteres."]);
             return await ValidateAsync(token);
         }
-        var resolutions = draft.Resolutions with { Opening = draft.Resolutions.Opening.Where(x => x.ProductId != Opening.ProductId)
-            .Append(new(Opening.ProductId, cut, sew, ready, Opening.Reason.Trim())).OrderBy(x => x.ProductId).ToArray() };
+        var resolutions = draft.Resolutions with
+        {
+            Opening = draft.Resolutions.Opening.Where(x => x.ProductId != Opening.ProductId)
+            .Append(new(Opening.ProductId, cut, sew, ready, Opening.Reason.Trim())).OrderBy(x => x.ProductId).ToArray()
+        };
         AddRevisionResult(await drafts.ReviseAsync(PreviewToken, ExpectedRevision, Actor(), resolutions, token: token));
         return await ValidateAsync(token);
     }

@@ -129,8 +129,13 @@ public sealed class ProductionProcessConfigurationServiceTests
     {
         await using var fixture = await Fixture.CreateAsync();
         var created = await fixture.Service.SaveProcessAsync(new(Guid.NewGuid(), Guid.Empty, "COS", "Costura", true, 0, [], [], [], null, fixture.Pin));
-        fixture.Db.ProductionRoutes.Add(new ProductionRoute { ProductId = fixture.Product.Id, Name = "Ruta", Stages =
-            [new ProductionRouteStage { StageId = created.ProcessId!.Value, Sequence = 1 }] });
+        fixture.Db.ProductionRoutes.Add(new ProductionRoute
+        {
+            ProductId = fixture.Product.Id,
+            Name = "Ruta",
+            Stages =
+            [new ProductionRouteStage { StageId = created.ProcessId!.Value, Sequence = 1 }]
+        });
         await fixture.Db.SaveChangesAsync();
 
         var result = await fixture.Service.SaveProcessAsync(new(Guid.NewGuid(), created.ProcessId.Value, "COS", "Costura", false, 1, [], [], [], null, fixture.Pin));
@@ -176,8 +181,12 @@ public sealed class ProductionProcessConfigurationServiceTests
         await using var fixture = await Fixture.CreateAsync();
         fixture.Db.Locations.Add(new Location
         {
-            Code = "M-3-1", Kind = LocationKind.Rack, RowCode = "M", RackNumber = 3,
-            PalletNumber = 1, OperationalRole = LocationOperationalRole.Storage
+            Code = "M-3-1",
+            Kind = LocationKind.Rack,
+            RowCode = "M",
+            RackNumber = 3,
+            PalletNumber = 1,
+            OperationalRole = LocationOperationalRole.Storage
         });
         await fixture.Db.SaveChangesAsync();
 
@@ -203,8 +212,12 @@ public sealed class ProductionProcessConfigurationServiceTests
 
         fixture.Db.Locations.Add(new Location
         {
-            Code = "M-4-1", Kind = LocationKind.Rack, RowCode = "M", RackNumber = 4,
-            PalletNumber = 1, OperationalRole = LocationOperationalRole.Storage
+            Code = "M-4-1",
+            Kind = LocationKind.Rack,
+            RowCode = "M",
+            RackNumber = 4,
+            PalletNumber = 1,
+            OperationalRole = LocationOperationalRole.Storage
         });
         await fixture.Db.SaveChangesAsync();
 

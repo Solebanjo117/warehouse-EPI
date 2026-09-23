@@ -70,67 +70,67 @@ public sealed partial class ProductionDailyCaptureService
         var traceability = new ProductionTraceabilityService(db, pins,
             new ProductionMaterialService(db, pins, movements, timeProvider), timeProvider);
         var engine = new ProductionService(db, pins, movements, timeProvider);
-            foreach (var allocation in allocations)
+        foreach (var allocation in allocations)
+        {
+            var allocatedBefore = capture.Allocations.Where(x => x.WorkOrderStageId == allocation.WorkOrderStageId).Sum(x => x.Quantity);
+            var allocationOperation = Derive(capture.OperationId, allocation.ScheduleLineId, allocation.WorkOrderStageId,
+                "reconcile:" + allocatedBefore.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            var order = await LoadOrderAsync(allocation.WorkOrderId, token);
+            if (order is null) return NotReady($"{allocation.OrderNumber}: la orden ya no existe.");
+            var materials = await SelectMaterialsAsync(order, allocation.WorkOrderStageId, allocation.Quantity, token);
+            if (materials.Errors.Count > 0)
+                return new(ProductionDailyCommandStatus.ValidationFailed, Errors: materials.Errors);
+            var processOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "result");
+            var result = await traceability.RecordResultAsync(new RecordBatchResultCommand(
+                processOperation, order.Id, allocation.BatchId, allocation.WorkOrderStageId, capture.ShiftId,
+                false, allocation.Quantity, allocation.Quantity, 0, 0, materials.Selections,
+                order.Version, null, pin), token);
+            if (!result.Success || result.Id is not Guid resultId)
+                return TraceFailure(allocation.OrderNumber, result);
+            order = await LoadOrderAsync(order.Id, token) ?? throw new InvalidOperationException();
+            Guid? deliveryOperation = null;
+            Guid? receiveOperation = null;
+            var stages = order.Stages.OrderBy(x => x.Sequence).ToArray();
+            var source = stages.Single(x => x.Id == allocation.WorkOrderStageId);
+            var target = stages.SingleOrDefault(x => x.Sequence == source.Sequence + 1);
+            if (target is not null)
             {
-                var allocatedBefore = capture.Allocations.Where(x => x.WorkOrderStageId == allocation.WorkOrderStageId).Sum(x => x.Quantity);
-                var allocationOperation = Derive(capture.OperationId, allocation.ScheduleLineId, allocation.WorkOrderStageId,
-                    "reconcile:" + allocatedBefore.ToString(System.Globalization.CultureInfo.InvariantCulture));
-                var order = await LoadOrderAsync(allocation.WorkOrderId, token);
-                if (order is null) return NotReady($"{allocation.OrderNumber}: la orden ya no existe.");
-                var materials = await SelectMaterialsAsync(order, allocation.WorkOrderStageId, allocation.Quantity, token);
-                if (materials.Errors.Count > 0)
-                    return new(ProductionDailyCommandStatus.ValidationFailed, Errors: materials.Errors);
-                var processOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "result");
-                var result = await traceability.RecordResultAsync(new RecordBatchResultCommand(
-                    processOperation, order.Id, allocation.BatchId, allocation.WorkOrderStageId, capture.ShiftId,
-                    false, allocation.Quantity, allocation.Quantity, 0, 0, materials.Selections,
-                    order.Version, null, pin), token);
-                if (!result.Success || result.Id is not Guid resultId)
-                    return TraceFailure(allocation.OrderNumber, result);
+                deliveryOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "delivery");
+                var delivered = await engine.DeliverAsync(new ProductionHandoffCommand(
+                    deliveryOperation.Value, order.Id, source.Id, target.Id, allocation.Quantity,
+                    pin, "Entrega automática de captura diaria", allocation.BatchId,
+                    ExpectedVersion: order.Version), token);
+                if (delivered.Status != ProductionCommandStatus.Success)
+                    return EngineFailure(allocation.OrderNumber, delivered);
+                var deliveryEvent = await db.ProductionEvents.AsNoTracking()
+                    .SingleAsync(x => x.OperationId == deliveryOperation.Value, token);
                 order = await LoadOrderAsync(order.Id, token) ?? throw new InvalidOperationException();
-                Guid? deliveryOperation = null;
-                Guid? receiveOperation = null;
-                var stages = order.Stages.OrderBy(x => x.Sequence).ToArray();
-                var source = stages.Single(x => x.Id == allocation.WorkOrderStageId);
-                var target = stages.SingleOrDefault(x => x.Sequence == source.Sequence + 1);
-                if (target is not null)
-                {
-                    deliveryOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "delivery");
-                    var delivered = await engine.DeliverAsync(new ProductionHandoffCommand(
-                        deliveryOperation.Value, order.Id, source.Id, target.Id, allocation.Quantity,
-                        pin, "Entrega automática de captura diaria", allocation.BatchId,
-                        ExpectedVersion: order.Version), token);
-                    if (delivered.Status != ProductionCommandStatus.Success)
-                        return EngineFailure(allocation.OrderNumber, delivered);
-                    var deliveryEvent = await db.ProductionEvents.AsNoTracking()
-                        .SingleAsync(x => x.OperationId == deliveryOperation.Value, token);
-                    order = await LoadOrderAsync(order.Id, token) ?? throw new InvalidOperationException();
-                    receiveOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "receive");
-                    var received = await engine.ReceiveAsync(new ProductionHandoffCommand(
-                        receiveOperation.Value, order.Id, source.Id, target.Id, allocation.Quantity,
-                        pin, "Recepción automática de captura diaria", allocation.BatchId,
-                        deliveryEvent.Id, order.Version), token);
-                    if (received.Status != ProductionCommandStatus.Success)
-                        return EngineFailure(allocation.OrderNumber, received);
-                }
-                var captureAllocation = new ProductionDailyCaptureAllocation
-                {
-                    ReconciledAt = timeProvider.GetUtcNow(),
-                    ReconciledByUserId = actorId,
-                    ScheduleLineId = allocation.ScheduleLineId,
-                    WorkOrderId = allocation.WorkOrderId,
-                    WorkOrderStageId = allocation.WorkOrderStageId,
-                    BatchResultId = resultId,
-                    Quantity = allocation.Quantity,
-                    ProcessOperationId = processOperation,
-                    DeliveryOperationId = deliveryOperation,
-                    ReceiveOperationId = receiveOperation
-                };
-                capture.Allocations.Add(captureAllocation);
-                // The capture was already saved by the result above; a preset key would otherwise be tracked as an update.
-                db.Entry(captureAllocation).State = EntityState.Added;
-                await db.SaveChangesAsync(token);
+                receiveOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "receive");
+                var received = await engine.ReceiveAsync(new ProductionHandoffCommand(
+                    receiveOperation.Value, order.Id, source.Id, target.Id, allocation.Quantity,
+                    pin, "Recepción automática de captura diaria", allocation.BatchId,
+                    deliveryEvent.Id, order.Version), token);
+                if (received.Status != ProductionCommandStatus.Success)
+                    return EngineFailure(allocation.OrderNumber, received);
             }
+            var captureAllocation = new ProductionDailyCaptureAllocation
+            {
+                ReconciledAt = timeProvider.GetUtcNow(),
+                ReconciledByUserId = actorId,
+                ScheduleLineId = allocation.ScheduleLineId,
+                WorkOrderId = allocation.WorkOrderId,
+                WorkOrderStageId = allocation.WorkOrderStageId,
+                BatchResultId = resultId,
+                Quantity = allocation.Quantity,
+                ProcessOperationId = processOperation,
+                DeliveryOperationId = deliveryOperation,
+                ReceiveOperationId = receiveOperation
+            };
+            capture.Allocations.Add(captureAllocation);
+            // The capture was already saved by the result above; a preset key would otherwise be tracked as an update.
+            db.Entry(captureAllocation).State = EntityState.Added;
+            await db.SaveChangesAsync(token);
+        }
         return new(ProductionDailyCommandStatus.Success);
     }
 }

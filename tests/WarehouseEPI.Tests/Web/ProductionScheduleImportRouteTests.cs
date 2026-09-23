@@ -7,8 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
-using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Tests.Production;
 
 namespace WarehouseEPI.Tests.Web;

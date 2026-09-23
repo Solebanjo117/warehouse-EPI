@@ -51,8 +51,14 @@ public sealed partial class ProductImportService
             rows.Add(new(row.SourceRows, row.Sku, proposed.Description, proposed.Reference, unit?.Code ?? row.UnitCode,
                 productClass?.Code ?? row.ClassCode, product is not null, row.IsConsolidated, row.UnitWasBlank || row.ClassCode is null || newClass,
                 error is not null, error ?? (newClass ? $"Se creará la clase {row.ClassCode} al confirmar." : null))
-            { Current = current, Proposed = proposed, Changes = changes,
-                RequireActiveUnit = !row.UnitWasBlank || product is null, RequireActiveClass = row.ClassCode is not null, IsNewClass = newClass });
+            {
+                Current = current,
+                Proposed = proposed,
+                Changes = changes,
+                RequireActiveUnit = !row.UnitWasBlank || product is null,
+                RequireActiveClass = row.ClassCode is not null,
+                IsNewClass = newClass
+            });
         }
         var issues = read.Issues.Select(issue => issue.Code is "missing_unit_defaulted" or "missing_class"
             ? issue with { Message = "Celda vacía: se conserva el valor existente. Los productos nuevos usan unidad Sin asignar y pueden quedar sin clase." }
