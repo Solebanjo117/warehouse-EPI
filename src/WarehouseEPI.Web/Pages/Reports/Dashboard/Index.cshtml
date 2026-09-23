@@ -1,9 +1,11 @@
 @page "/Reports/Dashboard"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @using System.Text.Json
 @using WarehouseEPI.Infrastructure.Reporting
 @model WarehouseEPI.Web.Pages.Reports.Dashboard.IndexModel
 @{
-    ViewData["Title"] = "Tablero diario";
+    var isAdmin = User.IsInRole("ADMIN");
+    ViewData["Title"] = isAdmin ? CatTexts["Resumen operativo · Hoy"].Value : CatTexts["Tablero diario"].Value;
     var metrics = Model.Snapshot.Metrics;
     var points = metrics.RecentActivityTrend;
     var totalOperations = points.Sum(point => point.TotalEffectiveOperations);
@@ -14,7 +16,6 @@
         date = point.Date.ToString("yyyy-MM-dd"), point.DayLabel, point.EntryCount, point.ExitCount,
         point.TransferCount, point.AdjustmentCount, point.TotalEffectiveOperations, point.DistinctSkusCount
     }));
-    var isAdmin = User.IsInRole("ADMIN");
 }
 
 @section Styles {
@@ -22,43 +23,82 @@
 }
 
 <div class="daily-dashboard" data-dashboard data-metrics-url="@Url.Page("/Reports/Dashboard/Index", "Metrics")" data-warehouse-date="@Model.Snapshot.WarehouseDate.ToString("yyyy-MM-dd")" data-is-admin="@isAdmin.ToString().ToLowerInvariant()">
-    <header class="dashboard-header"><div><span class="eyebrow">Operación LAN</span><h1 class="h2 mb-1">Tablero diario</h1><p class="text-muted mb-0">Prioriza las excepciones del día y resume actividad efectiva sin sumar unidades diferentes.</p></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-secondary" asp-page="/Reports/Inventory/Index">Analítica de inventario</a><button class="btn btn-outline-primary" type="button" data-dashboard-refresh>Actualizar ahora</button></div></header>
-    <p class="dashboard-update-state" role="status" aria-live="polite" data-dashboard-status>Datos generados: <time data-dashboard-updated datetime="@Model.Snapshot.GeneratedAtLocal.ToString("O")">@Model.Snapshot.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</time></p>
+    @if (isAdmin)
+    {
+        @await Html.PartialAsync("/Pages/Reports/_AdminSummaryNavigation.cshtml", "today")
+    }
+    <header class="dashboard-header">
+        <div>
+            <span class="eyebrow">@CatTexts["Operación LAN"]</span>
+            @if (isAdmin)
+            {
+                <h2 class="h3 mb-1">@CatTexts["Hoy"]</h2>
+            }
+            else
+            {
+                <h1 class="h2 mb-1">@CatTexts["Tablero diario"]</h1>
+            }
+            <p class="text-muted mb-0">@CatTexts["Prioriza las excepciones del día y resume actividad efectiva sin sumar unidades diferentes."]</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" asp-page="/Reports/Inventory/Index">@CatTexts["Analítica de inventario"]</a>
+            <button class="btn btn-outline-primary" type="button" data-dashboard-refresh>@CatTexts["Actualizar ahora"]</button>
+        </div>
+    </header>
+    <p class="dashboard-update-state" role="status" aria-live="polite" data-dashboard-status>@CatTexts["Datos generados:"] <time data-dashboard-updated datetime="@Model.Snapshot.GeneratedAtLocal.ToString("O")">@Model.Snapshot.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</time></p>
 
     <div class="dashboard-tiers">
         <section class="dashboard-tier is-attention" aria-labelledby="dashboard-attention-title">
-            <h2 class="dashboard-tier-title" id="dashboard-attention-title">Requiere atención</h2>
+            <h2 class="dashboard-tier-title" id="dashboard-attention-title">@CatTexts["Requiere atención"]</h2>
             <div class="dashboard-metrics dashboard-metrics-pair">
-                <article class="is-danger"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-alert" /></svg></span><strong data-dashboard-metric="negativePositionsCount">@metrics.NegativePositionsCount</strong><small>Saldos producto-ubicación negativos</small><a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="negative">Revisar saldos</a></article>
-                <article class="is-warning"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-products" /></svg></span><strong data-dashboard-metric="lowStockProductsCount">@metrics.LowStockProductsCount</strong><small>Productos bajo mínimo</small><a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="minimum">Revisar mínimos</a></article>
+                <article class="is-danger"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-alert" /></svg></span><strong data-dashboard-metric="negativePositionsCount">@metrics.NegativePositionsCount</strong><small>@CatTexts["Saldos producto-ubicación negativos"]</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Alerts" asp-route-category="NegativeInventory">@CatTexts["Revisar casos"]</a> } else { <a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="negative">@CatTexts["Revisar saldos"]</a> }</article>
+                <article class="is-warning"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-products" /></svg></span><strong data-dashboard-metric="lowStockProductsCount">@metrics.LowStockProductsCount</strong><small>@CatTexts["Productos bajo mínimo"]</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Alerts" asp-route-category="BelowMinimum">@CatTexts["Revisar casos"]</a> } else { <a asp-page="/Reports/Inventory/Index" asp-route-view="exceptions" asp-route-exception="minimum">@CatTexts["Revisar mínimos"]</a> }</article>
             </div>
         </section>
         <section class="dashboard-tier" aria-labelledby="dashboard-today-title">
-            <h2 class="dashboard-tier-title" id="dashboard-today-title">Actividad de hoy</h2>
+            <h2 class="dashboard-tier-title" id="dashboard-today-title">@CatTexts["Actividad de hoy"]</h2>
             <div class="dashboard-metrics dashboard-metrics-pair">
-                <article class="is-primary"><span class="dashboard-metric-icon is-primary" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-movements" /></svg></span><strong data-dashboard-metric="effectiveMovementsToday">@metrics.EffectiveMovementsToday</strong><small>Movimientos efectivos hoy</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="today">Ver movimientos</a> }</article>
-                <article class="is-adjustment"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-adjust" /></svg></span><strong data-dashboard-metric="effectiveAdjustmentsToday">@metrics.EffectiveAdjustmentsToday</strong><small>Ajustes efectivos hoy</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="today" asp-route-movementType="Adjustment">Ver ajustes</a> }</article>
+                <article class="is-primary"><span class="dashboard-metric-icon is-primary" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-movements" /></svg></span><strong data-dashboard-metric="effectiveMovementsToday">@metrics.EffectiveMovementsToday</strong><small>@CatTexts["Movimientos efectivos hoy"]</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="today">@CatTexts["Ver movimientos"]</a> }</article>
+                <article class="is-adjustment"><span class="dashboard-metric-icon" aria-hidden="true"><svg class="dashboard-metric-glyph"><use href="#icon-adjust" /></svg></span><strong data-dashboard-metric="effectiveAdjustmentsToday">@metrics.EffectiveAdjustmentsToday</strong><small>@CatTexts["Ajustes efectivos hoy"]</small>@if (isAdmin) { <a asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="today" asp-route-movementType="Adjustment">@CatTexts["Ver ajustes"]</a> }</article>
             </div>
         </section>
     </div>
 
     @if (Model.Snapshot.Comparison is { } comparison)
     {
-        string ComparisonLabel(MetricComparisonDto item) => item.State switch { MetricComparisonState.New => "Nuevo", MetricComparisonState.NoActivity => "Sin actividad", _ => $"{item.Delta:+#;-#;0} · {item.PercentChange:0.#}%" };
-        <section class="dashboard-activity dashboard-comparison" aria-labelledby="dashboard-comparison-title"><div class="dashboard-section-heading"><div><h2 id="dashboard-comparison-title" class="h4 mb-1">Comparación operativa</h2><p class="text-muted mb-0">Variación de actividad efectiva; no suma unidades físicas ni atribuye causalidad.</p></div></div><div class="dashboard-period-summary"><div><span>Operaciones hoy vs. ayer</span><strong data-dashboard-comparison="todayOperations">@comparison.TodayOperations.Current</strong><small data-dashboard-comparison-label="todayOperations">@ComparisonLabel(comparison.TodayOperations)</small></div><div><span>Ajustes hoy vs. ayer</span><strong data-dashboard-comparison="todayAdjustments">@comparison.TodayAdjustments.Current</strong><small data-dashboard-comparison-label="todayAdjustments">@ComparisonLabel(comparison.TodayAdjustments)</small></div><div><span>Operaciones 7 días</span><strong data-dashboard-comparison="sevenDayOperations">@comparison.SevenDayOperations.Current</strong><small data-dashboard-comparison-label="sevenDayOperations">@ComparisonLabel(comparison.SevenDayOperations)</small></div><div><span>SKUs distintos 7 días</span><strong data-dashboard-comparison="sevenDayDistinctSkus">@comparison.SevenDayDistinctSkus.Current</strong><small data-dashboard-comparison-label="sevenDayDistinctSkus">@ComparisonLabel(comparison.SevenDayDistinctSkus)</small></div></div><div class="row g-3 mt-1">@foreach (var group in new[] { (Title: "Productos", Kind: "product", Items: comparison.Products), (Title: "Filas", Kind: "row", Items: comparison.Rows), (Title: "Ubicaciones", Kind: "location", Items: comparison.Locations) }) { <section class="col-lg-4"><div class="card h-100"><div class="card-body"><h3 class="h6">Mayor variación · @group.Title</h3><ol class="dashboard-driver-list" data-dashboard-drivers="@group.Kind">@foreach (var driver in group.Items) { var target = isAdmin ? Url.Page("/Admin/Inventory/Movements/Index", new { view = "effective", from = Model.Snapshot.WarehouseDate.AddDays(-13).ToString("yyyy-MM-dd"), to = Model.Snapshot.WarehouseDate.ToString("yyyy-MM-dd"), sku = group.Kind == "product" ? driver.Code : null, locationCode = group.Kind != "product" ? driver.Code : null }) : driver.TargetUrl; <li><a href="@target"><strong>@driver.Code</strong><span>@driver.Current operación(es) · @driver.Delta.ToString("+#;-#;0")</span></a></li> }@if (group.Items.Count == 0) { <li class="text-body-secondary">Sin actividad en el período.</li> }</ol></div></div></section> }</div></section>
+        string ComparisonLabel(MetricComparisonDto item) => item.State switch { MetricComparisonState.New => CatTexts["Nuevo"].Value, MetricComparisonState.NoActivity => CatTexts["Sin actividad"].Value, _ => $"{item.Delta:+#;-#;0} · {item.PercentChange:0.#}%" };
+        <section class="dashboard-activity dashboard-comparison" aria-labelledby="dashboard-comparison-title"><div class="dashboard-section-heading"><div><h2 id="dashboard-comparison-title" class="h4 mb-1">@CatTexts["Comparación operativa"]</h2><p class="text-muted mb-0">@CatTexts["Variación de actividad efectiva; no suma unidades físicas ni atribuye causalidad."]</p></div></div><div class="dashboard-period-summary"><div><span>@CatTexts["Operaciones hoy vs. ayer"]</span><strong data-dashboard-comparison="todayOperations">@comparison.TodayOperations.Current</strong><small data-dashboard-comparison-label="todayOperations">@ComparisonLabel(comparison.TodayOperations)</small></div><div><span>@CatTexts["Ajustes hoy vs. ayer"]</span><strong data-dashboard-comparison="todayAdjustments">@comparison.TodayAdjustments.Current</strong><small data-dashboard-comparison-label="todayAdjustments">@ComparisonLabel(comparison.TodayAdjustments)</small></div><div><span>@CatTexts["Operaciones 7 días"]</span><strong data-dashboard-comparison="sevenDayOperations">@comparison.SevenDayOperations.Current</strong><small data-dashboard-comparison-label="sevenDayOperations">@ComparisonLabel(comparison.SevenDayOperations)</small></div><div><span>@CatTexts["SKUs distintos 7 días"]</span><strong data-dashboard-comparison="sevenDayDistinctSkus">@comparison.SevenDayDistinctSkus.Current</strong><small data-dashboard-comparison-label="sevenDayDistinctSkus">@ComparisonLabel(comparison.SevenDayDistinctSkus)</small></div></div><div class="row g-3 mt-1">@foreach (var group in new[] { (Title: CatTexts["Productos"].Value, Kind: "product", Items: comparison.Products), (Title: CatTexts["Filas"].Value, Kind: "row", Items: comparison.Rows), (Title: CatTexts["Ubicaciones"].Value, Kind: "location", Items: comparison.Locations) }) { <section class="col-lg-4"><div class="card h-100"><div class="card-body"><h3 class="h6">@CatTexts["Mayor variación · {0}", group.Title]</h3><ol class="dashboard-driver-list" data-dashboard-drivers="@group.Kind">@foreach (var driver in group.Items) { var target = isAdmin ? Url.Page("/Admin/Inventory/Movements/Index", new { view = "effective", from = Model.Snapshot.WarehouseDate.AddDays(-13).ToString("yyyy-MM-dd"), to = Model.Snapshot.WarehouseDate.ToString("yyyy-MM-dd"), sku = group.Kind == "product" ? driver.Code : null, locationCode = group.Kind != "product" ? driver.Code : null }) : driver.TargetUrl; <li><a href="@target"><strong>@driver.Code</strong><span>@CatTexts["{0} operación(es) · {1}", driver.Current, driver.Delta.ToString("+#;-#;0")]</span></a></li> }@if (group.Items.Count == 0) { <li class="text-body-secondary">@CatTexts["Sin actividad en el período."]</li> }</ol></div></div></section> }</div></section>
     }
 
-    <section class="dashboard-activity" aria-labelledby="dashboard-activity-title">
-        <div class="dashboard-section-heading"><div><h2 id="dashboard-activity-title" class="h4 mb-1">Actividad de los últimos 14 días</h2><p class="text-muted mb-0">Cada segmento representa operaciones, no cantidades físicas.</p></div><div class="dashboard-legend" aria-label="Tipos de movimiento"><span><i class="is-entry"></i>Entradas</span><span><i class="is-exit"></i>Salidas</span><span><i class="is-transfer"></i>Transferencias</span><span><i class="is-adjustment"></i>Ajustes</span></div></div>
-        <div class="dashboard-period-summary" aria-live="polite" data-dashboard-summary><div><span>Operaciones del período</span><strong data-dashboard-total>@totalOperations.ToString("N0")</strong></div><div><span>Día de mayor actividad</span><strong data-dashboard-busiest>@busiest.DayLabel · @busiest.TotalEffectiveOperations.ToString("N0")</strong></div><div class="dashboard-range-control" role="group" aria-label="Días visibles"><button type="button" class="active" data-dashboard-range="14" aria-pressed="true">14 días</button><button type="button" data-dashboard-range="7" aria-pressed="false">7 días</button></div></div>
-        <div class="dashboard-chartjs-shell" data-dashboard-chart-shell>
-            <canvas data-dashboard-chart data-points="@chartPoints" tabindex="0" aria-label="Gráfica apilada de operaciones efectivas por día" aria-describedby="dashboard-chart-detail"></canvas>
-            <div class="dashboard-chart-fallback" data-dashboard-fallback>
-                <p class="mb-2 text-body-secondary">Resumen de 14 días disponible sin JavaScript.</p>
-                <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>Fecha</th><th>Operaciones</th><th>Entradas</th><th>Salidas</th><th>Transferencias</th><th>Ajustes</th><th>SKUs</th></tr></thead><tbody>@foreach (var point in points) { <tr><th scope="row">@point.DayLabel</th><td>@point.TotalEffectiveOperations</td><td>@point.EntryCount</td><td>@point.ExitCount</td><td>@point.TransferCount</td><td>@point.AdjustmentCount</td><td>@point.DistinctSkusCount</td></tr> }</tbody></table></div>
+    <section class="dashboard-activity dashboard-warehouse-activity" aria-labelledby="dashboard-activity-title">
+        <div class="dashboard-warehouse-heading">
+            <div>
+                <h2 id="dashboard-activity-title" class="h4 mb-1">@CatTexts["Actividad del almacén"]</h2>
+                <p class="dashboard-activity-period mb-0">@CatTexts["Operaciones por día ·"] <span data-dashboard-period-label>@CatTexts["Últimos 14 días"]</span></p>
+                <p class="text-muted mb-0">@CatTexts["Cada segmento representa operaciones, no cantidades físicas."]</p>
+            </div>
+            <div class="dashboard-range-control" role="group" aria-label="@CatTexts["Días visibles"]">
+                <button type="button" data-dashboard-range="7" aria-pressed="false">@CatTexts["7 días"]</button>
+                <button type="button" class="active" data-dashboard-range="14" aria-pressed="true">@CatTexts["14 días"]</button>
             </div>
         </div>
-        <article id="dashboard-chart-detail" class="dashboard-chart-detail" aria-live="polite" data-dashboard-detail><header><span>Detalle del día</span><strong data-dashboard-detail-day>@selected.DayLabel</strong>@if (isAdmin) { <a data-dashboard-detail-link asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="custom" asp-route-from="@selected.Date.ToString("yyyy-MM-dd")" asp-route-to="@selected.Date.ToString("yyyy-MM-dd")">Ver movimientos del día</a> }</header><dl><div><dt>Operaciones</dt><dd data-dashboard-detail-total>@selected.TotalEffectiveOperations</dd></div><div><dt>Entradas</dt><dd data-dashboard-detail-entry>@selected.EntryCount</dd></div><div><dt>Salidas</dt><dd data-dashboard-detail-exit>@selected.ExitCount</dd></div><div><dt>Transferencias</dt><dd data-dashboard-detail-transfer>@selected.TransferCount</dd></div><div><dt>Ajustes</dt><dd data-dashboard-detail-adjustment>@selected.AdjustmentCount</dd></div><div><dt>SKUs distintos</dt><dd data-dashboard-detail-skus>@selected.DistinctSkusCount</dd></div></dl></article>
+        <div class="dashboard-period-summary dashboard-warehouse-summary" aria-live="polite" data-dashboard-summary>
+            <div><span>@CatTexts["Operaciones del período"]</span><strong data-dashboard-total>@totalOperations.ToString("N0")</strong></div>
+            <div><span>@CatTexts["Día de mayor actividad"]</span><strong data-dashboard-busiest>@(totalOperations == 0 ? CatTexts["Sin actividad en el período"].Value : $"{busiest.DayLabel} · {busiest.TotalEffectiveOperations:N0}")</strong></div>
+        </div>
+        <div class="dashboard-legend dashboard-warehouse-legend" aria-label="@CatTexts["Tipos de movimiento"]"><span><i class="is-entry"></i>@CatTexts["Entradas"]</span><span><i class="is-exit"></i>@CatTexts["Salidas"]</span><span><i class="is-transfer"></i>@CatTexts["Transferencias"]</span><span><i class="is-adjustment"></i>@CatTexts["Ajustes"]</span></div>
+        <div class="dashboard-chartjs-shell" data-dashboard-chart-shell>
+            <canvas data-dashboard-chart data-points="@chartPoints" tabindex="0" aria-label="@CatTexts["Gráfica apilada de operaciones efectivas por día"]" aria-describedby="dashboard-chart-detail"></canvas>
+            <div class="dashboard-chart-fallback" data-dashboard-fallback>
+                <p class="mb-2 text-body-secondary">@CatTexts["Resumen de 14 días disponible sin JavaScript."]</p>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>@CatTexts["Fecha"]</th><th>@CatTexts["Operaciones"]</th><th>@CatTexts["Entradas"]</th><th>@CatTexts["Salidas"]</th><th>@CatTexts["Transferencias"]</th><th>@CatTexts["Ajustes"]</th><th>SKUs</th></tr></thead><tbody>@foreach (var point in points) { <tr><th scope="row">@point.DayLabel</th><td>@point.TotalEffectiveOperations</td><td>@point.EntryCount</td><td>@point.ExitCount</td><td>@point.TransferCount</td><td>@point.AdjustmentCount</td><td>@point.DistinctSkusCount</td></tr> }</tbody></table></div>
+            </div>
+        </div>
+        <article id="dashboard-chart-detail" class="dashboard-chart-detail" aria-live="polite" data-dashboard-detail>
+            <header><span>@CatTexts["Detalle del día"]</span><strong data-dashboard-detail-day>@selected.DayLabel</strong>@if (isAdmin) { <a data-dashboard-detail-link asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="custom" asp-route-from="@selected.Date.ToString("yyyy-MM-dd")" asp-route-to="@selected.Date.ToString("yyyy-MM-dd")">@CatTexts["Ver movimientos del día"]</a> }</header>
+            <p class="dashboard-detail-empty" data-dashboard-detail-empty hidden="@(selected.TotalEffectiveOperations > 0 ? "hidden" : null)">@CatTexts["Sin actividad registrada"]</p>
+            <dl><div><dt>@CatTexts["Operaciones"]</dt><dd data-dashboard-detail-total>@selected.TotalEffectiveOperations</dd></div><div><dt>@CatTexts["Entradas"]</dt><dd data-dashboard-detail-entry>@selected.EntryCount</dd></div><div><dt>@CatTexts["Salidas"]</dt><dd data-dashboard-detail-exit>@selected.ExitCount</dd></div><div><dt>@CatTexts["Transferencias"]</dt><dd data-dashboard-detail-transfer>@selected.TransferCount</dd></div><div><dt>@CatTexts["Ajustes"]</dt><dd data-dashboard-detail-adjustment>@selected.AdjustmentCount</dd></div><div><dt>@CatTexts["SKUs distintos"]</dt><dd data-dashboard-detail-skus>@selected.DistinctSkusCount</dd></div></dl>
+        </article>
     </section>
 </div>
 

@@ -1,85 +1,137 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @using WarehouseEPI.Core.Entities
 @model WarehouseEPI.Web.Pages.Operations.CycleCounts.DetailsModel
 @{
-    ViewData["Title"] = "Campaña de conteo";
+    ViewData["Title"] = OpTexts["Campaña de conteo"].Value;
     var campaign = Model.Campaign!;
     var completed = campaign.Locations.Count(item => item.Status == CycleCountLocationStatus.Completed);
     var reviewing = campaign.Locations.Count(item => item.Status is CycleCountLocationStatus.UnderReview or CycleCountLocationStatus.Stale);
     var counting = campaign.Locations.Count(item => item.Status is CycleCountLocationStatus.Counting or CycleCountLocationStatus.RecountRequested);
     var progress = campaign.Locations.Count == 0 ? 0 : (int)Math.Round(completed * 100d / campaign.Locations.Count);
     var canStart = campaign.Status is CycleCountCampaignStatus.Released or CycleCountCampaignStatus.InProgress or CycleCountCampaignStatus.UnderReview;
+    var canCapture = canStart && Model.OperatorSession is not null;
     var rowGroups = campaign.Locations.GroupBy(item => item.RowCode ?? "Áreas").OrderBy(group => group.Key == "Áreas").ThenBy(group => group.Key).ToArray();
+    var submittedLocationId = Request.Query["submittedLocationId"].ToString();
+    var scanNext = Request.Query.ContainsKey("scanNext");
+    string FilterStatus(CycleCountLocationStatus status) => status switch
+    {
+        CycleCountLocationStatus.Counting => "counting",
+        CycleCountLocationStatus.UnderReview => "review",
+        CycleCountLocationStatus.Completed => "completed",
+        CycleCountLocationStatus.Cancelled => "cancelled",
+        _ => "pending"
+    };
 }
 
-<div class="inventory-analytics cycle-count-workspace">
+<div class="inventory-analytics cycle-count-workspace" data-cycle-campaign-detail data-cycle-campaign="@campaign.Id" data-cycle-submitted-location="@submittedLocationId" data-cycle-scan-next="@scanNext.ToString().ToLowerInvariant()">
     <header class="inventory-page-header cycle-detail-header">
-        <div><a asp-page="Index" class="small text-decoration-none">← Conteos cíclicos</a><span class="eyebrow mt-2">@campaign.Folio</span><h1 class="h2 mb-1">@(campaign.Title ?? "Campaña sin título")</h1><p class="text-muted mb-0">Creada por @campaign.CreatedByName · varios operadores pueden contar ubicaciones diferentes.</p></div>
-        <div class="cycle-detail-header-actions"><span class="badge @CycleCountPresentation.CampaignStatusClass(campaign.Status)">@CycleCountPresentation.CampaignStatusLabel(campaign.Status)</span><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="xlsx" class="btn btn-outline-success">Excel</a><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="csv" class="btn btn-outline-secondary">CSV</a></div>
+        <div><a asp-page="Index" class="small text-decoration-none">@OpTexts["← Conteos cíclicos"]</a><span class="eyebrow mt-2">@campaign.Folio</span><h1 class="h2 mb-1">@(campaign.Title ?? OpTexts["Campaña sin título"].Value)</h1><p class="text-muted mb-0">@OpTexts["Creada por {0} · varios operadores pueden contar ubicaciones diferentes.", campaign.CreatedByName]</p></div>
+        <div class="cycle-detail-header-actions"><span class="badge @CycleCountPresentation.CampaignStatusClass(campaign.Status)">@OpTexts[CycleCountPresentation.CampaignStatusLabel(campaign.Status)]</span><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="xlsx" class="btn btn-outline-success">@OpTexts["Excel"]</a><a asp-page="Export" asp-route-id="@campaign.Id" asp-route-format="csv" class="btn btn-outline-secondary">@OpTexts["CSV"]</a></div>
     </header>
 
     @if (Model.Error is not null) { <div class="alert alert-danger" role="alert">@Model.Error</div> }
 
-    <section class="cycle-detail-overview" aria-label="Resumen de campaña">
-        <article><span>Progreso</span><strong>@completed / @campaign.Locations.Count</strong><div class="progress" role="progressbar" aria-label="Progreso de la campaña" aria-valuenow="@progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:@progress%"></div></div></article>
-        <article><span>En conteo</span><strong>@counting</strong><small>Ubicaciones iniciadas o en reconteo</small></article>
-        <article class="@(reviewing > 0 ? "has-attention" : null)"><span>Requieren atención</span><strong>@reviewing</strong><small>Diferencias o saldo modificado</small></article>
+    <section class="cycle-detail-overview" aria-label="@OpTexts["Resumen de campaña"]">
+        <article><span>@OpTexts["Progreso"]</span><strong>@completed / @campaign.Locations.Count</strong><div class="progress" role="progressbar" aria-label="@OpTexts["Progreso de la campaña"]" aria-valuenow="@progress" aria-valuemin="0" aria-valuemax="100"><div class="progress-bar" style="width:@progress%"></div></div></article>
+        <article><span>@OpTexts["En conteo"]</span><strong>@counting</strong><small>@OpTexts["Ubicaciones iniciadas o en reconteo"]</small></article>
+        <article class="@(reviewing > 0 ? "has-attention" : null)"><span>@OpTexts["Requieren atención"]</span><strong>@reviewing</strong><small>@OpTexts["Diferencias o saldo modificado"]</small></article>
     </section>
+
+    @if (canStart)
+    {
+        <section class="analytics-filter-card cycle-operator-session" aria-labelledby="cycle-operator-title">
+            @if (Model.OperatorSession is null)
+            {
+                <div><span class="eyebrow">@OpTexts["Sesión de conteo"]</span><h2 id="cycle-operator-title" class="h5 mb-1">@OpTexts["Identifícate para contar"]</h2><p class="text-muted mb-0">@OpTexts["Ingresa tu NIP una vez. La sesión vence después de 30 minutos sin actividad."]</p></div>
+                <form method="post" asp-page-handler="StartOperatorSession" class="cycle-inline-action">
+                    <input type="hidden" name="id" value="@campaign.Id" />
+                    <label class="visually-hidden" for="operator-pin">@OpTexts["NIP del contador"]</label>
+                    <input id="operator-pin" name="OperatorPin" value="" type="password" class="form-control" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8" autocomplete="off" placeholder="@OpTexts["NIP del contador"]" required />
+                    <button class="btn btn-primary">@OpTexts["Comenzar a contar"]</button>
+                </form>
+            }
+            else
+            {
+                <div><span class="eyebrow">@OpTexts["Sesión de conteo activa"]</span><h2 id="cycle-operator-title" class="h5 mb-1">@OpTexts["Contando como {0}", Model.OperatorSession.UserName]</h2><p class="text-muted mb-0">@OpTexts["Quedan cerca de"] <strong data-cycle-session-remaining data-cycle-session-expires="@Model.OperatorSession.IdleExpiresAt.ToString("O")">@OpTexts["30 minutos"]</strong>@OpTexts["; el tiempo se renueva al continuar."]</p></div>
+                <form method="post" asp-page-handler="EndOperatorSession">
+                    <input type="hidden" name="id" value="@campaign.Id" />
+                    <button class="btn btn-outline-secondary">@OpTexts["Cambiar operador"]</button>
+                </form>
+            }
+        </section>
+    }
 
     @if (campaign.Status == CycleCountCampaignStatus.Draft)
     {
         <section class="analytics-filter-card cycle-primary-panel" aria-labelledby="release-campaign-title">
-            <div><span class="eyebrow">Siguiente paso</span><h2 id="release-campaign-title" class="h5 mb-1">Liberar para comenzar</h2><p class="text-muted mb-0">Después de liberar, los operadores podrán iniciar ubicaciones usando su propio NIP.</p></div>
-            <form method="post" asp-page-handler="Release" class="cycle-inline-action"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="release-pin">NIP para liberar campaña</label><input id="release-pin" type="password" name="Pin" required class="form-control" placeholder="NIP" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><button class="btn btn-primary">Liberar campaña</button></form>
+            <div><span class="eyebrow">@OpTexts["Siguiente paso"]</span><h2 id="release-campaign-title" class="h5 mb-1">@OpTexts["Liberar para comenzar"]</h2><p class="text-muted mb-0">@OpTexts["Después de liberar, cada ubicación se abre sin NIP; el operador confirma al enviar su conteo."]</p></div>
+            <form method="post" asp-page-handler="Release" class="cycle-inline-action"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="release-pin">@OpTexts["NIP para liberar campaña"]</label><input id="release-pin" type="password" name="Pin" required class="form-control" placeholder="@OpTexts["NIP"]" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><button class="btn btn-primary">@OpTexts["Liberar campaña"]</button></form>
         </section>
     }
     else if (campaign.Status == CycleCountCampaignStatus.Completed)
     {
-        <div class="alert alert-success mb-0"><strong>Campaña completada.</strong> Todas las ubicaciones quedaron conciliadas o autorizadas.</div>
+        <div class="alert alert-success mb-0"><strong>@OpTexts["Campaña completada."]</strong> @OpTexts["Todas las ubicaciones quedaron conciliadas o autorizadas."]</div>
     }
     else if (campaign.Status == CycleCountCampaignStatus.Cancelled)
     {
-        <div class="alert alert-secondary mb-0"><strong>Campaña cancelada.</strong> Se conserva para consulta y auditoría.</div>
+        <div class="alert alert-secondary mb-0"><strong>@OpTexts["Campaña cancelada."]</strong> @OpTexts["Se conserva para consulta y auditoría."]</div>
     }
 
     <section aria-labelledby="cycle-location-work-title">
-        <div class="cycle-section-heading cycle-location-heading"><div><span class="eyebrow">Trabajo por ubicación</span><h2 id="cycle-location-work-title" class="h4 mb-1">Ubicaciones de la campaña</h2><p class="text-muted mb-0">Abre una fila y continúa con la ubicación que te corresponde.</p></div><span class="cycle-location-total">@campaign.Locations.Count ubicaciones</span></div>
+        <div class="cycle-section-heading cycle-location-heading"><div><span class="eyebrow">@OpTexts["Trabajo por ubicación"]</span><h2 id="cycle-location-work-title" class="h4 mb-1">@OpTexts["Ubicaciones de la campaña"]</h2><p class="text-muted mb-0">@OpTexts["Abre una fila y continúa con la ubicación que te corresponde."]</p></div><span class="cycle-location-total">@campaign.Locations.Count ubicaciones</span></div>
+
+        <div class="cycle-location-filters d-none" data-cycle-filters role="group" aria-label="@OpTexts["Filtrar ubicaciones"]">
+            <button type="button" class="btn btn-sm btn-primary" data-cycle-filter="all" aria-pressed="true">@OpTexts["Todas"] <span>@campaign.Locations.Count</span></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-cycle-filter="pending" aria-pressed="false">@OpTexts["Pendientes"] <span>@campaign.Locations.Count(item => FilterStatus(item.Status) == "pending")</span></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-cycle-filter="counting" aria-pressed="false">@OpTexts["En captura"] <span>@campaign.Locations.Count(item => FilterStatus(item.Status) == "counting")</span></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-cycle-filter="review" aria-pressed="false">@OpTexts["Por revisar"] <span>@campaign.Locations.Count(item => FilterStatus(item.Status) == "review")</span></button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-cycle-filter="completed" aria-pressed="false">@OpTexts["Completadas"] <span>@campaign.Locations.Count(item => FilterStatus(item.Status) == "completed")</span></button>
+        </div>
+        <p class="alert alert-secondary d-none" data-cycle-filter-empty role="status">@OpTexts["No hay ubicaciones con este estado."]</p>
 
         <div class="cycle-detail-groups">
             @foreach (var row in rowGroups)
             {
-                <details class="cycle-detail-row" open="@(rowGroups.Length == 1)">
-                    <summary><span><strong>@(row.Key == "Áreas" ? "Áreas de almacenamiento" : $"Fila {row.Key}")</strong><small>@row.Count() ubicaciones</small></span><span>@row.Count(item => item.Status == CycleCountLocationStatus.Completed) completadas</span></summary>
+                <details class="cycle-detail-row" open="@(rowGroups.Length == 1)" data-cycle-row>
+                    <summary><span><strong>@(row.Key == "Áreas" ? OpTexts["Áreas de almacenamiento"].Value : OpTexts["Fila {0}", row.Key].Value)</strong><small>@row.Count() ubicaciones</small></span><span>@row.Count(item => item.Status == CycleCountLocationStatus.Completed) @OpTexts["completadas (variante)"]</span></summary>
                     <div class="cycle-detail-row-body">
                         @foreach (var rack in row.GroupBy(item => item.RackNumber).OrderBy(group => group.Key is null).ThenBy(group => group.Key))
                         {
-                            <section class="cycle-detail-rack" aria-label="@(rack.Key is null ? "Áreas" : $"Rack {row.Key}-{rack.Key}")">
-                                <header><h3 class="h6 mb-0">@(rack.Key is null ? "Ubicaciones especiales" : $"Rack {row.Key}-{rack.Key}")</h3><span>@rack.Count(item => item.Status == CycleCountLocationStatus.Completed) / @rack.Count()</span></header>
+                            var nextLocation = rack.FirstOrDefault(item => canCapture && item.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale);
+                            <section class="cycle-detail-rack" data-cycle-rack aria-label="@(rack.Key is null ? "Áreas" : $"Rack {row.Key}-{rack.Key}")">
+                                <header><h3 class="h6 mb-0">@(rack.Key is null ? OpTexts["Ubicaciones especiales"].Value : $"Rack {row.Key}-{rack.Key}")</h3><div><span>@rack.Count(item => item.Status == CycleCountLocationStatus.Completed) / @rack.Count()</span>@if (nextLocation is not null) { <a asp-page="Count" asp-route-id="@campaign.Id" asp-route-locationId="@nextLocation.Id" class="btn btn-sm btn-outline-primary" data-cycle-next-link>@OpTexts["Ir a la siguiente pendiente"]</a> }</div></header>
                                 <div class="cycle-location-cards">
                                     @foreach (var location in rack)
                                     {
-                                        <article class="cycle-location-card">
-                                            <div class="cycle-location-card-main"><div><strong>@location.LocationCode</strong><small>@(location.LocationDescription ?? "Sin descripción")</small></div><span class="badge @CycleCountPresentation.LocationStatusClass(location.Status)">@CycleCountPresentation.LocationStatusLabel(location.Status)</span></div>
-                                            <dl><div><dt>Intentos</dt><dd>@location.AttemptCount</dd></div><div><dt>Resultado</dt><dd>@if (location.AdjustmentMovementId is Guid movementId) { <a asp-page="/Operations/Receipt" asp-route-id="@movementId">Ajuste aplicado</a> } else if (location.Status == CycleCountLocationStatus.Completed) { <span>Conciliada</span> } else { <span>Pendiente</span> }</dd></div></dl>
+                                        <article class="cycle-location-card" data-cycle-location-card data-cycle-filter-status="@FilterStatus(location.Status)" data-cycle-location="@location.Id">
+                                            <div class="cycle-location-card-main"><div><strong>@location.LocationCode</strong><small>@(location.LocationDescription ?? OpTexts["Sin descripción"].Value)</small></div><span class="badge @CycleCountPresentation.LocationStatusClass(location.Status)">@OpTexts[CycleCountPresentation.LocationStatusLabel(location.Status)]</span></div>
+                                            @if (location.AttemptCount == 0 && location.Status == CycleCountLocationStatus.Pending)
+                                            {
+                                                <p class="cycle-location-summary">@OpTexts["Sin intentos registrados."]</p>
+                                            }
+                                            else
+                                            {
+                                                <dl><div><dt>@OpTexts["Intentos"]</dt><dd>@location.AttemptCount</dd></div><div><dt>@OpTexts["Resultado"]</dt><dd>@if (location.AdjustmentMovementId is Guid movementId) { <a asp-page="/Operations/Receipt" asp-route-id="@movementId">@OpTexts["Ajuste aplicado"]</a> } else if (location.Status == CycleCountLocationStatus.Completed) { <span>@OpTexts["Conciliada"]</span> } else { <span>@OpTexts[CycleCountPresentation.LocationStatusLabel(location.Status)]</span> }</dd></div></dl>
+                                            }
                                             <div class="cycle-location-card-action">
                                                 @if (location.Status == CycleCountLocationStatus.UnderReview)
                                                 {
-                                                    <a asp-page="Review" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" class="btn btn-warning w-100">Revisar diferencia</a>
+                                                    <a asp-page="Review" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" class="btn btn-warning w-100">@OpTexts["Ver diferencia"]</a>
                                                 }
-                                                else if (canStart && location.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)
+                                                else if (canCapture && location.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.RecountRequested or CycleCountLocationStatus.Stale)
                                                 {
-                                                    var pinId = $"start-pin-{location.Id:N}";
-                                                    <form method="post" asp-page-handler="Start"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="locationId" value="@location.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="@pinId">NIP para iniciar @location.LocationCode</label><input id="@pinId" type="password" name="Pin" required class="form-control" placeholder="NIP" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><button class="btn btn-outline-primary">Iniciar conteo</button></form>
+                                                    <a asp-page="Count" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" class="btn btn-outline-primary w-100" data-cycle-count-link>@OpTexts["Contar ubicación"]</a>
                                                 }
                                                 else if (location.Status == CycleCountLocationStatus.Counting)
                                                 {
                                                     @if (location.ActiveAttemptId is Guid attemptId)
                                                     {
-                                                        <a asp-page="Count" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" asp-route-attemptId="@attemptId" class="btn btn-primary w-100">Continuar conteo</a>
+                                                        <a asp-page="Count" asp-route-id="@campaign.Id" asp-route-locationId="@location.Id" asp-route-attemptId="@attemptId" class="btn btn-primary w-100" data-cycle-count-link>@OpTexts["Continuar conteo"]</a>
                                                     }
                                                     else
                                                     {
-                                                        <span class="cycle-location-note">El intento abierto no está disponible. Actualiza la página.</span>
+                                                        <span class="cycle-location-note">@OpTexts["El intento abierto no está disponible. Actualiza la página."]</span>
                                                     }
                                                 }
                                             </div>
@@ -96,19 +148,23 @@
 
     @if (reviewing > 0 && !campaign.Locations.Any(item => item.Status is CycleCountLocationStatus.Pending or CycleCountLocationStatus.Counting or CycleCountLocationStatus.RecountRequested))
     {
-        <section class="analytics-filter-card cycle-primary-panel"><div><span class="eyebrow">Cierre</span><h2 class="h5 mb-1">Revisión final disponible</h2><p class="text-muted mb-0">Autoriza todas las diferencias vigentes con un solo NIP.</p></div><a asp-page="BatchReview" asp-route-id="@campaign.Id" class="btn btn-primary">Revisar diferencias</a></section>
+        <section class="analytics-filter-card cycle-primary-panel"><div><span class="eyebrow">@OpTexts["Cierre"]</span><h2 class="h5 mb-1">@OpTexts["Revisión final disponible"]</h2><p class="text-muted mb-0">@OpTexts["Autoriza todas las diferencias vigentes con un solo NIP."]</p></div><a asp-page="BatchReview" asp-route-id="@campaign.Id" class="btn btn-primary">@OpTexts["Revisar diferencias"]</a></section>
     }
 
-    @if (canStart)
+    @if (canCapture)
     {
-        <form method="post" asp-page-handler="ScanLocation" class="cycle-location-scan" data-cycle-location-scan><input type="hidden" name="id" value="@campaign.Id"/><label class="visually-hidden" for="cycle-location-code">Ubicación escaneada</label><input id="cycle-location-code" name="ScannedLocationCode" class="visually-hidden" data-cycle-location-code autocomplete="off"/><button type="button" class="cycle-scan-fab" data-cycle-scan-location aria-label="Escanear ubicación"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg><span>Escanear ubicación</span></button></form>
+        <form method="post" asp-page-handler="ScanLocation" class="analytics-filter-card cycle-location-entry" data-cycle-location-scan>
+            <input type="hidden" name="id" value="@campaign.Id" />
+            <div><label class="form-label fw-semibold" for="cycle-location-code">@OpTexts["Escanea o escribe la siguiente ubicación"]</label><p class="text-muted small mb-0">@OpTexts["El lector HID puede escribir el código y enviar con Enter."]</p></div>
+            <div class="input-group input-group-lg"><input id="cycle-location-code" name="ScannedLocationCode" class="form-control" data-cycle-location-code autocomplete="off" autocapitalize="characters" placeholder="@OpTexts["Ej. A-1-8"]" required /><button type="button" class="btn btn-outline-primary" data-cycle-scan-location aria-label="@OpTexts["Abrir cámara para escanear ubicación"]"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg><span class="d-none d-sm-inline"> @OpTexts["Cámara"]</span></button></div>
+        </form>
         <partial name="_CameraScanner" />
     }
     @if (campaign.Status is not (CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled))
     {
         <details class="cycle-danger-zone">
-            <summary>Cancelar campaña</summary>
-            <div><p>La cancelación conserva la campaña y su auditoría, pero impide iniciar nuevos conteos.</p><form method="post" asp-page-handler="Cancel" class="cycle-inline-action"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="cancel-pin">NIP para cancelar campaña</label><input id="cancel-pin" type="password" name="Pin" required class="form-control" placeholder="NIP" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><label class="visually-hidden" for="cancel-notes">Motivo de cancelación</label><input id="cancel-notes" type="text" name="Notes" class="form-control" maxlength="500" placeholder="Motivo de cancelación" /><button class="btn btn-outline-danger">Cancelar campaña</button></form></div>
+            <summary>@OpTexts["Cancelar campaña"]</summary>
+            <div><p>@OpTexts["La cancelación conserva la campaña y su auditoría, pero impide iniciar nuevos conteos."]</p><form method="post" asp-page-handler="Cancel" class="cycle-inline-action"><input type="hidden" name="id" value="@campaign.Id" /><input type="hidden" name="operationId" value="@Guid.NewGuid()" /><label class="visually-hidden" for="cancel-pin">@OpTexts["NIP para cancelar campaña"]</label><input id="cancel-pin" type="password" name="Pin" required class="form-control" placeholder="@OpTexts["NIP"]" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" /><label class="visually-hidden" for="cancel-notes">@OpTexts["Motivo de cancelación"]</label><input id="cancel-notes" type="text" name="Notes" class="form-control" maxlength="500" placeholder="@OpTexts["Motivo de cancelación"]" /><button class="btn btn-outline-danger">@OpTexts["Cancelar campaña"]</button></form></div>
         </details>
     }
 </div>

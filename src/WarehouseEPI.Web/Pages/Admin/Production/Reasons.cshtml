@@ -1,0 +1,22 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Production.ReasonsModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@using WarehouseEPI.Core.Entities
+@{ ViewData["Title"] = ProdTexts["Motivos de producción"].Value; }
+<div class="container py-3"><h1 class="h3">@ProdTexts["Motivos de producción"]</h1>
+    @if(TempData["Success"] is string success) { <p class="alert alert-success" role="status">@success</p> }
+    <div asp-validation-summary="All" class="text-danger" role="alert"></div>
+    <div class="row g-3 mb-4">@foreach(var reason in Model.Reasons) {
+        <div class="col-md-6"><article class="card"><div class="card-body"><strong>@ProdTexts[WarehouseEPI.Web.Pages.Admin.Production.ReasonsModel.Label(reason.Category)] · @reason.Code</strong><p>@reason.Description · @(reason.IsActive ? ProdTexts["Activo"].Value : ProdTexts["Inactivo"].Value)</p><a asp-route-id="@reason.Id" class="btn btn-outline-primary">@ProdTexts["Editar motivo"]</a></div></article></div>
+    }</div>
+    <form method="post" class="card"><div class="card-body row g-3">
+        <input asp-for="OperationId" type="hidden"/><input asp-for="ReasonId" type="hidden"/><input asp-for="Version" type="hidden"/>
+        <div class="col-md-4"><label asp-for="Category" class="form-label">@ProdTexts["Categoría"]</label><select asp-for="Category" class="form-select">@foreach(var category in Enum.GetValues<ProductionReasonCategory>()) { <option value="@category">@ProdTexts[WarehouseEPI.Web.Pages.Admin.Production.ReasonsModel.Label(category)]</option> }</select></div>
+        <div class="col-md-4"><label asp-for="Code" class="form-label">@ProdTexts["Código"]</label><input asp-for="Code" class="form-control" maxlength="40" required/></div>
+        <div class="col-md-4"><label asp-for="Description" class="form-label">@ProdTexts["Descripción"]</label><input asp-for="Description" class="form-control" maxlength="160" required/></div>
+        <div class="col-md-4"><label><input asp-for="IsActive" class="form-check-input"/> @ProdTexts["Activo"]</label></div>
+        <div class="col-md-4"><label><input asp-for="RequiresComment" class="form-check-input"/> @ProdTexts["Exige comentario"]</label></div>
+        <div class="col-md-4"><label asp-for="Pin" class="form-label">@ProdTexts["NIP ADMIN"]</label><input asp-for="Pin" value="" type="password" autocomplete="off" inputmode="numeric" class="form-control" required/></div>
+        <div class="col-12"><button class="btn btn-primary btn-lg">@ProdTexts["Guardar motivo"]</button> <a asp-page="Reasons" class="btn btn-outline-secondary">@ProdTexts["Nuevo motivo"]</a></div>
+    </div></form>
+</div>

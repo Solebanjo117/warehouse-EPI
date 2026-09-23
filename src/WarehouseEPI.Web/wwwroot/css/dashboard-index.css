@@ -93,3 +93,180 @@
 }
 
 .daily-dashboard .dashboard-legend span { white-space: nowrap; }
+
+/* Actividad del almacén: una sola superficie y jerarquía tipográfica. */
+.daily-dashboard .dashboard-warehouse-activity {
+    padding: 1.5rem;
+    border-radius: 1rem;
+}
+
+.dashboard-warehouse-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem 1.5rem;
+}
+
+.dashboard-activity-period {
+    color: var(--bs-body-color);
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+.dashboard-warehouse-heading .text-muted { margin-top: .15rem; font-size: .82rem; }
+
+.daily-dashboard .dashboard-warehouse-summary {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 1.4rem 0 1rem;
+}
+
+.daily-dashboard .dashboard-warehouse-summary > div:not(.dashboard-range-control) {
+    display: flex;
+    min-width: 0;
+    flex: 0 1 auto;
+    flex-direction: column;
+    justify-content: center;
+    gap: .3rem;
+    overflow: visible;
+    padding: 0 2rem 0 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.daily-dashboard .dashboard-warehouse-summary > div:not(.dashboard-range-control)::before { content: none; }
+
+.daily-dashboard .dashboard-warehouse-summary > div + div:not(.dashboard-range-control) {
+    padding-right: 0;
+    padding-left: 2rem;
+    border-left: 1px solid var(--bs-border-color);
+}
+
+.daily-dashboard .dashboard-warehouse-summary span {
+    font-size: .7rem;
+    letter-spacing: .06em;
+}
+
+.daily-dashboard .dashboard-warehouse-summary [data-dashboard-total] {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.daily-dashboard .dashboard-warehouse-summary [data-dashboard-busiest] {
+    font-size: 1.5rem;
+    line-height: 1.15;
+}
+
+.dashboard-warehouse-heading .dashboard-range-control { align-self: flex-start; }
+
+.dashboard-warehouse-heading .dashboard-range-control button {
+    min-width: 4.75rem;
+    min-height: 2.75rem;
+}
+
+.daily-dashboard .dashboard-warehouse-legend {
+    justify-content: flex-start;
+    margin-bottom: .35rem;
+    padding-top: .85rem;
+    border-top: 1px solid var(--bs-border-color);
+}
+
+.daily-dashboard .dashboard-warehouse-activity .dashboard-chartjs-shell {
+    min-height: 20rem;
+    padding: .5rem 0 0;
+    border: 0;
+    border-radius: 0;
+}
+
+.daily-dashboard .dashboard-warehouse-activity .dashboard-chartjs-shell canvas { height: 20rem !important; }
+
+.daily-dashboard .dashboard-warehouse-activity .dashboard-chart-detail {
+    margin-top: .75rem;
+    padding: 1rem 0 0;
+    border: 0;
+    border-top: 1px solid var(--bs-border-color);
+    border-radius: 0;
+    background: transparent;
+}
+
+.dashboard-detail-empty {
+    margin: .65rem 0 0;
+    color: var(--bs-secondary-color);
+    font-size: .9rem;
+    font-weight: 600;
+}
+
+/* El tooltip mantiene contraste alto en los tres temas. */
+.daily-dashboard,
+[data-bs-theme="dark"] .daily-dashboard {
+    --dashboard-chart-grid: rgba(108, 117, 125, .12);
+    --dashboard-chart-tooltip: #161b22;
+    --dashboard-chart-tooltip-border: rgba(255, 255, 255, .16);
+    --dashboard-chart-tooltip-text: #f8f9fa;
+}
+
+@media (max-width: 767.98px) {
+    .daily-dashboard .dashboard-warehouse-activity { padding: 1rem; }
+
+    .dashboard-warehouse-heading { flex-direction: column; }
+
+    .dashboard-warehouse-heading .dashboard-range-control {
+        align-self: stretch;
+        justify-content: stretch;
+    }
+
+    .dashboard-warehouse-heading .dashboard-range-control button { flex: 1; }
+
+    .daily-dashboard .dashboard-warehouse-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1rem;
+    }
+
+    .daily-dashboard .dashboard-warehouse-summary > div:not(.dashboard-range-control),
+    .daily-dashboard .dashboard-warehouse-summary > div + div:not(.dashboard-range-control) {
+        padding: 0;
+        border-left: 0;
+    }
+
+    .daily-dashboard .dashboard-warehouse-summary > div + div:not(.dashboard-range-control) {
+        padding-top: 1rem;
+        border-top: 1px solid var(--bs-border-color);
+    }
+
+    .daily-dashboard .dashboard-warehouse-activity .dashboard-chartjs-shell {
+        min-height: 17rem;
+    }
+
+    .daily-dashboard .dashboard-warehouse-activity .dashboard-chartjs-shell canvas { height: 17rem !important; }
+
+    .daily-dashboard .dashboard-warehouse-activity .dashboard-chart-detail dl {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Report hierarchy, scoped to the daily dashboard. */
+@media screen {
+ .daily-dashboard .dashboard-header { border-bottom: 1px solid var(--bs-border-color); padding-bottom: 1rem; }
+ .daily-dashboard :is(.dashboard-tier,.dashboard-activity,.dashboard-metrics article,.dashboard-chart-detail) { border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); box-shadow: none; }
+ .daily-dashboard .dashboard-metric-icon { display: none; }
+ .daily-dashboard .dashboard-metrics article { padding: 1rem; }
+ .daily-dashboard :is(.dashboard-metrics strong,.dashboard-chart-detail dd) { font-variant-numeric: tabular-nums; }
+ .daily-dashboard :is(.btn,.dashboard-range-control button) { min-height: 44px; }
+ .daily-dashboard :is(a,button,canvas):focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+ .daily-dashboard .dashboard-warehouse-activity { display: grid; grid-template-columns: minmax(0,1fr); gap: 1rem; }
+ .daily-dashboard .dashboard-warehouse-activity > * { min-width: 0; }
+ .daily-dashboard .dashboard-chart-detail { padding: 1rem; margin: 0; }
+ .daily-dashboard .dashboard-chart-detail dl { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .daily-dashboard :is(strong,small,p) { overflow-wrap: anywhere; }
+ .daily-dashboard .dashboard-legend { flex-wrap: wrap; gap: .75rem; }
+ .daily-dashboard .dashboard-metrics { grid-template-columns: minmax(0,1fr); }
+}
+@media screen and (min-width: 768px) {
+ .daily-dashboard .dashboard-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media screen and (min-width: 992px) {
+ .daily-dashboard .dashboard-warehouse-activity { grid-template-columns: minmax(0,2fr) minmax(15rem,1fr); }
+ .daily-dashboard .dashboard-warehouse-activity > :is(.dashboard-warehouse-heading,.dashboard-warehouse-summary,.dashboard-warehouse-legend) { grid-column: 1 / -1; }
+}

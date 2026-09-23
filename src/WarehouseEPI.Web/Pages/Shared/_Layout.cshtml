@@ -1,15 +1,23 @@
 @using WarehouseEPI.Infrastructure.Settings
 @inject WarehouseSettingsService WarehouseSettings
 @{
+    var clientTextKeys = new[] { "Ubicación {0}", "Confirmando…", "No hay valor para copiar.", "Identificador completo copiado.", "No fue posible copiar el identificador.", "Crítica", "Advertencia", "Información", "Revisar alerta", "{0} categoría(s) de alerta aumentaron.", "Actualizado {0} · {1} condición(es)", "Datos desactualizados · vuelve a intentar", "{0}, {1} órdenes pendientes de surtimiento", "Surtimientos a producción" };
+    var clientTextValues = clientTextKeys.ToDictionary(key => key, key => SharedTexts[key].Value);
+    foreach (var entry in ClientTexts.GetAllStrings(includeParentCultures: true))
+    {
+        clientTextValues[entry.Name] = entry.Value;
+    }
+    var clientTexts = System.Text.Json.JsonSerializer.Serialize(clientTextValues);
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
     var isAdmin = User.IsInRole("ADMIN");
     var business = await WarehouseSettings.GetAsync();
     var logoUrl = business.LogoFileName is null ? null : $"/branding/logo?v={business.LogoHash}";
-    bool IsCurrent(string page) => currentPage.Equals(page, StringComparison.OrdinalIgnoreCase);
-    bool IsSection(string page) => currentPage.StartsWith(page, StringComparison.OrdinalIgnoreCase);
+    var modules = WarehouseEPI.Web.Navigation.ModuleNavigation.GetVisible(isAdmin);
+    var activeModule = WarehouseEPI.Web.Navigation.ModuleNavigation.Active(
+        currentPage, ViewContext.RouteData.Values["module"]?.ToString(), isAdmin);
 }
 <!DOCTYPE html>
-<html lang="es">
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -20,7 +28,7 @@
     <link rel="stylesheet" href="~/css/navigation.css" asp-append-version="true" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
-<body class="app-body">
+<body class="app-body" data-ui-texts="@clientTexts">
     <svg class="app-icon-sprite" aria-hidden="true">
         <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></symbol>
         <symbol id="icon-entry" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16" /></symbol>
@@ -43,178 +51,80 @@
         <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
         <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7" /></symbol>
         <symbol id="icon-logout" viewBox="0 0 24 24"><path d="M10 4H5v16h5m3-4 4-4-4-4m4 4H9" /></symbol>
+        <symbol id="icon-camera" viewBox="0 0 24 24"><path d="M4 8h3.2l1.6-2.5h6.4L16.8 8H20v11H4zm8 9a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8" /></symbol>
         <symbol id="icon-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M9 21h6" /></symbol>
-        <symbol id="icon-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" /><circle cx="12" cy="13.5" r="3.5" /></symbol>
         <symbol id="icon-lock" viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3M5.5 11h13a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z" /></symbol>
     </svg>
 
     <header class="app-topbar">
         <button class="app-menu-button" type="button" data-nav-toggle aria-controls="app-sidebar" aria-expanded="false">
             <svg class="app-icon" aria-hidden="true"><use href="#icon-menu" /></svg>
-            <span class="visually-hidden">Abrir menú</span>
+            <span class="visually-hidden">@SharedTexts["Abrir menú"]</span>
         </button>
         <a class="app-topbar-brand" asp-page="/Index">
             @if (logoUrl is not null) { <img class="app-brand-logo" src="@logoUrl" alt="" /> } else { <span class="app-brand-mark" aria-hidden="true">WE</span> }
             <span>@business.BusinessName</span>
         </a>
         <span class="app-topbar-page">@ViewData["Title"]</span>
-        <button class="notification-trigger notification-trigger-mobile" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="Abrir alertas operativas">
+        <button class="notification-trigger notification-trigger-mobile" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="@SharedTexts["Abrir alertas operativas"]">
             <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
         </button>
     </header>
 
     <div class="app-backdrop" data-nav-dismiss aria-hidden="true"></div>
-    <aside class="app-sidebar" id="app-sidebar" aria-label="Navegación principal">
+    <aside class="app-sidebar" id="app-sidebar" aria-label="@SharedTexts["Navegación principal"]">
         <div class="app-sidebar-header">
-            <a class="app-brand" asp-page="/Index" aria-label="Warehouse EPI, inicio">
+            <a class="app-brand" asp-page="/Index" aria-label="@SharedTexts["Warehouse EPI, inicio"]">
                 @if (logoUrl is not null) { <img class="app-brand-logo" src="@logoUrl" alt="" /> } else { <span class="app-brand-mark" aria-hidden="true">WE</span> }
                 <span class="app-brand-text"><strong>Warehouse EPI</strong><small>@business.WarehouseName</small></span>
             </a>
-            <button class="app-collapse-button" type="button" data-nav-collapse aria-expanded="true" title="Contraer menú">
+            <button class="app-collapse-button" type="button" data-nav-collapse data-expand-label="@SharedTexts["Expandir menú"]" data-collapse-label="@SharedTexts["Contraer menú"]" aria-expanded="true" title="@SharedTexts["Contraer menú"]">
                 <svg class="app-icon" aria-hidden="true"><use href="#icon-chevron" /></svg>
-                <span class="visually-hidden">Contraer menú</span>
+                <span class="visually-hidden">@SharedTexts["Contraer menú"]</span>
             </button>
-            <button class="notification-trigger notification-trigger-desktop" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="Abrir alertas operativas">
+            <button class="notification-trigger notification-trigger-desktop" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="@SharedTexts["Abrir alertas operativas"]">
                 <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
             </button>
         </div>
 
-        <nav class="app-nav">
-            <a class="app-nav-link @(IsCurrent("/Index") ? "active" : null)" asp-page="/Index" aria-current="@(IsCurrent("/Index") ? "page" : null)" title="Inicio">
-                <svg class="app-icon" aria-hidden="true"><use href="#icon-home" /></svg><span>Inicio</span>
+        <nav class="app-nav" aria-label="@SharedTexts["Módulos"]">
+            <a class="app-nav-link @(currentPage == "/Index" ? "active" : null)" asp-page="/Index"
+               aria-current="@(currentPage == "/Index" ? "page" : null)" title="@SharedTexts["Inicio"]">
+                <svg class="app-icon" aria-hidden="true"><use href="#icon-home" /></svg><span>@SharedTexts["Inicio"]</span>
             </a>
-
-            <div class="app-nav-group">
-                <div class="app-nav-heading">Operación</div>
-                <a class="app-nav-link @(IsCurrent("/Operations/Entry") ? "active" : null)" asp-page="/Operations/Entry" aria-current="@(IsCurrent("/Operations/Entry") ? "page" : null)" title="Entrada">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Entrada</span>
-                </a>
-                @* Navegación temporalmente oculta: Recepciones contra documento no está en uso operativo.
-                <a class="app-nav-link @(IsSection("/Operations/Receiving") ? "active" : null)" asp-page="/Operations/Receiving/Index" aria-current="@(IsSection("/Operations/Receiving") ? "page" : null)" title="Recepciones contra documento">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-entry" /></svg><span>Recepciones</span>
-                </a>
-                *@
-                <a class="app-nav-link @(IsCurrent("/Operations/Exit") ? "active" : null)" asp-page="/Operations/Exit" aria-current="@(IsCurrent("/Operations/Exit") ? "page" : null)" title="Salida">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-exit" /></svg><span>Salida</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/Transfer") ? "active" : null)" asp-page="/Operations/Transfer" aria-current="@(IsCurrent("/Operations/Transfer") ? "page" : null)" title="Transferencia">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Transferencia</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/WipProcess") || IsCurrent("/Operations/WipReturn") ? "active" : null)" asp-page="/Operations/WipProcess" title="Procesar WIP">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-transfer" /></svg><span>Procesar WIP</span>
-                </a>
-                <a class="app-nav-link @(IsCurrent("/Operations/Adjustment") ? "active" : null)" asp-page="/Operations/Adjustment" aria-current="@(IsCurrent("/Operations/Adjustment") ? "page" : null)" title="Ajuste">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-adjust" /></svg><span>Ajuste</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Operations/CycleCounts") ? "active" : null)" asp-page="/Operations/CycleCounts/Index" aria-current="@(IsSection("/Operations/CycleCounts") ? "page" : null)" title="Conteos cíclicos">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Conteos cíclicos</span>
-                </a>
-            </div>
-
-            <div class="app-nav-group">
-                <div class="app-nav-heading">Etiquetas</div>
-                <a class="app-nav-link @(IsSection("/Operations/Labels") ? "active" : null)" asp-page="/Operations/Labels/Index" aria-current="@(IsSection("/Operations/Labels") ? "page" : null)" title="Generar etiquetas desde formatos publicados">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Generar etiquetas</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Operations/PalletLabels") ? "active" : null)" asp-page="/Operations/PalletLabels/Index" aria-current="@(IsSection("/Operations/PalletLabels") ? "page" : null)" title="Generar placas documentales desde Entradas confirmadas">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Placas de pallet</span>
-                </a>
-                @if (isAdmin)
-                {
-                    <a class="app-nav-link @(IsSection("/Admin/Labels") ? "active" : null)" asp-page="/Admin/Labels/Templates/Index" aria-current="@(IsSection("/Admin/Labels") ? "page" : null)" title="Diseñar y publicar formatos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-label" /></svg><span>Diseñar formatos</span>
-                    </a>
-                }
-            </div>
-
-            <div class="app-nav-group">
-                <div class="app-nav-heading">Inventario</div>
-                <a class="app-nav-link @(IsSection("/Inventory") ? "active" : null)" asp-page="/Inventory/Index" aria-current="@(IsSection("/Inventory") ? "page" : null)" title="Existencias">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-inventory" /></svg><span>Existencias</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Reports/Wip") ? "active" : null)" asp-page="/Reports/Wip/Index" aria-current="@(IsSection("/Reports/Wip") ? "page" : null)" title="Reporte WIP">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Reporte WIP</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Reports/Dashboard") ? "active" : null)" asp-page="/Reports/Dashboard/Index" aria-current="@(IsSection("/Reports/Dashboard") ? "page" : null)" title="Tablero diario">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Tablero diario</span>
-                </a>
-                <a class="app-nav-link @(IsSection("/Reports/Inventory") ? "active" : null)" asp-page="/Reports/Inventory/Index" aria-current="@(IsSection("/Reports/Inventory") ? "page" : null)" title="Analítica de inventario">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-dashboard" /></svg><span>Analítica de inventario</span>
-                </a>
-                @if (isAdmin)
-                {
-                    <a class="app-nav-link @(IsCurrent("/Admin/Inventory/Alerts") ? "active" : null)" asp-page="/Admin/Inventory/Alerts" aria-current="@(IsCurrent("/Admin/Inventory/Alerts") ? "page" : null)" title="Alertas">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-alert" /></svg><span>Alertas</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Movements") ? "active" : null)" asp-page="/Admin/Inventory/Movements/Index" aria-current="@(IsSection("/Admin/Inventory/Movements") ? "page" : null)" title="Movimientos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Movimientos</span>
-                    </a>
-                    @* Navegación temporalmente oculta: Trazabilidad unificada no está en uso operativo.
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Trace") ? "active" : null)" asp-page="/Admin/Inventory/Trace/Index" aria-current="@(IsSection("/Admin/Inventory/Trace") ? "page" : null)" title="Trazabilidad unificada">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-movements" /></svg><span>Trazabilidad</span>
-                    </a>
-                    *@
-                    <a class="app-nav-link @(IsSection("/Admin/Inventory/Lots") ? "active" : null)" asp-page="/Admin/Inventory/Lots/Index" aria-current="@(IsSection("/Admin/Inventory/Lots") ? "page" : null)" title="Lotes">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-lots" /></svg><span>Lotes</span>
-                    </a>
-                }
-            </div>
-
-            @if (isAdmin)
+            @foreach (var module in modules)
             {
-                <div class="app-nav-group">
-                    <div class="app-nav-heading">Catálogos</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Products") ? "active" : null)" asp-page="/Admin/Catalogs/Products/Index" aria-current="@(IsSection("/Admin/Catalogs/Products") ? "page" : null)" title="Productos">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-products" /></svg><span>Productos</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductTypes") ? "active" : null)" asp-page="/Admin/Catalogs/ProductTypes/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductTypes") ? "page" : null)" title="Tipos de producto">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-product-types" /></svg><span>Tipos de producto</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/ProductClasses") ? "active" : null)" asp-page="/Admin/Catalogs/ProductClasses/Index" aria-current="@(IsSection("/Admin/Catalogs/ProductClasses") ? "page" : null)" title="Clases de producto">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-product-classes" /></svg><span>Clases de producto</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Locations") ? "active" : null)" asp-page="/Admin/Catalogs/Locations/Index" aria-current="@(IsSection("/Admin/Catalogs/Locations") ? "page" : null)" title="Ubicaciones">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-location" /></svg><span>Ubicaciones</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/Catalogs/Units") ? "active" : null)" asp-page="/Admin/Catalogs/Units/Index" aria-current="@(IsSection("/Admin/Catalogs/Units") ? "page" : null)" title="Unidades de medida">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-units" /></svg><span>Unidades de medida</span>
-                    </a>
-                </div>
-
-                <div class="app-nav-group">
-                    <div class="app-nav-heading">Administración</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Users") ? "active" : null)" asp-page="/Admin/Users/Index" aria-current="@(IsSection("/Admin/Users") ? "page" : null)" title="Usuarios">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>Usuarios</span>
-                    </a>
-                    <a class="app-nav-link @(IsSection("/Admin/System") ? "active" : null)" asp-page="/Admin/System/Index" aria-current="@(IsSection("/Admin/System") ? "page" : null)" title="Estado del sistema">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-system" /></svg><span>Estado del sistema</span>
-                    </a>
-                </div>
-
-                <div class="app-nav-group">
-                    <div class="app-nav-heading">Configuración</div>
-                    <a class="app-nav-link @(IsSection("/Admin/Settings") ? "active" : null)" asp-page="/Admin/Settings/Business" aria-current="@(IsSection("/Admin/Settings") ? "page" : null)" title="Datos del negocio">
-                        <svg class="app-icon" aria-hidden="true"><use href="#icon-system" /></svg><span>Datos del negocio</span>
-                    </a>
-                </div>
+                <a class="app-nav-link @(activeModule?.Key == module.Key ? "active" : null)"
+                   asp-page="/Modules/Index" asp-route-module="@module.Key"
+                   aria-current="@(activeModule?.Key == module.Key ? "page" : null)" title="@SharedTexts[module.Title]"
+                   data-supply-count-root="@(module.Key == "production" ? "true" : null)"
+                   data-supply-label="@(module.Key == "production" ? SharedTexts[module.Title].Value : null)"
+                   data-snapshot-url="@(module.Key == "production" ? Url.Page("/Operations/ProductionSupply/Index", "Snapshot") : null)">
+                    <svg class="app-icon" aria-hidden="true"><use href="@("#icon-" + module.Icon)" /></svg><span>@SharedTexts[module.Title]</span>
+                    @if (module.Key == "production")
+                    {
+                        <span class="notification-count" data-supply-count hidden>0</span>
+                    }
+                </a>
             }
         </nav>
 
         <div class="app-sidebar-footer">
+            <partial name="_LanguageControl" />
             @if (User.Identity?.IsAuthenticated == true)
             {
                 <details class="app-account-menu">
-                    <summary class="app-user" title="@User.Identity.Name"><span class="app-user-avatar" aria-hidden="true">@User.Identity.Name?.Substring(0, 1).ToUpperInvariant()</span><span class="app-user-name"><strong>@User.Identity.Name</strong><small>Administrador</small></span></summary>
-                    <a class="app-nav-link" asp-page="/Admin/Account/Index"><svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>Mi cuenta</span></a>
+                    <summary class="app-user" title="@User.Identity.Name"><span class="app-user-avatar" aria-hidden="true">@User.Identity.Name?.Substring(0, 1).ToUpperInvariant()</span><span class="app-user-name"><strong>@User.Identity.Name</strong><small>@SharedTexts["Administrador"]</small></span></summary>
+                    <a class="app-nav-link" asp-page="/Admin/Account/Index"><svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>@SharedTexts["Mi cuenta"]</span></a>
                     <partial name="_ThemeControl" />
                 </details>
-                <form method="post" asp-page="/Admin/Logout"><button type="submit" class="app-nav-link app-logout" title="Cerrar sesión"><svg class="app-icon" aria-hidden="true"><use href="#icon-logout" /></svg><span>Cerrar sesión</span></button></form>
+                <form method="post" asp-page="/Admin/Logout"><button type="submit" class="app-nav-link app-logout" title="@SharedTexts["Cerrar sesión"]"><svg class="app-icon" aria-hidden="true"><use href="#icon-logout" /></svg><span>@SharedTexts["Cerrar sesión"]</span></button></form>
             }
             else
             {
                 <partial name="_ThemeControl" />
-                <a asp-page="/Admin/Login" class="app-nav-link" title="Acceso administrativo">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>Acceso administrativo</span>
+                <a asp-page="/Admin/Login" class="app-nav-link" title="@SharedTexts["Acceso administrativo"]">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>@SharedTexts["Acceso administrativo"]</span>
                 </a>
             }
         </div>
@@ -222,14 +132,18 @@
 
     <div class="app-content">
         <main role="main" class="app-main">
+            @if (activeModule is not null && currentPage != "/Modules/Index")
+            {
+                <a class="module-back-link" asp-page="/Modules/Index" asp-route-module="@activeModule.Key">@SharedTexts["← Volver a {0}", SharedTexts[activeModule.Title].Value]</a>
+            }
             @RenderBody()
         </main>
         <footer class="app-footer">&copy; 2026 Warehouse EPI</footer>
     </div>
 
     <aside class="offcanvas offcanvas-end operational-notifications" tabindex="-1" id="operational-notifications" aria-labelledby="operational-notifications-title" data-notifications data-snapshot-url="@Url.Page("/Reports/Notifications/Index", "Snapshot")" data-all-url="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">
-        <div class="offcanvas-header"><div><span class="eyebrow">Operación LAN</span><h2 class="offcanvas-title h5" id="operational-notifications-title">Alertas operativas</h2></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar alertas"></button></div>
-        <div class="offcanvas-body"><div class="notification-summary" data-notification-summary><span>Consultando condiciones actuales…</span></div><div class="notification-list" data-notification-list></div><div class="notification-empty" data-notification-empty hidden><strong>Sin alertas activas.</strong><span>No hay condiciones visibles que requieran atención.</span></div><div class="notification-actions"><button type="button" class="btn btn-outline-primary" data-notification-refresh>Actualizar</button><a class="btn btn-primary" href="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">Ver todas</a></div><p class="visually-hidden" aria-live="polite" data-notification-live></p></div>
+        <div class="offcanvas-header"><div><span class="eyebrow">@SharedTexts["Operación LAN"]</span><h2 class="offcanvas-title h5" id="operational-notifications-title">@SharedTexts["Alertas operativas"]</h2></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="@SharedTexts["Cerrar alertas"]"></button></div>
+        <div class="offcanvas-body"><div class="notification-summary" data-notification-summary><span>@SharedTexts["Consultando condiciones actuales…"]</span></div><div class="notification-list" data-notification-list></div><div class="notification-empty" data-notification-empty hidden><strong>@SharedTexts["Sin alertas activas."]</strong><span>@SharedTexts["No hay condiciones visibles que requieran atención."]</span></div><div class="notification-actions"><button type="button" class="btn btn-outline-primary" data-notification-refresh>@SharedTexts["Actualizar"]</button><a class="btn btn-primary" href="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">@SharedTexts["Ver todas"]</a></div><p class="visually-hidden" aria-live="polite" data-notification-live></p></div>
     </aside>
 
     @* Sólo lo que usa cualquier página. jQuery viaja con _ValidationScriptsPartial, y ZXing

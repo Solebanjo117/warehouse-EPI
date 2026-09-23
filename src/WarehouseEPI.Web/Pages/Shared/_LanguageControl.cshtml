@@ -1,0 +1,7 @@
+@using System.Globalization
+<form method="post" asp-page="/Preferences/Language" class="app-language-control d-flex flex-wrap gap-1 justify-content-center" aria-label="@SharedTexts["Idioma"]">
+    <input type="hidden" name="returnUrl" value="@(Context.Request.PathBase + Context.Request.Path + Context.Request.QueryString)" />
+    <button type="submit" name="language" value="es" lang="es" class="btn btn-outline-light" title="Español" aria-label="Español" aria-pressed="@(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? "true" : "false")">ES</button>
+    <button type="submit" name="language" value="en" lang="en" class="btn btn-outline-light" title="English" aria-label="English" aria-pressed="@(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "en" ? "true" : "false")">EN</button>
+</form>
+

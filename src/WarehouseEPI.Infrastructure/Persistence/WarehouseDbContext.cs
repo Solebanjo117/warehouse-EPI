@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Infrastructure.Persistence;
 
@@ -8,6 +9,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     : DbContext(options)
 {
     public DbSet<Role> Roles => Set<Role>();
+    public DbSet<PalletPlate> PalletPlates => Set<PalletPlate>();
+    public DbSet<PalletPlateLot> PalletPlateLots => Set<PalletPlateLot>();
+    public DbSet<PalletPlateEvent> PalletPlateEvents => Set<PalletPlateEvent>();
     public DbSet<User> Users => Set<User>();
     public DbSet<BusinessSettings> BusinessSettings => Set<BusinessSettings>();
     public DbSet<Unit> Units => Set<Unit>();
@@ -32,12 +36,18 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<WarehouseMapArchitecturalElement> WarehouseMapArchitecturalElements => Set<WarehouseMapArchitecturalElement>();
     public DbSet<WarehouseMapReferenceImage> WarehouseMapReferenceImages => Set<WarehouseMapReferenceImage>();
     public DbSet<WarehouseMapRevision> WarehouseMapRevisions => Set<WarehouseMapRevision>();
+    public DbSet<WarehouseMapCalibration> WarehouseMapCalibrations => Set<WarehouseMapCalibration>();
+    public DbSet<WarehouseMapCalibrationPoint> WarehouseMapCalibrationPoints => Set<WarehouseMapCalibrationPoint>();
+    public DbSet<WarehouseMapCalibrationRevision> WarehouseMapCalibrationRevisions => Set<WarehouseMapCalibrationRevision>();
     public DbSet<CycleCountCampaign> CycleCountCampaigns => Set<CycleCountCampaign>();
     public DbSet<CycleCountLocation> CycleCountLocations => Set<CycleCountLocation>();
     public DbSet<CycleCountAttempt> CycleCountAttempts => Set<CycleCountAttempt>();
     public DbSet<CycleCountEntry> CycleCountEntries => Set<CycleCountEntry>();
     public DbSet<CycleCountAction> CycleCountActions => Set<CycleCountAction>();
     public DbSet<CycleCountReviewBatch> CycleCountReviewBatches => Set<CycleCountReviewBatch>();
+    public DbSet<CycleCountPlan> CycleCountPlans => Set<CycleCountPlan>();
+    public DbSet<CycleCountPlannedProduct> CycleCountPlannedProducts => Set<CycleCountPlannedProduct>();
+    public DbSet<CycleCountPlanEvent> CycleCountPlanEvents => Set<CycleCountPlanEvent>();
     public DbSet<LabelTemplate> LabelTemplates => Set<LabelTemplate>();
     public DbSet<LabelTemplateVersion> LabelTemplateVersions => Set<LabelTemplateVersion>();
     public DbSet<LabelAsset> LabelAssets => Set<LabelAsset>();
@@ -50,10 +60,59 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ReceivingConfirmation> ReceivingConfirmations => Set<ReceivingConfirmation>();
     public DbSet<ReceivingConfirmationLine> ReceivingConfirmationLines => Set<ReceivingConfirmationLine>();
     public DbSet<ReceivingDocumentEvent> ReceivingDocumentEvents => Set<ReceivingDocumentEvent>();
+    public DbSet<ProductionStage> ProductionStages => Set<ProductionStage>();
+    public DbSet<ProductionShift> ProductionShifts => Set<ProductionShift>();
+    public DbSet<ProductionRoute> ProductionRoutes => Set<ProductionRoute>();
+    public DbSet<ProductionRouteStage> ProductionRouteStages => Set<ProductionRouteStage>();
+    public DbSet<ProductionWorkOrder> ProductionWorkOrders => Set<ProductionWorkOrder>();
+    public DbSet<ProductionWorkOrderStage> ProductionWorkOrderStages => Set<ProductionWorkOrderStage>();
+    public DbSet<ProductionReason> ProductionReasons => Set<ProductionReason>();
+    public DbSet<ProductionExecutionAudit> ProductionExecutionAudits => Set<ProductionExecutionAudit>();
+    public DbSet<ProductionReworkCase> ProductionReworkCases => Set<ProductionReworkCase>();
+    public DbSet<ProductionReworkAttempt> ProductionReworkAttempts => Set<ProductionReworkAttempt>();
+    public DbSet<ProductionReworkRetention> ProductionReworkRetentions => Set<ProductionReworkRetention>();
+    public DbSet<ProductionEvent> ProductionEvents => Set<ProductionEvent>();
+    public DbSet<ProductionProcessWipTarget> ProductionProcessWipTargets => Set<ProductionProcessWipTarget>();
+    public DbSet<ProductionProcessConfiguration> ProductionProcessConfigurations => Set<ProductionProcessConfiguration>();
+    public DbSet<ProductionProcessRevision> ProductionProcessRevisions => Set<ProductionProcessRevision>();
+    public DbSet<ProductionMaterialWipDefault> ProductionMaterialWipDefaults => Set<ProductionMaterialWipDefault>();
+    public DbSet<ProductionMaterialWipRevision> ProductionMaterialWipRevisions => Set<ProductionMaterialWipRevision>();
+    public DbSet<ProductionMaterialIssueLink> ProductionMaterialIssueLinks => Set<ProductionMaterialIssueLink>();
+    public DbSet<ProductionMaterialIssueLot> ProductionMaterialIssueLots => Set<ProductionMaterialIssueLot>();
+    public DbSet<ProductionMaterialOperation> ProductionMaterialOperations => Set<ProductionMaterialOperation>();
+    public DbSet<ProductionMaterialOperationLine> ProductionMaterialOperationLines => Set<ProductionMaterialOperationLine>();
+    public DbSet<ProductionRecipe> ProductionRecipes => Set<ProductionRecipe>();
+    public DbSet<ProductionRecipeLine> ProductionRecipeLines => Set<ProductionRecipeLine>();
+    public DbSet<ProductionOrderMaterialPlan> ProductionOrderMaterialPlans => Set<ProductionOrderMaterialPlan>();
+    public DbSet<ProductionOrderPlanningRevision> ProductionOrderPlanningRevisions => Set<ProductionOrderPlanningRevision>();
+    public DbSet<ProductionBatch> ProductionBatches => Set<ProductionBatch>();
+    public DbSet<ProductionBatchResult> ProductionBatchResults => Set<ProductionBatchResult>();
+    public DbSet<ProductionBatchMaterialConsumption> ProductionBatchMaterialConsumptions => Set<ProductionBatchMaterialConsumption>();
+    public DbSet<ProductionSupplyRequest> ProductionSupplyRequests => Set<ProductionSupplyRequest>();
+    public DbSet<ProductionSupplyRequestLine> ProductionSupplyRequestLines => Set<ProductionSupplyRequestLine>();
+    public DbSet<ProductionWarehouseReservation> ProductionWarehouseReservations => Set<ProductionWarehouseReservation>();
+    public DbSet<ProductionSupplyEvent> ProductionSupplyEvents => Set<ProductionSupplyEvent>();
+    public DbSet<ProductionSupplyPreparation> ProductionSupplyPreparations => Set<ProductionSupplyPreparation>();
+    public DbSet<ProductionSupplyPreparationSource> ProductionSupplyPreparationSources => Set<ProductionSupplyPreparationSource>();
+    public DbSet<ProductionSupplyConfirmation> ProductionSupplyConfirmations => Set<ProductionSupplyConfirmation>();
+    public DbSet<ProductionSupplyConfirmationMovement> ProductionSupplyConfirmationMovements => Set<ProductionSupplyConfirmationMovement>();
+    public DbSet<ProductionSupplyConfirmationIssue> ProductionSupplyConfirmationIssues => Set<ProductionSupplyConfirmationIssue>();
+    public DbSet<ProductionDailyConfiguration> ProductionDailyConfigurations => Set<ProductionDailyConfiguration>();
+    public DbSet<ProductionScheduleWeek> ProductionScheduleWeeks => Set<ProductionScheduleWeek>();
+    public DbSet<ProductionScheduleLine> ProductionScheduleLines => Set<ProductionScheduleLine>();
+    public DbSet<ProductionScheduleRevision> ProductionScheduleRevisions => Set<ProductionScheduleRevision>();
+    public DbSet<ProductionCaptureSubmission> ProductionCaptureSubmissions => Set<ProductionCaptureSubmission>();
+    public DbSet<ProductionCarryoverPlan> ProductionCarryoverPlans => Set<ProductionCarryoverPlan>();
+    public DbSet<ProductionDailyCapture> ProductionDailyCaptures => Set<ProductionDailyCapture>();
+    public DbSet<ProductionDailyCaptureAllocation> ProductionDailyCaptureAllocations => Set<ProductionDailyCaptureAllocation>();
+    public DbSet<ProductionScheduleImportBatch> ProductionScheduleImportBatches => Set<ProductionScheduleImportBatch>();
+    public DbSet<ProductionImportDraft> ProductionImportDrafts => Set<ProductionImportDraft>();
+    public DbSet<ProductionImportRevision> ProductionImportRevisions => Set<ProductionImportRevision>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        PalletPlateConfiguration.Configure(modelBuilder);
 
         ConfigureRole(modelBuilder);
         ConfigureUser(modelBuilder);
@@ -79,6 +138,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureLabels(modelBuilder);
         ConfigureOperationalExceptions(modelBuilder);
         ConfigureReceiving(modelBuilder);
+        modelBuilder.ConfigureProduction();
+        ProductionImportDraftConfiguration.Configure(modelBuilder);
     }
 
     private static void ConfigureReceiving(ModelBuilder modelBuilder)
@@ -463,10 +524,12 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(product => product.ProductClassId).HasColumnName("product_class_id");
         entity.Property(product => product.BaseUnitId).HasColumnName("base_unit_id");
         entity.Property(product => product.MinimumStock).HasColumnName("minimum_stock").HasPrecision(18, 4);
+        entity.Property(product => product.DefaultEntryLocationId).HasColumnName("default_entry_location_id");
         entity.Property(product => product.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(product => product.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
         entity.Property(product => product.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         entity.HasIndex(product => product.Sku).IsUnique();
+        entity.HasIndex(product => product.DefaultEntryLocationId);
         entity.HasOne(product => product.BaseUnit)
             .WithMany(unit => unit.Products)
             .HasForeignKey(product => product.BaseUnitId)
@@ -478,6 +541,10 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.HasOne(product => product.ProductClass)
             .WithMany(productClass => productClass.Products)
             .HasForeignKey(product => product.ProductClassId)
+            .OnDelete(DeleteBehavior.Restrict);
+        entity.HasOne(product => product.DefaultEntryLocation)
+            .WithMany()
+            .HasForeignKey(product => product.DefaultEntryLocationId)
             .OnDelete(DeleteBehavior.Restrict);
     }
 
@@ -515,7 +582,6 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         {
             table.HasCheckConstraint("ck_locations_kind", "kind IN ('RACK', 'AREA')");
             table.HasCheckConstraint("ck_locations_operational_role", "operational_role IN ('STORAGE', 'WIP', 'OTHER')");
-            table.HasCheckConstraint("ck_locations_wip_area", "operational_role <> 'WIP' OR kind = 'AREA'");
             table.HasCheckConstraint("ck_locations_code_normalized", "code = upper(btrim(code)) AND code <> ''");
             table.HasCheckConstraint("ck_locations_structure", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND pallet_number BETWEEN 1 AND 9 AND code = row_code || '-' || rack_number::text || '-' || pallet_number::text) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND pallet_number IS NULL AND code ~ '^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$')");
             table.HasCheckConstraint("ck_locations_block", "(is_blocked = FALSE AND block_reason IS NULL) OR (is_active = TRUE AND is_blocked = TRUE AND block_reason IS NOT NULL AND btrim(block_reason) <> '')");
@@ -631,7 +697,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
                 "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
@@ -640,7 +706,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "(purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR " +
                 "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
                 "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR " +
-                "(purpose = 'DOCUMENT_RECEIPT' AND type = 'ENTRY' AND operational_area_id IS NULL)");
+                "(purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL)");
         });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
@@ -795,6 +861,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         layout.ToTable("warehouse_map_layouts", table =>
         {
             table.HasCheckConstraint("ck_warehouse_map_layout_singleton", "id = 1");
+            table.HasCheckConstraint("ck_warehouse_map_layout_canvas", "canvas_width BETWEEN 1600 AND 6400 AND canvas_height BETWEEN 900 AND 3600 AND canvas_width % 25 = 0 AND canvas_height % 25 = 0");
             table.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
             table.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
         });
@@ -803,6 +870,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         layout.Property(item => item.Version).HasColumnName("version");
         layout.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
         layout.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        layout.Property(item => item.CanvasWidth).HasColumnName("canvas_width").HasPrecision(8, 2).HasDefaultValue(1600m);
+        layout.Property(item => item.CanvasHeight).HasColumnName("canvas_height").HasPrecision(8, 2).HasDefaultValue(900m);
         layout.Property(item => item.ScaleUnitsPerInch).HasColumnName("scale_units_per_inch").HasPrecision(12, 6);
         layout.Property(item => item.MeasurementSystem).HasColumnName("measurement_system").HasMaxLength(10)
             .HasConversion(value => value == WarehouseMapMeasurementSystem.Imperial ? "IMPERIAL" : "METRIC",
@@ -943,6 +1012,87 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         revision.HasIndex(item => item.RecordedAt);
         revision.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
         revision.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var calibration = modelBuilder.Entity<WarehouseMapCalibration>();
+        calibration.ToTable("warehouse_map_calibrations", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_calibration_status", "status IN ('ACTIVE', 'DISABLED')");
+            table.HasCheckConstraint("ck_warehouse_map_calibration_algorithm", "algorithm_version = 'AFFINE_TANGENT_V1'");
+            table.HasCheckConstraint("ck_warehouse_map_calibration_errors", "fit_error_meters >= 0 AND check_error_meters >= 0 AND maximum_scale_svg_per_meter > 0");
+        });
+        calibration.HasKey(item => item.Id);
+        calibration.Property(item => item.Id).HasColumnName("id");
+        calibration.Property(item => item.LayoutId).HasColumnName("layout_id");
+        calibration.Property(item => item.LayoutVersion).HasColumnName("layout_version");
+        calibration.Property(item => item.Revision).HasColumnName("revision");
+        calibration.Property(item => item.Status).HasColumnName("status").HasMaxLength(10).HasConversion(
+            value => value == WarehouseMapCalibrationStatus.Active ? "ACTIVE" : "DISABLED",
+            value => value == "ACTIVE" ? WarehouseMapCalibrationStatus.Active : WarehouseMapCalibrationStatus.Disabled);
+        calibration.Property(item => item.OriginLatitude).HasColumnName("origin_latitude");
+        calibration.Property(item => item.OriginLongitude).HasColumnName("origin_longitude");
+        calibration.Property(item => item.A11).HasColumnName("a11");
+        calibration.Property(item => item.A12).HasColumnName("a12");
+        calibration.Property(item => item.A13).HasColumnName("a13");
+        calibration.Property(item => item.A21).HasColumnName("a21");
+        calibration.Property(item => item.A22).HasColumnName("a22");
+        calibration.Property(item => item.A23).HasColumnName("a23");
+        calibration.Property(item => item.FitErrorMeters).HasColumnName("fit_error_meters");
+        calibration.Property(item => item.CheckErrorMeters).HasColumnName("check_error_meters");
+        calibration.Property(item => item.MaximumScaleSvgPerMeter).HasColumnName("maximum_scale_svg_per_meter");
+        calibration.Property(item => item.AlgorithmVersion).HasColumnName("algorithm_version").HasMaxLength(30).IsRequired();
+        calibration.Property(item => item.PublishedByUserId).HasColumnName("published_by_user_id");
+        calibration.Property(item => item.PublishedAt).HasColumnName("published_at").HasDefaultValueSql("now()");
+        calibration.Property(item => item.DisabledAt).HasColumnName("disabled_at");
+        calibration.Property(item => item.DisabledByUserId).HasColumnName("disabled_by_user_id");
+        calibration.HasIndex(item => new { item.LayoutId, item.Status }).IsUnique().HasFilter("status = 'ACTIVE'");
+        calibration.HasIndex(item => new { item.LayoutId, item.Revision }).IsUnique();
+        calibration.HasOne(item => item.Layout).WithMany(item => item.Calibrations).HasForeignKey(item => item.LayoutId).OnDelete(DeleteBehavior.Restrict);
+        calibration.HasOne(item => item.PublishedByUser).WithMany().HasForeignKey(item => item.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
+        calibration.HasOne(item => item.DisabledByUser).WithMany().HasForeignKey(item => item.DisabledByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var calibrationPoint = modelBuilder.Entity<WarehouseMapCalibrationPoint>();
+        calibrationPoint.ToTable("warehouse_map_calibration_points", table =>
+        {
+            table.HasCheckConstraint("ck_warehouse_map_calibration_point_kind", "kind IN ('REFERENCE', 'CHECK')");
+            table.HasCheckConstraint("ck_warehouse_map_calibration_point_samples", "sample_count > 0 AND accuracy_meters >= 0 AND dispersion_meters >= 0");
+        });
+        calibrationPoint.HasKey(item => item.Id);
+        calibrationPoint.Property(item => item.Id).HasColumnName("id");
+        calibrationPoint.Property(item => item.CalibrationId).HasColumnName("calibration_id");
+        calibrationPoint.Property(item => item.Kind).HasColumnName("kind").HasMaxLength(10).HasConversion(
+            value => value == WarehouseMapCalibrationPointKind.Reference ? "REFERENCE" : "CHECK",
+            value => value == "REFERENCE" ? WarehouseMapCalibrationPointKind.Reference : WarehouseMapCalibrationPointKind.Check);
+        calibrationPoint.Property(item => item.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+        calibrationPoint.Property(item => item.MapX).HasColumnName("map_x").HasPrecision(9, 3);
+        calibrationPoint.Property(item => item.MapY).HasColumnName("map_y").HasPrecision(9, 3);
+        calibrationPoint.Property(item => item.Latitude).HasColumnName("latitude");
+        calibrationPoint.Property(item => item.Longitude).HasColumnName("longitude");
+        calibrationPoint.Property(item => item.AccuracyMeters).HasColumnName("accuracy_meters");
+        calibrationPoint.Property(item => item.DispersionMeters).HasColumnName("dispersion_meters");
+        calibrationPoint.Property(item => item.SampleCount).HasColumnName("sample_count");
+        calibrationPoint.Property(item => item.SamplesJson).HasColumnName("samples_json").HasColumnType("jsonb").IsRequired();
+        calibrationPoint.HasIndex(item => new { item.CalibrationId, item.Kind, item.Name }).IsUnique();
+        calibrationPoint.HasOne(item => item.Calibration).WithMany(item => item.Points).HasForeignKey(item => item.CalibrationId).OnDelete(DeleteBehavior.Cascade);
+
+        var calibrationRevision = modelBuilder.Entity<WarehouseMapCalibrationRevision>();
+        calibrationRevision.ToTable("warehouse_map_calibration_revisions", table =>
+            table.HasCheckConstraint("ck_warehouse_map_calibration_revision_action", "action IN ('PUBLISH', 'DISABLE')"));
+        calibrationRevision.HasKey(item => item.Id);
+        calibrationRevision.Property(item => item.Id).HasColumnName("id");
+        calibrationRevision.Property(item => item.OperationId).HasColumnName("operation_id");
+        calibrationRevision.Property(item => item.RequestFingerprint).HasColumnName("request_fingerprint").HasMaxLength(64).IsFixedLength().IsRequired();
+        calibrationRevision.Property(item => item.CalibrationId).HasColumnName("calibration_id");
+        calibrationRevision.Property(item => item.Action).HasColumnName("action").HasMaxLength(10).IsRequired();
+        calibrationRevision.Property(item => item.Reason).HasColumnName("reason").HasMaxLength(500).IsRequired();
+        calibrationRevision.Property(item => item.ChangesJson).HasColumnName("changes_json").HasColumnType("jsonb").IsRequired();
+        calibrationRevision.Property(item => item.RequestedByUserId).HasColumnName("requested_by_user_id");
+        calibrationRevision.Property(item => item.AuthorizedByUserId).HasColumnName("authorized_by_user_id");
+        calibrationRevision.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        calibrationRevision.HasIndex(item => item.OperationId).IsUnique();
+        calibrationRevision.HasIndex(item => item.RecordedAt);
+        calibrationRevision.HasOne(item => item.Calibration).WithMany().HasForeignKey(item => item.CalibrationId).OnDelete(DeleteBehavior.Restrict);
+        calibrationRevision.HasOne(item => item.RequestedByUser).WithMany().HasForeignKey(item => item.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+        calibrationRevision.HasOne(item => item.AuthorizedByUser).WithMany().HasForeignKey(item => item.AuthorizedByUserId).OnDelete(DeleteBehavior.Restrict);
     }
 
     private static void ConfigureCycleCounts(ModelBuilder modelBuilder)
@@ -992,6 +1142,70 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         location.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
         location.HasOne(item => item.AdjustmentMovement).WithMany().HasForeignKey(item => item.AdjustmentMovementId).OnDelete(DeleteBehavior.Restrict);
         location.HasOne(item => item.LastActionByUser).WithMany().HasForeignKey(item => item.LastActionByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var plan = modelBuilder.Entity<CycleCountPlan>();
+        plan.ToTable("cycle_count_plans");
+        plan.HasKey(item => item.Id);
+        plan.Property(item => item.Id).HasColumnName("id");
+        plan.Property(item => item.ProductId).HasColumnName("product_id");
+        plan.Property(item => item.LocationId).HasColumnName("location_id");
+        plan.Property(item => item.Frequency).HasColumnName("frequency").HasMaxLength(20)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountFrequency>(value, true));
+        plan.Property(item => item.AnchorDate).HasColumnName("anchor_date");
+        plan.Property(item => item.NextDueDate).HasColumnName("next_due_date");
+        plan.Property(item => item.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+        plan.Property(item => item.CreatedByUserId).HasColumnName("created_by_user_id");
+        plan.Property(item => item.UpdatedByUserId).HasColumnName("updated_by_user_id");
+        plan.Property(item => item.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("now()");
+        plan.Property(item => item.UpdatedAt).HasColumnName("updated_at").HasDefaultValueSql("now()");
+        plan.HasIndex(item => new { item.ProductId, item.LocationId }).IsUnique();
+        plan.HasIndex(item => new { item.IsActive, item.NextDueDate });
+        plan.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+        plan.HasOne(item => item.Location).WithMany().HasForeignKey(item => item.LocationId).OnDelete(DeleteBehavior.Restrict);
+        plan.HasOne(item => item.CreatedByUser).WithMany().HasForeignKey(item => item.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        plan.HasOne(item => item.UpdatedByUser).WithMany().HasForeignKey(item => item.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var plannedProduct = modelBuilder.Entity<CycleCountPlannedProduct>();
+        plannedProduct.ToTable("cycle_count_planned_products");
+        plannedProduct.HasKey(item => item.Id);
+        plannedProduct.Property(item => item.Id).HasColumnName("id");
+        plannedProduct.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        plannedProduct.Property(item => item.ProductId).HasColumnName("product_id");
+        plannedProduct.Property(item => item.CycleCountPlanId).HasColumnName("cycle_count_plan_id");
+        plannedProduct.Property(item => item.ScheduledFor).HasColumnName("scheduled_for");
+        plannedProduct.HasIndex(item => new { item.CycleCountLocationId, item.ProductId }).IsUnique();
+        plannedProduct.HasIndex(item => item.CycleCountPlanId);
+        plannedProduct.HasIndex(item => new { item.ScheduledFor, item.CycleCountPlanId });
+        plannedProduct.HasOne(item => item.CycleCountLocation).WithMany(item => item.PlannedProducts).HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
+        plannedProduct.HasOne(item => item.Product).WithMany().HasForeignKey(item => item.ProductId).OnDelete(DeleteBehavior.Restrict);
+        plannedProduct.HasOne(item => item.CycleCountPlan).WithMany(item => item.Dispatches).HasForeignKey(item => item.CycleCountPlanId).OnDelete(DeleteBehavior.Restrict);
+
+        var planEvent = modelBuilder.Entity<CycleCountPlanEvent>();
+        planEvent.ToTable("cycle_count_plan_events");
+        planEvent.HasKey(item => item.Id);
+        planEvent.Property(item => item.Id).HasColumnName("id");
+        planEvent.Property(item => item.CycleCountPlanId).HasColumnName("cycle_count_plan_id");
+        planEvent.Property(item => item.Type).HasColumnName("type").HasMaxLength(20)
+            .HasConversion(value => value.ToString().ToUpperInvariant(), value => Enum.Parse<CycleCountPlanEventType>(value, true));
+        planEvent.Property(item => item.ResponsibleUserId).HasColumnName("responsible_user_id");
+        planEvent.Property(item => item.CampaignId).HasColumnName("campaign_id");
+        planEvent.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
+        planEvent.Property(item => item.PreviousFrequency).HasColumnName("previous_frequency").HasMaxLength(20)
+            .HasConversion(value => value == null ? null : value.ToString(), value => string.IsNullOrWhiteSpace(value) ? null : Enum.Parse<CycleCountFrequency>(value, true));
+        planEvent.Property(item => item.NewFrequency).HasColumnName("new_frequency").HasMaxLength(20)
+            .HasConversion(value => value == null ? null : value.ToString(), value => string.IsNullOrWhiteSpace(value) ? null : Enum.Parse<CycleCountFrequency>(value, true));
+        planEvent.Property(item => item.PreviousAnchorDate).HasColumnName("previous_anchor_date");
+        planEvent.Property(item => item.NewAnchorDate).HasColumnName("new_anchor_date");
+        planEvent.Property(item => item.PreviousNextDueDate).HasColumnName("previous_next_due_date");
+        planEvent.Property(item => item.NewNextDueDate).HasColumnName("new_next_due_date");
+        planEvent.Property(item => item.PreviousIsActive).HasColumnName("previous_is_active");
+        planEvent.Property(item => item.NewIsActive).HasColumnName("new_is_active");
+        planEvent.Property(item => item.RecordedAt).HasColumnName("recorded_at").HasDefaultValueSql("now()");
+        planEvent.HasIndex(item => new { item.CycleCountPlanId, item.RecordedAt });
+        planEvent.HasOne(item => item.CycleCountPlan).WithMany(item => item.Events).HasForeignKey(item => item.CycleCountPlanId).OnDelete(DeleteBehavior.Restrict);
+        planEvent.HasOne(item => item.ResponsibleUser).WithMany().HasForeignKey(item => item.ResponsibleUserId).OnDelete(DeleteBehavior.Restrict);
+        planEvent.HasOne(item => item.Campaign).WithMany().HasForeignKey(item => item.CampaignId).OnDelete(DeleteBehavior.Restrict);
+        planEvent.HasOne(item => item.CycleCountLocation).WithMany().HasForeignKey(item => item.CycleCountLocationId).OnDelete(DeleteBehavior.Restrict);
 
         var attempt = modelBuilder.Entity<CycleCountAttempt>();
         attempt.ToTable("cycle_count_attempts");
@@ -1091,6 +1305,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         exceptionCase.Property(item => item.CycleCountLocationId).HasColumnName("cycle_count_location_id");
         exceptionCase.Property(item => item.PrimaryText).HasColumnName("primary_text").HasMaxLength(160).IsRequired();
         exceptionCase.Property(item => item.SecondaryText).HasColumnName("secondary_text").HasMaxLength(200).IsRequired();
+        exceptionCase.Property(item => item.ReasonText).HasColumnName("reason_text").HasMaxLength(500).IsRequired();
         exceptionCase.Property(item => item.ValueText).HasColumnName("value_text").HasMaxLength(200);
         exceptionCase.Property(item => item.TargetUrl).HasColumnName("target_url").HasMaxLength(1000).IsRequired();
         exceptionCase.Property(item => item.AssignedUserId).HasColumnName("assigned_user_id");
@@ -1216,15 +1431,36 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
 
     private void EnsureMovementHistoryIsImmutable()
     {
+        // An unconfirmed import draft may be deleted with its working revisions; a confirmed one stays as the import record.
+        var deletableDrafts = ChangeTracker.Entries<ProductionImportDraft>()
+            .Where(entry => entry.State == EntityState.Deleted && entry.OriginalValues.GetValue<ProductionImportDraftStatus>(
+                nameof(ProductionImportDraft.Status)) != ProductionImportDraftStatus.Confirmed)
+            .Select(entry => entry.Entity.Id)
+            .ToHashSet();
+        if (ChangeTracker.Entries<ProductionImportDraft>().Any(entry => entry.State == EntityState.Deleted && !deletableDrafts.Contains(entry.Entity.Id) ||
+            entry.State == EntityState.Modified && entry.Properties.Any(property => property.IsModified &&
+                property.Metadata.Name is not (nameof(ProductionImportDraft.Status) or nameof(ProductionImportDraft.Version) or
+                    nameof(ProductionImportDraft.BatchId) or nameof(ProductionImportDraft.UpdatedAt)))))
+            throw new InvalidOperationException("El archivo original y el propietario del borrador son inmutables.");
         var changedHistory = ChangeTracker.Entries()
-            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent) &&
-                (entry.State is EntityState.Modified or EntityState.Deleted))
+            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption or ProductionSupplyEvent or ProductionExecutionAudit or ProductionReworkCase or ProductionReworkAttempt or ProductionScheduleRevision or ProductionDailyCaptureAllocation or ProductionScheduleImportBatch or ProductionImportRevision or ProductionCaptureSubmission or ProductionCaptureSubmissionItem or ProductionBalanceEdit or ProductionBalanceEditItem) &&
+                (entry.State is EntityState.Modified or EntityState.Deleted) &&
+                !(entry.State == EntityState.Deleted && entry.Entity is ProductionImportRevision revision && deletableDrafts.Contains(revision.DraftId)))
             .Select(entry => entry.Metadata.ClrType.Name)
             .Distinct()
             .ToArray();
 
         if (changedHistory.Length != 0)
             throw new InvalidOperationException($"Los movimientos confirmados y su historial son inmutables: {string.Join(", ", changedHistory)}.");
+
+        var changedCapture = ChangeTracker.Entries<ProductionDailyCapture>().Any(entry =>
+            entry.State == EntityState.Deleted || entry.State == EntityState.Modified && entry.Properties.Any(property =>
+                property.IsModified && property.Metadata.Name is not (nameof(ProductionDailyCapture.Status) or
+                    nameof(ProductionDailyCapture.ReversedByUserId) or nameof(ProductionDailyCapture.ReversedAt) or
+                    nameof(ProductionDailyCapture.ReverseReason) or nameof(ProductionDailyCapture.ReverseOperationId) or
+                    nameof(ProductionDailyCapture.ReverseFingerprint))));
+        if (changedCapture)
+            throw new InvalidOperationException("Las capturas diarias son inmutables; únicamente se permite registrar su reverso completo.");
 
         var changedPublishedTemplate = ChangeTracker.Entries<LabelTemplateVersion>().Any(entry =>
             (entry.State is EntityState.Modified or EntityState.Deleted) &&
@@ -1324,6 +1560,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.WipSupplierReturn => "WIP_SUPPLIER_RETURN",
         InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
         InventoryMovementPurpose.DocumentReceipt => "DOCUMENT_RECEIPT",
+        InventoryMovementPurpose.ProductionReceipt => "PRODUCTION_RECEIPT",
         _ => "STANDARD"
     };
 
@@ -1336,6 +1573,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "WIP_SUPPLIER_RETURN" => InventoryMovementPurpose.WipSupplierReturn,
         "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
         "DOCUMENT_RECEIPT" => InventoryMovementPurpose.DocumentReceipt,
+        "PRODUCTION_RECEIPT" => InventoryMovementPurpose.ProductionReceipt,
         _ => InventoryMovementPurpose.Standard
     };
 

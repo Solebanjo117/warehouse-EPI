@@ -2,6 +2,8 @@ namespace WarehouseEPI.Core.Entities;
 
 public sealed class CycleCountEntry
 {
+    public string PlateCountsJson { get; set; } = "[]";
+    public bool HasPlateDifference { get; set; }
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid CycleCountAttemptId { get; set; }
     public Guid ProductId { get; set; }

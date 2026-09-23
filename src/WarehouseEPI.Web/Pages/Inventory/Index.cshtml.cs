@@ -1,11 +1,14 @@
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Infrastructure.Inventory;
 
 namespace WarehouseEPI.Web.Pages.Inventory;
 
 public sealed class IndexModel(
     OperationalInventoryQueryService operationalQuery,
-    InventoryQueryService inventoryQuery) : PageModel
+    InventoryQueryService inventoryQuery,
+    IStringLocalizer<CatalogTexts> text) : PageModel
 {
     private const int PageSize = 25;
 
@@ -42,7 +45,7 @@ public sealed class IndexModel(
                 : await operationalQuery.ResolveProductAsync(productCode, false, cancellationToken);
             if (Product is null)
             {
-                ErrorMessage = "No se encontró el producto.";
+                ErrorMessage = text["No se encontró el producto."].Value;
                 return;
             }
             await LoadProductAsync(pageNumber, cancellationToken);
@@ -56,7 +59,7 @@ public sealed class IndexModel(
                 : await operationalQuery.ResolveLocationAsync(locationCode, false, cancellationToken);
             if (Location is null)
             {
-                ErrorMessage = "No se encontró la ubicación.";
+                ErrorMessage = text["No se encontró la ubicación."].Value;
                 return;
             }
             Results = await LoadLocationAsync(pageNumber, cancellationToken);
@@ -69,7 +72,7 @@ public sealed class IndexModel(
         var resolution = await operationalQuery.ResolveInventoryCodeAsync(code, cancellationToken);
         if (resolution.Product is not null && resolution.Location is not null)
         {
-            ErrorMessage = "El código coincide con un producto y una ubicación. Elige una sugerencia para consultar.";
+            ErrorMessage = text["El código coincide con un producto y una ubicación. Elige una sugerencia para consultar."].Value;
             return;
         }
         if (resolution.Product is not null)
@@ -84,7 +87,7 @@ public sealed class IndexModel(
             Results = await LoadLocationAsync(pageNumber, cancellationToken);
             return;
         }
-        ErrorMessage = "No se encontró un producto ni una ubicación con ese código.";
+        ErrorMessage = text["No se encontró un producto ni una ubicación con ese código."].Value;
     }
 
     private async Task LoadProductAsync(int? pageNumber, CancellationToken cancellationToken)

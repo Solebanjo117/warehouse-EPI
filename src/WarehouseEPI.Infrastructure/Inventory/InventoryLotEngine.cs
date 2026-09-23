@@ -23,9 +23,12 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
 
     internal static string DailyLotNumber(DateOnly lotDate) => $"AUTO-{lotDate:yyyyMMdd}";
 
-    internal static uint AggregateVersion(IEnumerable<InventoryBalance> balances)
+    internal static uint AggregateVersion(IEnumerable<InventoryBalance> balances) =>
+        AggregateVersion(balances.Select(item => (item.LotId, item.Quantity, item.Version)));
+
+    internal static uint AggregateVersion(IEnumerable<(Guid? LotId, decimal Quantity, uint Version)> balances)
     {
-        var text = string.Join('|', balances.OrderBy(item => item.LotId).Select(item =>
+        var text = string.Join('|', balances.Where(item => item.Quantity != 0).OrderBy(item => item.LotId).Select(item =>
             $"{item.LotId:N}:{item.Quantity.ToString("G29", CultureInfo.InvariantCulture)}:{item.Version}"));
         return text.Length == 0 ? 0 : BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0);
     }
@@ -45,6 +48,16 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
         void Add(InventoryBalance balance, ProductLot lot, decimal delta) => ApplyChange(line, balance, delta, now, lot);
         IEnumerable<(InventoryBalance Balance, ProductLot Lot, decimal Delta)> Consume(Guid location, decimal quantity)
         {
+            if (command.Lots is { Count: > 0 })
+            {
+                foreach (var selected in command.Lots)
+                {
+                    var lot = lots.SingleOrDefault(x => x.Id == selected.LotId)
+                        ?? throw new InvalidOperationException("El lote reservado ya no existe.");
+                    yield return (Balance(location, lot), lot, -selected.Quantity);
+                }
+                yield break;
+            }
             var remaining = quantity;
             ProductLot? last = null;
             foreach (var lot in ordered)
@@ -73,7 +86,11 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
         switch (type)
         {
             case InventoryMovementType.Entry:
-                Add(Balance(command.DestinationLocationId!.Value, daily), daily, command.Quantity);
+                var destinationLot = command.DestinationLotId is Guid destinationLotId
+                    ? lots.SingleOrDefault(x => x.Id == destinationLotId)
+                        ?? throw new InvalidOperationException("El lote de destino no existe para el producto.")
+                    : daily;
+                Add(Balance(command.DestinationLocationId!.Value, destinationLot), destinationLot, command.Quantity);
                 break;
             case InventoryMovementType.Exit:
                 foreach (var change in Consume(command.SourceLocationId!.Value, command.Quantity))
@@ -126,7 +143,7 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
         return existing;
     }
 
-    private static void ApplyChange(
+    internal static void ApplyChange(
         InventoryMovementLine line,
         InventoryBalance balance,
         decimal delta,

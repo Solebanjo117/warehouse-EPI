@@ -147,3 +147,32 @@
     color: var(--bs-secondary-color);
     white-space: nowrap;
 }
+
+/* Current WIP and legacy report share presentation, never their balances. */
+@media screen {
+ .wip-report { max-width: 88rem; min-width: 0; }
+ .wip-report h1 { font-size: 1.65rem; font-weight: 700; }
+ .wip-report h2 { font-size: 1.25rem; font-weight: 650; }
+ .wip-report form { padding: 1rem; background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); border-radius: .65rem; box-shadow: none; }
+ .wip-report :is(.btn,.form-control,.form-select,.page-link) { min-height: 44px; }
+ .wip-report :is(.btn,.badge) { white-space: normal; }
+ .wip-report :is(a,button,input,select):focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+ .wip-report section[aria-labelledby="wip-legacy-title"] { border: 1px solid var(--bs-border-color); border-left: 3px solid var(--bs-secondary-color); border-radius: .65rem; background: var(--bs-tertiary-bg); color: var(--bs-body-color); }
+ .wip-report section[aria-labelledby="wip-current-title"] { padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); }
+ .wip-report .table { --bs-table-bg: var(--bs-body-bg); }
+ .wip-report .table :is(td,th) { padding: .85rem; white-space: normal; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+ .wip-report .table th { background: var(--bs-tertiary-bg); }
+ .wip-report :is(.wip-line-meta,.wip-sku,.wip-route,.wip-week) { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+ .wip-report .wip-route { flex-wrap: wrap; }
+}
+@media screen and (max-width: 1199.98px) {
+ .wip-report .table-responsive { overflow: visible; }
+ .wip-report .table,
+ .wip-report .table tbody { display: block; width: 100%; }
+ .wip-report .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+ .wip-report .table tbody tr { display: block; margin-bottom: .75rem; border: 1px solid var(--bs-border-color); border-radius: .65rem; }
+ .wip-report .table td { display: block; border: 0; text-align: left !important; }
+ .wip-report .table td.text-end { text-align: right !important; }
+ .wip-report .table td[data-label]::before { content: attr(data-label); display: block; color: var(--bs-secondary-color); font-weight: 600; font-size: .8rem; margin-bottom: .2rem; }
+ .wip-report .table td[colspan]::before { content: none; }
+}

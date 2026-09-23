@@ -5,6 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Production;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
@@ -12,7 +15,8 @@ public sealed class WipProcessModel(
     WarehouseDbContext dbContext,
     InventoryMovementService movementService,
     OperationalInventoryQueryService operationalQuery,
-    InventoryQueryService inventoryQuery) : PageModel
+    InventoryQueryService inventoryQuery,
+    ProductionMaterialService productionMaterials, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public IReadOnlyList<WipOption> WipLocations { get; private set; } = [];
@@ -21,6 +25,7 @@ public sealed class WipProcessModel(
     public OperationalLocationResult? Source { get; private set; }
     public OperationalLocationResult? Destination { get; private set; }
     public InventoryBalanceSnapshot? SourceBalance { get; private set; }
+    public ProductionMaterialAvailability? Availability { get; private set; }
 
     public async Task OnGetAsync(string? action, string? wipCode, string? productCode, CancellationToken cancellationToken)
     {
@@ -65,7 +70,7 @@ public sealed class WipProcessModel(
             Input.OperationId,
             type,
             pin,
-            [line],
+            [line with { AutomaticPalletHandling = true }],
             Input.Reference,
             Input.Notes,
             Input.ApprovedSharedLocationIds.Distinct()
@@ -77,7 +82,7 @@ public sealed class WipProcessModel(
             return RedirectToPage("/Operations/Receipt", new { id = movementId });
 
         if (result.Status == InventoryMovementStatus.InvalidPin)
-            ModelState.AddModelError(string.Empty, "No fue posible validar el NIP o el usuario.");
+            ModelState.AddModelError(string.Empty, texts["No fue posible validar el NIP o el usuario."]);
         else if (result.Status == InventoryMovementStatus.RequiresLocationSharingConfirmation)
         {
             SharingConflicts = result.Conflicts;
@@ -85,7 +90,7 @@ public sealed class WipProcessModel(
         }
         else
             foreach (var error in result.ValidationErrors.DefaultIfEmpty("No fue posible procesar el WIP."))
-                ModelState.AddModelError(string.Empty, error);
+                ModelState.AddModelError(string.Empty, texts[error]);
         await LoadAsync(cancellationToken);
         return Page();
     }
@@ -98,27 +103,30 @@ public sealed class WipProcessModel(
             ? await operationalQuery.ResolveLocationAsync(Input.DestinationCode, cancellationToken: cancellationToken)
             : null;
         if (Product is not null && Source is not null)
+        {
             SourceBalance = await inventoryQuery.GetBalanceAsync(Product.Id, Source.Id, cancellationToken);
+            Availability = await productionMaterials.GetAvailabilityAsync(Product.Id, Source.Id, cancellationToken);
+        }
     }
 
     private void ValidateResolved()
     {
         if (Input.OperationId == Guid.Empty)
-            ModelState.AddModelError(string.Empty, "La operación no es válida.");
+            ModelState.AddModelError(string.Empty, texts["La operación no es válida."]);
         if (Product is null)
-            ModelState.AddModelError("Input.ProductCode", "El producto no existe o está inactivo.");
+            ModelState.AddModelError("Input.ProductCode", texts["El producto no existe o está inactivo."]);
         if (Source is null || !Source.IsWip)
-            ModelState.AddModelError("Input.WipCode", "Selecciona una ubicación WIP disponible.");
+            ModelState.AddModelError("Input.WipCode", texts["Selecciona una ubicación WIP disponible."]);
         if (Input.Action == WipProcessAction.WarehouseReturn && Destination is null)
-            ModelState.AddModelError("Input.DestinationCode", "Selecciona la ubicación destino.");
+            ModelState.AddModelError("Input.DestinationCode", texts["Selecciona la ubicación destino."]);
         else if (Input.Action == WipProcessAction.WarehouseReturn && Destination!.IsWip)
-            ModelState.AddModelError("Input.DestinationCode", "El regreso a bodega requiere un destino no WIP.");
+            ModelState.AddModelError("Input.DestinationCode", texts["El regreso a bodega requiere un destino no WIP."]);
         if (Input.Action == WipProcessAction.WarehouseReturn && Source?.Id == Destination?.Id)
-            ModelState.AddModelError("Input.DestinationCode", "Origen y destino deben ser distintos.");
+            ModelState.AddModelError("Input.DestinationCode", texts["Origen y destino deben ser distintos."]);
         if (Input.Quantity <= 0 || decimal.Round(Input.Quantity, 4) != Input.Quantity)
-            ModelState.AddModelError("Input.Quantity", "La cantidad debe ser positiva y admitir como máximo cuatro decimales.");
+            ModelState.AddModelError("Input.Quantity", texts["La cantidad debe ser positiva y admitir como máximo cuatro decimales."]);
         if (Input.Action == WipProcessAction.SupplierReturn && string.IsNullOrWhiteSpace(Input.Reference))
-            ModelState.AddModelError("Input.Reference", "La referencia es obligatoria para devolver a proveedor.");
+            ModelState.AddModelError("Input.Reference", texts["La referencia es obligatoria para devolver a proveedor."]);
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)

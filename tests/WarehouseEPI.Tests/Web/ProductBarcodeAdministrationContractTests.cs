@@ -18,8 +18,9 @@ public sealed class ProductBarcodeAdministrationContractTests
         Assert.DoesNotContain("OnPostToggleBarcodeAsync", editModel, StringComparison.Ordinal);
         Assert.DoesNotContain("OnPostSetPrimaryAsync", editModel, StringComparison.Ordinal);
         Assert.DoesNotContain("Códigos de barras", details, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("<section class=\"card\"><div class=\"card-body\"><h2 class=\"h4\">Lotes internos", details, StringComparison.Ordinal);
-        Assert.Contains("placeholder=\"SKU, descripción, referencia o ubicación\"", index, StringComparison.Ordinal);
+        Assert.Contains("id=\"product-lots-heading\"", details, StringComparison.Ordinal);
+        Assert.Contains("Lotes internos", details, StringComparison.Ordinal);
+        Assert.Contains("placeholder=\"@CatTexts[\"SKU, descripción, referencia o ubicación\"]\"", index, StringComparison.Ordinal);
         Assert.DoesNotContain("BarcodeCount", index, StringComparison.Ordinal);
         Assert.DoesNotContain("ProductCatalogBarcode", catalog, StringComparison.Ordinal);
         Assert.DoesNotContain("BarcodeCount", catalog, StringComparison.Ordinal);

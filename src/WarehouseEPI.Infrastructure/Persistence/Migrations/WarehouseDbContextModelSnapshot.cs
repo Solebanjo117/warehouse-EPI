@@ -330,11 +330,18 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("numeric(18,4)")
                         .HasColumnName("expected_quantity");
 
+                    b.Property<bool>("HasPlateDifference")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsUnexpectedProduct")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_unexpected_product");
+
+                    b.Property<string>("PlateCountsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid")
@@ -423,6 +430,196 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.HasIndex("LocationId", "Status");
 
                     b.ToTable("cycle_count_locations", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly>("AnchorDate")
+                        .HasColumnType("date")
+                        .HasColumnName("anchor_date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("frequency");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<DateOnly>("NextDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("next_due_date");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("IsActive", "NextDueDate");
+
+                    b.HasIndex("ProductId", "LocationId")
+                        .IsUnique();
+
+                    b.ToTable("cycle_count_plans", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlanEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("CampaignId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("campaign_id");
+
+                    b.Property<Guid?>("CycleCountLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_location_id");
+
+                    b.Property<Guid>("CycleCountPlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_plan_id");
+
+                    b.Property<DateOnly?>("NewAnchorDate")
+                        .HasColumnType("date")
+                        .HasColumnName("new_anchor_date");
+
+                    b.Property<string>("NewFrequency")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("new_frequency");
+
+                    b.Property<bool?>("NewIsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("new_is_active");
+
+                    b.Property<DateOnly?>("NewNextDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("new_next_due_date");
+
+                    b.Property<DateOnly?>("PreviousAnchorDate")
+                        .HasColumnType("date")
+                        .HasColumnName("previous_anchor_date");
+
+                    b.Property<string>("PreviousFrequency")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("previous_frequency");
+
+                    b.Property<bool?>("PreviousIsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("previous_is_active");
+
+                    b.Property<DateOnly?>("PreviousNextDueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("previous_next_due_date");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CampaignId");
+
+                    b.HasIndex("CycleCountLocationId");
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("CycleCountPlanId", "RecordedAt");
+
+                    b.ToTable("cycle_count_plan_events", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlannedProduct", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("CycleCountLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_location_id");
+
+                    b.Property<Guid?>("CycleCountPlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cycle_count_plan_id");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<DateOnly?>("ScheduledFor")
+                        .HasColumnType("date")
+                        .HasColumnName("scheduled_for");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CycleCountPlanId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("CycleCountLocationId", "ProductId")
+                        .IsUnique();
+
+                    b.HasIndex("ScheduledFor", "CycleCountPlanId");
+
+                    b.ToTable("cycle_count_planned_products", (string)null);
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountReviewBatch", b =>
@@ -658,9 +855,9 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("inventory_movements", null, t =>
                         {
-                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR (purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR (purpose = 'DOCUMENT_RECEIPT' AND type = 'ENTRY' AND operational_area_id IS NULL)");
+                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR (purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR (purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL)");
 
-                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT')");
+                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT')");
 
                             t.HasCheckConstraint("ck_inventory_movements_type", "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
                         });
@@ -1218,8 +1415,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_locations_operational_role", "operational_role IN ('STORAGE', 'WIP', 'OTHER')");
 
                             t.HasCheckConstraint("ck_locations_structure", "(kind = 'RACK' AND row_code ~ '^[A-Z]$' AND rack_number > 0 AND pallet_number BETWEEN 1 AND 9 AND code = row_code || '-' || rack_number::text || '-' || pallet_number::text) OR (kind = 'AREA' AND row_code IS NULL AND rack_number IS NULL AND pallet_number IS NULL AND code ~ '^[A-Z0-9]([A-Z0-9-]*[A-Z0-9])?$')");
-
-                            t.HasCheckConstraint("ck_locations_wip_area", "operational_role <> 'WIP' OR kind = 'AREA'");
                         });
                 });
 
@@ -1354,6 +1549,12 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ProductId")
                         .HasColumnType("uuid")
                         .HasColumnName("product_id");
+
+                    b.Property<string>("ReasonText")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason_text");
 
                     b.Property<DateTimeOffset?>("ResolvedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1496,6 +1697,132 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OriginMovementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("OriginMovementId");
+
+                    b.HasIndex("ProductId", "LocationId");
+
+                    b.ToTable("pallet_plates", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlateEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("After")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Before")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid?>("MovementId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MovementLineId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PlateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("PlateVersion")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResponsibleUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ReversesEventId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MovementId");
+
+                    b.HasIndex("MovementLineId");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ReversesEventId")
+                        .IsUnique();
+
+                    b.HasIndex("PlateId", "PlateVersion")
+                        .IsUnique();
+
+                    b.ToTable("pallet_plate_events", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlateLot", b =>
+                {
+                    b.Property<Guid>("PlateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.HasKey("PlateId", "LotId");
+
+                    b.HasIndex("LotId");
+
+                    b.ToTable("pallet_plate_lots", (string)null);
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1512,6 +1839,10 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<Guid?>("DefaultEntryLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_entry_location_id");
 
                     b.Property<string>("Description")
                         .HasColumnType("text")
@@ -1556,6 +1887,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BaseUnitId");
+
+                    b.HasIndex("DefaultEntryLocationId");
 
                     b.HasIndex("ProductClassId");
 
@@ -2051,6 +2384,3011 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                             IsActive = true,
                             Name = "Materia prima"
                         });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBalanceEdit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("WeekId");
+
+                    b.ToTable("production_balance_edits", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBalanceEditItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<Guid?>("CreatedCaptureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EditId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("PreviousTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("RequestedTotal")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid?>("ReversedCaptureId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedCaptureId");
+
+                    b.HasIndex("EditId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ReversedCaptureId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.ToTable("production_balance_edit_items", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AssignedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("assigned_quantity");
+
+                    b.Property<string>("CreateFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("create_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("CreateOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("create_operation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("FinishedProductLotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("finished_product_lot_id");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)")
+                        .HasColumnName("number");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreateOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("FinishedProductLotId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("WorkOrderId", "FinishedProductLotId")
+                        .IsUnique();
+
+                    b.ToTable("production_batches", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_batch_quantity", "assigned_quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatchMaterialConsumption", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BatchResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_result_id");
+
+                    b.Property<Guid>("IssueLinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issue_link_id");
+
+                    b.Property<Guid>("MaterialLotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("material_lot_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IssueLinkId");
+
+                    b.HasIndex("MaterialLotId");
+
+                    b.HasIndex("BatchResultId", "IssueLinkId", "MaterialLotId")
+                        .IsUnique();
+
+                    b.ToTable("production_batch_material_consumptions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_batch_material_consumption_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatchResult", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<string>("DifferenceReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("difference_reason");
+
+                    b.Property<decimal>("GoodQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("good_quantity");
+
+                    b.Property<decimal>("InputQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("input_quantity");
+
+                    b.Property<bool>("IsRework")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_rework");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<decimal>("ReworkQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("rework_quantity");
+
+                    b.Property<decimal>("ScrapQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("scrap_quantity");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("BatchId", "WorkOrderStageId", "RecordedAt");
+
+                    b.ToTable("production_batch_results", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_batch_result_quantities", "input_quantity > 0 AND good_quantity >= 0 AND rework_quantity >= 0 AND scrap_quantity >= 0 AND good_quantity + rework_quantity + scrap_quantity = input_quantity");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCaptureSubmission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.ToTable("production_capture_submissions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCaptureSubmissionItem", b =>
+                {
+                    b.Property<Guid>("SubmissionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("submission_id");
+
+                    b.Property<Guid>("CaptureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("capture_id");
+
+                    b.HasKey("SubmissionId", "CaptureId");
+
+                    b.HasIndex("CaptureId")
+                        .IsUnique();
+
+                    b.ToTable("production_capture_submission_items", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCarryoverPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("area");
+
+                    b.Property<DateOnly>("PlannedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("planned_date");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("week_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.HasIndex("WeekId", "PlannedDate", "ProductId", "Area")
+                        .IsUnique();
+
+                    b.ToTable("production_carryover_plans", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_carryover_plan_quantity", "quantity >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyCapture", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("area");
+
+                    b.Property<DateOnly>("EffectiveDate")
+                        .HasColumnType("date")
+                        .HasColumnName("effective_date");
+
+                    b.Property<string>("ImportedReporter")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("imported_reporter");
+
+                    b.Property<bool>("IsFlexible")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_flexible");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("origin");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<string>("ReverseFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("reverse_fingerprint");
+
+                    b.Property<Guid?>("ReverseOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reverse_operation_id");
+
+                    b.Property<string>("ReverseReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reverse_reason");
+
+                    b.Property<DateTimeOffset?>("ReversedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reversed_at");
+
+                    b.Property<Guid?>("ReversedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reversed_by_user_id");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_id");
+
+                    b.Property<int?>("SourceRow")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_row");
+
+                    b.Property<string>("SourceSheet")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("source_sheet");
+
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stage_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("week_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ReverseOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ReversedByUserId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("StageId");
+
+                    b.HasIndex("WeekId", "EffectiveDate", "ProductId");
+
+                    b.ToTable("production_daily_captures", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_daily_capture_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyCaptureAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BatchResultId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_result_id");
+
+                    b.Property<Guid>("CaptureId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("capture_id");
+
+                    b.Property<Guid?>("DeliveryOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("delivery_operation_id");
+
+                    b.Property<Guid>("ProcessOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("process_operation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid?>("ReceiveOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("receive_operation_id");
+
+                    b.Property<DateTimeOffset?>("ReconciledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("reconciled_at");
+
+                    b.Property<Guid?>("ReconciledByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reconciled_by_user_id");
+
+                    b.Property<Guid>("ScheduleLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_line_id");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchResultId")
+                        .IsUnique()
+                        .HasFilter("batch_result_id IS NOT NULL");
+
+                    b.HasIndex("CaptureId");
+
+                    b.HasIndex("ProcessOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ReconciledByUserId");
+
+                    b.HasIndex("ScheduleLineId");
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.ToTable("production_daily_capture_allocations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_daily_capture_allocation_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyConfiguration", b =>
+                {
+                    b.Property<short>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
+
+                    b.Property<Guid?>("CuttingStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("cutting_stage_id");
+
+                    b.Property<Guid?>("LastOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("last_operation_id");
+
+                    b.Property<string>("LastRequestFingerprint")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("last_request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid?>("ReadyToPackStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ready_to_pack_stage_id");
+
+                    b.Property<Guid?>("SewingStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sewing_stage_id");
+
+                    b.Property<Guid?>("Shift1Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_1_id");
+
+                    b.Property<Guid?>("Shift2Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_2_id");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid?>("UpdatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by_user_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CuttingStageId");
+
+                    b.HasIndex("ReadyToPackStageId");
+
+                    b.HasIndex("SewingStageId");
+
+                    b.HasIndex("Shift1Id");
+
+                    b.HasIndex("Shift2Id");
+
+                    b.HasIndex("UpdatedByUserId");
+
+                    b.ToTable("production_daily_configuration", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_daily_configuration_singleton", "id = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = (short)1,
+                            Version = 0L
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<decimal>("GoodQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("good_quantity");
+
+                    b.Property<Guid?>("InventoryMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<Guid?>("RelatedEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_event_id");
+
+                    b.Property<Guid?>("RelatedStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("related_stage_id");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<decimal>("ReworkQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("rework_quantity");
+
+                    b.Property<decimal>("ScrapQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("scrap_quantity");
+
+                    b.Property<Guid?>("ShiftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("shift_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid?>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.HasIndex("InventoryMovementId")
+                        .IsUnique()
+                        .HasFilter("inventory_movement_id IS NOT NULL");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("RelatedEventId");
+
+                    b.HasIndex("RelatedStageId");
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("WorkOrderId", "RecordedAt");
+
+                    b.ToTable("production_events", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionExecutionAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("AuthorizedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("WorkOrderId", "RecordedAt");
+
+                    b.ToTable("production_execution_audits", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionImportDraft", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("BatchId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("batch_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<byte[]>("FileBytes")
+                        .IsRequired()
+                        .HasColumnType("bytea")
+                        .HasColumnName("file_bytes");
+
+                    b.Property<string>("FileHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("file_hash");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<Guid>("OwnerId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("owner_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.HasIndex("OwnerId", "UpdatedAt");
+
+                    b.ToTable("production_import_drafts", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_import_file_size", "octet_length(file_bytes) BETWEEN 1 AND 15728640");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionImportRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DraftId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("draft_id");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("fingerprint");
+
+                    b.Property<int>("Number")
+                        .HasColumnType("integer")
+                        .HasColumnName("number");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("PreviewJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("preview");
+
+                    b.Property<string>("ResolutionsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("resolutions");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("DraftId", "Number")
+                        .IsUnique();
+
+                    b.ToTable("production_import_revisions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("CancelledQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("cancelled_quantity");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("InventoryMovementLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_line_id");
+
+                    b.Property<string>("PlateAllocationsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("source");
+
+                    b.Property<Guid?>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.Property<Guid>("WipLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("wip_location_id");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryMovementLineId")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SupplyRequestLineId");
+
+                    b.HasIndex("WipLocationId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("WorkOrderId", "WorkOrderStageId");
+
+                    b.ToTable("production_material_issue_links", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_material_issue_link_cancelled", "cancelled_quantity >= 0 AND cancelled_quantity <= quantity");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialIssueLot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("IssueLinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issue_link_id");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LotId");
+
+                    b.HasIndex("IssueLinkId", "LotId")
+                        .IsUnique();
+
+                    b.ToTable("production_material_issue_lots", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_material_issue_lot_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("reference");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<string>("ReturnEffect")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("return_effect");
+
+                    b.Property<Guid?>("ReversesOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reverses_operation_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("ReversesOperationId")
+                        .IsUnique()
+                        .HasFilter("reverses_operation_id IS NOT NULL");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("WorkOrderId", "WorkOrderStageId");
+
+                    b.ToTable("production_material_operations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_material_operation_reversal", "(type = 'REVERSAL' AND reverses_operation_id IS NOT NULL) OR (type <> 'REVERSAL' AND reverses_operation_id IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialOperationLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("InventoryMovementLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_line_id");
+
+                    b.Property<Guid>("IssueLinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issue_link_id");
+
+                    b.Property<Guid>("ProductionMaterialOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("production_material_operation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryMovementLineId")
+                        .IsUnique();
+
+                    b.HasIndex("IssueLinkId");
+
+                    b.HasIndex("ProductionMaterialOperationId", "IssueLinkId")
+                        .IsUnique();
+
+                    b.ToTable("production_material_operation_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_material_operation_line_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialWipDefault", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<Guid>("ProductionStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("production_stage_id");
+
+                    b.Property<short?>("RackNumber")
+                        .HasColumnType("smallint")
+                        .HasColumnName("rack_number");
+
+                    b.Property<string>("RowCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("row_code");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("ProductionStageId");
+
+                    b.HasIndex("ProductId", "ProductionStageId")
+                        .IsUnique();
+
+                    b.ToTable("production_material_wip_defaults", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_material_wip_defaults_shape", "(location_id IS NOT NULL AND row_code IS NULL AND rack_number IS NULL) OR (location_id IS NULL AND row_code IS NOT NULL AND rack_number IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialWipRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("after_json");
+
+                    b.Property<Guid>("AuthorizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("authorized_by_user_id");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("production_material_wip_revisions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionOrderMaterialPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("AdjustedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("adjusted_at");
+
+                    b.Property<Guid?>("AdjustedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("adjusted_by_user_id");
+
+                    b.Property<string>("AdjustmentReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("adjustment_reason");
+
+                    b.Property<Guid>("MaterialProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("material_product_id");
+
+                    b.Property<decimal>("OriginalPlannedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("original_planned_quantity");
+
+                    b.Property<decimal>("PlannedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("planned_quantity");
+
+                    b.Property<short>("UnitId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("unit_id");
+
+                    b.Property<Guid?>("WipLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("wip_location_id");
+
+                    b.Property<short?>("WipRackNumber")
+                        .HasColumnType("smallint")
+                        .HasColumnName("wip_rack_number");
+
+                    b.Property<string>("WipResolutionSource")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("wip_resolution_source");
+
+                    b.Property<string>("WipRowCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("wip_row_code");
+
+                    b.Property<string>("WipTargetCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("wip_target_code");
+
+                    b.Property<string>("WipTargetKind")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("wip_target_kind");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdjustedByUserId");
+
+                    b.HasIndex("MaterialProductId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("WipLocationId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("WorkOrderId", "WorkOrderStageId", "MaterialProductId")
+                        .IsUnique();
+
+                    b.ToTable("production_order_material_plans", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_order_material_plan_quantities", "planned_quantity > 0 AND original_planned_quantity > 0");
+
+                            t.HasCheckConstraint("ck_production_order_material_plan_wip_shape", "(wip_target_kind IS NULL AND wip_location_id IS NULL AND wip_row_code IS NULL AND wip_rack_number IS NULL AND wip_target_code IS NULL AND wip_resolution_source IS NULL) OR (wip_target_kind IN ('Area', 'Position') AND wip_location_id IS NOT NULL AND wip_row_code IS NULL AND wip_rack_number IS NULL AND wip_target_code IS NOT NULL AND wip_resolution_source IS NOT NULL) OR (wip_target_kind = 'Rack' AND wip_location_id IS NULL AND wip_row_code IS NOT NULL AND wip_rack_number IS NOT NULL AND wip_target_code IS NOT NULL AND wip_resolution_source IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionOrderPlanningRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("after_json");
+
+                    b.Property<Guid>("AuthorizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("authorized_by_user_id");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkOrderId", "RecordedAt");
+
+                    b.ToTable("production_order_planning_revisions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessConfiguration", b =>
+                {
+                    b.Property<short>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("smallint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<short>("Id"));
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("production_process_configuration", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_process_configuration_singleton", "id = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = (short)1,
+                            Version = 0L
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("after_json");
+
+                    b.Property<Guid>("AuthorizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("authorized_by_user_id");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("ProductionStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("production_stage_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ProductionStageId");
+
+                    b.ToTable("production_process_revisions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessWipTarget", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<Guid>("ProductionStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("production_stage_id");
+
+                    b.Property<short?>("RackNumber")
+                        .HasColumnType("smallint")
+                        .HasColumnName("rack_number");
+
+                    b.Property<string>("RowCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("row_code");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("ProductionStageId", "LocationId")
+                        .IsUnique()
+                        .HasFilter("location_id IS NOT NULL");
+
+                    b.HasIndex("ProductionStageId", "RowCode")
+                        .IsUnique()
+                        .HasFilter("row_code IS NOT NULL AND rack_number IS NULL");
+
+                    b.HasIndex("ProductionStageId", "RowCode", "RackNumber")
+                        .IsUnique()
+                        .HasFilter("rack_number IS NOT NULL");
+
+                    b.ToTable("production_process_wip_targets", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_process_wip_targets_shape", "(location_id IS NOT NULL AND row_code IS NULL AND rack_number IS NULL) OR (location_id IS NULL AND row_code IS NOT NULL AND rack_number IS NULL) OR (location_id IS NULL AND row_code IS NOT NULL AND rack_number IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReason", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RequiresComment")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category", "Code")
+                        .IsUnique();
+
+                    b.ToTable("production_reasons", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000001"),
+                            Category = 0,
+                            Code = "OTRO",
+                            Description = "Otro",
+                            IsActive = true,
+                            RequiresComment = true,
+                            Version = 0L
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000002"),
+                            Category = 1,
+                            Code = "OTRO",
+                            Description = "Otro",
+                            IsActive = true,
+                            RequiresComment = true,
+                            Version = 0L
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000003"),
+                            Category = 2,
+                            Code = "OTRO",
+                            Description = "Otro",
+                            IsActive = true,
+                            RequiresComment = true,
+                            Version = 0L
+                        },
+                        new
+                        {
+                            Id = new Guid("55555555-0000-0000-0000-000000000004"),
+                            Category = 3,
+                            Code = "OTRO",
+                            Description = "Otro",
+                            IsActive = true,
+                            RequiresComment = true,
+                            Version = 0L
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRecipe", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("BaseQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("base_quantity");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique()
+                        .HasFilter("is_active");
+
+                    b.HasIndex("ProductId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("production_recipes", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_recipe_base_quantity", "base_quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRecipeLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("MaterialProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("material_product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("recipe_id");
+
+                    b.Property<Guid?>("StageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MaterialProductId");
+
+                    b.HasIndex("StageId");
+
+                    b.HasIndex("RecipeId", "MaterialProductId")
+                        .IsUnique()
+                        .HasFilter("stage_id IS NULL");
+
+                    b.HasIndex("RecipeId", "MaterialProductId", "StageId")
+                        .IsUnique()
+                        .HasFilter("stage_id IS NOT NULL");
+
+                    b.ToTable("production_recipe_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_recipe_line_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkAttempt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ResultId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReworkCaseId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ResultId")
+                        .IsUnique();
+
+                    b.HasIndex("ReworkCaseId");
+
+                    b.ToTable("production_rework_attempts", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("InitialQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTimeOffset>("OriginAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OriginResultId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId");
+
+                    b.HasIndex("OriginResultId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkOrderId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.ToTable("production_rework_cases", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkRetention", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("IssueLinkId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("ReworkCaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("WarehouseReservationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IssueLinkId")
+                        .IsUnique();
+
+                    b.HasIndex("ReworkCaseId");
+
+                    b.HasIndex("WarehouseReservationId")
+                        .IsUnique();
+
+                    b.ToTable("production_rework_retentions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_rework_retention_source", "(\"IssueLinkId\" IS NULL) <> (\"WarehouseReservationId\" IS NULL) AND \"Quantity\" > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRoute", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique()
+                        .HasFilter("is_active");
+
+                    b.ToTable("production_routes", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRouteStage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("RouteId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("route_id");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence");
+
+                    b.Property<Guid>("StageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StageId");
+
+                    b.HasIndex("RouteId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("RouteId", "StageId")
+                        .IsUnique();
+
+                    b.ToTable("production_route_stages", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("CaptureCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("capture_count");
+
+                    b.Property<string>("FileHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("file_hash")
+                        .IsFixedLength();
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("file_name");
+
+                    b.Property<DateTimeOffset>("ImportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("imported_at");
+
+                    b.Property<Guid>("ImportedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("imported_by_user_id");
+
+                    b.Property<int>("LineCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("line_count");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<string>("ResolutionSummary")
+                        .HasColumnType("text")
+                        .HasColumnName("resolution_summary");
+
+                    b.Property<int>("WeekCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("week_count");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileHash")
+                        .IsUnique();
+
+                    b.HasIndex("ImportedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.ToTable("production_schedule_import_batches", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_cancelled");
+
+                    b.Property<bool>("IsCarryover")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_carryover");
+
+                    b.Property<bool>("IsExtra")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_extra");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("OrderReference1")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("order_reference_1");
+
+                    b.Property<string>("OrderReference2")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("order_reference_2");
+
+                    b.Property<string>("OrderReference3")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("order_reference_3");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("origin");
+
+                    b.Property<DateOnly>("PlannedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("planned_date");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence");
+
+                    b.Property<int?>("SourceRow")
+                        .HasColumnType("integer")
+                        .HasColumnName("source_row");
+
+                    b.Property<string>("SourceSheet")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("source_sheet");
+
+                    b.Property<string>("StartArea")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("start_area");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("week_id");
+
+                    b.Property<Guid?>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WorkOrderId")
+                        .IsUnique()
+                        .HasFilter("work_order_id IS NOT NULL");
+
+                    b.HasIndex("ProductId", "PlannedDate");
+
+                    b.HasIndex("WeekId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("production_schedule_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_schedule_line_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("action");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("after_json");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("before_json");
+
+                    b.Property<Guid?>("LineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("line_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("week_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("WeekId", "RecordedAt");
+
+                    b.ToTable("production_schedule_revisions", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleWeek", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<Guid?>("ClosedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("closed_by_user_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Origin")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("origin");
+
+                    b.Property<DateTimeOffset?>("PublishedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at");
+
+                    b.Property<Guid?>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<string>("SourceName")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)")
+                        .HasColumnName("source_name");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<DateOnly>("WeekEnd")
+                        .HasColumnType("date")
+                        .HasColumnName("week_end");
+
+                    b.Property<DateOnly>("WeekStart")
+                        .HasColumnType("date")
+                        .HasColumnName("week_start");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClosedByUserId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("PublishedByUserId");
+
+                    b.HasIndex("WeekStart")
+                        .IsUnique();
+
+                    b.ToTable("production_schedule_weeks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_schedule_week_dates", "week_end = week_start + 5");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionShift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("production_shifts", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionStage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<Guid?>("DefaultWipLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("default_wip_location_id");
+
+                    b.Property<short?>("DefaultWipRackNumber")
+                        .HasColumnType("smallint")
+                        .HasColumnName("default_wip_rack_number");
+
+                    b.Property<string>("DefaultWipRowCode")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("default_wip_row_code");
+
+                    b.Property<int?>("InactivityAlertHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("inactivity_alert_hours");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<int?>("ReworkAlertHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("rework_alert_hours");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("DefaultWipLocationId");
+
+                    b.ToTable("production_stages", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_stages_alert_hours", "(inactivity_alert_hours IS NULL OR inactivity_alert_hours > 0) AND (rework_alert_hours IS NULL OR rework_alert_hours > 0)");
+
+                            t.HasCheckConstraint("ck_production_stages_default_wip_shape", "(default_wip_location_id IS NULL AND default_wip_row_code IS NULL AND default_wip_rack_number IS NULL) OR (default_wip_location_id IS NOT NULL AND default_wip_row_code IS NULL AND default_wip_rack_number IS NULL) OR (default_wip_location_id IS NULL AND default_wip_row_code IS NOT NULL AND default_wip_rack_number IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("DestinationLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_location_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<Guid>("PreparationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("preparation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<Guid>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationLocationId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("PreparationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("SupplyRequestLineId");
+
+                    b.ToTable("production_supply_confirmations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_supply_confirmation_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmationIssue", b =>
+                {
+                    b.Property<Guid>("ConfirmationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_id");
+
+                    b.Property<Guid>("IssueLinkId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("issue_link_id");
+
+                    b.HasKey("ConfirmationId", "IssueLinkId");
+
+                    b.HasIndex("IssueLinkId");
+
+                    b.ToTable("production_supply_confirmation_issues", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmationMovement", b =>
+                {
+                    b.Property<Guid>("ConfirmationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("confirmation_id");
+
+                    b.Property<Guid>("InventoryMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_id");
+
+                    b.HasKey("ConfirmationId", "InventoryMovementId");
+
+                    b.HasIndex("InventoryMovementId");
+
+                    b.ToTable("production_supply_confirmation_movements", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("InventoryMovementId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("inventory_movement_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<Guid>("SupplyRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_id");
+
+                    b.Property<Guid?>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InventoryMovementId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("SupplyRequestLineId");
+
+                    b.HasIndex("SupplyRequestId", "RecordedAt");
+
+                    b.ToTable("production_supply_events", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyPreparation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("DestinationLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_location_id");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("ResponsibleUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("responsible_user_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<Guid>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationLocationId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ResponsibleUserId");
+
+                    b.HasIndex("SupplyRequestLineId")
+                        .IsUnique()
+                        .HasFilter("status = 'Open'");
+
+                    b.ToTable("production_supply_preparations", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyPreparationSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<string>("PlatesJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("PreparationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("preparation_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
+
+                    b.HasIndex("PreparationId", "Kind", "LocationId")
+                        .IsUnique();
+
+                    b.ToTable("production_supply_preparation_sources", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_supply_preparation_source_quantity", "quantity > 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("DestinationCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("destination_code");
+
+                    b.Property<Guid?>("DestinationLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_location_id");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.Property<Guid>("WorkOrderStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_stage_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationLocationId");
+
+                    b.HasIndex("WorkOrderStageId");
+
+                    b.HasIndex("WorkOrderId", "WorkOrderStageId", "DestinationCode")
+                        .IsUnique();
+
+                    b.ToTable("production_supply_requests", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("CancelledQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("cancelled_quantity");
+
+                    b.Property<string>("DestinationCode")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("destination_code");
+
+                    b.Property<Guid?>("DestinationLocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("destination_location_id");
+
+                    b.Property<Guid>("MaterialPlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("material_plan_id");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("ReopenedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("reopened_quantity");
+
+                    b.Property<decimal>("RequiredQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("required_quantity");
+
+                    b.Property<Guid?>("ReworkCaseId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("rework_case_id");
+
+                    b.Property<Guid>("SupplyRequestId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_id");
+
+                    b.Property<short>("UnitId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("unit_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DestinationLocationId");
+
+                    b.HasIndex("MaterialPlanId")
+                        .IsUnique()
+                        .HasFilter("rework_case_id IS NULL");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("ReworkCaseId");
+
+                    b.HasIndex("SupplyRequestId");
+
+                    b.HasIndex("UnitId");
+
+                    b.ToTable("production_supply_request_lines", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_supply_request_line_quantities", "required_quantity > 0 AND cancelled_quantity >= 0 AND cancelled_quantity <= required_quantity");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWarehouseReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("LocationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("location_id");
+
+                    b.Property<Guid>("LotId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lot_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<decimal>("ReleasedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("released_quantity");
+
+                    b.Property<Guid>("SupplyRequestLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("supply_request_line_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LotId");
+
+                    b.HasIndex("LocationId", "LotId");
+
+                    b.HasIndex("SupplyRequestLineId", "LocationId", "LotId")
+                        .IsUnique();
+
+                    b.ToTable("production_warehouse_reservations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_production_warehouse_reservation_quantities", "quantity > 0 AND released_quantity >= 0 AND released_quantity <= quantity");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AuthorizedQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("authorized_quantity");
+
+                    b.Property<DateTimeOffset?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("closed_at");
+
+                    b.Property<string>("CreateFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("create_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("CreateOperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("create_operation_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("created_by_user_id");
+
+                    b.Property<DateOnly?>("DueDate")
+                        .HasColumnType("date")
+                        .HasColumnName("due_date");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("external_reference");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("notes");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("number");
+
+                    b.Property<decimal>("OriginalTargetQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("original_target_quantity");
+
+                    b.Property<DateTimeOffset?>("PrincipalClosedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("principal_closed_at");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<int?>("RecipeVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("recipe_version");
+
+                    b.Property<DateTimeOffset?>("ReleasedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("released_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("status");
+
+                    b.Property<string>("SupplyPriority")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasDefaultValue("Normal")
+                        .HasColumnName("supply_priority");
+
+                    b.Property<decimal>("TargetQuantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("target_quantity");
+
+                    b.Property<short>("UnitId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("unit_id");
+
+                    b.Property<bool>("UsesBatchTraceability")
+                        .HasColumnType("boolean")
+                        .HasColumnName("uses_batch_traceability");
+
+                    b.Property<bool>("UsesSupplyRequests")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("uses_supply_requests");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L)
+                        .HasColumnName("version");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreateOperationId")
+                        .IsUnique();
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UnitId");
+
+                    b.HasIndex("Status", "DueDate");
+
+                    b.ToTable("production_work_orders", (string)null);
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)")
+                        .HasColumnName("code");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer")
+                        .HasColumnName("sequence");
+
+                    b.Property<Guid>("SourceStageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_stage_id");
+
+                    b.Property<Guid>("WorkOrderId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("work_order_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceStageId");
+
+                    b.HasIndex("WorkOrderId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("WorkOrderId", "SourceStageId")
+                        .IsUnique();
+
+                    b.ToTable("production_work_order_stages", (string)null);
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmation", b =>
@@ -2791,6 +6129,265 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<double>("A11")
+                        .HasColumnType("double precision")
+                        .HasColumnName("a11");
+
+                    b.Property<double>("A12")
+                        .HasColumnType("double precision")
+                        .HasColumnName("a12");
+
+                    b.Property<double>("A13")
+                        .HasColumnType("double precision")
+                        .HasColumnName("a13");
+
+                    b.Property<double>("A21")
+                        .HasColumnType("double precision")
+                        .HasColumnName("a21");
+
+                    b.Property<double>("A22")
+                        .HasColumnType("double precision")
+                        .HasColumnName("a22");
+
+                    b.Property<double>("A23")
+                        .HasColumnType("double precision")
+                        .HasColumnName("a23");
+
+                    b.Property<string>("AlgorithmVersion")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)")
+                        .HasColumnName("algorithm_version");
+
+                    b.Property<double>("CheckErrorMeters")
+                        .HasColumnType("double precision")
+                        .HasColumnName("check_error_meters");
+
+                    b.Property<DateTimeOffset?>("DisabledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disabled_at");
+
+                    b.Property<Guid?>("DisabledByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("disabled_by_user_id");
+
+                    b.Property<double>("FitErrorMeters")
+                        .HasColumnType("double precision")
+                        .HasColumnName("fit_error_meters");
+
+                    b.Property<short>("LayoutId")
+                        .HasColumnType("smallint")
+                        .HasColumnName("layout_id");
+
+                    b.Property<int>("LayoutVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("layout_version");
+
+                    b.Property<double>("MaximumScaleSvgPerMeter")
+                        .HasColumnType("double precision")
+                        .HasColumnName("maximum_scale_svg_per_meter");
+
+                    b.Property<double>("OriginLatitude")
+                        .HasColumnType("double precision")
+                        .HasColumnName("origin_latitude");
+
+                    b.Property<double>("OriginLongitude")
+                        .HasColumnType("double precision")
+                        .HasColumnName("origin_longitude");
+
+                    b.Property<DateTimeOffset>("PublishedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("published_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("PublishedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("published_by_user_id");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("integer")
+                        .HasColumnName("revision");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("status");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DisabledByUserId");
+
+                    b.HasIndex("PublishedByUserId");
+
+                    b.HasIndex("LayoutId", "Revision")
+                        .IsUnique();
+
+                    b.HasIndex("LayoutId", "Status")
+                        .IsUnique()
+                        .HasFilter("status = 'ACTIVE'");
+
+                    b.ToTable("warehouse_map_calibrations", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_calibration_algorithm", "algorithm_version = 'AFFINE_TANGENT_V1'");
+
+                            t.HasCheckConstraint("ck_warehouse_map_calibration_errors", "fit_error_meters >= 0 AND check_error_meters >= 0 AND maximum_scale_svg_per_meter > 0");
+
+                            t.HasCheckConstraint("ck_warehouse_map_calibration_status", "status IN ('ACTIVE', 'DISABLED')");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibrationPoint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<double>("AccuracyMeters")
+                        .HasColumnType("double precision")
+                        .HasColumnName("accuracy_meters");
+
+                    b.Property<Guid>("CalibrationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("calibration_id");
+
+                    b.Property<double>("DispersionMeters")
+                        .HasColumnType("double precision")
+                        .HasColumnName("dispersion_meters");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("kind");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision")
+                        .HasColumnName("latitude");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision")
+                        .HasColumnName("longitude");
+
+                    b.Property<decimal>("MapX")
+                        .HasPrecision(9, 3)
+                        .HasColumnType("numeric(9,3)")
+                        .HasColumnName("map_x");
+
+                    b.Property<decimal>("MapY")
+                        .HasPrecision(9, 3)
+                        .HasColumnType("numeric(9,3)")
+                        .HasColumnName("map_y");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<int>("SampleCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("sample_count");
+
+                    b.Property<string>("SamplesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("samples_json");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalibrationId", "Kind", "Name")
+                        .IsUnique();
+
+                    b.ToTable("warehouse_map_calibration_points", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_calibration_point_kind", "kind IN ('REFERENCE', 'CHECK')");
+
+                            t.HasCheckConstraint("ck_warehouse_map_calibration_point_samples", "sample_count > 0 AND accuracy_meters >= 0 AND dispersion_meters >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibrationRevision", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("action");
+
+                    b.Property<Guid>("AuthorizedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("authorized_by_user_id");
+
+                    b.Property<Guid?>("CalibrationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("calibration_id");
+
+                    b.Property<string>("ChangesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("changes_json");
+
+                    b.Property<Guid>("OperationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("operation_id");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("reason");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("recorded_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .HasColumnName("request_fingerprint")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("RequestedByUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("requested_by_user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuthorizedByUserId");
+
+                    b.HasIndex("CalibrationId");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("RecordedAt");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.ToTable("warehouse_map_calibration_revisions", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_warehouse_map_calibration_revision_action", "action IN ('PUBLISH', 'DISABLE')");
+                        });
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapElement", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2923,6 +6520,20 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("smallint")
                         .HasColumnName("id");
 
+                    b.Property<decimal>("CanvasHeight")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasDefaultValue(900m)
+                        .HasColumnName("canvas_height");
+
+                    b.Property<decimal>("CanvasWidth")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(8, 2)
+                        .HasColumnType("numeric(8,2)")
+                        .HasDefaultValue(1600m)
+                        .HasColumnName("canvas_width");
+
                     b.Property<string>("MeasurementSystem")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -2956,6 +6567,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("warehouse_map_layouts", null, t =>
                         {
+                            t.HasCheckConstraint("ck_warehouse_map_layout_canvas", "canvas_width BETWEEN 1600 AND 6400 AND canvas_height BETWEEN 900 AND 3600 AND canvas_width % 25 = 0 AND canvas_height % 25 = 0");
+
                             t.HasCheckConstraint("ck_warehouse_map_layout_measurement", "measurement_system IN ('IMPERIAL', 'METRIC')");
 
                             t.HasCheckConstraint("ck_warehouse_map_layout_scale", "scale_units_per_inch IS NULL OR scale_units_per_inch > 0");
@@ -3428,6 +7041,97 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Location");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlan", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlanEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountCampaign", "Campaign")
+                        .WithMany()
+                        .HasForeignKey("CampaignId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountLocation", "CycleCountLocation")
+                        .WithMany()
+                        .HasForeignKey("CycleCountLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountPlan", "CycleCountPlan")
+                        .WithMany("Events")
+                        .HasForeignKey("CycleCountPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Campaign");
+
+                    b.Navigation("CycleCountLocation");
+
+                    b.Navigation("CycleCountPlan");
+
+                    b.Navigation("ResponsibleUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlannedProduct", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountLocation", "CycleCountLocation")
+                        .WithMany("PlannedProducts")
+                        .HasForeignKey("CycleCountLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.CycleCountPlan", "CycleCountPlan")
+                        .WithMany("Dispatches")
+                        .HasForeignKey("CycleCountPlanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CycleCountLocation");
+
+                    b.Navigation("CycleCountPlan");
+
+                    b.Navigation("Product");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountReviewBatch", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
@@ -3794,6 +7498,80 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("PreviousAssignedUser");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlate", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", null)
+                        .WithMany()
+                        .HasForeignKey("OriginMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlateEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", null)
+                        .WithMany()
+                        .HasForeignKey("MovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", null)
+                        .WithMany()
+                        .HasForeignKey("MovementLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.PalletPlate", "Plate")
+                        .WithMany()
+                        .HasForeignKey("PlateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.PalletPlateEvent", null)
+                        .WithMany()
+                        .HasForeignKey("ReversesEventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Plate");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlateLot", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "Lot")
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.PalletPlate", "Plate")
+                        .WithMany("Lots")
+                        .HasForeignKey("PlateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Lot");
+
+                    b.Navigation("Plate");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.Unit", "BaseUnit")
@@ -3801,6 +7579,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasForeignKey("BaseUnitId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DefaultEntryLocation")
+                        .WithMany()
+                        .HasForeignKey("DefaultEntryLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("WarehouseEPI.Core.Entities.ProductClass", "ProductClass")
                         .WithMany("Products")
@@ -3813,6 +7596,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("BaseUnit");
+
+                    b.Navigation("DefaultEntryLocation");
 
                     b.Navigation("ProductClass");
 
@@ -3885,6 +7670,1275 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("ProductLot");
 
                     b.Navigation("RequestedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBalanceEdit", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBalanceEditItem", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionDailyCapture", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedCaptureId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBalanceEdit", null)
+                        .WithMany("Items")
+                        .HasForeignKey("EditId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionDailyCapture", null)
+                        .WithMany()
+                        .HasForeignKey("ReversedCaptureId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionShift", null)
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatch", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "FinishedProductLot")
+                        .WithMany()
+                        .HasForeignKey("FinishedProductLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("Batches")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("FinishedProductLot");
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatchMaterialConsumption", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatchResult", "BatchResult")
+                        .WithMany("Materials")
+                        .HasForeignKey("BatchResultId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
+                        .WithMany()
+                        .HasForeignKey("IssueLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "MaterialLot")
+                        .WithMany()
+                        .HasForeignKey("MaterialLotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BatchResult");
+
+                    b.Navigation("IssueLink");
+
+                    b.Navigation("MaterialLot");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatchResult", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatch", "Batch")
+                        .WithMany("Results")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionShift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCaptureSubmission", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCaptureSubmissionItem", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionDailyCapture", "Capture")
+                        .WithMany()
+                        .HasForeignKey("CaptureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionCaptureSubmission", "Submission")
+                        .WithMany("Items")
+                        .HasForeignKey("SubmissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Capture");
+
+                    b.Navigation("Submission");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCarryoverPlan", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyCapture", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ReversedByUser")
+                        .WithMany()
+                        .HasForeignKey("ReversedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionShift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "Stage")
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", "Week")
+                        .WithMany("Captures")
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("ReversedByUser");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("Stage");
+
+                    b.Navigation("Week");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyCaptureAllocation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatchResult", "BatchResult")
+                        .WithMany()
+                        .HasForeignKey("BatchResultId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionDailyCapture", "Capture")
+                        .WithMany("Allocations")
+                        .HasForeignKey("CaptureId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ReconciledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleLine", "ScheduleLine")
+                        .WithMany("CaptureAllocations")
+                        .HasForeignKey("ScheduleLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BatchResult");
+
+                    b.Navigation("Capture");
+
+                    b.Navigation("ScheduleLine");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyConfiguration", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "CuttingStage")
+                        .WithMany()
+                        .HasForeignKey("CuttingStageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "ReadyToPackStage")
+                        .WithMany()
+                        .HasForeignKey("ReadyToPackStageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "SewingStage")
+                        .WithMany()
+                        .HasForeignKey("SewingStageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionShift", "Shift1")
+                        .WithMany()
+                        .HasForeignKey("Shift1Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionShift", "Shift2")
+                        .WithMany()
+                        .HasForeignKey("Shift2Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "UpdatedByUser")
+                        .WithMany()
+                        .HasForeignKey("UpdatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CuttingStage");
+
+                    b.Navigation("ReadyToPackStage");
+
+                    b.Navigation("SewingStage");
+
+                    b.Navigation("Shift1");
+
+                    b.Navigation("Shift2");
+
+                    b.Navigation("UpdatedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatch", "Batch")
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "InventoryMovement")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionEvent", "RelatedEvent")
+                        .WithMany()
+                        .HasForeignKey("RelatedEventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "RelatedStage")
+                        .WithMany()
+                        .HasForeignKey("RelatedStageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionShift", "Shift")
+                        .WithMany()
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("Events")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("InventoryMovement");
+
+                    b.Navigation("RelatedEvent");
+
+                    b.Navigation("RelatedStage");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionExecutionAudit", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionImportDraft", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleImportBatch", "Batch")
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "Owner")
+                        .WithMany()
+                        .HasForeignKey("OwnerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("Owner");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionImportRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "Actor")
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionImportDraft", "Draft")
+                        .WithMany("Revisions")
+                        .HasForeignKey("DraftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Actor");
+
+                    b.Navigation("Draft");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "InventoryMovementLine")
+                        .WithOne("MaterialIssueLink")
+                        .HasForeignKey("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "InventoryMovementLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany("IssueLinks")
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "WipLocation")
+                        .WithMany()
+                        .HasForeignKey("WipLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("MaterialIssues")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany("MaterialIssues")
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InventoryMovementLine");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("SupplyRequestLine");
+
+                    b.Navigation("WipLocation");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialIssueLot", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
+                        .WithMany("Lots")
+                        .HasForeignKey("IssueLinkId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "Lot")
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("IssueLink");
+
+                    b.Navigation("Lot");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialOperation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialOperation", "ReversesOperation")
+                        .WithMany()
+                        .HasForeignKey("ReversesOperationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("MaterialOperations")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("ReversesOperation");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialOperationLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "InventoryMovementLine")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
+                        .WithMany("OperationLines")
+                        .HasForeignKey("IssueLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialOperation", "Operation")
+                        .WithMany("Lines")
+                        .HasForeignKey("ProductionMaterialOperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InventoryMovementLine");
+
+                    b.Navigation("IssueLink");
+
+                    b.Navigation("Operation");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialWipDefault", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany("ProductionWipDefaults")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "ProductionStage")
+                        .WithMany()
+                        .HasForeignKey("ProductionStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ProductionStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialWipRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionOrderMaterialPlan", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AdjustedByUser")
+                        .WithMany()
+                        .HasForeignKey("AdjustedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "MaterialProduct")
+                        .WithMany()
+                        .HasForeignKey("MaterialProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "WipLocation")
+                        .WithMany()
+                        .HasForeignKey("WipLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("MaterialPlan")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany("MaterialPlan")
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AdjustedByUser");
+
+                    b.Navigation("MaterialProduct");
+
+                    b.Navigation("Unit");
+
+                    b.Navigation("WipLocation");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionOrderPlanningRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("PlanningRevisions")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "ProductionStage")
+                        .WithMany()
+                        .HasForeignKey("ProductionStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+
+                    b.Navigation("ProductionStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionProcessWipTarget", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "ProductionStage")
+                        .WithMany("WipTargets")
+                        .HasForeignKey("ProductionStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("ProductionStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRecipe", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRecipeLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "MaterialProduct")
+                        .WithMany()
+                        .HasForeignKey("MaterialProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionRecipe", "Recipe")
+                        .WithMany("Lines")
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "Stage")
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("MaterialProduct");
+
+                    b.Navigation("Recipe");
+
+                    b.Navigation("Stage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkAttempt", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatchResult", "Result")
+                        .WithMany()
+                        .HasForeignKey("ResultId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionReworkCase", "ReworkCase")
+                        .WithMany("Attempts")
+                        .HasForeignKey("ReworkCaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Result");
+
+                    b.Navigation("ReworkCase");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkCase", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatch", "Batch")
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionBatchResult", "OriginResult")
+                        .WithMany()
+                        .HasForeignKey("OriginResultId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("OriginResult");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkRetention", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
+                        .WithMany()
+                        .HasForeignKey("IssueLinkId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionReworkCase", "ReworkCase")
+                        .WithMany()
+                        .HasForeignKey("ReworkCaseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWarehouseReservation", "WarehouseReservation")
+                        .WithMany()
+                        .HasForeignKey("WarehouseReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("IssueLink");
+
+                    b.Navigation("ReworkCase");
+
+                    b.Navigation("WarehouseReservation");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRoute", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRouteStage", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionRoute", "Route")
+                        .WithMany("Stages")
+                        .HasForeignKey("RouteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "Stage")
+                        .WithMany()
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Route");
+
+                    b.Navigation("Stage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleImportBatch", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ImportedByUser")
+                        .WithMany()
+                        .HasForeignKey("ImportedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ImportedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", "Week")
+                        .WithMany("Lines")
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Week");
+
+                    b.Navigation("WorkOrder");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", "Week")
+                        .WithMany("Revisions")
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("Week");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleWeek", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ClosedByUser")
+                        .WithMany()
+                        .HasForeignKey("ClosedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "PublishedByUser")
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ClosedByUser");
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("PublishedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionStage", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DefaultWipLocation")
+                        .WithMany()
+                        .HasForeignKey("DefaultWipLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DefaultWipLocation");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DestinationLocation")
+                        .WithMany()
+                        .HasForeignKey("DestinationLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyPreparation", "Preparation")
+                        .WithOne()
+                        .HasForeignKey("WarehouseEPI.Core.Entities.ProductionSupplyConfirmation", "PreparationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany()
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationLocation");
+
+                    b.Navigation("Preparation");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("SupplyRequestLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmationIssue", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyConfirmation", "Confirmation")
+                        .WithMany("Issues")
+                        .HasForeignKey("ConfirmationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
+                        .WithMany()
+                        .HasForeignKey("IssueLinkId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Confirmation");
+
+                    b.Navigation("IssueLink");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmationMovement", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyConfirmation", "Confirmation")
+                        .WithMany("Movements")
+                        .HasForeignKey("ConfirmationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "InventoryMovement")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Confirmation");
+
+                    b.Navigation("InventoryMovement");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyEvent", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovement", "InventoryMovement")
+                        .WithMany()
+                        .HasForeignKey("InventoryMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequest", "SupplyRequest")
+                        .WithMany("Events")
+                        .HasForeignKey("SupplyRequestId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany()
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("InventoryMovement");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("SupplyRequest");
+
+                    b.Navigation("SupplyRequestLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyPreparation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DestinationLocation")
+                        .WithMany()
+                        .HasForeignKey("DestinationLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
+                        .WithMany()
+                        .HasForeignKey("ResponsibleUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany("Preparations")
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationLocation");
+
+                    b.Navigation("ResponsibleUser");
+
+                    b.Navigation("SupplyRequestLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyPreparationSource", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyPreparation", "Preparation")
+                        .WithMany("Sources")
+                        .HasForeignKey("PreparationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Preparation");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequest", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DestinationLocation")
+                        .WithMany()
+                        .HasForeignKey("DestinationLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("SupplyRequests")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", "WorkOrderStage")
+                        .WithMany()
+                        .HasForeignKey("WorkOrderStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationLocation");
+
+                    b.Navigation("WorkOrder");
+
+                    b.Navigation("WorkOrderStage");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "DestinationLocation")
+                        .WithMany()
+                        .HasForeignKey("DestinationLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionOrderMaterialPlan", "MaterialPlan")
+                        .WithMany()
+                        .HasForeignKey("MaterialPlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionReworkCase", "ReworkCase")
+                        .WithMany()
+                        .HasForeignKey("ReworkCaseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequest", "SupplyRequest")
+                        .WithMany("Lines")
+                        .HasForeignKey("SupplyRequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DestinationLocation");
+
+                    b.Navigation("MaterialPlan");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("ReworkCase");
+
+                    b.Navigation("SupplyRequest");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWarehouseReservation", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "Lot")
+                        .WithMany()
+                        .HasForeignKey("LotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", "SupplyRequestLine")
+                        .WithMany("Reservations")
+                        .HasForeignKey("SupplyRequestLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Lot");
+
+                    b.Navigation("SupplyRequestLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.Unit", "Unit")
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+
+                    b.Navigation("Product");
+
+                    b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionStage", "SourceStage")
+                        .WithMany()
+                        .HasForeignKey("SourceStageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionWorkOrder", "WorkOrder")
+                        .WithMany("Stages")
+                        .HasForeignKey("WorkOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SourceStage");
+
+                    b.Navigation("WorkOrder");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmation", b =>
@@ -4040,6 +9094,69 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Layout");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibration", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "DisabledByUser")
+                        .WithMany()
+                        .HasForeignKey("DisabledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
+                        .WithMany("Calibrations")
+                        .HasForeignKey("LayoutId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "PublishedByUser")
+                        .WithMany()
+                        .HasForeignKey("PublishedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DisabledByUser");
+
+                    b.Navigation("Layout");
+
+                    b.Navigation("PublishedByUser");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibrationPoint", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapCalibration", "Calibration")
+                        .WithMany("Points")
+                        .HasForeignKey("CalibrationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Calibration");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibrationRevision", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "AuthorizedByUser")
+                        .WithMany()
+                        .HasForeignKey("AuthorizedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapCalibration", "Calibration")
+                        .WithMany()
+                        .HasForeignKey("CalibrationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("WarehouseEPI.Core.Entities.User", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AuthorizedByUser");
+
+                    b.Navigation("Calibration");
+
+                    b.Navigation("RequestedByUser");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapElement", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.WarehouseMapLayout", "Layout")
@@ -4170,6 +9287,15 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountLocation", b =>
                 {
                     b.Navigation("Attempts");
+
+                    b.Navigation("PlannedProducts");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountPlan", b =>
+                {
+                    b.Navigation("Dispatches");
+
+                    b.Navigation("Events");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountReviewBatch", b =>
@@ -4185,6 +9311,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.InventoryMovementLine", b =>
                 {
                     b.Navigation("BalanceChanges");
+
+                    b.Navigation("MaterialIssueLink");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.LabelAsset", b =>
@@ -4216,6 +9344,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Events");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.PalletPlate", b =>
+                {
+                    b.Navigation("Lots");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.Product", b =>
                 {
                     b.Navigation("Barcodes");
@@ -4223,6 +9356,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("LocationAssignments");
 
                     b.Navigation("Lots");
+
+                    b.Navigation("ProductionWipDefaults");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductClass", b =>
@@ -4233,6 +9368,136 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductType", b =>
                 {
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBalanceEdit", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatch", b =>
+                {
+                    b.Navigation("Results");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionBatchResult", b =>
+                {
+                    b.Navigation("Materials");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionCaptureSubmission", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionDailyCapture", b =>
+                {
+                    b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionImportDraft", b =>
+                {
+                    b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", b =>
+                {
+                    b.Navigation("Lots");
+
+                    b.Navigation("OperationLines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionMaterialOperation", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRecipe", b =>
+                {
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionReworkCase", b =>
+                {
+                    b.Navigation("Attempts");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionRoute", b =>
+                {
+                    b.Navigation("Stages");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleLine", b =>
+                {
+                    b.Navigation("CaptureAllocations");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionScheduleWeek", b =>
+                {
+                    b.Navigation("Captures");
+
+                    b.Navigation("Lines");
+
+                    b.Navigation("Revisions");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionStage", b =>
+                {
+                    b.Navigation("WipTargets");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyConfirmation", b =>
+                {
+                    b.Navigation("Issues");
+
+                    b.Navigation("Movements");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyPreparation", b =>
+                {
+                    b.Navigation("Sources");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequest", b =>
+                {
+                    b.Navigation("Events");
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionSupplyRequestLine", b =>
+                {
+                    b.Navigation("IssueLinks");
+
+                    b.Navigation("Preparations");
+
+                    b.Navigation("Reservations");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>
+                {
+                    b.Navigation("Batches");
+
+                    b.Navigation("Events");
+
+                    b.Navigation("MaterialIssues");
+
+                    b.Navigation("MaterialOperations");
+
+                    b.Navigation("MaterialPlan");
+
+                    b.Navigation("PlanningRevisions");
+
+                    b.Navigation("Stages");
+
+                    b.Navigation("SupplyRequests");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrderStage", b =>
+                {
+                    b.Navigation("MaterialIssues");
+
+                    b.Navigation("MaterialPlan");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ReceivingConfirmation", b =>
@@ -4264,6 +9529,11 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Products");
                 });
 
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapCalibration", b =>
+                {
+                    b.Navigation("Points");
+                });
+
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayer", b =>
                 {
                     b.Navigation("ArchitecturalElements");
@@ -4272,6 +9542,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("WarehouseEPI.Core.Entities.WarehouseMapLayout", b =>
                 {
                     b.Navigation("ArchitecturalElements");
+
+                    b.Navigation("Calibrations");
 
                     b.Navigation("Elements");
 

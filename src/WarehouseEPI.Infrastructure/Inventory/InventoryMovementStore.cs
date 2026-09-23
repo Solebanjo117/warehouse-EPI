@@ -18,33 +18,35 @@ internal sealed class InventoryMovementStore(WarehouseDbContext dbContext, TimeP
         CancellationToken cancellationToken)
     {
         var locationIds = pairs.Select(pair => pair.LocationId).Distinct().ToArray();
-        var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
-            .Include(assignment => assignment.Product)
-            .Where(assignment => locationIds.Contains(assignment.LocationId))
-            .ToListAsync(cancellationToken);
-        var occupiedBalances = await dbContext.InventoryBalances.AsNoTracking()
+        var balanceRows = await dbContext.InventoryBalances.AsNoTracking()
             .Include(balance => balance.Product)
             .Where(balance => locationIds.Contains(balance.LocationId) && balance.Quantity != 0)
             .ToListAsync(cancellationToken);
+        var occupiedBalances = balanceRows
+            .GroupBy(balance => new { balance.LocationId, balance.ProductId, balance.Product.Sku })
+            .Select(group => new
+            {
+                group.Key.LocationId,
+                group.Key.ProductId,
+                group.Key.Sku,
+                Quantity = group.Sum(balance => balance.Quantity)
+            })
+            .Where(balance => balance.Quantity != 0)
+            .ToArray();
         var approved = approvals.Select(item => new InventoryAssignmentKey(item.ProductId, item.LocationId)).ToHashSet();
         var conflicts = new List<SharedLocationConflict>();
 
         foreach (var pair in pairs)
         {
-            var sameAssignmentExists = assignments.Any(assignment =>
-                assignment.ProductId == pair.ProductId && assignment.LocationId == pair.LocationId);
             var sameProductHasStock = occupiedBalances.Any(balance =>
                 balance.ProductId == pair.ProductId && balance.LocationId == pair.LocationId);
-            if (sameAssignmentExists || sameProductHasStock || approved.Contains(pair))
+            if (sameProductHasStock || approved.Contains(pair))
                 continue;
 
-            var otherSkus = assignments
-                .Where(assignment => assignment.LocationId == pair.LocationId && assignment.IsActive &&
-                    assignment.ProductId != pair.ProductId)
-                .Select(assignment => assignment.Product.Sku)
-                .Concat(occupiedBalances.Where(balance => balance.LocationId == pair.LocationId &&
-                        balance.ProductId != pair.ProductId)
-                    .Select(balance => balance.Product.Sku))
+            var otherSkus = occupiedBalances
+                .Where(balance => balance.LocationId == pair.LocationId &&
+                    balance.ProductId != pair.ProductId)
+                .Select(balance => balance.Sku)
                 .Distinct(StringComparer.Ordinal)
                 .Order(StringComparer.Ordinal)
                 .ToArray();
@@ -157,6 +159,77 @@ internal sealed class InventoryMovementStore(WarehouseDbContext dbContext, TimeP
         }
     }
 
+    internal async Task ReconcileAssignmentsAsync(
+        IReadOnlyCollection<InventoryAssignmentKey> pairs,
+        IReadOnlyCollection<InventoryBalance> balances,
+        IReadOnlyCollection<InventoryAssignmentTransfer> transfers,
+        CancellationToken cancellationToken)
+    {
+        if (pairs.Count == 0)
+            return;
+
+        var pairSet = pairs.ToHashSet();
+        var totals = balances
+            .Where(balance => pairSet.Contains(new(balance.ProductId, balance.LocationId)))
+            .GroupBy(balance => new InventoryAssignmentKey(balance.ProductId, balance.LocationId))
+            .ToDictionary(group => group.Key, group => group.Sum(balance => balance.Quantity));
+        var nonZeroPairs = pairs.Where(pair => totals.GetValueOrDefault(pair) != 0).ToArray();
+        var zeroPairs = pairs.Where(pair => totals.GetValueOrDefault(pair) == 0).ToArray();
+
+        await UpsertAssignmentsAsync(nonZeroPairs, cancellationToken);
+        if (dbContext.Database.IsRelational())
+        {
+            foreach (var pair in zeroPairs)
+            {
+                var now = timeProvider.GetUtcNow();
+                await dbContext.Database.ExecuteSqlInterpolatedAsync($$"""
+                    UPDATE product_location_assignments
+                    SET is_active = FALSE, updated_at = {{now}}
+                    WHERE product_id = {{pair.ProductId}}
+                      AND location_id = {{pair.LocationId}}
+                      AND is_active = TRUE
+                    """, cancellationToken);
+            }
+        }
+        else
+        {
+            foreach (var pair in zeroPairs)
+            {
+                var assignment = await dbContext.ProductLocationAssignments.FindAsync(
+                    [pair.ProductId, pair.LocationId], cancellationToken);
+                if (assignment?.IsActive != true)
+                    continue;
+                assignment.IsActive = false;
+                assignment.UpdatedAt = timeProvider.GetUtcNow();
+            }
+        }
+
+        var zeroSet = zeroPairs.ToHashSet();
+        var productIds = zeroPairs.Select(pair => pair.ProductId).Distinct().ToArray();
+        if (productIds.Length == 0)
+            return;
+
+        var products = await dbContext.Products
+            .Where(product => productIds.Contains(product.Id) && product.DefaultEntryLocationId != null)
+            .ToListAsync(cancellationToken);
+        foreach (var product in products)
+        {
+            var currentDefault = new InventoryAssignmentKey(product.Id, product.DefaultEntryLocationId!.Value);
+            if (!zeroSet.Contains(currentDefault))
+                continue;
+
+            var destinations = transfers
+                .Where(transfer => transfer.ProductId == product.Id &&
+                    transfer.SourceLocationId == currentDefault.LocationId)
+                .Select(transfer => new InventoryAssignmentKey(product.Id, transfer.DestinationLocationId))
+                .Where(destination => pairSet.Contains(destination) && totals.GetValueOrDefault(destination) != 0)
+                .Select(destination => destination.LocationId)
+                .Distinct()
+                .ToArray();
+            product.DefaultEntryLocationId = destinations.Length == 1 ? destinations[0] : null;
+        }
+    }
+
     internal static async Task LockBalancesAsync(
         IReadOnlyCollection<InventoryBalanceKey> keys,
         IDbContextTransaction transaction,
@@ -224,12 +297,14 @@ internal sealed class InventoryMovementStore(WarehouseDbContext dbContext, TimeP
         var currentBalances = keys.Length == 0
             ? []
             : await LoadBalanceResultsAsync(keys, cancellationToken);
+        var plateIds = await dbContext.PalletPlateEvents.Where(x => x.MovementId == movement.Id).Select(x => x.PlateId).Distinct().ToListAsync(cancellationToken);
+        var plates = await dbContext.PalletPlates.Where(x => plateIds.Contains(x.Id)).ToListAsync(cancellationToken);
         return new(
             InventoryMovementStatus.Success,
             movement.Id,
             movement.ResponsibleUserId,
             movement.ResponsibleUser.FullName,
-            currentBalances);
+            currentBalances, Plates: plates.Select(PalletPlateEngine.Result).ToArray());
     }
 
     internal static bool IsOperationIdConflict(DbUpdateException exception) =>

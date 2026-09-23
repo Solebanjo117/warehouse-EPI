@@ -1,0 +1,26 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model string
+@{
+    var activeView = Model?.Trim().ToLowerInvariant();
+}
+
+<header class="admin-summary-header">
+    <span class="eyebrow">@CatTexts["Consulta ADMIN"]</span>
+    <h1 id="admin-summary-title" class="h2 mb-1">@CatTexts["Resumen operativo"]</h1>
+    <p class="text-muted mb-0">@CatTexts["Revisa la situación de hoy, la gestión del período y la actividad del equipo."]</p>
+</header>
+<nav class="analytics-tabs admin-summary-tabs" aria-label="@CatTexts["Secciones del resumen operativo"]">
+    <a class="@(activeView == "today" ? "active" : null)"
+       aria-current="@(activeView == "today" ? "page" : null)"
+       asp-page="/Reports/Dashboard/Index">@CatTexts["Hoy"]</a>
+    <a class="@(activeView == "management" ? "active" : null)"
+       aria-current="@(activeView == "management" ? "page" : null)"
+       asp-page="/Reports/Executive/Index">@CatTexts["Gestión"]</a>
+    <a class="@(activeView == "team" ? "active" : null)"
+       aria-current="@(activeView == "team" ? "page" : null)"
+       asp-page="/Reports/Workload/Index"
+       asp-route-view="activity">@CatTexts["Equipo"]</a>
+    <a class="@(activeView == "production" ? "active" : null)"
+       aria-current="@(activeView == "production" ? "page" : null)"
+       asp-page="/Reports/Production/Index">@CatTexts["Producción"]</a>
+</nav>

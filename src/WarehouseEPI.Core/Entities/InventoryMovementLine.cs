@@ -22,4 +22,5 @@ public sealed class InventoryMovementLine
     public Location? DestinationLocation { get; set; }
     public ProductLot? Lot { get; set; }
     public ICollection<InventoryBalanceChange> BalanceChanges { get; set; } = [];
+    public ProductionMaterialIssueLink? MaterialIssueLink { get; set; }
 }

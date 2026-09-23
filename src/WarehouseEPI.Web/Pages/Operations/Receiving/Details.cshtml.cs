@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Settings;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.Receiving;
 
-public sealed class DetailsModel(ReceivingQueryService query, ReceivingService service, WarehouseClock clock) : PageModel
+public sealed class DetailsModel(ReceivingQueryService query, ReceivingService service, WarehouseClock clock, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     public ReceivingDocumentDetail Document { get; private set; } = null!;
     public Dictionary<Guid, DateTimeOffset> ConfirmationDates { get; } = [];
@@ -22,8 +24,8 @@ public sealed class DetailsModel(ReceivingQueryService query, ReceivingService s
         var command = new CompleteReceivingDocumentCommand(Input.OperationId, id, Input.Pin, Input.Reason);
         var result = cancel ? await service.CancelAsync(command, token) : await service.CloseAsync(command, token);
         Input.Pin = string.Empty;
-        if (result.Status == ReceivingCommandStatus.Success) { TempData["Success"] = cancel ? "Documento cancelado." : "Documento cerrado con diferencias."; return RedirectToPage(new { id }); }
-        ModelState.AddModelError(string.Empty, result.Status == ReceivingCommandStatus.InvalidPin ? "NIP inválido o usuario sin permiso operativo." : result.ValidationErrors.FirstOrDefault() ?? "No fue posible actualizar el documento.");
+        if (result.Status == ReceivingCommandStatus.Success) { TempData["Success"] = cancel ? texts["Documento cancelado."] : texts["Documento cerrado con diferencias."]; return RedirectToPage(new { id }); }
+        ModelState.AddModelError(string.Empty, result.Status == ReceivingCommandStatus.InvalidPin ? texts["NIP inválido o usuario sin permiso operativo."] : texts[result.ValidationErrors.FirstOrDefault() ?? "No fue posible actualizar el documento."]);
         await LoadAsync(id, token); return Page();
     }
     private async Task<bool> LoadAsync(Guid id, CancellationToken token)

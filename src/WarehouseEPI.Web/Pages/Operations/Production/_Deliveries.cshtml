@@ -1,0 +1,17 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.WorkModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@if(Model.PendingDeliveries.Count>0)
+{
+    <details class="card mb-3"><summary class="card-header">@ProdTexts["Entregas pendientes ({0})", Model.PendingDeliveries.Count]</summary><div class="card-body">
+        @foreach(var delivery in Model.PendingDeliveries)
+        {
+            <article class="border rounded p-3 mb-2"><h3 class="h6">@delivery.SourceStage → @delivery.TargetStage · @delivery.BatchNumber</h3>
+                <p>@ProdTexts["{0} · {1} · Entrega {2}", Model.DeliveryDates[delivery.Id], delivery.Responsible, delivery.Id.ToString()[..8]]</p>
+                <p>@ProdTexts["Entregado {0} · Pendiente {1} {2}", delivery.Delivered.ToString("0.####"), delivery.Pending.ToString("0.####"), Model.Order.Unit]</p>
+                @if(WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.Allows(Model.Order.Status,"capture")){<a class="btn btn-primary" asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@delivery.BatchId" asp-route-Task="receive" asp-route-DeliveryId="@delivery.Id">@ProdTexts["Recibir entrega"]</a>
+                <a class="btn btn-outline-warning" asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@delivery.BatchId" asp-route-Task="reconcile" asp-route-DeliveryId="@delivery.Id">@ProdTexts["Conciliar diferencia · NIP ADMIN"]</a>}
+                <span hidden data-delivery-context="@delivery.Id" data-summary="@delivery.BatchNumber · @delivery.SourceStage → @delivery.TargetStage · @Model.DeliveryDates[delivery.Id] · @delivery.Responsible · @delivery.Id" data-source="@delivery.SourceStageId" data-target="@delivery.TargetStageId" data-pending="@delivery.Pending.ToString(System.Globalization.CultureInfo.InvariantCulture)"></span>
+            </article>
+        }
+    </div></details>
+}

@@ -3,7 +3,8 @@
   if (mapRoot) {
     const svg = mapRoot.querySelector("svg");
     const placeholder = mapRoot.querySelector(".map-detail-placeholder");
-    let box = { x: 0, y: 0, width: 1600, height: 900 };
+    const fullWidth = Number(mapRoot.dataset.canvasWidth) || 1600; const fullHeight = Number(mapRoot.dataset.canvasHeight) || 900;
+    let box = { x: 0, y: 0, width: fullWidth, height: fullHeight };
     const applyBox = () => svg?.setAttribute("viewBox", `${box.x} ${box.y} ${box.width} ${box.height}`);
     const open = (id) => {
       mapRoot.querySelectorAll("[data-map-detail]").forEach((item) => { item.hidden = item.dataset.mapDetail !== id; });
@@ -29,21 +30,44 @@
       if (placeholder) placeholder.hidden = false;
     }));
     document.querySelector("[data-map-zoom='in']")?.addEventListener("click", () => { box.width *= .8; box.height *= .8; applyBox(); });
-    document.querySelector("[data-map-zoom='out']")?.addEventListener("click", () => { box.width = Math.min(1600, box.width * 1.25); box.height = Math.min(900, box.height * 1.25); applyBox(); });
-    document.querySelector("[data-map-fit]")?.addEventListener("click", () => { box = { x: 0, y: 0, width: 1600, height: 900 }; applyBox(); });
+    document.querySelector("[data-map-zoom='out']")?.addEventListener("click", () => { box.width = Math.min(fullWidth, box.width * 1.25); box.height = Math.min(fullHeight, box.height * 1.25); applyBox(); });
+    document.querySelector("[data-map-fit]")?.addEventListener("click", () => { box = { x: 0, y: 0, width: fullWidth, height: fullHeight }; applyBox(); });
     mapRoot.querySelector("[data-map-target='true']")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
   }
 
   const editor = document.querySelector("[data-map-editor]");
   if (!editor) return;
   const ns = "http://www.w3.org/2000/svg";
-  const canvas = { width: 1600, height: 900, minimum: 20 };
   const svg = editor.querySelector("[data-editor-svg]");
   const field = editor.querySelector("[data-editor-geometry]");
   const architectureField = editor.querySelector("[data-editor-architecture]");
   const layerStateField = editor.querySelector("[data-editor-layer-state]");
   const scaleField = editor.querySelector("[data-editor-scale]");
   const measurementField = editor.querySelector("[data-editor-measurement-field]");
+  const canvasWidthField = editor.querySelector("[data-editor-canvas-width]");
+  const canvasHeightField = editor.querySelector("[data-editor-canvas-height]");
+  const canvas = {
+    width: Number(editor.dataset.canvasWidth) || 1600,
+    height: Number(editor.dataset.canvasHeight) || 900,
+    minWidth: Number(editor.dataset.minCanvasWidth) || 1600,
+    minHeight: Number(editor.dataset.minCanvasHeight) || 900,
+    maxWidth: Number(editor.dataset.maxCanvasWidth) || 6400,
+    maxHeight: Number(editor.dataset.maxCanvasHeight) || 3600,
+    minimum: 20,
+    gridStep: 25
+  };
+  const ARCHITECTURE_STYLE_TOKENS = new Set(["NONE", "SECONDARY", "PRIMARY", "INFO", "WARNING", "SUCCESS"]);
+  const normalizeArchitectureStyle = (kind, strokeToken, fillToken, strokeWidth) => {
+    const text = kind === "Text";
+    const normalizedStroke = String(strokeToken || "").trim().toUpperCase();
+    const normalizedFill = String(fillToken || "").trim().toUpperCase();
+    const numericWidth = Number(strokeWidth);
+    return {
+      strokeToken: ARCHITECTURE_STYLE_TOKENS.has(normalizedStroke) ? normalizedStroke : text ? "NONE" : "SECONDARY",
+      fillToken: ARCHITECTURE_STYLE_TOKENS.has(normalizedFill) ? normalizedFill : text ? "SECONDARY" : "NONE",
+      strokeWidth: Number.isFinite(numericWidth) ? Math.max(0, Math.min(12, numericWidth)) : text ? 0 : 2
+    };
+  };
   const referenceStateField = editor.querySelector("[data-editor-reference-state]");
   const referenceTokenField = editor.querySelector("[data-editor-reference-token]");
   const selectionLayer = editor.querySelector("[data-editor-selection]");
@@ -55,12 +79,15 @@
   let elements = [...operationalElements, ...architectureElements];
   let archivedItems = [];
   try {
-    archivedItems = JSON.parse(architectureField?.value || "[]").filter((item) => item.IsArchived).map((item) => ({
-      id: item.Id, architecture: true, layerCode: item.LayerCode, kind: item.Kind, label: item.Label || "", x: item.X, y: item.Y,
-      width: item.Width, height: item.Height, rotation: item.Rotation, radius: item.CornerRadius, points: (item.Points || []).map((point) => `${point.X},${point.Y}`).join(" "),
-      strokeToken: item.StrokeToken, fillToken: item.FillToken, strokeWidth: item.StrokeWidth, isDashed: item.IsDashed,
-      zIndex: item.ZIndex, isLocked: item.IsLocked, groupId: item.GroupId || "", isArchived: true, isVisible: true, persisted: true
-    }));
+    archivedItems = JSON.parse(architectureField?.value || "[]").filter((item) => item.IsArchived).map((item) => {
+      const style = normalizeArchitectureStyle(item.Kind, item.StrokeToken, item.FillToken, item.StrokeWidth);
+      return {
+        id: item.Id, architecture: true, layerCode: item.LayerCode, kind: item.Kind, label: item.Label || "", x: item.X, y: item.Y,
+        width: item.Width, height: item.Height, rotation: item.Rotation, radius: item.CornerRadius, points: (item.Points || []).map((point) => `${point.X},${point.Y}`).join(" "),
+        strokeToken: style.strokeToken, fillToken: style.fillToken, strokeWidth: style.strokeWidth, isDashed: item.IsDashed,
+        zIndex: item.ZIndex, isLocked: item.IsLocked, groupId: item.GroupId || "", isArchived: true, isVisible: true, persisted: true
+      };
+    });
   } catch { archivedItems = []; }
   let activeElement = null;
   let activeVertex = null;
@@ -93,24 +120,44 @@
   const pointsText = (points) => points.map((point) => `${point.x},${point.y}`).join(" ");
   const status = (message) => { const output = editor.querySelector("[data-editor-status]"); if (output) output.textContent = message; };
   const applyViewBox = () => {
+    viewBox.width = Math.min(canvas.width, viewBox.width);
+    viewBox.height = Math.min(canvas.height, viewBox.height);
     viewBox.x = Math.max(0, Math.min(canvas.width - viewBox.width, viewBox.x));
     viewBox.y = Math.max(0, Math.min(canvas.height - viewBox.height, viewBox.y));
     svg.setAttribute("viewBox", `${viewBox.x} ${viewBox.y} ${viewBox.width} ${viewBox.height}`);
     editor.querySelector("[data-editor-zoom]").textContent = `${Math.round(canvas.width / viewBox.width * 100)} %`;
   };
+  const renderCanvas = (fit = false) => {
+    editor.dataset.canvasWidth = String(canvas.width); editor.dataset.canvasHeight = String(canvas.height);
+    if (canvasWidthField) canvasWidthField.value = String(canvas.width); if (canvasHeightField) canvasHeightField.value = String(canvas.height);
+    const grid = editor.querySelector("[data-editor-grid]"); grid?.setAttribute("width", canvas.width); grid?.setAttribute("height", canvas.height);
+    const handle = editor.querySelector("[data-editor-canvas-resize]"); handle?.setAttribute("transform", `translate(${canvas.width} ${canvas.height})`); handle?.setAttribute("aria-valuetext", `${canvas.width} por ${canvas.height}`);
+    const size = editor.querySelector("[data-editor-canvas-size]"); if (size) size.textContent = `${canvas.width} × ${canvas.height}`;
+    if (fit) viewBox = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+    applyViewBox();
+    editor.dispatchEvent(new CustomEvent("warehouse-map:canvas-changed", { detail: { width: canvas.width, height: canvas.height } }));
+  };
   const point = (event) => {
     const rect = svg.getBoundingClientRect();
     return { x: viewBox.x + (event.clientX - rect.left) * viewBox.width / rect.width, y: viewBox.y + (event.clientY - rect.top) * viewBox.height / rect.height };
   };
-  const activeItemSnapshot = () => elements.map((element) => ({
-    id: elementId(element), architecture: isArchitecture(element), layerCode: layerCode(element), kind: element.dataset.kind || "Operational", label: element.dataset.label || "",
-    x: number(element, "x"), y: number(element, "y"), width: number(element, "width"), height: number(element, "height"), rotation: number(element, "rotation"), radius: number(element, "radius"),
-    points: element.dataset.points || "", strokeToken: element.dataset.strokeToken || "NONE", fillToken: element.dataset.fillToken || "NONE", strokeWidth: number(element, "strokeWidth"),
-    isDashed: element.dataset.dashed === "true", zIndex: number(element, "z"), isLocked: element.dataset.elementLocked === "true", groupId: element.dataset.groupId || "", isArchived: false, isVisible: element.dataset.visible !== "false", persisted: element.dataset.persisted === "true"
-  }));
+  const activeItemSnapshot = () => elements.map((element) => {
+    const architecture = isArchitecture(element);
+    const style = architecture
+      ? normalizeArchitectureStyle(element.dataset.kind, element.dataset.strokeToken,
+        element.dataset.fillToken, element.dataset.strokeWidth)
+      : { strokeToken: "NONE", fillToken: "NONE", strokeWidth: 0 };
+    if (architecture) Object.assign(element.dataset, style);
+    return {
+      id: elementId(element), architecture, layerCode: layerCode(element), kind: element.dataset.kind || "Operational", label: element.dataset.label || "",
+      x: number(element, "x"), y: number(element, "y"), width: number(element, "width"), height: number(element, "height"), rotation: number(element, "rotation"), radius: number(element, "radius"),
+      points: element.dataset.points || "", strokeToken: style.strokeToken, fillToken: style.fillToken, strokeWidth: style.strokeWidth,
+      isDashed: element.dataset.dashed === "true", zIndex: number(element, "z"), isLocked: element.dataset.elementLocked === "true", groupId: element.dataset.groupId || "", isArchived: false, isVisible: element.dataset.visible !== "false", persisted: element.dataset.persisted === "true"
+    };
+  });
   const itemSnapshot = () => [...activeItemSnapshot(), ...archivedItems.map((item) => ({ ...item }))];
   const layerSnapshot = () => layerButtons.map((button) => ({ code: button.dataset.editorLayerLock, locked: button.getAttribute("aria-pressed") === "true", visible: layerIsVisible(button.dataset.editorLayerLock) }));
-  const snapshot = () => ({ items: itemSnapshot(), layers: layerSnapshot(), scale: scaleField?.value || "", measurementSystem: measurementField?.value || "IMPERIAL", references: referenceStateField?.value || "[]", referenceToken: referenceTokenField?.value || "" });
+  const snapshot = () => ({ items: itemSnapshot(), layers: layerSnapshot(), scale: scaleField?.value || "", measurementSystem: measurementField?.value || "IMPERIAL", references: referenceStateField?.value || "[]", referenceToken: referenceTokenField?.value || "", canvasWidth: canvas.width, canvasHeight: canvas.height });
   const pushUndo = (state = snapshot()) => {
     undo.push(state); if (undo.length > 50) undo.shift(); redo = [];
     editor.querySelector("[data-editor-undo]").disabled = false; editor.querySelector("[data-editor-redo]").disabled = true;
@@ -123,6 +170,7 @@
       IsDashed: item.isDashed, ZIndex: item.zIndex, IsLocked: item.isLocked, GroupId: item.groupId || null, IsArchived: item.isArchived === true
     })));
     if (layerStateField) layerStateField.value = JSON.stringify(layerSnapshot().map((item) => ({ Code: item.code, IsLocked: item.locked })));
+    if (canvasWidthField) canvasWidthField.value = String(canvas.width); if (canvasHeightField) canvasHeightField.value = String(canvas.height);
   };
   const bounds = (items = selectedElements()) => {
     if (!items.length) return { left: 0, top: 0, right: 0, bottom: 0 };
@@ -293,10 +341,12 @@
     pushUndo(); const ids = new Set(restoring.map((value) => value.id)); archivedItems = archivedItems.filter((value) => !ids.has(value.id)); const restored = restoring.map((value) => { value.isArchived = false; return createArchitectureElement({ ...value, points: value.points }); }); setSelection(restored); renderArchivedList(); renderAll(); status("Elemento o grupo restaurado. Revisa los cambios antes de guardar.");
   };
   const restore = (state) => {
+    canvas.width = Math.max(canvas.minWidth, Math.min(canvas.maxWidth, Number(state.canvasWidth) || canvas.width));
+    canvas.height = Math.max(canvas.minHeight, Math.min(canvas.maxHeight, Number(state.canvasHeight) || canvas.height));
     const architectureState = state.items.filter((item) => item.architecture && !item.isArchived); const architectureIds = new Set(architectureState.map((item) => item.id)); architectureElements.filter((item) => !architectureIds.has(elementId(item))).forEach(removeArchitectureElement); archivedItems = state.items.filter((item) => item.architecture && item.isArchived).map((item) => ({ ...item }));
     state.items.filter((item) => !item.isArchived).forEach((item) => { let element = elements.find((value) => elementId(value) === item.id && isArchitecture(value) === item.architecture); if (!element && item.architecture) element = createArchitectureElement({ ...item, points: parsePoints(item.points), radius: item.radius }); if (!element) return; Object.assign(element.dataset, { layerCode: item.layerCode, kind: item.kind, label: item.label, x: item.x, y: item.y, width: item.width, height: item.height, rotation: item.rotation, radius: item.radius, points: item.points, strokeToken: item.strokeToken, fillToken: item.fillToken, strokeWidth: item.strokeWidth, dashed: String(item.isDashed), z: item.zIndex, elementLocked: String(item.isLocked), groupId: item.groupId || "", archived: "false", visible: String(item.isVisible), persisted: String(item.persisted) }); });
     if (scaleField) scaleField.value = state.scale || ""; if (measurementField) measurementField.value = state.measurementSystem || "IMPERIAL"; if (referenceStateField && state.references !== undefined) referenceStateField.value = state.references; if (referenceTokenField && state.referenceToken !== undefined) referenceTokenField.value = state.referenceToken; editor.dispatchEvent(new CustomEvent("warehouse-map:restore-references", { detail: { references: state.references, token: state.referenceToken } })); const measurement = editor.querySelector("[data-editor-measurement]"); if (measurement) measurement.value = measurementField.value; updateScaleStatus(); renderArchivedList();
-    state.layers.forEach((item) => { setLayerLocked(item.code, item.locked); const input = editor.querySelector(`[data-editor-layer-visible="${CSS.escape(item.code)}"]`); if (input) input.checked = item.visible; applyLayerVisibility(item.code, item.visible); }); selected.clear(); activeElement = null; activeVertex = null; persistVisibility(); renderAll();
+    state.layers.forEach((item) => { setLayerLocked(item.code, item.locked); const input = editor.querySelector(`[data-editor-layer-visible="${CSS.escape(item.code)}"]`); if (input) input.checked = item.visible; applyLayerVisibility(item.code, item.visible); }); selected.clear(); activeElement = null; activeVertex = null; persistVisibility(); renderCanvas(true); renderAll();
   };
   const undoAction = () => { if (!undo.length) return; redo.push(snapshot()); restore(undo.pop()); editor.querySelector("[data-editor-redo]").disabled = false; editor.querySelector("[data-editor-undo]").disabled = undo.length === 0; };
   const redoAction = () => { if (!redo.length) return; undo.push(snapshot()); restore(redo.pop()); editor.querySelector("[data-editor-undo]").disabled = false; editor.querySelector("[data-editor-redo]").disabled = redo.length === 0; };
@@ -342,7 +392,7 @@
     if (interaction?.kind !== "drawPolyline") return; const minimum = interaction.definition.closed ? 3 : 2; if (interaction.committed.length < minimum) { status(`Agrega al menos ${minimum} puntos.`); return; }
     let points = interaction.committed.map((item) => ({ ...item })); if (interaction.definition.closed) points.push({ ...points[0] }); applyNormalizedPolyline(interaction.element, points); pushUndo(interaction.before); setSelection([interaction.element]); interaction = null; editor.querySelector("[data-editor-finish]").hidden = true; editor.querySelector("[data-editor-cancel]").hidden = true; clearGuides(); status("Trazado finalizado. Guarda la revisión para persistirlo."); renderAll();
   };
-  const cancelActiveTool = () => { if (interaction?.kind?.startsWith("draw") || ["calibrate", "dimension"].includes(interaction?.kind)) { if (interaction.before) restore(interaction.before); interaction = null; editor.querySelector("[data-editor-finish]").hidden = true; editor.querySelector("[data-editor-cancel]").hidden = true; status("Operación cancelada."); clearGuides(); return true; } return false; };
+  const cancelActiveTool = () => { if (interaction?.kind?.startsWith("draw") || ["calibrate", "dimension", "canvasResize"].includes(interaction?.kind)) { if (interaction.before) restore(interaction.before); interaction = null; editor.querySelector("[data-editor-finish]").hidden = true; editor.querySelector("[data-editor-cancel]").hidden = true; status("Operación cancelada."); clearGuides(); return true; } return false; };
   const setTool = (value) => {
     if (interaction?.kind?.startsWith("draw") || ["calibrate", "dimension"].includes(interaction?.kind)) cancelActiveTool(); const definition = toolDefinitions[value]; if (definition && layerIsLocked(definition.layerCode)) { status(`Desbloquea la capa ${definition.layerCode} antes de dibujar.`); return; } if (value === "dimension" && !scaleValue()) { status("Calibra la escala antes de crear cotas."); return; }
     tool = value; editor.querySelectorAll("[data-editor-tool]").forEach((button) => { const active = button.dataset.editorTool === value; button.classList.toggle("btn-primary", active); button.classList.toggle("btn-outline-secondary", !active); button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); }); svg.classList.toggle("is-pan-tool", tool === "pan"); status(`Herramienta ${editor.querySelector(`[data-editor-tool="${CSS.escape(value)}"]`)?.textContent.trim() || value}.`);
@@ -355,6 +405,30 @@
     if (event.target.matches("[data-editor-group-resize]")) { event.preventDefault(); beginTransform(event, "resize"); }
     else if (event.target.matches("[data-editor-architecture-resize]")) { event.preventDefault(); beginTransform(event, "architectureResize"); }
     else if (event.target.matches("[data-editor-vertex]")) { event.preventDefault(); activeVertex = Number(event.target.dataset.editorVertex); const element = architectureSelection()[0]; const parsed = parsePoints(element.dataset.points); interaction = { pointer: event.pointerId, kind: "vertex", before: snapshot(), items: [element], vertex: activeVertex, globalPoints: globalPoints(element), closed: parsed.length > 2 && parsed[0].x === parsed.at(-1).x && parsed[0].y === parsed.at(-1).y }; svg.setPointerCapture(event.pointerId); }
+  });
+  const canvasResizeHandle = editor.querySelector("[data-editor-canvas-resize]");
+  const startCanvasResize = (event) => {
+    event.preventDefault(); event.stopPropagation(); clearSelection();
+    const rect = svg.getBoundingClientRect();
+    const fit = Math.abs(viewBox.x) < .01 && Math.abs(viewBox.y) < .01
+      && Math.abs(viewBox.width - canvas.width) < .01 && Math.abs(viewBox.height - canvas.height) < .01;
+    interaction = { pointer: event.pointerId, kind: "canvasResize", before: snapshot(), clientX: event.clientX, clientY: event.clientY, width: canvas.width, height: canvas.height, unitsPerPixelX: canvas.width / Math.max(rect.width, 1), unitsPerPixelY: canvas.height / Math.max(rect.height, 1), fit };
+    svg.setPointerCapture(event.pointerId); status("Arrastra hacia la derecha o abajo para agrandar el lienzo. Escape cancela.");
+  };
+  const resizeCanvas = (event) => {
+    const requestedWidth = interaction.width + (event.clientX - interaction.clientX) * interaction.unitsPerPixelX;
+    const requestedHeight = interaction.height + (event.clientY - interaction.clientY) * interaction.unitsPerPixelY;
+    canvas.width = Math.max(canvas.minWidth, Math.min(canvas.maxWidth, Math.ceil(requestedWidth / canvas.gridStep) * canvas.gridStep));
+    canvas.height = Math.max(canvas.minHeight, Math.min(canvas.maxHeight, Math.ceil(requestedHeight / canvas.gridStep) * canvas.gridStep));
+    renderCanvas(interaction.fit); status(`Lienzo en borrador: ${canvas.width} × ${canvas.height}.`);
+  };
+  canvasResizeHandle?.addEventListener("pointerdown", startCanvasResize);
+  canvasResizeHandle?.addEventListener("keydown", (event) => {
+    if (!['ArrowRight', 'ArrowDown'].includes(event.key)) return; event.preventDefault(); event.stopPropagation();
+    const width = event.key === 'ArrowRight' ? Math.min(canvas.maxWidth, canvas.width + (event.shiftKey ? 100 : canvas.gridStep)) : canvas.width;
+    const height = event.key === 'ArrowDown' ? Math.min(canvas.maxHeight, canvas.height + (event.shiftKey ? 100 : canvas.gridStep)) : canvas.height;
+    if (width === canvas.width && height === canvas.height) { status("El lienzo alcanzó el tamaño máximo permitido."); return; }
+    pushUndo(); canvas.width = width; canvas.height = height; renderCanvas(true); renderAll(); status(`Lienzo en borrador: ${canvas.width} × ${canvas.height}.`);
   });
   svg.addEventListener("pointerdown", (event) => {
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); if (event.pointerType === "touch" && pointers.size === 2) { const values = [...pointers.values()]; interaction = { kind: "pinch", distance: Math.hypot(values[1].x - values[0].x, values[1].y - values[0].y), box: { ...viewBox } }; event.preventDefault(); return; }
@@ -393,6 +467,7 @@
   const applyTransformFrame = () => {
     transformFrame = 0; const event = pendingTransformEvent; pendingTransformEvent = null;
     if (!event || !interaction) return;
+    if (interaction.kind === "canvasResize") { resizeCanvas(event); return; }
     if (interaction.kind === "move") moveGroup(event); else if (interaction.kind === "resize") resizeGroup(event); else if (interaction.kind === "architectureResize") resizeArchitecture(event); else if (interaction.kind === "vertex") moveVertex(event); else return;
     selectedElements().forEach(renderElement); updateSelection(false);
   };
@@ -415,6 +490,7 @@
   });
   const endPointer = (event) => {
     pointers.delete(event.pointerId); if (!interaction) return; flushTransformFrame(); if (interaction.kind === "pinch") { if (pointers.size < 2) interaction = null; return; } if (interaction.pointer !== event.pointerId) return;
+    if (interaction.kind === "canvasResize") { const before = interaction.before; if (event.type === "pointercancel") restore(before); else { pushUndo(before); renderCanvas(interaction.fit); renderAll(); status(`Lienzo ampliado en borrador a ${canvas.width} × ${canvas.height}. Revisa y guarda para publicarlo.`); } interaction = null; return; }
     if (interaction.kind === "drawRectangle") { const valid = number(interaction.element, "width") >= 4 && number(interaction.element, "height") >= 4; if (valid) { pushUndo(interaction.before); setSelection([interaction.element]); status("Elemento nuevo listo para guardar."); } else restore(interaction.before); editor.querySelector("[data-editor-cancel]").hidden = true; interaction = null; clearGuides(); renderAll(); return; }
     if (interaction.kind === "marquee") {
       const marquee = selectionLayer.querySelector(".editor-marquee");
@@ -467,7 +543,7 @@
   editor.querySelector("[data-editor-duplicate]")?.addEventListener("click", () => { copyArchitecture(); pasteArchitecture(); }); editor.querySelector("[data-editor-group]")?.addEventListener("click", groupArchitecture); editor.querySelector("[data-editor-ungroup]")?.addEventListener("click", ungroupArchitecture); editor.querySelector("[data-editor-element-lock]")?.addEventListener("click", toggleElementLock); editor.querySelectorAll("[data-editor-order]").forEach((button) => button.addEventListener("click", () => orderArchitecture(button.dataset.editorOrder))); editor.querySelector("[data-editor-archive]")?.addEventListener("click", archiveArchitecture);
   editor.querySelector("[data-editor-rotate]")?.addEventListener("click", () => { const items = operationalSelection(); if (!items.length || items.length !== selected.size) return; pushUndo(); items.forEach((item) => { item.dataset.rotation = String((number(item, "rotation") + 90) % 360); }); renderAll(); }); editor.querySelector("[data-editor-mirror]")?.addEventListener("click", () => { const items = operationalSelection(); if (!items.length || items.length !== selected.size) return; pushUndo(); const box = bounds(items); items.forEach((item) => { item.dataset.x = String(box.left + box.right - number(item, "x") - number(item, "width")); }); renderAll(); }); editor.querySelector("[data-editor-hide]")?.addEventListener("click", () => { const items = operationalSelection(); if (!items.length || items.length !== selected.size) return; pushUndo(); items.forEach((item) => { item.dataset.visible = "false"; }); clearSelection(); renderAll(); });
   editor.querySelectorAll("[data-editor-place]").forEach((button) => button.addEventListener("click", () => { const item = operationalElements.find((element) => elementId(element) === button.dataset.editorPlace); if (!item || layerIsLocked("OPERATIONS")) return; pushUndo(); Object.assign(item.dataset, { visible: "true", x: "100", y: "100" }); button.hidden = true; setSelection([item]); renderAll(); })); editor.querySelectorAll("[data-editor-layer-visible]").forEach((input) => input.addEventListener("change", () => { applyLayerVisibility(input.dataset.editorLayerVisible, input.checked); persistVisibility(); renderAll(); })); layerButtons.forEach((button) => button.addEventListener("click", () => { pushUndo(); setLayerLocked(button.dataset.editorLayerLock, button.getAttribute("aria-pressed") !== "true"); renderAll(); })); editor.querySelector("[data-editor-undo]").addEventListener("click", undoAction); editor.querySelector("[data-editor-redo]").addEventListener("click", redoAction);
-  editor.querySelectorAll("[data-property]").forEach((input) => input.addEventListener("change", () => { const items = architectureSelection(); if (!items.length || items.some(elementIsLocked)) return; const key = input.dataset.property; if (["x", "y", "width", "height", "radius", "rotation", "label"].includes(key) && items.length !== 1) return; pushUndo(); items.forEach((item) => { if (key === "dashed") item.dataset.dashed = String(input.checked); else if (key === "label") { item.dataset.label = input.value.slice(0, 120); item.setAttribute("aria-label", `Elemento arquitectónico ${item.dataset.label || item.dataset.kind}`); } else item.dataset[key] = input.value; }); renderAll(); }));
+  editor.querySelectorAll("[data-property]").forEach((input) => input.addEventListener("change", () => { const items = architectureSelection(); if (!items.length || items.some(elementIsLocked)) return; const key = input.dataset.property; if (["x", "y", "width", "height", "radius", "rotation", "label"].includes(key) && items.length !== 1) return; if (["strokeToken", "fillToken"].includes(key) && !ARCHITECTURE_STYLE_TOKENS.has(input.value)) { status("Selecciona un estilo arquitectónico válido."); updateProperties(); return; } if (key === "strokeWidth" && (!Number.isFinite(Number(input.value)) || Number(input.value) < 0 || Number(input.value) > 12)) { status("El grosor arquitectónico debe estar entre 0 y 12."); updateProperties(); return; } pushUndo(); items.forEach((item) => { if (key === "dashed") item.dataset.dashed = String(input.checked); else if (key === "label") { item.dataset.label = input.value.slice(0, 120); item.setAttribute("aria-label", `Elemento arquitectónico ${item.dataset.label || item.dataset.kind}`); } else item.dataset[key] = input.value; }); renderAll(); }));
   editor.querySelectorAll("[data-vertex-property]").forEach((input) => input.addEventListener("change", () => { const item = architectureSelection()[0]; if (!item || activeVertex === null || elementIsLocked(item)) return; const points = globalPoints(item); pushUndo(); points[activeVertex][input.dataset.vertexProperty] = Math.max(0, Math.min(input.dataset.vertexProperty === "x" ? canvas.width : canvas.height, Number(input.value))); if (points.length > 2 && points[0].x === points.at(-1).x && points[0].y === points.at(-1).y && (activeVertex === 0 || activeVertex === points.length - 1)) { points[0] = { ...points[activeVertex] }; points[points.length - 1] = { ...points[activeVertex] }; } applyNormalizedPolyline(item, points); renderAll(); }));
   editor.querySelector("[data-editor-grid-size]").addEventListener("change", (event) => { preferences.gridSize = Number(event.target.value); persistWorkspace(); }); editor.querySelector("[data-editor-grid-visible]").addEventListener("change", (event) => { preferences.gridVisible = event.target.checked; persistWorkspace(); }); editor.querySelector("[data-editor-snap]").addEventListener("change", (event) => { preferences.snap = event.target.checked; persistWorkspace(); });
   editor.querySelector("[data-editor-measurement]")?.addEventListener("change", (event) => { pushUndo(); measurementField.value = event.target.value; updateDimensionLabels(); renderAll(); status("Sistema de presentación actualizado; la escala no cambió."); });
@@ -479,7 +555,7 @@
   reviewButton?.addEventListener("click", async () => {
     if (!reviewPin?.value.trim()) { status("Introduce el NIP ADMIN antes de revisar los cambios."); reviewPin?.focus(); return; }
     updateFields(); reviewHasWarnings = false; if (warningAck) warningAck.checked = false; updateReviewedSave(); const modal = bootstrap.Modal.getOrCreateInstance(reviewModalElement); modal.show(); const statusOutput = editor.querySelector("[data-editor-review-status]"); const content = editor.querySelector("[data-editor-review-content]"); const warningBox = editor.querySelector("[data-editor-review-warnings]"); statusOutput.hidden = false; statusOutput.textContent = "Validando el plano en el servidor…"; content.hidden = true;
-    try { const form = editor.querySelector("[data-map-save-form]"); const payload = new FormData(form); payload.delete(reviewPin.name); const response = await fetch(`${form.action}?handler=Review`, { method: "POST", body: payload, headers: { "X-Requested-With": "XMLHttpRequest" } }); const data = await response.json(); if (!response.ok || data.errors?.length) { statusOutput.textContent = (data.errors || ["No fue posible revisar el plano."]).join(" "); return; } const summary = data.summary; const summaryList = editor.querySelector("[data-editor-review-summary]"); const rows = [["Ubicaciones modificadas", summary.operationalModified], ["Capas modificadas", summary.layerLocksChanged], ["Arquitectura nueva", summary.added], ["Arquitectura modificada", summary.modified], ["Archivados", summary.archived], ["Restaurados", summary.restored], ["Fondos nuevos", summary.referenceAdded || 0], ["Fondos modificados", summary.referenceModified || 0], ["Fondos archivados", summary.referenceArchived || 0], ["Fondos restaurados", summary.referenceRestored || 0], ["Escala", summary.scaleChanged ? "Cambiará" : "Sin cambio"], ["Unidades", summary.measurementSystemChanged ? "Cambiarán" : "Sin cambio"]]; summaryList.replaceChildren(...rows.flatMap(([label, value]) => { const term = document.createElement("dt"); term.className = "col-7"; term.textContent = label; const detail = document.createElement("dd"); detail.className = "col-5"; detail.textContent = String(value); return [term, detail]; })); const warnings = data.warnings || []; reviewHasWarnings = warnings.length > 0; warningBox.hidden = !reviewHasWarnings; const list = warningBox.querySelector("ul"); list.replaceChildren(...warnings.map((warning) => { const item = document.createElement("li"); item.textContent = `${warning.message} Elementos: ${warning.elementIds.join(", ")}.`; return item; })); statusOutput.hidden = true; content.hidden = false; updateReviewedSave(); if (reviewHasWarnings) warningAck?.focus(); else saveReviewed?.focus(); } catch { statusOutput.textContent = "No se pudo completar la revisión. Conservamos el borrador; inténtalo nuevamente."; }
+    try { const form = editor.querySelector("[data-map-save-form]"); const payload = new FormData(form); payload.delete(reviewPin.name); const response = await fetch(`${form.action}?handler=Review`, { method: "POST", body: payload, headers: { "X-Requested-With": "XMLHttpRequest" } }); const data = await response.json(); if (!response.ok || data.errors?.length) { statusOutput.textContent = (data.errors || ["No fue posible revisar el plano."]).join(" "); return; } const summary = data.summary; const summaryList = editor.querySelector("[data-editor-review-summary]"); const rows = [["Ubicaciones modificadas", summary.operationalModified], ["Capas modificadas", summary.layerLocksChanged], ["Arquitectura nueva", summary.added], ["Arquitectura modificada", summary.modified], ["Archivados", summary.archived], ["Restaurados", summary.restored], ["Fondos nuevos", summary.referenceAdded || 0], ["Fondos modificados", summary.referenceModified || 0], ["Fondos archivados", summary.referenceArchived || 0], ["Fondos restaurados", summary.referenceRestored || 0], ["Lienzo", summary.canvasChanged ? `${summary.previousCanvasWidth} × ${summary.previousCanvasHeight} → ${summary.canvasWidth} × ${summary.canvasHeight}` : "Sin cambio"], ["Escala", summary.scaleChanged ? "Cambiará" : "Sin cambio"], ["Unidades", summary.measurementSystemChanged ? "Cambiarán" : "Sin cambio"]]; summaryList.replaceChildren(...rows.flatMap(([label, value]) => { const term = document.createElement("dt"); term.className = "col-7"; term.textContent = label; const detail = document.createElement("dd"); detail.className = "col-5"; detail.textContent = String(value); return [term, detail]; })); const warnings = data.warnings || []; reviewHasWarnings = warnings.length > 0; warningBox.hidden = !reviewHasWarnings; const list = warningBox.querySelector("ul"); list.replaceChildren(...warnings.map((warning) => { const item = document.createElement("li"); item.textContent = `${warning.message} Elementos: ${warning.elementIds.join(", ")}.`; return item; })); statusOutput.hidden = true; content.hidden = false; updateReviewedSave(); if (reviewHasWarnings) warningAck?.focus(); else saveReviewed?.focus(); } catch { statusOutput.textContent = "No se pudo completar la revisión. Conservamos el borrador; inténtalo nuevamente."; }
   });
   window.addEventListener("keydown", (event) => {
     if (event.code === "Space" && !event.target.matches("input, textarea, select")) { spaceHeld = true; event.preventDefault(); } if (event.target.matches("input, textarea, select")) return; const modifier = event.ctrlKey || event.metaKey;
@@ -491,5 +567,5 @@
   editor.addEventListener("warehouse-map:scale-changed", () => { updateScaleStatus(); updateDimensionLabels(); renderAll(); });
   editor.addEventListener("warehouse-map:push-undo", () => pushUndo());
   editor.addEventListener("warehouse-map:clear-selection", clearSelection);
-  restoreVisibility(); applyWorkspacePreferences(); layerButtons.forEach((button) => setLayerLocked(button.dataset.editorLayerLock, button.getAttribute("aria-pressed") === "true")); if (measurementField) editor.querySelector("[data-editor-measurement]").value = measurementField.value || "IMPERIAL"; updateScaleStatus(); renderArchivedList(); applyViewBox(); renderAll();
+  restoreVisibility(); applyWorkspacePreferences(); layerButtons.forEach((button) => setLayerLocked(button.dataset.editorLayerLock, button.getAttribute("aria-pressed") === "true")); if (measurementField) editor.querySelector("[data-editor-measurement]").value = measurementField.value || "IMPERIAL"; updateScaleStatus(); renderArchivedList(); renderCanvas(true); renderAll();
 })();

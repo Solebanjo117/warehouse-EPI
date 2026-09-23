@@ -4,5 +4,6 @@ public enum InventoryLotAllocationMode
 {
     None = 0,
     DailyLot = 1,
-    AutomaticFefo = 2
+    AutomaticFefo = 2,
+    Explicit = 3
 }

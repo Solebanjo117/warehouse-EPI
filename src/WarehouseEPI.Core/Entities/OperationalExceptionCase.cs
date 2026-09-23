@@ -12,6 +12,7 @@ public sealed class OperationalExceptionCase
     public Guid? CycleCountLocationId { get; set; }
     public required string PrimaryText { get; set; }
     public required string SecondaryText { get; set; }
+    public required string ReasonText { get; set; }
     public string? ValueText { get; set; }
     public required string TargetUrl { get; set; }
     public Guid? AssignedUserId { get; set; }

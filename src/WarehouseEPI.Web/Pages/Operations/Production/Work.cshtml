@@ -1,0 +1,13 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Production.WorkModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@using WarehouseEPI.Core.Entities
+@{ViewData["Title"]=ProdTexts["Producción {0}", Model.Order.Number].Value;var o=Model.Order;}
+<div class="container-fluid py-3 production-page" data-production-workspace data-request-task="@Model.Task" data-request-stage="@Model.StageId" data-request-delivery="@Model.DeliveryId" data-request-case="@Model.ReworkCaseId" data-failed-handler="@Model.FailedHandler">
+    <partial name="_WorkHeader" model="Model"/>
+    <partial name="_WorkTask" model="Model"/>
+    <partial name="_Deliveries" model="Model"/>
+    <details class="card mb-3" data-work-consultation><summary class="card-header">@ProdTexts["Consultar ruta, materiales, procedencia e historial"]</summary><div class="card-body" data-work-source><partial name="_WorkConsultation" model="Model"/></div></details>
+</div>
+@section Styles { <link rel="stylesheet" href="~/css/production-workspace.css" asp-append-version="true"/> }
+@section Scripts{<partial name="_ValidationScriptsPartial"/><script src="~/js/production-workspace.js" asp-append-version="true"></script><script src="~/js/production-capture.js" asp-append-version="true"></script><script src="~/js/production-planning.js" asp-append-version="true"></script><script src="~/js/production-material-order.js" asp-append-version="true"></script><script src="~/js/production-traceability.js" asp-append-version="true"></script>}

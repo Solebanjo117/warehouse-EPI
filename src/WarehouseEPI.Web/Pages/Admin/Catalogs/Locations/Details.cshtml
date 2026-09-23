@@ -1,25 +1,34 @@
 @page "/Admin/Catalogs/Locations/{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.DetailsModel
 @{
-    ViewData["Title"] = $"Ubicación {Model.Location.Code}";
+    ViewData["Title"] = CatTexts["Ubicación {0}", Model.Location.Code].Value;
     var balanceEmptyMessage = Model.ActiveAssignmentCount == 0
-        ? "Sin saldo actual."
+        ? CatTexts["Sin saldo actual."].Value
         : $"Sin saldo actual · {Model.ActiveAssignmentCount} producto(s) asignado(s).";
 }
 
+<div class="location-detail-workspace">
 @if (Model.Location.OperationalRole == WarehouseEPI.Core.Entities.LocationOperationalRole.Wip)
 {
-    <div class="alert alert-warning"><strong>Ubicación WIP con existencias reales.</strong> Admite movimientos normales, asignaciones opcionales y conteos cíclicos.</div>
+    <div class="alert alert-warning"><strong>@CatTexts["Ubicación WIP con existencias reales."]</strong> @CatTexts["Admite movimientos normales, asignaciones opcionales y conteos cíclicos."]</div>
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
     <div>
-        <span class="text-body-secondary">Ubicación física</span>
+        <span class="text-body-secondary">@CatTexts["Ubicación física"]</span>
         <h1 class="h2 mb-1">@Model.Location.Code</h1>
         <p class="text-body-secondary mb-0">
             @if (Model.Location.OperationalRole == WarehouseEPI.Core.Entities.LocationOperationalRole.Wip)
             {
-                <text>Rack WIP completo</text>
+                @if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
+                {
+                    <text>Rack @Model.Location.RowCode-@Model.Location.RackNumber WIP · Pallet @Model.Location.PalletNumber</text>
+                }
+                else
+                {
+                    <text>@CatTexts["Área WIP"]</text>
+                }
             }
             else if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
             {
@@ -27,17 +36,21 @@
             }
             else
             {
-                <text>Área especial</text>
+                <text>@CatTexts["Área especial"]</text>
             }
         </p>
     </div>
     <div class="d-flex flex-wrap gap-2">
         @if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
         {
-            <a asp-page="Rack/Edit" asp-route-rowCode="@Model.Location.RowCode" asp-route-rackNumber="@Model.Location.RackNumber" class="btn btn-outline-primary">Editar rack</a>
+            <a asp-page="Rack/Edit" asp-route-rowCode="@Model.Location.RowCode" asp-route-rackNumber="@Model.Location.RackNumber" class="btn btn-outline-primary">@CatTexts["Editar rack"]</a>
         }
-        <a asp-page="Index" asp-route-viewMode="map" asp-route-highlightLocationId="@Model.Location.Id" class="btn btn-primary">Ver en croquis</a>
-        <a asp-page="Index" asp-route-viewMode="table" class="btn btn-outline-secondary">Ubicaciones</a>
+        else
+        {
+            <a asp-page="Area" asp-route-locationId="@Model.Location.Id" class="btn btn-outline-primary">@CatTexts["Editar área"]</a>
+        }
+        <a asp-page="Index" asp-route-viewMode="map" asp-route-highlightLocationId="@Model.Location.Id" class="btn btn-primary">@CatTexts["Ver en croquis"]</a>
+        <a asp-page="Index" asp-route-viewMode="table" class="btn btn-outline-secondary">@CatTexts["Ubicaciones"]</a>
     </div>
 </div>
 
@@ -50,31 +63,31 @@
     <div class="alert alert-danger">@Model.Error</div>
 }
 
-<section class="card card-body location-operational-summary mb-3" aria-label="Resumen operativo">
+<section class="card card-body location-operational-summary mb-3" aria-label="@CatTexts["Resumen operativo"]">
     <div class="location-summary-metric">
-        <span>Estado</span>
-        <strong>@(!Model.Location.IsPhysicallyPresent ? "Retirada" : !Model.Location.IsActive ? "Inactiva" : Model.Location.IsBlocked ? "Bloqueada" : "Disponible")</strong>
+        <span>@CatTexts["Estado"]</span>
+        <strong>@(!Model.Location.IsPhysicallyPresent ? CatTexts["Retirada"].Value : !Model.Location.IsActive ? CatTexts["Inactiva"].Value : Model.Location.IsBlocked ? CatTexts["Bloqueada"].Value : CatTexts["Disponible"].Value)</strong>
         @if (Model.Location.IsBlocked && !string.IsNullOrWhiteSpace(Model.Location.BlockReason))
         {
             <small>@Model.Location.BlockReason</small>
         }
     </div>
     <div class="location-summary-metric">
-        <span>Croquis</span>
-        <strong>@(Model.IsMapped ? "Colocada" : "Sin colocar")</strong>
+        <span>@CatTexts["Croquis"]</span>
+        <strong>@(Model.IsMapped ? CatTexts["Colocada"].Value : CatTexts["Sin colocar"].Value)</strong>
     </div>
     <div class="location-summary-metric">
-        <span>Productos con saldo</span>
+        <span>@CatTexts["Productos con saldo"]</span>
         <strong>@Model.BalanceProductCount</strong>
     </div>
     <div class="location-summary-metric">
-        <span>Asignaciones activas</span>
+        <span>@CatTexts["Asignaciones activas"]</span>
         <strong>@Model.ActiveAssignmentCount</strong>
     </div>
     @if (!string.IsNullOrWhiteSpace(Model.Location.Description))
     {
         <div class="location-summary-description">
-            <span>Descripción</span>
+            <span>@CatTexts["Descripción"]</span>
             <strong>@Model.Location.Description</strong>
         </div>
     }
@@ -84,18 +97,18 @@
     <section class="col-xl-7">
         <div class="card h-100">
             <div class="card-body">
-                <h2 class="h4">Existencias actuales</h2>
-                <p class="text-body-secondary">Cantidades agrupadas por producto y unidad; los lotes internos permanecen transparentes.</p>
+                <h2 class="h4">@CatTexts["Existencias actuales"]</h2>
+                <p class="text-body-secondary">@CatTexts["Cantidades agrupadas por producto y unidad; los lotes internos permanecen transparentes."]</p>
                 <div class="table-responsive">
                     <table class="table align-middle">
-                        <thead><tr><th>Producto</th><th>Relación</th><th class="text-end">Saldo</th></tr></thead>
+                        <thead><tr><th>@CatTexts["Producto"]</th><th>@CatTexts["Relación"]</th><th class="text-end">@CatTexts["Saldo"]</th></tr></thead>
                         <tbody>
                         @foreach (var item in Model.Balances)
                         {
                             <tr>
-                                <td><a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@item.ProductId" class="fw-semibold">@item.Sku</a><div class="small text-body-secondary">@item.Description</div></td>
-                                <td>@(item.IsAssigned ? "Asignación activa" : "Saldo sin asignación")</td>
-                                <td class="text-end @(item.Quantity < 0 ? "text-danger" : "")">@item.Quantity.ToString("0.####") @item.Unit</td>
+                                <td data-label="@CatTexts["Producto"]"><a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@item.ProductId" class="fw-semibold">@item.Sku</a><div class="small text-body-secondary">@item.Description</div></td>
+                                <td data-label="@CatTexts["Relación"]">@(item.IsAssigned ? CatTexts["Asignación activa"].Value : CatTexts["Saldo sin asignación"].Value)</td>
+                                <td data-label="@CatTexts["Saldo"]" class="text-end @(item.Quantity < 0 ? "text-danger" : "")">@item.Quantity.ToString("0.####") @item.Unit</td>
                             </tr>
                         }
                         @if (Model.Balances.Count == 0)
@@ -105,7 +118,7 @@
                         </tbody>
                     </table>
                 </div>
-                <a asp-page="/Inventory/Index" asp-route-locationId="@Model.Location.Id" class="btn btn-outline-primary">Consultar existencias</a>
+                <a asp-page="/Inventory/Index" asp-route-locationId="@Model.Location.Id" class="btn btn-outline-primary">@CatTexts["Consultar existencias"]</a>
             </div>
         </div>
     </section>
@@ -115,8 +128,8 @@
             <div class="card-body">
                 <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
                     <div>
-                        <h2 class="h4 mb-1">Posiciones del rack</h2>
-                        <p class="text-body-secondary mb-0">Consulta saldo y asignación sin abrir cada pallet.</p>
+                        <h2 class="h4 mb-1">@CatTexts["Posiciones del rack"]</h2>
+                        <p class="text-body-secondary mb-0">@CatTexts["Consulta saldo y asignación sin abrir cada pallet."]</p>
                     </div>
                     @if (Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack)
                     {
@@ -126,16 +139,16 @@
 
                 @if (Model.Neighbors.Count == 0)
                 {
-                    <p class="text-body-secondary mt-3">Esta ubicación no pertenece a un rack con pallets.</p>
+                    <p class="text-body-secondary mt-3">@CatTexts["Esta ubicación no pertenece a un rack con pallets."]</p>
                 }
                 else
                 {
-                    <div class="location-rack-legend" aria-label="Leyenda de estados de inventario">
-                        <span class="occupied">Con saldo</span>
-                        <span class="assigned-empty">Asignado sin saldo</span>
-                        <span class="empty">Sin producto</span>
-                        <span class="unassigned">Saldo sin asignación</span>
-                        <span class="negative">Saldo negativo</span>
+                    <div class="location-rack-legend" aria-label="@CatTexts["Leyenda de estados de inventario"]">
+                        <span class="occupied">@CatTexts["Con saldo"]</span>
+                        <span class="assigned-empty">@CatTexts["Asignado sin saldo"]</span>
+                        <span class="empty">@CatTexts["Sin producto"]</span>
+                        <span class="unassigned">@CatTexts["Saldo sin asignación"]</span>
+                        <span class="negative">@CatTexts["Saldo negativo"]</span>
                     </div>
                     <div class="location-neighbor-grid">
                     @foreach (var pallet in new short[] { 7, 8, 9, 4, 5, 6, 1, 2, 3 })
@@ -145,7 +158,7 @@
                         {
                             <div class="location-neighbor-position missing" aria-label="Pallet @pallet, posición inexistente">
                                 <strong>@pallet</strong>
-                                <span class="rack-slot-state">No existe</span>
+                                <span class="rack-slot-state">@CatTexts["No existe"]</span>
                             </div>
                         }
                         else
@@ -158,25 +171,28 @@
                             if (item.IsCurrent)
                             {
                                 <div class="@classes" aria-label="Ubicación actual: @accessibleSummary" aria-current="location">
-                                    <partial name="_LocationRackPositionContent" model="item" />
+                                    <partial name="/Pages/Locations/_LocationRackPositionContent.cshtml" model="item" />
                                 </div>
                             }
                             else
                             {
                                 <a asp-page="Details" asp-route-id="@item.Id" class="@classes" aria-label="Abrir @accessibleSummary">
-                                    <partial name="_LocationRackPositionContent" model="item" />
+                                    <partial name="/Pages/Locations/_LocationRackPositionContent.cshtml" model="item" />
                                 </a>
                             }
                         }
                     }
                     </div>
-                    <p class="small text-body-secondary mb-0">Bloqueada o inactiva describe la operación; el saldo se sigue mostrando.</p>
+                    <p class="small text-body-secondary mb-0">@CatTexts["Bloqueada o inactiva describe la operación; el saldo se sigue mostrando."]</p>
                 }
             </div>
         </div>
     </section>
 </div>
 
-<section class="card mb-4"><div class="card-body"><h2 class="h4">Productos asignados</h2><p class="text-body-secondary">La asignación permanece aunque el saldo sea cero y se conserva su historial al desactivarla.</p><div class="table-responsive"><table class="table align-middle"><thead><tr><th>SKU / Producto</th><th>Asignación</th><th class="text-end">Acciones</th></tr></thead><tbody>@if(Model.Assignments.Count==0){<tr><td colspan="3" class="text-center text-body-secondary py-4">No hay productos asignados.</td></tr>}@foreach(var item in Model.Assignments){<tr class="@(!item.IsActive?"table-secondary":"")"><td><a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@item.ProductId" class="fw-bold">@item.Sku</a><div class="small">@item.Description</div>@if(!item.ProductIsActive){<span class="badge text-bg-secondary">Producto inactivo</span>}</td><td>@(item.IsActive?"Asignada":"Histórica")</td><td class="text-end"><form method="post" asp-page-handler="@(item.IsActive?"Deactivate":"Assign")" asp-route-id="@Model.Location.Id"><input type="hidden" name="productId" value="@item.ProductId"/><button class="btn btn-outline-secondary" disabled="@(!item.IsActive&&(!Model.Location.IsActive||Model.Location.IsBlocked||!item.ProductIsActive))">@(item.IsActive?"Desasignar":"Reactivar")</button></form></td></tr>}</tbody></table></div></div></section>
-<div class="row g-3"><section class="col-lg-7"><div class="card h-100"><div class="card-body"><h2 class="h4">Asignar otro producto</h2><form method="get" class="row g-2 mb-3"><input type="hidden" name="id" value="@Model.Location.Id"/><div class="col-md-9"><label for="productSearch" class="form-label">Buscar producto</label><input id="productSearch" name="productSearch" value="@Model.ProductSearch" class="form-control form-control-lg" placeholder="SKU, descripción, referencia o código"/></div><div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary btn-lg w-100">Buscar</button></div></form>@if(!string.IsNullOrWhiteSpace(Model.ProductSearch)){<div class="list-group">@foreach(var product in Model.ProductResults){<div class="list-group-item d-flex justify-content-between gap-2"><div><strong>@product.Sku</strong><div class="small">@product.Description</div></div>@if(product.IsAssigned){<span class="badge text-bg-success">Asignado</span>}else{<form method="post" asp-page-handler="Assign" asp-route-id="@Model.Location.Id"><input type="hidden" name="productId" value="@product.Id"/><button class="btn btn-primary" disabled="@(!Model.Location.IsActive||Model.Location.IsBlocked)">Asignar</button></form>}</div>}@if(Model.ProductResults.Count==0){<div class="list-group-item text-body-secondary">Sin resultados.</div>}</div>}</div></div></section>
-<section class="col-lg-5"><div class="card h-100"><div class="card-body"><h2 class="h4">Movimientos recientes</h2><div class="list-group list-group-flush">@foreach(var item in Model.RecentMovements){<a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@item.MovementId" class="list-group-item list-group-item-action"><div class="d-flex justify-content-between"><strong>@item.Type · @item.Sku</strong><span class="@(item.Delta<0?"text-danger":"")">@(item.Delta>0?"+":"")@item.Delta.ToString("0.####")</span></div><small>@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</small></a>}@if(Model.RecentMovements.Count==0){<p class="text-body-secondary">No hay movimientos relacionados.</p>}</div></div></div></section></div>
+<section class="card mb-4"><div class="card-body"><h2 class="h4">@CatTexts["Productos asignados"]</h2><p class="text-body-secondary">@CatTexts["La asignación permanece aunque el saldo sea cero y se conserva su historial al desactivarla."]</p><div class="table-responsive"><table class="table align-middle"><thead><tr><th>@CatTexts["SKU / Producto"]</th><th>@CatTexts["Asignación"]</th><th class="text-end">@CatTexts["Acciones"]</th></tr></thead><tbody>@if(Model.Assignments.Count==0){<tr><td colspan="3" class="text-center text-body-secondary py-4">@CatTexts["No hay productos asignados."]</td></tr>}@foreach(var item in Model.Assignments){<tr class="@(!item.IsActive?"table-secondary":"")"><td data-label="@CatTexts["Producto"]"><a asp-page="/Admin/Catalogs/Products/Edit" asp-route-id="@item.ProductId" class="fw-bold">@item.Sku</a><div class="small">@item.Description</div>@if(!item.ProductIsActive){<span class="badge text-bg-secondary">@CatTexts["Producto inactivo"]</span>}</td><td data-label="@CatTexts["Asignación"]">@(item.IsActive?CatTexts["Asignada"].Value:CatTexts["Histórica"].Value)</td><td data-label="@CatTexts["Acciones"]" class="text-end"><form method="post" asp-page-handler="@(item.IsActive?"Deactivate":"Assign")" asp-route-id="@Model.Location.Id"><input type="hidden" name="productId" value="@item.ProductId"/><button class="btn btn-outline-secondary" disabled="@(!item.IsActive&&(!Model.Location.IsActive||Model.Location.IsBlocked||!item.ProductIsActive))">@(item.IsActive?CatTexts["Desasignar"].Value:CatTexts["Reactivar"].Value)</button></form></td></tr>}</tbody></table></div></div></section>
+<div class="row g-3"><section class="col-lg-7"><div class="card h-100"><div class="card-body"><h2 class="h4">@CatTexts["Asignar otro producto"]</h2><form method="get" class="row g-2 mb-3"><input type="hidden" name="id" value="@Model.Location.Id"/><div class="col-md-9"><label for="productSearch" class="form-label">@CatTexts["Buscar producto"]</label><input id="productSearch" name="productSearch" value="@Model.ProductSearch" class="form-control form-control-lg" placeholder="@CatTexts["SKU, descripción, referencia o código"]"/></div><div class="col-md-3 d-flex align-items-end"><button class="btn btn-outline-primary btn-lg w-100">@CatTexts["Buscar"]</button></div></form>@if(!string.IsNullOrWhiteSpace(Model.ProductSearch)){<div class="list-group">@foreach(var product in Model.ProductResults){<div class="list-group-item d-flex justify-content-between gap-2"><div><strong>@product.Sku</strong><div class="small">@product.Description</div></div>@if(product.IsAssigned){<span class="badge text-bg-success">@CatTexts["Asignado"]</span>}else{<form method="post" asp-page-handler="Assign" asp-route-id="@Model.Location.Id"><input type="hidden" name="productId" value="@product.Id"/><button class="btn btn-primary" disabled="@(!Model.Location.IsActive||Model.Location.IsBlocked)">@CatTexts["Asignar"]</button></form>}</div>}@if(Model.ProductResults.Count==0){<div class="list-group-item text-body-secondary">@CatTexts["Sin resultados."]</div>}</div>}</div></div></section>
+<section class="col-lg-5"><div class="card h-100"><div class="card-body"><h2 class="h4">@CatTexts["Movimientos recientes"]</h2><div class="list-group list-group-flush">@foreach(var item in Model.RecentMovements){<a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@item.MovementId" class="list-group-item list-group-item-action"><div class="d-flex justify-content-between"><strong>@item.Type · @item.Sku</strong><span class="@(item.Delta<0?"text-danger":"")">@(item.Delta>0?"+":"")@item.Delta.ToString("0.####")</span></div><small>@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</small></a>}@if(Model.RecentMovements.Count==0){<p class="text-body-secondary">@CatTexts["No hay movimientos relacionados."]</p>}</div></div></div></section></div>
+
+</div>
+@section Styles { <link rel="stylesheet" href="~/css/location-details.css" asp-append-version="true" /> }

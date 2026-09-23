@@ -74,7 +74,15 @@ public sealed class UnifiedTraceService(WarehouseDbContext db)
             db.InventoryMovementCorrections.Any(correction => correction.OriginalMovementId == item.MovementId) ? "Original corregido" : db.InventoryMovementCorrections.Any(correction => correction.ReversalMovementId == item.MovementId) ? "Reverso" : "Vigente",
             !db.InventoryMovementCorrections.Any(correction => correction.OriginalMovementId == item.MovementId || correction.ReversalMovementId == item.MovementId),
             item.Movement.ResponsibleUser.FullName, item.Product.Sku, item.Quantity, item.Unit.Code,
-            item.DestinationLocation != null ? item.DestinationLocation.Code : item.SourceLocation != null ? item.SourceLocation.Code : item.Movement.OperationalArea != null ? item.Movement.OperationalArea.Code : null,
+            item.SourceLocation != null && item.DestinationLocation != null
+                ? item.SourceLocation.Code + " → " + item.DestinationLocation.Code
+                : item.DestinationLocation != null
+                    ? item.DestinationLocation.Code
+                    : item.SourceLocation != null
+                        ? item.SourceLocation.Code
+                        : item.Movement.OperationalArea != null
+                            ? item.Movement.OperationalArea.Code
+                            : null,
             item.Lot != null ? item.Lot.Number : null,
             db.ReceivingConfirmationLines.Where(link => link.InventoryMovementLineId == item.Id).Select(link => link.ExternalLotReference).FirstOrDefault(),
             db.ReceivingConfirmations.Where(receipt => receipt.InventoryMovementId == item.MovementId).Select(receipt => (Guid?)receipt.ReceivingDocumentId).FirstOrDefault(),

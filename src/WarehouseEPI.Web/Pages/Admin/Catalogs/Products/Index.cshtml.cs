@@ -3,13 +3,16 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Infrastructure.Catalogs;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class IndexModel(ProductCatalogQueryService catalog, WarehouseDbContext dbContext) : PageModel
+public sealed class IndexModel(ProductCatalogQueryService catalog, WarehouseDbContext dbContext,
+    ProductionPlanningService planning) : PageModel
 {
     private const int PageSize = 25;
     public IReadOnlyList<ProductRow> Products { get; private set; } = [];
@@ -68,8 +71,30 @@ public sealed class IndexModel(ProductCatalogQueryService catalog, WarehouseDbCo
         var firstVisible = Math.Max(1, CurrentPage - 2);
         var lastVisible = Math.Min(TotalPages, CurrentPage + 2);
         VisiblePages = Enumerable.Range(firstVisible, lastVisible - firstVisible + 1).ToArray();
-        Products = result.Items.Select(p => new ProductRow(p.Id, p.Sku, p.Description, p.Reference, p.Unit, p.Type, p.Class, p.IsActive, p.Quantity, p.Minimum, p.Locations, p.IsNegative, p.IsBelowMinimum, p.HasAssignment)).ToArray();
+        var pageProductIds = result.Items.Select(x => x.Id).ToArray();
+        var activeRecipes = pageProductIds.Length == 0 ? [] : await dbContext.ProductionRecipes.AsNoTracking()
+            .Where(x => x.IsActive && pageProductIds.Contains(x.ProductId))
+            .Include(x => x.Lines).ThenInclude(x => x.MaterialProduct)
+            .Include(x => x.Lines).ThenInclude(x => x.Stage)
+            .ToListAsync(token);
+        var activeRoutes = pageProductIds.Length == 0 ? [] : await dbContext.ProductionRoutes.AsNoTracking()
+            .Where(x => x.IsActive && pageProductIds.Contains(x.ProductId))
+            .Include(x => x.Stages).ThenInclude(x => x.Stage).ToListAsync(token);
+        var recipeByProduct = activeRecipes.ToDictionary(x => x.ProductId);
+        var routeByProduct = activeRoutes.ToDictionary(x => x.ProductId);
+        Products = result.Items.Select(p => new ProductRow(p.Id, p.Sku, p.Description, p.Reference, p.Unit, p.Type,
+            p.Class, p.IsActive, p.Quantity, p.Minimum, p.Locations, p.IsNegative, p.IsBelowMinimum, p.HasAssignment,
+            recipeByProduct.TryGetValue(p.Id, out var recipe) ? recipe.Version : null,
+            recipe is not null && routeByProduct.TryGetValue(p.Id, out var route) && recipe.Lines.Count > 0 &&
+            recipe.Lines.All(line => line.MaterialProduct.IsActive && line.StageId.HasValue && line.Stage?.IsActive == true &&
+                route.Stages.Any(stage => stage.StageId == line.StageId.Value)))).ToArray();
         return Page();
+    }
+
+    public async Task<IActionResult> OnGetRecipeSummaryAsync(Guid productId, CancellationToken token)
+    {
+        var summary = await planning.GetCatalogRecipeSummaryAsync(productId, token);
+        return summary is null ? NotFound() : new JsonResult(summary);
     }
 
     private static short? Known(IReadOnlyList<SelectListItem> options, short? value) =>
@@ -78,5 +103,8 @@ public sealed class IndexModel(ProductCatalogQueryService catalog, WarehouseDbCo
     private static string? LabelFor(IReadOnlyList<SelectListItem> options, short? value) =>
         value is null ? null : options.FirstOrDefault(option => option.Value == value.Value.ToString(CultureInfo.InvariantCulture))?.Text;
 
-    public sealed record ProductRow(Guid Id, string Sku, string? Description, string? ExternalReference, string Unit, string? Type, string? Class, bool IsActive, decimal Quantity, decimal Minimum, int LocationCount, bool IsNegative, bool IsBelowMinimum, bool HasAssignment);
+    public sealed record ProductRow(Guid Id, string Sku, string? Description, string? ExternalReference, string Unit,
+        string? Type, string? Class, bool IsActive, decimal Quantity, decimal Minimum, int LocationCount,
+        bool IsNegative, bool IsBelowMinimum, bool HasAssignment, int? ActiveRecipeVersion,
+        bool ActiveRecipeIsComplete);
 }

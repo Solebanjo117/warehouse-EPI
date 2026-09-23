@@ -77,8 +77,14 @@ public sealed class DashboardRouteTests
         Assert.DoesNotContain("jsdelivr", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("data-dashboard-range=\"14\"", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-range=\"7\"", page, StringComparison.Ordinal);
+        Assert.True(
+            page.IndexOf("data-dashboard-range=\"7\"", StringComparison.Ordinal)
+            < page.IndexOf("data-dashboard-range=\"14\"", StringComparison.Ordinal));
+        Assert.Contains("Actividad del almacén", page, StringComparison.Ordinal);
+        Assert.Contains("data-dashboard-period-label", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-summary", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-detail", page, StringComparison.Ordinal);
+        Assert.Contains("data-dashboard-detail-empty", page, StringComparison.Ordinal);
         Assert.Contains("data-dashboard-detail-link", page, StringComparison.Ordinal);
         Assert.Contains("aria-describedby=\"dashboard-chart-detail\"", page, StringComparison.Ordinal);
         Assert.Contains("data-warehouse-date", page, StringComparison.Ordinal);
@@ -116,7 +122,12 @@ public sealed class DashboardRouteTests
         Assert.Contains("tooltip", script, StringComparison.Ordinal);
         Assert.Contains("dashboardColumnHighlight", script, StringComparison.Ordinal);
         Assert.Contains("dashboardStackTotals", script, StringComparison.Ordinal);
-        Assert.Contains("maxBarThickness: 42", script, StringComparison.Ordinal);
+        Assert.Contains("maxBarThickness: 36", script, StringComparison.Ordinal);
+        Assert.Contains("getValueForPixel", script, StringComparison.Ordinal);
+        Assert.Contains("Sin actividad en el período", script, StringComparison.Ordinal);
+        Assert.Contains("[text(point.dayLabel), translate(\"Hoy\")]", script, StringComparison.Ordinal);
+        Assert.Contains("chart.tooltip.setActiveElements([]", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("context.fillRect", script, StringComparison.Ordinal);
         Assert.Contains("cornerRadius: 10", script, StringComparison.Ordinal);
         Assert.Contains("ArrowLeft", script, StringComparison.Ordinal);
         Assert.Contains("aria-busy", script, StringComparison.Ordinal);
@@ -128,6 +139,36 @@ public sealed class DashboardRouteTests
         var license = RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "lib", "chart.js", "LICENSE.md");
         Assert.True(File.Exists(chart));
         Assert.Contains("The MIT License", File.ReadAllText(license), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Admin_summary_unifies_navigation_while_public_report_links_remain_available()
+    {
+        var layout = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
+        var summaryNavigation = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "_AdminSummaryNavigation.cshtml"));
+        var dashboard = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "Dashboard", "Index.cshtml"));
+        var executive = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "Executive", "Index.cshtml"));
+        var workload = File.ReadAllText(RepositoryPath(
+            "src", "WarehouseEPI.Web", "Pages", "Reports", "Workload", "Index.cshtml"));
+
+        Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Resumen operativo" && action.Page == "/Reports/Dashboard/Index");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Pendientes" && action.RouteValues["view"] == "pending");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Tablero diario");
+        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Carga de trabajo");
+        Assert.Contains("asp-page=\"/Reports/Dashboard/Index\">@CatTexts[\"Hoy\"]</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Reports/Executive/Index\">@CatTexts[\"Gestión\"]</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("asp-route-view=\"activity\">@CatTexts[\"Equipo\"]</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Equal(4, summaryNavigation.Split("aria-current=", StringSplitOptions.None).Length - 1);
+
+        Assert.Contains("_AdminSummaryNavigation.cshtml\", \"today\"", dashboard, StringComparison.Ordinal);
+        Assert.Contains("_AdminSummaryNavigation.cshtml\", \"management\"", executive, StringComparison.Ordinal);
+        Assert.Contains("Model.IsAdmin && !isPending", workload, StringComparison.Ordinal);
+        Assert.Contains("_AdminSummaryNavigation.cshtml\", \"team\"", workload, StringComparison.Ordinal);
+        Assert.Contains("@if (!Model.IsAdmin)", workload, StringComparison.Ordinal);
     }
 
     private static string RepositoryPath(params string[] parts)

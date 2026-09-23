@@ -1,0 +1,20 @@
+/* Local administration forms; no changes to authentication or global controls. */
+@media screen {
+    .admin-form-workspace { min-width: 0; }
+    .admin-form-workspace h1 { font-size: 1.65rem; font-weight: 700; }
+    .admin-form-workspace .admin-form-card { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: .65rem; box-shadow: none; }
+    .admin-form-workspace .admin-form-section { min-width: 0; margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; background: var(--bs-tertiary-bg); }
+    .admin-form-workspace .admin-form-section legend { float: none; width: auto; padding: 0 .35rem; margin-bottom: .75rem; font-size: 1rem; font-weight: 600; }
+    .admin-form-workspace :is(.form-control,.form-select,.btn,.input-group-text) { min-height: 44px; }
+    .admin-form-workspace :is(input,select,button,a):focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+    .admin-form-workspace .form-check { display: flex; align-items: center; gap: .65rem; min-height: 44px; margin-bottom: 0 !important; }
+    .admin-form-workspace .form-check-label { display: inline-flex; align-items: center; min-height: 44px; cursor: pointer; }
+    .admin-form-workspace :is(.form-text,.text-danger,label,p) { overflow-wrap: anywhere; }
+    .admin-form-workspace .admin-form-actions { display: flex; flex-wrap: wrap; gap: .75rem; padding-top: .25rem; }
+    .admin-form-workspace .btn { white-space: normal; }
+    .admin-form-workspace .business-logo-preview { max-width: 100%; object-fit: contain; }
+}
+@media screen and (max-width: 767.98px) {
+    .admin-form-workspace .card-body { padding: 1rem !important; }
+    .admin-form-workspace .admin-form-actions > * { flex: 1 1 100%; }
+}

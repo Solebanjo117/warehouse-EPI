@@ -1,0 +1,184 @@
+@page "/Reports/Workload"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Reporting
+@model WarehouseEPI.Web.Pages.Reports.Workload.IndexModel
+@{
+    var isPending = Model.View == "pending";
+    ViewData["Title"] = Model.IsAdmin
+        ? (isPending ? CatTexts["Pendientes"].Value : CatTexts["Resumen operativo · Equipo"].Value)
+        : CatTexts["Carga de trabajo"].Value;
+}
+
+<div class="workload-page">
+    @if (Model.IsAdmin && !isPending)
+    {
+        @await Html.PartialAsync("/Pages/Reports/_AdminSummaryNavigation.cshtml", "team")
+    }
+    <header class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <span class="eyebrow">@CatTexts["Centro de trabajo"]</span>
+            @if (Model.IsAdmin && isPending)
+            {
+                <h1 class="h2 mb-1">@CatTexts["Pendientes"]</h1>
+                <p class="text-muted mb-0">@CatTexts["Abre el trabajo pendiente en su módulo y atiéndelo con los controles operativos habituales."]</p>
+            }
+            else if (Model.IsAdmin)
+            {
+                <h2 class="h3 mb-1">@CatTexts["Equipo"]</h2>
+                <p class="text-muted mb-0">@CatTexts["Compara la actividad registrada por período, franja y responsable."]</p>
+            }
+            else
+            {
+                <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">@CatTexts["Reportes"]</a></li><li class="breadcrumb-item active" aria-current="page">@CatTexts["Carga de trabajo"]</li></ol></nav>
+                <h1 class="h2 mb-1">@CatTexts["Carga de trabajo"]</h1>
+                <p class="text-muted mb-0">@CatTexts["Consulta lo pendiente y revisa la actividad registrada sin cambiar operaciones desde esta pantalla."]</p>
+            }
+        </div>
+    </header>
+
+    @if (!Model.IsAdmin)
+    {
+        <nav class="nav nav-pills workload-view-tabs mb-4" aria-label="@CatTexts["Vistas de carga de trabajo"]">
+            <a asp-page="Index" asp-route-view="pending" class="nav-link @(isPending ? "active" : null)" aria-current="@(isPending ? "page" : null)">@CatTexts["Por atender"]</a>
+            <a asp-page="Index" asp-route-view="activity" class="nav-link @(!isPending ? "active" : null)" aria-current="@(!isPending ? "page" : null)">@CatTexts["Actividad realizada"]</a>
+        </nav>
+    }
+
+    @if (isPending)
+    {
+        var queue = Model.Queue!;
+        <section aria-labelledby="pending-heading">
+            <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+                <div><h2 id="pending-heading" class="h4 mb-1">@CatTexts["Por atender"]</h2><p class="text-muted mb-0">@CatTexts["Abre el trabajo en su módulo y confirma ahí con los controles operativos habituales."]</p></div>
+                <small class="text-muted">Actualizado @queue.GeneratedAtLocal.ToString("dd/MM/yyyy HH:mm")</small>
+            </div>
+
+            <form method="get" class="analytics-filter-card mb-4" role="search">
+                <input type="hidden" name="view" value="pending" />
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-md-9"><label for="queue-search" class="form-label">@CatTexts["Buscar trabajo pendiente"]</label><input id="queue-search" name="queueSearch" value="@Model.QueueSearch" class="form-control form-control-lg" type="search" autocomplete="off" placeholder="@CatTexts["Orden, referencia, SKU, campaña o ubicación"]" /></div>
+                    <div class="col-8 col-md-2"><button class="btn btn-primary btn-lg w-100">@CatTexts["Buscar"]</button></div>
+                    <div class="col-4 col-md-1"><a asp-page="Index" asp-route-view="pending" class="btn btn-outline-secondary btn-lg w-100" aria-label="@CatTexts["Limpiar búsqueda"]">@CatTexts["Limpiar"]</a></div>
+                </div>
+            </form>
+
+            <div class="row g-3 mb-4" aria-label="@CatTexts["Resumen de trabajo pendiente"]">
+                <div class="col-6 col-lg-4"><a href="#pending-production" class="card workload-summary-card h-100 text-decoration-none"><div class="card-body"><span>@CatTexts["Producción"]</span><strong>@queue.Production.TotalCount</strong><small>@CatTexts["órdenes abiertas"]</small></div></a></div>
+                <div class="col-6 col-lg-4"><a href="#pending-counts" class="card workload-summary-card h-100 text-decoration-none"><div class="card-body"><span>@CatTexts["Conteos"]</span><strong>@queue.CycleCounts.TotalCount</strong><small>@CatTexts["ubicaciones por atender"]</small></div></a></div>
+                @if (queue.Exceptions is not null) { <div class="col-12 col-lg-4"><a href="#pending-exceptions" class="card workload-summary-card workload-summary-card-warning h-100 text-decoration-none"><div class="card-body"><span>@CatTexts["Excepciones"]</span><strong>@queue.Exceptions.TotalCount</strong><small>@CatTexts["casos ADMIN abiertos"]</small></div></a></div> }
+            </div>
+
+            <section id="pending-production" class="card workload-section mb-4" aria-labelledby="production-heading">
+                <header class="card-header"><div><h3 id="production-heading" class="h5 mb-0">@CatTexts["Producción"]</h3><small>@CatTexts["{0} órdenes liberadas, en progreso o pausadas", queue.Production.TotalCount]</small></div><a asp-page="/Operations/Production/Index" class="btn btn-outline-primary btn-sm">@CatTexts["Ver todas"]</a></header>
+                <div class="card-body">
+                    @if (queue.Production.Items.Count == 0) { <p class="workload-empty mb-0">@(queue.Search is null ? CatTexts["No hay órdenes de producción por atender."].Value : CatTexts["No hay órdenes que coincidan con la búsqueda."].Value)</p> }
+                    else
+                    {
+                        <div class="workload-item-list">
+                            @foreach (var item in queue.Production.Items)
+                            {
+                                <article class="workload-item"><div class="workload-item-main"><div class="d-flex flex-wrap gap-2 align-items-center mb-1"><span class="badge @ProductionStatusClass(item.Status)">@ProductionStatusLabel(item.Status)</span>@if (item.IsOverdue) { <span class="badge text-bg-danger">@CatTexts["Vencida"]</span> } else if (item.IsDueToday) { <span class="badge text-bg-warning">@CatTexts["Vence hoy"]</span> }</div><h4 class="h6 mb-1">@item.Number · @item.Sku</h4><p class="mb-1">@(item.Description ?? CatTexts["Sin descripción"].Value)</p><small class="text-muted">@CatTexts["Recibido {0} de {1} {2}", item.ReceivedQuantity.ToString("0.####"), item.TargetQuantity.ToString("0.####"), item.UnitCode]@if (item.DueDate is not null) { <text> · Compromiso @item.DueDate.Value.ToString("dd/MM/yyyy")</text> }@if (!string.IsNullOrWhiteSpace(item.ExternalReference)) { <text> · Ref. @item.ExternalReference</text> }</small></div><a href="@item.TargetUrl" class="btn btn-primary workload-primary-action">@item.ActionLabel</a></article>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (queue.Production.HasMore) { <footer class="card-footer"><a asp-page="/Operations/Production/Index">@CatTexts["Ver las {0} órdenes", queue.Production.TotalCount]</a></footer> }
+            </section>
+
+            <section id="pending-counts" class="card workload-section mb-4" aria-labelledby="counts-heading">
+                <header class="card-header"><div><h3 id="counts-heading" class="h5 mb-0">@CatTexts["Conteos cíclicos"]</h3><small>@CatTexts["{0} ubicaciones requieren una acción", queue.CycleCounts.TotalCount]</small></div><a asp-page="/Operations/CycleCounts/Index" class="btn btn-outline-primary btn-sm">@CatTexts["Ver todos"]</a></header>
+                <div class="card-body">
+                    @if (queue.CycleCounts.Items.Count == 0) { <p class="workload-empty mb-0">@(queue.Search is null ? CatTexts["No hay ubicaciones pendientes de conteo."].Value : CatTexts["No hay conteos que coincidan con la búsqueda."].Value)</p> }
+                    else
+                    {
+                        <div class="workload-item-list">
+                            @foreach (var item in queue.CycleCounts.Items)
+                            {
+                                <article class="workload-item"><div class="workload-item-main"><div class="d-flex flex-wrap gap-2 align-items-center mb-1"><span class="badge @CountStatusClass(item.Status)">@CountStatusLabel(item.Status)</span><span class="text-muted small">@item.Folio</span></div><h4 class="h6 mb-1">@item.LocationCode</h4><p class="mb-0">@(item.LocationDescription ?? item.CampaignTitle ?? CatTexts["Ubicación de campaña"].Value)</p>@if (!string.IsNullOrWhiteSpace(item.CampaignTitle) && item.CampaignTitle != item.LocationDescription) { <small class="text-muted">@item.CampaignTitle</small> }</div><a href="@item.TargetUrl" class="btn btn-primary workload-primary-action">@item.ActionLabel</a></article>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (queue.CycleCounts.HasMore) { <footer class="card-footer"><a asp-page="/Operations/CycleCounts/Index">Ver las @queue.CycleCounts.TotalCount ubicaciones pendientes</a></footer> }
+            </section>
+
+            @if (queue.Exceptions is not null)
+            {
+                <section id="pending-exceptions" class="card workload-section mb-4" aria-labelledby="exceptions-heading">
+                    <header class="card-header"><div><h3 id="exceptions-heading" class="h5 mb-0">@CatTexts["Excepciones"]</h3><small>@queue.Exceptions.TotalCount casos abiertos para seguimiento ADMIN</small></div><a asp-page="/Admin/Inventory/Alerts" class="btn btn-outline-primary btn-sm">@CatTexts["Abrir Centro de excepciones"]</a></header>
+                    <div class="card-body">
+                        @if (queue.Exceptions.Items.Count == 0) { <p class="workload-empty mb-0">@(queue.Search is null ? CatTexts["No hay excepciones abiertas."].Value : CatTexts["No hay excepciones que coincidan con la búsqueda."].Value)</p> }
+                        else
+                        {
+                            <div class="workload-item-list">
+                                @foreach (var item in queue.Exceptions.Items)
+                                {
+                                    <article class="workload-item"><div class="workload-item-main"><div class="d-flex flex-wrap gap-2 align-items-center mb-1"><span class="badge @SeverityClass(item.Severity)">@SeverityLabel(item.Severity)</span><span class="badge text-bg-light border">@ExceptionStatusLabel(item.Status)</span></div><h4 class="h6 mb-1">@item.PrimaryText</h4><p class="mb-0">@item.SecondaryText</p>@if (!string.IsNullOrWhiteSpace(item.AssignedUserName)) { <small class="text-muted">Responsable: @item.AssignedUserName</small> }</div><a href="@item.TargetUrl" class="btn btn-primary workload-primary-action">@item.ActionLabel</a></article>
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (queue.Exceptions.HasMore) { <footer class="card-footer"><a asp-page="/Admin/Inventory/Alerts">Ver los @queue.Exceptions.TotalCount casos</a></footer> }
+                </section>
+            }
+        </section>
+    }
+    else
+    {
+        var report = Model.Report!;
+        var summary = report.Summary;
+        var totalPages = Math.Max(1, (int)Math.Ceiling((double)report.TotalCount / report.PageSize));
+        <section aria-labelledby="activity-heading">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3"><div><h2 id="activity-heading" class="h4 mb-1">@CatTexts["Actividad realizada"]</h2><p class="text-muted mb-0">@CatTexts["Movimientos efectivos registrados. Estos datos describen volumen operativo, no productividad ni horas trabajadas."]</p></div>@if (Model.IsAdmin) { <div class="d-flex flex-wrap gap-2"><a asp-page="Index" asp-page-handler="Export" asp-route-format="excel" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary">Excel</a><a asp-page="Index" asp-page-handler="Export" asp-route-format="csv" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary">CSV</a></div> }</div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3"><div class="card workload-metric h-100"><div class="card-body"><span>@CatTexts["Operaciones efectivas"]</span><strong>@summary.TotalOperations.ToString("N0")</strong><small>@report.PeriodLabel</small></div></div></div>
+                <div class="col-6 col-lg-3"><div class="card workload-metric h-100"><div class="card-body"><span>@CatTexts["Líneas procesadas"]</span><strong>@summary.TotalLines.ToString("N0")</strong><small>@CatTexts["Detalles registrados"]</small></div></div></div>
+                <div class="col-6 col-lg-3"><div class="card workload-metric h-100"><div class="card-body"><span>@CatTexts["Responsables activos"]</span><strong>@summary.ActiveOperatorsCount</strong><small>@CatTexts["Con actividad registrada"]</small></div></div></div>
+                @if (Model.IsAdmin) { <div class="col-6 col-lg-3"><div class="card workload-metric h-100"><div class="card-body"><span>@CatTexts["Más operaciones registradas"]</span><strong class="workload-metric-name">@(summary.TopOperatorName ?? CatTexts["Sin actividad"].Value)</strong><small>@summary.TopOperatorOperations.ToString("N0") operaciones</small></div></div></div> }
+            </div>
+
+            <form method="get" class="analytics-filter-card mb-4">
+                <input type="hidden" name="view" value="activity" />
+                <div class="d-flex flex-wrap gap-2 mb-3" aria-label="@CatTexts["Períodos rápidos"]">@foreach (var quick in new[] { ("today", "Hoy"), ("yesterday", "Ayer"), ("this-week", "Esta semana"), ("this-month", "Este mes"), ("last-month", "Mes pasado"), ("30", "30 días") }) { <a asp-page="Index" asp-route-view="activity" asp-route-period="@quick.Item1" aria-current="@(Model.Period == quick.Item1 ? "page" : null)" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" class="btn btn-sm @(Model.Period == quick.Item1 ? "btn-primary" : "btn-outline-secondary")">@CatTexts[quick.Item2]</a> }</div>
+                <input type="hidden" name="period" value="custom" />
+                <div class="row g-3">
+                    <div class="col-6 col-md-3"><label for="from" class="form-label">@CatTexts["Desde"]</label><input id="from" name="from" type="date" class="form-control" value="@Model.From?.ToString("yyyy-MM-dd")" /></div>
+                    <div class="col-6 col-md-3"><label for="to" class="form-label">@CatTexts["Hasta"]</label><input id="to" name="to" type="date" class="form-control" value="@Model.To?.ToString("yyyy-MM-dd")" /></div>
+                    <div class="col-6 col-md-3"><label for="shift" class="form-label">@CatTexts["Franja horaria"]</label><select id="shift" name="shift" class="form-select"><option value="all" selected="@(string.IsNullOrEmpty(Model.Shift) || Model.Shift == "all")">@CatTexts["Día completo"]</option><option value="morning" selected="@(Model.Shift == "morning")">@CatTexts["06:00 a 14:00"]</option><option value="afternoon" selected="@(Model.Shift == "afternoon")">@CatTexts["14:00 a 22:00"]</option><option value="night" selected="@(Model.Shift == "night")">@CatTexts["22:00 a 06:00"]</option></select></div>
+                    <div class="col-6 col-md-3"><label for="movementType" class="form-label">@CatTexts["Tipo de movimiento"]</label><select id="movementType" name="movementType" class="form-select"><option value="">@CatTexts["Todos"]</option><option value="entry" selected="@(Model.MovementType == "entry")">@CatTexts["Entrada"]</option><option value="exit" selected="@(Model.MovementType == "exit")">@CatTexts["Salida"]</option><option value="transfer" selected="@(Model.MovementType == "transfer")">@CatTexts["Transferencia"]</option><option value="adjustment" selected="@(Model.MovementType == "adjustment")">@CatTexts["Ajuste"]</option></select></div>
+                    @if (Model.IsAdmin) { <div class="col-12 col-md-6"><label for="userId" class="form-label">@CatTexts["Responsable"]</label><select id="userId" name="userId" class="form-select"><option value="">@CatTexts["Todos los responsables"]</option>@foreach (var user in Model.UserOptions) { <option value="@user.Value" selected="@user.Selected">@user.Text</option> }</select></div><div class="col-12 col-md-4"><label for="search" class="form-label">@CatTexts["Buscar responsable"]</label><input id="search" name="search" value="@Model.Search" class="form-control" /></div> }
+                    <div class="col-12 col-md-2 d-flex align-items-end gap-2"><button class="btn btn-primary flex-grow-1">@CatTexts["Aplicar"]</button><a asp-page="Index" asp-route-view="activity" class="btn btn-outline-secondary">@CatTexts["Limpiar"]</a></div>
+                </div>
+            </form>
+
+            <div class="row g-3 mb-4">
+                <div class="col-12 col-lg-4"><section class="card h-100"><div class="card-header"><h3 class="h6 mb-0">@CatTexts["Por tipo"]</h3></div><div class="list-group list-group-flush">@if (report.MovementBreakdown.Count == 0) { <div class="list-group-item text-muted">@CatTexts["Sin actividad"]</div> } else { @foreach (var item in report.MovementBreakdown) { <div class="list-group-item d-flex justify-content-between gap-3"><span>@item.Label</span><strong>@CatTexts["{0} op. · {1} lín.", item.Operations, item.Lines]</strong></div> } }</div></section></div>
+                <div class="col-12 col-lg-4"><section class="card h-100"><div class="card-header"><h3 class="h6 mb-0">@CatTexts["Por propósito"]</h3></div><div class="list-group list-group-flush workload-breakdown-list">@if (report.PurposeBreakdown.Count == 0) { <div class="list-group-item text-muted">@CatTexts["Sin actividad"]</div> } else { @foreach (var item in report.PurposeBreakdown) { <div class="list-group-item d-flex justify-content-between gap-3"><span>@item.Label</span><strong>@item.Operations op.</strong></div> } }</div></section></div>
+                <div class="col-12 col-lg-4"><section class="card h-100"><div class="card-header"><h3 class="h6 mb-0">@CatTexts["Por franja horaria"]</h3></div><div class="list-group list-group-flush">@foreach (var item in report.TimeBandBreakdown) { <div class="list-group-item d-flex justify-content-between gap-3"><span>@item.Label</span><strong>@item.Operations op.</strong></div> }</div></section></div>
+            </div>
+
+            <section class="card mb-4"><div class="card-header"><h3 class="h6 mb-0">@CatTexts["Actividad por día"]</h3></div><div class="table-responsive"><table class="table table-sm align-middle mb-0"><thead><tr><th>@CatTexts["Fecha local"]</th><th class="text-end">@CatTexts["Operaciones"]</th><th class="text-end">@CatTexts["Líneas"]</th></tr></thead><tbody>@if (report.DailyBreakdown.Count == 0) { <tr><td colspan="3" class="text-center text-muted py-4">@CatTexts["No hay actividad en el período."]</td></tr> } else { @foreach (var day in report.DailyBreakdown) { <tr><td data-label="@CatTexts["Fecha local"]">@day.Label</td><td data-label="@CatTexts["Operaciones"]" class="text-end">@day.Operations</td><td data-label="@CatTexts["Líneas"]" class="text-end">@day.Lines</td></tr> } }</tbody></table></div></section>
+
+            @if (Model.IsAdmin)
+            {
+                <section class="card mb-4"><div class="card-header"><h3 class="h6 mb-1">@CatTexts["Comparación por responsable"]</h3><small class="text-muted">Volumen registrado; no representa productividad ni tiempo trabajado.</small></div><div class="table-responsive"><table class="table table-hover align-middle mb-0 report-cards"><thead><tr><th>@CatTexts["Responsable"]</th><th>@CatTexts["Rol"]</th><th class="text-end">@CatTexts["Operaciones"]</th><th class="text-end">@CatTexts["Líneas"]</th><th class="text-end">@CatTexts["Entradas"]</th><th class="text-end">@CatTexts["Salidas"]</th><th class="text-end">@CatTexts["Transferencias"]</th><th class="text-end">@CatTexts["Ajustes"]</th><th>@CatTexts["Registro de actividad"]</th></tr></thead><tbody>@if (report.Operators.Count == 0) { <tr><td colspan="9" class="text-center text-muted py-5">@CatTexts["No hay responsables con actividad en los filtros seleccionados."]</td></tr> } else { @foreach (var op in report.Operators) { <tr><td data-label="@CatTexts["Responsable"]"><strong>@op.FullName</strong></td><td data-label="@CatTexts["Rol"]">@op.RoleName</td><td data-label="@CatTexts["Operaciones"]" class="text-end">@op.TotalOperations</td><td data-label="@CatTexts["Líneas"]" class="text-end">@op.TotalLines</td><td data-label="@CatTexts["Entradas"]" class="text-end">@CatTexts["{0} ({1} lín.)", op.EntryOperations, op.EntryLines]</td><td data-label="@CatTexts["Salidas"]" class="text-end">@CatTexts["{0} ({1} lín.)", op.ExitOperations, op.ExitLines]</td><td data-label="@CatTexts["Transferencias"]" class="text-end">@CatTexts["{0} ({1} lín.)", op.TransferOperations, op.TransferLines]</td><td data-label="@CatTexts["Ajustes"]" class="text-end">@CatTexts["{0} ({1} lín.)", op.AdjustmentOperations, op.AdjustmentLines]</td><td data-label="@CatTexts["Registro de actividad"]" class="small">@if (op.FirstActivityLocal is not null) { <span>@CatTexts["Primera operación: {0}", op.FirstActivityLocal.Value.ToString("HH:mm")]<br />@CatTexts["Última operación: {0}", op.LastActivityLocal!.Value.ToString("HH:mm")]</span> } else { <span>—</span> }</td></tr> } }</tbody></table></div>
+                    @if (totalPages > 1) { <div class="card-footer d-flex justify-content-between align-items-center"><span>@CatTexts["Página {0} de {1}", Model.PageNumber, totalPages]</span><div class="btn-group"><a asp-page="Index" asp-route-view="activity" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary @(Model.PageNumber <= 1 ? "disabled" : null)">@CatTexts["Anterior"]</a><a asp-page="Index" asp-route-view="activity" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-period="@Model.Period" asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-shift="@Model.Shift" asp-route-userId="@Model.UserId" asp-route-movementType="@Model.MovementType" asp-route-search="@Model.Search" class="btn btn-outline-secondary @(Model.PageNumber >= totalPages ? "disabled" : null)">@CatTexts["Siguiente"]</a></div></div> }
+                </section>
+            }
+        </section>
+    }
+</div>
+
+@section Styles { <link rel="stylesheet" href="~/css/workload-report.css" asp-append-version="true" /> }
+
+@functions {
+    string ProductionStatusLabel(ProductionWorkOrderStatus status) => status switch { ProductionWorkOrderStatus.Released => CatTexts["Liberada"].Value, ProductionWorkOrderStatus.InProgress => CatTexts["En progreso"].Value, ProductionWorkOrderStatus.Paused => CatTexts["Pausada"].Value, _ => status.ToString() };
+    static string ProductionStatusClass(ProductionWorkOrderStatus status) => status switch { ProductionWorkOrderStatus.InProgress => "text-bg-info", ProductionWorkOrderStatus.Paused => "text-bg-secondary", _ => "text-bg-primary" };
+    string CountStatusLabel(CycleCountLocationStatus status) => status switch { CycleCountLocationStatus.Pending => CatTexts["Pendiente"].Value, CycleCountLocationStatus.Counting => CatTexts["En conteo"].Value, CycleCountLocationStatus.RecountRequested => CatTexts["Reconteo solicitado"].Value, CycleCountLocationStatus.Stale => CatTexts["Saldo cambió"].Value, CycleCountLocationStatus.UnderReview => CatTexts["Requiere revisión"].Value, _ => status.ToString() };
+    static string CountStatusClass(CycleCountLocationStatus status) => status switch { CycleCountLocationStatus.Stale => "text-bg-danger", CycleCountLocationStatus.UnderReview => "text-bg-warning", CycleCountLocationStatus.Counting => "text-bg-info", CycleCountLocationStatus.RecountRequested => "text-bg-primary", _ => "text-bg-secondary" };
+    string SeverityLabel(OperationalExceptionSeverity severity) => severity switch { OperationalExceptionSeverity.Critical => CatTexts["Crítica"].Value, OperationalExceptionSeverity.Warning => CatTexts["Advertencia"].Value, _ => CatTexts["Informativa"].Value };
+    static string SeverityClass(OperationalExceptionSeverity severity) => severity switch { OperationalExceptionSeverity.Critical => "text-bg-danger", OperationalExceptionSeverity.Warning => "text-bg-warning", _ => "text-bg-info" };
+    string ExceptionStatusLabel(OperationalExceptionStatus status) => status switch { OperationalExceptionStatus.New => CatTexts["Nueva"].Value, OperationalExceptionStatus.InProgress => CatTexts["En atención"].Value, OperationalExceptionStatus.Waiting => CatTexts["En espera"].Value, _ => CatTexts["Resuelta"].Value };
+}

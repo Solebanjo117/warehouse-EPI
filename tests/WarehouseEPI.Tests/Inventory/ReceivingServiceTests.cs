@@ -25,6 +25,7 @@ public sealed class ReceivingServiceTests
         var movement = await fixture.Db.InventoryMovements.Include(item => item.Lines).SingleAsync();
         Assert.Equal(InventoryMovementPurpose.DocumentReceipt, movement.Purpose);
         Assert.Equal(2, movement.Lines.Count);
+        Assert.Empty(await fixture.Db.PalletPlates.ToListAsync());
         Assert.Equal("ROLL-1", await fixture.Db.ReceivingConfirmationLines.Where(item => item.ExternalLotReference != null).Select(item => item.ExternalLotReference).SingleAsync());
         Assert.Equal(5m, await fixture.Db.InventoryBalances.SumAsync(item => item.Quantity));
     }

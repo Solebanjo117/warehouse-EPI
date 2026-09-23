@@ -1,0 +1,36 @@
+@media screen {
+    .location-detail-workspace { min-width: 0; max-width: 88rem; margin-inline: auto; }
+    .location-detail-workspace > .d-flex { padding-bottom: 1rem; border-bottom: 1px solid var(--bs-border-color); }
+    .location-detail-workspace h1 { font-size: 1.65rem; font-family: var(--bs-font-monospace); font-weight: 700; overflow-wrap: anywhere; }
+    .location-detail-workspace h2 { font-size: 1.2rem; font-weight: 650; }
+    .location-detail-workspace .card { border: 1px solid var(--bs-border-color); border-radius: .65rem; box-shadow: none; background: var(--bs-body-bg); min-width: 0; }
+    .location-detail-workspace .card-body { padding: 1.25rem; }
+    .location-detail-workspace :is(.btn, .form-control, .form-select, .btn-close) { min-height: 44px; }
+    .location-detail-workspace :is(.btn-lg, .form-control-lg) { font-size: 1rem; }
+    .location-detail-workspace :is(.btn, .badge) { white-space: normal; }
+    .location-detail-workspace :is(a, button, input, select, textarea, summary):focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+    .location-detail-workspace :is(p, strong, small, td, .badge) { overflow-wrap: anywhere; }
+    .location-detail-workspace .location-operational-summary { background: var(--bs-tertiary-bg); gap: 1rem; }
+    .location-detail-workspace .location-summary-metric strong { font-variant-numeric: tabular-nums; }
+    .location-detail-workspace .table { --bs-table-bg: var(--bs-body-bg); }
+    .location-detail-workspace .table th { color: var(--bs-secondary-color); font-size: .8rem; background: var(--bs-tertiary-bg); padding: .75rem; }
+    .location-detail-workspace .table td { padding: .85rem .75rem; }
+    .location-detail-workspace .table .text-end { font-variant-numeric: tabular-nums; }
+    .location-detail-workspace .list-group-item > .d-flex { flex-wrap: wrap; gap: .5rem; }
+    .location-detail-workspace .list-group-item { overflow-wrap: anywhere; }
+    .location-detail-workspace :is(.location-neighbor-code, .location-neighbor-balance, .location-neighbor-position .sku-chip) { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+}
+@media screen and (max-width: 1199.98px) {
+    .location-detail-workspace > .row > section { width: 100%; }
+}
+@media screen and (max-width: 767.98px) {
+    .location-detail-workspace .card-body { padding: 1rem; }
+    .location-detail-workspace .table-responsive { overflow: visible; }
+    .location-detail-workspace .table,
+    .location-detail-workspace .table tbody { display: block; width: 100%; }
+    .location-detail-workspace .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .location-detail-workspace .table tr { display: block; padding-block: .5rem; border-bottom: 1px solid var(--bs-border-color); }
+    .location-detail-workspace .table td { display: block; border: 0; text-align: left !important; }
+    .location-detail-workspace .table td[data-label]::before { content: attr(data-label); display: block; color: var(--bs-secondary-color); font-size: .8rem; font-weight: 600; margin-bottom: .25rem; }
+    .location-detail-workspace .list-group-item.d-flex { flex-wrap: wrap; }
+}

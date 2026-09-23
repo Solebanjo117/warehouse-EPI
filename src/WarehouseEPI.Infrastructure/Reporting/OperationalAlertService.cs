@@ -61,13 +61,14 @@ public sealed class OperationalAlertService(
     {
         var settings = await settingsService.GetAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
+        var warehouseZone = TimeZoneInfo.FindSystemTimeZoneById(settings.TimeZoneId);
         var conditions = new List<OperationalAlertConditionDto>();
         foreach (var category in Enum.GetValues<OperationalAlertCategory>())
         {
             var rows = await DetailRows(category, settings.WipReminderDays, now)
                 .OrderBy(row => row.PrimaryText).ThenBy(row => row.SecondaryText)
                 .ToListAsync(cancellationToken);
-            conditions.AddRange(rows.Select(row => ToCondition(category, row)));
+            conditions.AddRange(rows.Select(row => ToCondition(category, row, settings.WipReminderDays, warehouseZone)));
         }
 
         return conditions.OrderBy(item => item.Category).ThenBy(item => item.ConditionKey, StringComparer.Ordinal).ToArray();
@@ -92,18 +93,18 @@ public sealed class OperationalAlertService(
         var items = new List<OperationalAlertItemDto>
         {
             Item(OperationalAlertCategory.NegativeInventory, OperationalAlertSeverity.Critical, c.Negative,
-                "Saldos negativos", "Posiciones producto-ubicación con saldo neto negativo.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?view=negative" : "/Reports/Inventory?view=exceptions&exception=negative"),
+                "Saldos negativos", "Posiciones producto-ubicación con saldo neto negativo.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=NegativeInventory" : "/Reports/Inventory?view=exceptions&exception=negative"),
             Item(OperationalAlertCategory.BelowMinimum, OperationalAlertSeverity.Warning, c.Minimum,
-                "Productos bajo mínimo", "Productos activos cuya existencia no alcanza el mínimo configurado.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?view=minimum" : "/Reports/Inventory?view=exceptions&exception=minimum")
+                "Productos bajo mínimo", "Productos activos cuya existencia no alcanza el mínimo configurado.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=BelowMinimum" : "/Reports/Inventory?view=exceptions&exception=minimum")
         };
         if (audience == OperationalAlertAudience.Admin)
         {
-            items.Add(Item(OperationalAlertCategory.UnassignedBalance, OperationalAlertSeverity.Warning, c.Unassigned, "Saldos sin asignación", "Existencia real sin relación activa producto-ubicación.", "/Admin/Inventory/Alerts?view=unassigned"));
-            items.Add(Item(OperationalAlertCategory.RestrictedInventory, OperationalAlertSeverity.Critical, c.Restricted, "Inventario restringido", "Existencia en posiciones bloqueadas o inactivas.", "/Admin/Inventory/Alerts?view=restricted"));
-            items.Add(Item(OperationalAlertCategory.StagnantInventory, OperationalAlertSeverity.Warning, c.Stagnant, "Inventario estancado", "Productos con existencia y 90 días o más sin salida efectiva.", "/Admin/Inventory/Alerts?view=stagnant"));
-            items.Add(Item(OperationalAlertCategory.CycleCountStale, OperationalAlertSeverity.Critical, c.Stale, "Conteos obsoletos", "El saldo cambió durante el conteo y requiere reconteo.", "/Admin/Inventory/Alerts?view=cycle&attention=stale"));
-            items.Add(Item(OperationalAlertCategory.CycleCountPending, OperationalAlertSeverity.Warning, c.Pending, "Conteos pendientes", "Ubicaciones en revisión o con reconteo solicitado.", "/Admin/Inventory/Alerts?view=cycle&attention=review"));
-            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Saldo WIP estancado", $"Posiciones WIP positivas con lote de {c.WipDays} días o más.", "/Admin/Inventory/Alerts?view=wip"));
+            items.Add(Item(OperationalAlertCategory.UnassignedBalance, OperationalAlertSeverity.Warning, c.Unassigned, "Saldos sin asignación", "Existencia real sin relación activa producto-ubicación.", "/Admin/Inventory/Alerts?category=UnassignedBalance"));
+            items.Add(Item(OperationalAlertCategory.RestrictedInventory, OperationalAlertSeverity.Critical, c.Restricted, "Inventario restringido", "Existencia en posiciones bloqueadas o inactivas.", "/Admin/Inventory/Alerts?category=RestrictedInventory"));
+            items.Add(Item(OperationalAlertCategory.StagnantInventory, OperationalAlertSeverity.Warning, c.Stagnant, "Inventario estancado", "Productos con existencia y 90 días o más sin salida efectiva.", "/Admin/Inventory/Alerts?category=StagnantInventory"));
+            items.Add(Item(OperationalAlertCategory.CycleCountStale, OperationalAlertSeverity.Critical, c.Stale, "Conteos obsoletos", "El saldo cambió durante el conteo y requiere reconteo.", "/Admin/Inventory/Alerts?category=CycleCountStale"));
+            items.Add(Item(OperationalAlertCategory.CycleCountPending, OperationalAlertSeverity.Warning, c.Pending, "Conteos pendientes", "Ubicaciones en revisión o con reconteo solicitado.", "/Admin/Inventory/Alerts?category=CycleCountPending"));
+            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Saldo WIP estancado", $"Posiciones WIP positivas con lote de {c.WipDays} días o más.", "/Admin/Inventory/Alerts?category=AgedWip"));
         }
         return items.Where(x => x.Count > 0).OrderBy(x => x.Severity).ThenBy(x => x.Category).ToArray();
     }
@@ -126,7 +127,9 @@ public sealed class OperationalAlertService(
                 ProductId = x.ProductId,
                 LocationId = x.LocationId,
                 Quantity = x.Quantity,
-                Unit = x.UnitCode
+                Unit = x.UnitCode,
+                LocationIsActive = x.LocationIsActive,
+                LocationIsBlocked = x.LocationIsBlocked
             });
         }
         if (category == OperationalAlertCategory.BelowMinimum)
@@ -136,7 +139,9 @@ public sealed class OperationalAlertService(
                 SecondaryText = x.Description ?? "Sin descripción",
                 ProductId = x.Id,
                 Quantity = x.Minimum - x.Total,
-                Unit = x.Unit
+                Unit = x.Unit,
+                CurrentQuantity = x.Total,
+                ThresholdQuantity = x.Minimum
             });
         if (category == OperationalAlertCategory.StagnantInventory)
             return StagnantProducts(now.AddDays(-90)).Select(x => new AlertDetailProjection
@@ -173,7 +178,8 @@ public sealed class OperationalAlertService(
             TargetId = x.LineId,
             Quantity = x.Quantity,
             Unit = x.Unit,
-            OccurredAt = x.OccurredAt
+            OccurredAt = x.OccurredAt,
+            OldestLotDate = x.OldestLotDate
         });
     }
 
@@ -192,7 +198,7 @@ public sealed class OperationalAlertService(
         {
             OperationalAlertCategory.BelowMinimum => $"Faltan {row.Quantity:0.####} {row.Unit}",
             OperationalAlertCategory.StagnantInventory => $"Existencia {row.Quantity:0.####} {row.Unit}",
-            OperationalAlertCategory.CycleCountStale or OperationalAlertCategory.CycleCountPending => row.CycleStatus.ToString(),
+            OperationalAlertCategory.CycleCountStale or OperationalAlertCategory.CycleCountPending => CycleStatusLabel(row.CycleStatus),
             OperationalAlertCategory.AgedWip => $"Existencia {row.Quantity:0.####} {row.Unit}",
             _ => $"{row.Quantity:0.####} {row.Unit}"
         };
@@ -207,7 +213,11 @@ public sealed class OperationalAlertService(
         return new(category, severity, primary, row.SecondaryText, value, target, row.ProductId, row.LocationId, row.OccurredAt);
     }
 
-    private static OperationalAlertConditionDto ToCondition(OperationalAlertCategory category, AlertDetailProjection row)
+    private static OperationalAlertConditionDto ToCondition(
+        OperationalAlertCategory category,
+        AlertDetailProjection row,
+        int wipDays,
+        TimeZoneInfo warehouseZone)
     {
         var detail = ToDetailDto(category, row);
         var exceptionCategory = category switch
@@ -246,8 +256,66 @@ public sealed class OperationalAlertService(
             _ => detail.TargetUrl
         };
         return new(exceptionCategory, severity, $"{exceptionCategory}:{subject}", detail.PrimaryText, detail.SecondaryText,
-            detail.ValueText, target, row.ProductId, row.LocationId, row.CycleCountLocationId, row.OccurredAt);
+            ReasonText(category, row, wipDays, warehouseZone), detail.ValueText, target,
+            row.ProductId, row.LocationId, row.CycleCountLocationId, row.OccurredAt);
     }
+
+    private static string ReasonText(
+        OperationalAlertCategory category,
+        AlertDetailProjection row,
+        int wipDays,
+        TimeZoneInfo warehouseZone)
+    {
+        var quantity = FormatQuantity(row.Quantity, row.Unit);
+        return category switch
+        {
+            OperationalAlertCategory.NegativeInventory =>
+                $"El saldo de {row.PrimaryText} en {row.SecondaryText} es {quantity}, menor que cero.",
+            OperationalAlertCategory.BelowMinimum =>
+                $"La existencia total es {FormatQuantity(row.CurrentQuantity, row.Unit)}, por debajo del mínimo de {FormatQuantity(row.ThresholdQuantity, row.Unit)}; faltan {quantity}.",
+            OperationalAlertCategory.UnassignedBalance =>
+                $"Hay {quantity} de {row.PrimaryText} en {row.SecondaryText} sin una asignación activa producto-ubicación.",
+            OperationalAlertCategory.RestrictedInventory =>
+                $"Hay {quantity} de {row.PrimaryText} en {row.SecondaryText}, una ubicación {RestrictedState(row)}.",
+            OperationalAlertCategory.StagnantInventory when row.OccurredAt is null =>
+                $"Hay {quantity} y no existe una salida efectiva registrada para este producto.",
+            OperationalAlertCategory.StagnantInventory =>
+                $"Hay {quantity}; la última salida efectiva fue el {FormatWarehouseDate(row.OccurredAt!.Value, warehouseZone)}, hace 90 días o más.",
+            OperationalAlertCategory.CycleCountStale =>
+                $"El saldo de {row.SecondaryText} cambió durante el conteo {FormatCampaign(row.PrimaryText)} y requiere reconteo.",
+            OperationalAlertCategory.CycleCountPending when row.CycleStatus == CycleCountLocationStatus.RecountRequested =>
+                $"El conteo {FormatCampaign(row.PrimaryText)} de {row.SecondaryText} tiene un reconteo solicitado pendiente.",
+            OperationalAlertCategory.CycleCountPending =>
+                $"El conteo {FormatCampaign(row.PrimaryText)} de {row.SecondaryText} está pendiente de revisión.",
+            OperationalAlertCategory.AgedWip when row.OldestLotDate is DateOnly oldestLotDate =>
+                $"Hay {quantity} en {row.SecondaryText}; el lote positivo más antiguo es del {oldestLotDate:dd/MM/yyyy} y supera el límite configurado de {wipDays} días.",
+            _ => $"Hay {quantity} en WIP por más de {wipDays} días."
+        };
+    }
+
+    private static string FormatQuantity(decimal? quantity, string? unit) =>
+        $"{quantity.GetValueOrDefault():0.####} {unit}".TrimEnd();
+
+    private static string RestrictedState(AlertDetailProjection row) => (row.LocationIsActive, row.LocationIsBlocked) switch
+    {
+        (false, true) => "inactiva y bloqueada",
+        (false, false) => "inactiva",
+        _ => "bloqueada"
+    };
+
+    private static string FormatWarehouseDate(DateTimeOffset instant, TimeZoneInfo warehouseZone) =>
+        TimeZoneInfo.ConvertTime(instant, warehouseZone).ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static string FormatCampaign(string number) =>
+        $"CC-{long.Parse(number, System.Globalization.CultureInfo.InvariantCulture):D6}";
+
+    private static string CycleStatusLabel(CycleCountLocationStatus? status) => status switch
+    {
+        CycleCountLocationStatus.Stale => "Reconteo requerido",
+        CycleCountLocationStatus.RecountRequested => "Reconteo solicitado",
+        CycleCountLocationStatus.UnderReview => "En revisión",
+        _ => "Pendiente"
+    };
 
     private IQueryable<PositionTotal> PositionTotals()
     {
@@ -354,7 +422,9 @@ public sealed class OperationalAlertService(
             WipCode = position.Key.WipCode,
             Quantity = position.Sum(item => item.Quantity),
             Unit = position.Key.Unit,
-            OccurredAt = position.Min(item => item.UpdatedAt)
+            OccurredAt = position.Min(item => item.UpdatedAt),
+            OldestLotDate = position.Where(item => item.Quantity > 0 && item.Lot != null && item.Lot.LotDate != null)
+                .Min(item => item.Lot!.LotDate)
         };
 
     private static OperationalAlertItemDto Item(OperationalAlertCategory category, OperationalAlertSeverity severity,
@@ -369,9 +439,14 @@ public sealed class OperationalAlertService(
         public Guid? TargetId { get; init; }
         public Guid? CycleCountLocationId { get; init; }
         public decimal? Quantity { get; init; }
+        public decimal? CurrentQuantity { get; init; }
+        public decimal? ThresholdQuantity { get; init; }
         public string? Unit { get; init; }
         public CycleCountLocationStatus? CycleStatus { get; init; }
         public DateTimeOffset? OccurredAt { get; init; }
+        public DateOnly? OldestLotDate { get; init; }
+        public bool LocationIsActive { get; init; }
+        public bool LocationIsBlocked { get; init; }
     }
     private sealed class PositionTotal
     {
@@ -413,5 +488,6 @@ public sealed class OperationalAlertService(
         public required decimal Quantity { get; init; }
         public required string Unit { get; init; }
         public required DateTimeOffset OccurredAt { get; init; }
+        public DateOnly? OldestLotDate { get; init; }
     }
 }

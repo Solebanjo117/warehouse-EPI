@@ -320,6 +320,130 @@ public sealed class ReportExportServiceTests
     }
 
     [Fact]
+    public async Task ExportOccupancyToExcelAsync_generates_valid_workbook_with_typed_cells_formula_defense_and_totals()
+    {
+        await using var db = CreateDbContext();
+        var exportService = new ReportExportService(new WarehouseSettingsService(db));
+        var snapshotAt = new DateTimeOffset(2026, 8, 21, 14, 30, 0, TimeSpan.Zero);
+
+        var rowSummary1 = new LocationOccupancySummaryDto(10, 7, 2, 1, 1, 0); // 7 / 10 = 70%
+        var rowSummary2 = new LocationOccupancySummaryDto(0, 0, 0, 0, 0, 0);  // 0 / 0 = 0%
+        var globalSummary = new LocationOccupancySummaryDto(10, 7, 2, 1, 1, 0);
+
+        var report = new LocationOccupancyReportDto(
+            globalSummary,
+            [
+                new LocationOccupancyRowDto("=RACK-A", rowSummary1),
+                new LocationOccupancyRowDto("+RACK-B", rowSummary2)
+            ]);
+
+        var xlsx = await exportService.ExportOccupancyToExcelAsync(report, snapshotAt);
+        Assert.NotNull(xlsx);
+        Assert.NotEmpty(xlsx);
+
+        using var workbook = new XLWorkbook(new MemoryStream(xlsx));
+        var sheet = workbook.Worksheet("Ocupación");
+        Assert.NotNull(sheet);
+
+        // Subtítulos
+        Assert.Contains("Generado el:", sheet.Cell(2, 1).GetString());
+        Assert.Contains("Datos al:", sheet.Cell(2, 1).GetString());
+        Assert.Contains("Utilización global: 70.00%", sheet.Cell(3, 1).GetString());
+
+        // Fila 6 (primer renglón de datos: =RACK-A)
+        var dataRow1 = sheet.Row(6);
+        Assert.False(dataRow1.Cell(1).HasFormula);
+        Assert.Equal(XLDataType.Text, dataRow1.Cell(1).DataType);
+        Assert.Equal("=RACK-A", dataRow1.Cell(1).GetString());
+        Assert.Equal(XLDataType.Number, dataRow1.Cell(2).DataType);
+        Assert.Equal(10, dataRow1.Cell(2).GetDouble());
+        Assert.Equal(7, dataRow1.Cell(3).GetDouble());
+        Assert.Equal(2, dataRow1.Cell(4).GetDouble());
+        Assert.Equal(1, dataRow1.Cell(5).GetDouble());
+        Assert.Equal(1, dataRow1.Cell(6).GetDouble());
+        Assert.Equal(0, dataRow1.Cell(7).GetDouble());
+        Assert.Equal(XLDataType.Number, dataRow1.Cell(8).DataType);
+        Assert.Equal(0.70, Math.Round(dataRow1.Cell(8).GetDouble(), 2));
+        Assert.Equal("0.00%", dataRow1.Cell(8).Style.NumberFormat.Format);
+
+        // Fila 7 (segundo renglón: +RACK-B con denominador 0)
+        var dataRow2 = sheet.Row(7);
+        Assert.False(dataRow2.Cell(1).HasFormula);
+        Assert.Equal(XLDataType.Text, dataRow2.Cell(1).DataType);
+        Assert.Equal("+RACK-B", dataRow2.Cell(1).GetString());
+        Assert.Equal(0.00, dataRow2.Cell(8).GetDouble());
+
+        // Fila 8 (Total general)
+        var totalRow = sheet.Row(8);
+        Assert.Equal("Total general", totalRow.Cell(1).GetString());
+        Assert.True(totalRow.Cell(1).Style.Font.Bold);
+        Assert.Equal(10, totalRow.Cell(2).GetDouble());
+        Assert.Equal(7, totalRow.Cell(3).GetDouble());
+        Assert.Equal(0.70, Math.Round(totalRow.Cell(8).GetDouble(), 2));
+        Assert.True(totalRow.Cell(8).Style.Font.Bold);
+    }
+
+    [Fact]
+    public async Task ExportOccupancyToCsvAsync_generates_valid_csv_with_bom_and_sanitization()
+    {
+        await using var db = CreateDbContext();
+        var exportService = new ReportExportService(new WarehouseSettingsService(db));
+        var snapshotAt = new DateTimeOffset(2026, 8, 21, 14, 30, 0, TimeSpan.Zero);
+
+        var rowSummary1 = new LocationOccupancySummaryDto(10, 7, 2, 1, 1, 0);
+        var report = new LocationOccupancyReportDto(
+            rowSummary1,
+            [new LocationOccupancyRowDto("=RACK-A", rowSummary1)]);
+
+        var csv = await exportService.ExportOccupancyToCsvAsync(report, snapshotAt);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, csv[..3]);
+
+        var content = Encoding.UTF8.GetString(csv[3..]);
+        Assert.Contains("Fila,Posiciones de almacenamiento,Ocupadas,Vacías,Negativas,Bloqueadas,Inactivas,Utilización,Fecha generación,Fecha datos,Zona horaria", content);
+        Assert.Contains("\"'=RACK-A\",10,7,2,1,1,0,0.7000,", content);
+        Assert.Contains("\"Total general\",10,7,2,1,1,0,0.7000,", content);
+        Assert.Contains("America/Matamoros", content);
+    }
+
+    [Fact]
+    public async Task ExportStagnant_preserves_category_filter_in_metadata_and_handles_never_exited()
+    {
+        await using var db = CreateDbContext();
+        var exportService = new ReportExportService(new WarehouseSettingsService(db));
+        var filter = new InventoryAnalyticsFilter(
+            ProductStatus: "active",
+            StagnantCategory: StagnantCategory.NeverExited);
+
+        var stagnant = new StagnantProductDto(
+            Guid.NewGuid(), "STG-NEVER", "Sin salida histórica", 1, "EA", 25m,
+            LastExitDateUtc: null,
+            DaysWithoutExit: null,
+            Category: StagnantCategory.NeverExited,
+            IsActive: true);
+
+        // Excel
+        var xlsx = await exportService.ExportStagnantToExcelAsync([stagnant], filter);
+        using (var workbook = new XLWorkbook(new MemoryStream(xlsx)))
+        {
+            var sheet = workbook.Worksheet("Estancamiento");
+            Assert.Contains("categoría=Nunca salió", sheet.Cell(3, 1).GetString());
+            var row = sheet.Row(6);
+            Assert.Equal("STG-NEVER", row.Cell(1).GetString());
+            Assert.Equal(25m, row.Cell(5).GetValue<decimal>());
+            Assert.True(row.Cell(6).IsEmpty());
+            Assert.True(row.Cell(7).IsEmpty());
+            Assert.Equal("Nunca salió", row.Cell(8).GetString());
+        }
+
+        // CSV
+        var csv = await exportService.ExportStagnantToCsvAsync([stagnant], filter);
+        Assert.Equal(new byte[] { 0xEF, 0xBB, 0xBF }, csv[..3]);
+        var content = Encoding.UTF8.GetString(csv[3..]);
+        Assert.Contains("categoría=Nunca salió", content);
+        Assert.Contains("\"STG-NEVER\",\"Sin salida histórica\",\"Activo\",\"EA\",25.0000,\"\",,\"Nunca salió\",", content);
+    }
+
+    [Fact]
     public void SanitizeText_neutralizes_formula_prefixes_on_strings()
     {
         Assert.Equal(string.Empty, ReportExportService.SanitizeText(null));

@@ -2,18 +2,22 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Imports;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
 [Authorize(Policy = "AdminOnly")]
 [RequestSizeLimit(ProductImportLimits.MaxRequestBytes)]
-public sealed class ImportModel(ProductImportService importService) : PageModel
+public sealed class ImportModel(ProductImportService importService, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     private const int PageSize = 25;
 
     [BindProperty]
     public IFormFile? Upload { get; set; }
+    [BindProperty]
+    public bool UpdateExisting { get; set; } = true;
     public ProductImportPreview? Preview { get; private set; }
     public IReadOnlyList<ProductImportPreviewRow> Rows { get; private set; } = [];
     public string Filter { get; private set; } = "all";
@@ -42,13 +46,13 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
     public async Task<IActionResult> OnPostUploadAsync(CancellationToken cancellationToken)
     {
         if (Upload is null || Upload.Length == 0)
-            ModelState.AddModelError(nameof(Upload), "Selecciona un archivo XLSX.");
+            ModelState.AddModelError(nameof(Upload), text["Selecciona un archivo XLSX."].Value);
         else
         {
             if (!string.Equals(Path.GetExtension(Upload.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
-                ModelState.AddModelError(nameof(Upload), "Solo se aceptan archivos con extensión .xlsx.");
+                ModelState.AddModelError(nameof(Upload), text["Solo se aceptan archivos con extensión .xlsx."].Value);
             if (Upload.Length > ProductImportLimits.MaxFileBytes)
-                ModelState.AddModelError(nameof(Upload), "El archivo no puede superar 10 MB.");
+                ModelState.AddModelError(nameof(Upload), text["El archivo no puede superar 10 MB."].Value);
         }
 
         if (!ModelState.IsValid || !TryOwnerId(out var ownerId))
@@ -56,8 +60,35 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
 
         var upload = Upload!;
         await using var stream = upload.OpenReadStream();
-        var preview = await importService.PrepareAsync(stream, upload.FileName, ownerId, cancellationToken);
+        var preview = await importService.PrepareAsync(stream, upload.FileName, ownerId, UpdateExisting, cancellationToken);
         return RedirectToPage(new { token = preview.Token });
+    }
+
+    public async Task<IActionResult> OnPostResolveUnitAsync(string token, string sourceUnit, string targetUnit, CancellationToken cancellationToken)
+    {
+        if (!TryOwnerId(out var ownerId)) return Forbid();
+        var revised = await importService.ResolveUnitAsync(token, ownerId, sourceUnit, targetUnit, cancellationToken);
+        if (revised is null)
+        {
+            ImportError = "No se pudo resolver la unidad. Selecciona una unidad activa o vuelve a analizar el archivo si la vista previa expiró.";
+            return RedirectToPage(new { token });
+        }
+        ImportMessage = $"Unidad {sourceUnit} asociada a {targetUnit}. Revisa la comparación antes de confirmar.";
+        return RedirectToPage(new { token = revised.Token });
+    }
+
+    public async Task<IActionResult> OnPostResolveDuplicateAsync(string token, string sku,
+        Dictionary<string, string> choices, CancellationToken cancellationToken)
+    {
+        if (!TryOwnerId(out var ownerId)) return Forbid();
+        var revised = await importService.ResolveDuplicateAsync(token, ownerId, sku, choices, cancellationToken);
+        if (revised is null)
+        {
+            ImportError = "Selecciona un valor de origen para cada campo conflictivo. Si la vista previa expiró, vuelve a analizar el archivo.";
+            return RedirectToPage(new { token });
+        }
+        ImportMessage = $"Duplicado {sku} resuelto. Revisa la comparación antes de confirmar.";
+        return RedirectToPage(new { token = revised.Token });
     }
 
     public async Task<IActionResult> OnPostConfirmAsync(string token, CancellationToken cancellationToken)
@@ -72,19 +103,21 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
         }
 
         ImportMessage = $"Importación terminada: {result.Inserted:N0} productos insertados, " +
-            $"{result.SkippedExisting:N0} omitidos por SKU existente y {result.Consolidated:N0} duplicados consolidados.";
+            $"{result.Updated:N0} actualizados, {result.SkippedExisting:N0} existentes sin modificar y {result.Consolidated:N0} duplicados consolidados.";
         return RedirectToPage();
     }
 
     private void LoadPreview(ProductImportPreview preview, string filter, int pageNumber)
     {
         Preview = preview;
-        Filter = filter is "new" or "existing" or "consolidated" or "warnings" or "errors" ? filter : "all";
+        Filter = filter is "new" or "existing" or "updated" or "unchanged" or "consolidated" or "warnings" or "errors" ? filter : "all";
         IEnumerable<ProductImportPreviewRow> query = preview.Rows;
         query = Filter switch
         {
             "new" => query.Where(row => row.IsCandidate),
             "existing" => query.Where(row => row.IsExisting),
+            "updated" => query.Where(row => row.IsUpdate),
+            "unchanged" => query.Where(row => row.IsExisting && !row.HasError && !row.IsUpdate),
             "consolidated" => query.Where(row => row.IsConsolidated),
             "warnings" => query.Where(row => row.HasWarning),
             "errors" => query.Where(row => row.HasError),

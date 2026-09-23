@@ -102,7 +102,8 @@ public sealed class WarehouseMapEditorContractTests
     [Fact]
     public void Query_and_editor_share_the_persisted_architecture_renderer()
     {
-        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"))
+            + File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Index.cshtml"));
         var editor = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
         var renderer = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "_WarehouseMapArchitecture.cshtml"));
         var fallback = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "images", "warehouse-floor-base.svg"));
@@ -111,7 +112,8 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("_WarehouseMapArchitecture.cshtml", editor, StringComparison.Ordinal);
         Assert.Contains("data-architecture-element", renderer, StringComparison.Ordinal);
         Assert.Contains("data-architecture-layer", renderer, StringComparison.Ordinal);
-        Assert.Contains("<tspan x=\"0\" y=\"18\"", renderer, StringComparison.Ordinal);
+        Assert.Contains("<g><text x=\"0\" y=\"18\"", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("<tspan", renderer, StringComparison.Ordinal);
         Assert.Contains("architecture-stroke-@item.StrokeToken", renderer, StringComparison.Ordinal);
         Assert.Contains("architecture-fill-@item.FillToken", renderer, StringComparison.Ordinal);
         Assert.DoesNotContain("<image href=\"/images/warehouse-floor-base.svg\"", query, StringComparison.Ordinal);
@@ -222,8 +224,9 @@ public sealed class WarehouseMapEditorContractTests
     public void Phase_1194_adds_private_reference_storage_and_keeps_query_bundle_lightweight()
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
-        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
-        var queryModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
+        var query = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"))
+            + File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "Index.cshtml"));
+        var queryModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationIndexPageModel.cs"));
         var editorScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
         var referenceScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-reference.js"));
         var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260825093000_AddWarehouseMapReferenceImages.cs"));
@@ -244,17 +247,81 @@ public sealed class WarehouseMapEditorContractTests
     }
 
     [Fact]
-    public void Query_map_zoom_expands_a_scrollable_canvas_without_changing_the_viewbox()
+    public void Query_map_zoom_supports_controls_scroll_and_touch_pinch_without_changing_the_viewbox()
     {
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
         var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js"));
 
-        Assert.Contains(".warehouse-map-shell .warehouse-map-viewport{height:34rem;min-height:0;overflow:auto", styles, StringComparison.Ordinal);
+        Assert.Contains("height:clamp(34rem,70svh,46rem);min-height:320px;overflow:auto", styles, StringComparison.Ordinal);
+        Assert.Contains("height:var(--map-expanded-viewport-height,calc(100svh - 2rem))", styles, StringComparison.Ordinal);
+        Assert.Contains(".warehouse-map-frame .warehouse-map{position:absolute;min-height:0;max-width:none", styles, StringComparison.Ordinal);
         Assert.Contains("touch-action:pan-x pan-y", styles, StringComparison.Ordinal);
         Assert.Contains("const MAX_ZOOM = 4", script, StringComparison.Ordinal);
-        Assert.Contains("svg.style.setProperty(\"--warehouse-map-query-zoom\"", script, StringComparison.Ordinal);
-        Assert.Contains("viewport.scrollLeft = 0", script, StringComparison.Ordinal);
+        Assert.Contains("svg.style.width", script, StringComparison.Ordinal);
+        Assert.Contains("viewport.scrollLeft = clamp", script, StringComparison.Ordinal);
+        Assert.Contains("addEventListener(\"touchstart\"", script, StringComparison.Ordinal);
+        Assert.Contains("addEventListener(\"touchmove\"", script, StringComparison.Ordinal);
+        Assert.Contains("{ passive: false }", script, StringComparison.Ordinal);
+        Assert.Contains("pinchGesture.point", script, StringComparison.Ordinal);
+        Assert.Contains("suppressClicksUntil", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("window.addEventListener(\"scroll\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("visualViewport?.addEventListener(\"resize\"", script, StringComparison.Ordinal);
         Assert.DoesNotContain("setAttribute(\"viewBox\"", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Query_map_keeps_adaptive_controls_and_detail_inside_the_expandable_frame()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+
+        Assert.Contains("data-map-frame", page, StringComparison.Ordinal);
+        Assert.Contains("data-map-focus disabled", page, StringComparison.Ordinal);
+        Assert.Contains("data-map-expand aria-expanded=\"false\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-map-stage", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@CatTexts[\"Detalle de la selección\"]\" hidden", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("map-detail-placeholder", page, StringComparison.Ordinal);
+        Assert.Contains(".warehouse-map-shell.has-selection{grid-template-columns:minmax(0,1fr) 22rem}", styles, StringComparison.Ordinal);
+        Assert.Contains("max-height:48dvh", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Map_canvas_is_persisted_rendered_dynamically_and_resized_with_pointer_or_keyboard()
+    {
+        var editorPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Map", "Edit.cshtml"));
+        var queryPage = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
+        var editorScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map.js"));
+        var referenceScript = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-reference.js"));
+        var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260831183516_AddWarehouseMapCanvasDimensions.cs"));
+
+        Assert.Contains("data-editor-canvas-resize", editorPage, StringComparison.Ordinal);
+        Assert.Contains("data-editor-canvas-width", editorPage, StringComparison.Ordinal);
+        Assert.Contains("data-editor-canvas-height", editorPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasWidth", editorPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasHeight", editorPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasWidth", queryPage, StringComparison.Ordinal);
+        Assert.Contains("Model.Map.CanvasHeight", queryPage, StringComparison.Ordinal);
+        Assert.Contains("setPointerCapture", editorScript, StringComparison.Ordinal);
+        Assert.Contains("kind: \"canvasResize\"", editorScript, StringComparison.Ordinal);
+        Assert.Contains("Math.ceil(requestedWidth / canvas.gridStep)", editorScript, StringComparison.Ordinal);
+        Assert.Contains("['ArrowRight', 'ArrowDown']", editorScript, StringComparison.Ordinal);
+        Assert.Contains("warehouse-map:canvas-changed", editorScript, StringComparison.Ordinal);
+        Assert.Contains("ARCHITECTURE_STYLE_TOKENS", editorScript, StringComparison.Ordinal);
+        Assert.Contains("normalizeArchitectureStyle", editorScript, StringComparison.Ordinal);
+        Assert.Contains("value=\"\" disabled>@CatTexts[\"Varios\"]", editorPage, StringComparison.Ordinal);
+        Assert.Contains("summary.previousCanvasWidth", editorScript, StringComparison.Ordinal);
+        Assert.Contains("summary.previousCanvasHeight", editorScript, StringComparison.Ordinal);
+        Assert.Contains("warehouse-map:canvas-changed", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("canvasWidth()", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("canvasHeight()", referenceScript, StringComparison.Ordinal);
+        Assert.Contains("canvas_width", migration, StringComparison.Ordinal);
+        Assert.Contains("defaultValue: 1600m", migration, StringComparison.Ordinal);
+        Assert.Contains("canvas_height", migration, StringComparison.Ordinal);
+        Assert.Contains("defaultValue: 900m", migration, StringComparison.Ordinal);
+        Assert.Contains("ck_warehouse_map_layout_canvas", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("CreateTable", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("warehouse_map_elements", migration, StringComparison.Ordinal);
+        Assert.DoesNotContain("inventory_", migration, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -286,22 +353,27 @@ public sealed class WarehouseMapEditorContractTests
     [Fact]
     public void Map_wip_panel_renders_current_inventory_and_recent_issues_without_inventory_controls()
     {
-        var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml.cs"));
-        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Index.cshtml"));
+        var pageModel = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "LocationIndexPageModel.cs"));
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
 
         Assert.Contains("element.IsWip", pageModel, StringComparison.Ordinal);
         Assert.Contains("GetRecentIssuesAsync", pageModel, StringComparison.Ordinal);
         Assert.Contains("RecentWipIssues", pageModel, StringComparison.Ordinal);
         Assert.Contains("Existencias actuales", page, StringComparison.Ordinal);
-        Assert.Contains("SelectMany(position => position.Products)", page, StringComparison.Ordinal);
+        Assert.Contains("SelectMany(position => position.Products", page, StringComparison.Ordinal);
         Assert.Contains("Where(product => product.Quantity != 0)", page, StringComparison.Ordinal);
+        Assert.Contains("PositionCode = position.Code", page, StringComparison.Ordinal);
+        Assert.Contains("GetValueOrDefault(element.Id)", page, StringComparison.Ordinal);
+        Assert.Contains("Resumen de posiciones WIP", page, StringComparison.Ordinal);
+        Assert.Contains("position.OperationalRole == WarehouseEPI.Core.Entities.LocationOperationalRole.Wip", page, StringComparison.Ordinal);
         Assert.Contains("Este WIP no tiene existencias actualmente.", page, StringComparison.Ordinal);
         Assert.Contains("@product.Quantity.ToString(\"0.####\") @product.Unit", page, StringComparison.Ordinal);
         Assert.Contains("Últimos surtimientos", page, StringComparison.Ordinal);
         Assert.Contains("Aún no hay surtimientos registrados en este WIP.", page, StringComparison.Ordinal);
         Assert.Contains("/Reports/Wip/Details", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-wipAreaId", page, StringComparison.Ordinal);
-        Assert.Contains("else\n            {\n                @if(element.Kind==\"Rack\")", page, StringComparison.Ordinal);
+        Assert.Contains("@if(element.Kind==\"Rack\")", page, StringComparison.Ordinal);
+        Assert.Contains("else if(element.IsWip)", page, StringComparison.Ordinal);
     }
 
     private static string RepositoryPath(params string[] parts)

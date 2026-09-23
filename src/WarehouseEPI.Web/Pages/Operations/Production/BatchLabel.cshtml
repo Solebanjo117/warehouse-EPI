@@ -1,0 +1,6 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Production.BatchLabelModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@{ ViewData["Title"]=ProdTexts["Etiqueta {0}", Model.Batch.Number].Value; }
+<div class="production-batch-label-page"><div class="no-print d-flex gap-2 mb-3"><button type="button" class="btn btn-primary" data-production-label-print>@ProdTexts["Imprimir etiqueta"]</button><a asp-page="Work" asp-route-id="@Model.Batch.WorkOrderId" asp-route-BatchId="@Model.Batch.Id" class="btn btn-outline-secondary">@ProdTexts["Volver a la orden"]</a></div><article class="production-batch-label"><strong class="production-batch-label-title">@ProdTexts["LOTE DE PRODUCCIÓN (etiqueta)"]</strong><span>@Model.Batch.WorkOrder.Number</span><strong>@Model.Batch.WorkOrder.Product.Sku</strong><span>@Model.Batch.WorkOrder.Product.Description</span><div class="production-batch-barcode">@Html.Raw(Model.Barcode.Markup)</div><strong class="production-batch-number">@Model.Batch.Number</strong><span>@ProdTexts["Cantidad asignada: {0}", Model.Batch.AssignedQuantity.ToString("0.####")]</span></article></div>
+@section Scripts{<script src="~/js/production-traceability.js" asp-append-version="true"></script>}

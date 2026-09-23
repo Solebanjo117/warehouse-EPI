@@ -1,9 +1,10 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @using WarehouseEPI.Infrastructure.Settings
 @inject WarehouseSettingsService WarehouseSettings
 @model WarehouseEPI.Web.Pages.Admin.LoginModel
 @{
-    ViewData["Title"] = "Acceso administrativo";
+    ViewData["Title"] = CatTexts["Acceso administrativo"].Value;
     var business = await WarehouseSettings.GetAsync();
 }
 
@@ -12,21 +13,21 @@
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <p class="eyebrow mb-1">@business.BusinessName · @business.WarehouseName</p>
-                <h1 class="h3 mb-3">Acceso administrativo</h1>
-                <p class="text-muted">Introduce tu NIP para administrar usuarios y catálogos.</p>
+                <h1 class="h3 mb-3">@CatTexts["Acceso administrativo"]</h1>
+                <p class="text-muted">@CatTexts["Introduce tu NIP para administrar usuarios y catálogos."]</p>
 
                 <form method="post">
                     <input type="hidden" asp-for="ReturnUrl" />
                     <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
                     <div class="mb-3">
-                        <label asp-for="Input.Pin" class="form-label">NIP</label>
+                        <label asp-for="Input.Pin" class="form-label">@CatTexts["NIP"]</label>
                         <input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric"
                                pattern="[0-9]{4,8}" autocomplete="off" autofocus />
                         <span asp-validation-for="Input.Pin" class="text-danger"></span>
                     </div>
 
-                    <button type="submit" class="btn btn-primary btn-lg w-100">Ingresar</button>
+                    <button type="submit" class="btn btn-primary btn-lg w-100">@CatTexts["Ingresar"]</button>
                 </form>
             </div>
         </div>

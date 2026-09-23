@@ -1,0 +1,25 @@
+@page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Admin.Inventory.CycleCountPlans.EditModel
+@using WarehouseEPI.Web.Pages.Operations.CycleCounts
+@{
+    ViewData["Title"] = CatTexts["Editar plan de conteo"].Value;
+}
+<div class="inventory-analytics">
+    <header class="inventory-page-header analytics-header">
+        <div><a asp-page="Index" class="small text-decoration-none">@CatTexts["← Planes de conteo"]</a><h1 class="h2 mt-2 mb-1">@CatTexts["Editar plan"]</h1><p class="text-muted mb-0">@Model.Plan?.Sku · @Model.Plan?.LocationCode</p></div>
+        <a asp-page="History" asp-route-id="@Model.Input.Id" class="btn btn-outline-secondary">@CatTexts["Ver historial"]</a>
+    </header>
+    @if (Model.Error is not null) { <div class="alert alert-danger" role="alert">@Model.Error</div> }
+    <form method="post" class="analytics-filter-card">
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+        <input asp-for="Input.Id" type="hidden" />
+        <div class="row g-3">
+            <div class="col-md-6"><label asp-for="Input.Frequency" class="form-label">@CatTexts["Frecuencia"]</label><select asp-for="Input.Frequency" asp-items="Model.FrequencyOptions" class="form-select form-select-lg"></select><span asp-validation-for="Input.Frequency" class="text-danger"></span></div>
+            <div class="col-md-6"><label asp-for="Input.AnchorDate" class="form-label">@CatTexts["Fecha ancla"]</label><input asp-for="Input.AnchorDate" type="date" class="form-control form-control-lg" /><span asp-validation-for="Input.AnchorDate" class="text-danger"></span></div>
+        </div>
+        <p class="form-text mt-3">@CatTexts["La edición no cambia despachos históricos. Si ya hubo una finalización, el siguiente vencimiento se recalcula desde esta ancla y después de esa fecha."]</p>
+        <button class="btn btn-primary btn-lg mt-2">@CatTexts["Guardar cambios"]</button>
+    </form>
+</div>
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

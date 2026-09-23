@@ -21,15 +21,17 @@ public sealed class ProductSpreadsheetReader : IProductSpreadsheetReader
         try
         {
             using var workbook = new XLWorkbook(stream);
-            if (!workbook.TryGetWorksheet("ITEMS", out var worksheet))
-                return Failed("missing_sheet", "El archivo debe contener una hoja llamada ITEMS.");
+            if (!workbook.TryGetWorksheet("ITEMS", out var worksheet) && !workbook.TryGetWorksheet("ITEM LISTING", out worksheet))
+                return Failed("missing_sheet", "El archivo debe contener una hoja llamada ITEMS o ITEM LISTING.");
+            var itemListing = worksheet.Name == "ITEM LISTING";
 
             var issues = new List<ProductSpreadsheetIssue>();
             foreach (var (column, header) in RequiredHeaders)
             {
                 var actual = worksheet.Cell(1, column).GetString().Trim();
-                if (!string.Equals(actual, header, StringComparison.Ordinal))
-                    issues.Add(new(1, "invalid_header", $"La columna {ColumnName(column)} debe llamarse {header}.", true));
+                var expected = itemListing && column == 12 ? "ITEM (COMPLETE)" : header;
+                if (!string.Equals(actual, expected, StringComparison.Ordinal))
+                    issues.Add(new(1, "invalid_header", $"La columna {ColumnName(column)} debe llamarse {expected}.", true));
             }
 
             if (issues.Any(issue => issue.IsError))
@@ -40,6 +42,7 @@ public sealed class ProductSpreadsheetReader : IProductSpreadsheetReader
                 return Failed("too_many_rows", $"El archivo supera el máximo de {MaxDataRows:N0} filas de datos.");
 
             var rawRows = new List<ProductSpreadsheetRow>();
+            var invalidSkus = new HashSet<string>(StringComparer.Ordinal);
             var sourceRows = 0;
             var missingReferences = 0;
             for (var rowNumber = 2; rowNumber <= lastRow; rowNumber++)
@@ -92,7 +95,7 @@ public sealed class ProductSpreadsheetReader : IProductSpreadsheetReader
                 {
                     issues.Add(new(rowNumber, "invalid_unit",
                         $"U/M debe terminar con un código entre paréntesis. Valor recibido: '{unitValue}'.", true));
-                    rowHasError = true;
+                    unitCode = unitValue;
                 }
                 if (classCode is null)
                     issues.Add(new(rowNumber, "missing_class", "La clase está vacía y se importará sin clase.", false));
@@ -100,14 +103,23 @@ public sealed class ProductSpreadsheetReader : IProductSpreadsheetReader
                     missingReferences++;
 
                 if (!rowHasError)
-                    rawRows.Add(new([rowNumber], sku, description, externalReference, unitCode!, classCode, false));
+                    rawRows.Add(new([rowNumber], sku, description, externalReference, unitCode!, classCode, false) { UnitWasBlank = string.IsNullOrWhiteSpace(unitValue) });
+                else if (!string.IsNullOrEmpty(sku))
+                    invalidSkus.Add(sku);
             }
 
             var rows = new List<ProductSpreadsheetRow>();
+            var conflicts = new List<ProductSpreadsheetConflict>();
             var consolidatedGroups = 0;
             foreach (var group in rawRows.GroupBy(row => row.Sku, StringComparer.Ordinal))
             {
                 var values = group.ToList();
+                if (invalidSkus.Contains(group.Key))
+                {
+                    issues.Add(new(values[0].SourceRows[0], "duplicate_invalid",
+                        $"El SKU {group.Key} tiene otra fila inválida; se omite el grupo completo.", true));
+                    continue;
+                }
                 if (values.Count == 1)
                 {
                     rows.Add(values[0]);
@@ -117,15 +129,14 @@ public sealed class ProductSpreadsheetReader : IProductSpreadsheetReader
                 var first = values[0];
                 var references = values.Select(row => row.ExternalReference).Where(value => value is not null)
                     .Distinct(StringComparer.Ordinal).ToList();
-                var coreMatches = values.All(row =>
-                    string.Equals(row.Description, first.Description, StringComparison.Ordinal) &&
-                    string.Equals(row.UnitCode, first.UnitCode, StringComparison.Ordinal) &&
-                    string.Equals(row.ClassCode, first.ClassCode, StringComparison.Ordinal));
-
-                if (!coreMatches || references.Count > 1)
+                var descriptions = values.Select(row => row.Description).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+                var classes = values.Select(row => row.ClassCode).OfType<string>().Distinct(StringComparer.Ordinal).ToList();
+                var units = values.Where(row => !row.UnitWasBlank).Select(row => row.UnitCode).Distinct(StringComparer.Ordinal).ToList();
+                if (descriptions.Count > 1 || classes.Count > 1 || units.Count > 1 || references.Count > 1)
                 {
+                    conflicts.Add(new(first.Sku, values));
                     issues.Add(new(values[0].SourceRows[0], "duplicate_conflict",
-                        $"El SKU {first.Sku} está repetido con datos contradictorios.", true));
+                        $"El SKU {first.Sku} está repetido con datos contradictorios en las filas {string.Join(", ", values.SelectMany(row => row.SourceRows))}.", true));
                     continue;
                 }
 
@@ -135,13 +146,17 @@ public sealed class ProductSpreadsheetReader : IProductSpreadsheetReader
                 {
                     SourceRows = sourceRowNumbers,
                     ExternalReference = references.SingleOrDefault(),
+                    Description = descriptions.SingleOrDefault(),
+                    ClassCode = classes.SingleOrDefault(),
+                    UnitCode = units.SingleOrDefault() ?? CatalogDefaults.UnassignedUnitCode,
+                    UnitWasBlank = units.Count == 0,
                     IsConsolidated = true
                 });
                 issues.Add(new(sourceRowNumbers[0], "duplicate_consolidated",
                     $"El SKU {first.Sku} se consolidó desde las filas {string.Join(", ", sourceRowNumbers)}.", false));
             }
 
-            return new(rows, issues, sourceRows, consolidatedGroups, missingReferences);
+            return new(rows, issues, sourceRows, consolidatedGroups, missingReferences) { Conflicts = conflicts };
         }
         catch (Exception exception) when (exception is InvalidDataException or FileFormatException or IOException or ArgumentException)
         {

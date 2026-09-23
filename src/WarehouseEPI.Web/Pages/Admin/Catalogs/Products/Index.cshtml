@@ -1,89 +1,97 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.IndexModel
 @{
-    ViewData["Title"] = "Productos";
+    ViewData["Title"] = CatTexts["Productos"].Value;
 }
 
 @section Styles {
     <link rel="stylesheet" href="~/css/products-index.css" asp-append-version="true" />
 }
 
+<div class="product-catalog-workbench">
 <header class="product-catalog-header mb-3">
     <div>
-        <span class="product-catalog-eyebrow">Catálogo</span>
-        <h1 class="h2 mb-1">Productos</h1>
-        <p class="text-body-secondary mb-0">Consulta el catálogo; la edición permanece como una acción administrativa.</p>
+        <span class="product-catalog-eyebrow">@CatTexts["Catálogo"]</span>
+        <h1 class="h2 mb-1">@CatTexts["Productos"]</h1>
+        <p class="text-body-secondary mb-0">@CatTexts["Existencias, ubicaciones y recetas de producción."]</p>
     </div>
     <div class="product-catalog-header-actions">
-        <a asp-page="Import" class="btn btn-outline-primary">Importar Excel</a>
-        <a asp-page="Create" class="btn btn-primary">Crear producto</a>
+        <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a>
+        <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a>
     </div>
 </header>
 
-<nav class="product-catalog-metrics mb-3" aria-label="Filtros rápidos del catálogo">
+<nav class="product-catalog-metrics mb-3" aria-label="@CatTexts["Filtros rápidos del catálogo"]">
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="active" asp-route-stock="all" asp-route-assignment="all" asp-route-pageNumber="1"
        class="product-catalog-metric metric-success @(Model.QuickFilter == "active" ? "is-active" : null)"
        aria-current="@(Model.QuickFilter == "active" ? "true" : null)">
-        <span>Activos</span><strong>@Model.Summary.Active</strong><small>Disponibles en catálogo</small>
+        <span>@CatTexts["Activos"]</span><strong>@Model.Summary.Active</strong><small>@CatTexts["Disponibles en catálogo"]</small>
     </a>
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="inactive" asp-route-stock="all" asp-route-assignment="all" asp-route-pageNumber="1"
        class="product-catalog-metric metric-secondary @(Model.QuickFilter == "inactive" ? "is-active" : null)"
        aria-current="@(Model.QuickFilter == "inactive" ? "true" : null)">
-        <span>Inactivos</span><strong>@Model.Summary.Inactive</strong><small>Fuera de operación</small>
+        <span>@CatTexts["Inactivos"]</span><strong>@Model.Summary.Inactive</strong><small>@CatTexts["Fuera de operación"]</small>
     </a>
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="active" asp-route-stock="balance" asp-route-assignment="all" asp-route-pageNumber="1"
        class="product-catalog-metric metric-primary @(Model.QuickFilter == "balance" ? "is-active" : null)"
        aria-current="@(Model.QuickFilter == "balance" ? "true" : null)">
-        <span>Con existencia</span><strong>@Model.Summary.WithBalance</strong><small>Saldo distinto de cero</small>
+        <span>@CatTexts["Con existencia"]</span><strong>@Model.Summary.WithBalance</strong><small>@CatTexts["Saldo distinto de cero"]</small>
     </a>
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="active" asp-route-stock="negative" asp-route-assignment="all" asp-route-pageNumber="1"
        class="product-catalog-metric metric-danger @(Model.QuickFilter == "negative" ? "is-active" : null)"
        aria-current="@(Model.QuickFilter == "negative" ? "true" : null)">
-        <span>Negativos</span><strong>@Model.Summary.Negative</strong><small>Requieren revisión</small>
+        <span>@CatTexts["Negativos"]</span><strong>@Model.Summary.Negative</strong><small>@CatTexts["Requieren revisión"]</small>
     </a>
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="active" asp-route-stock="minimum" asp-route-assignment="all" asp-route-pageNumber="1"
        class="product-catalog-metric metric-warning @(Model.QuickFilter == "minimum" ? "is-active" : null)"
        aria-current="@(Model.QuickFilter == "minimum" ? "true" : null)">
-        <span>Bajo mínimo</span><strong>@Model.Summary.BelowMinimum</strong><small>Saldo menor al mínimo</small>
+        <span>@CatTexts["Bajo mínimo"]</span><strong>@Model.Summary.BelowMinimum</strong><small>@CatTexts["Saldo menor al mínimo"]</small>
     </a>
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="active" asp-route-stock="all" asp-route-assignment="unassigned" asp-route-pageNumber="1"
        class="product-catalog-metric metric-warning @(Model.QuickFilter == "unassigned" ? "is-active" : null)"
        aria-current="@(Model.QuickFilter == "unassigned" ? "true" : null)">
-        <span>Sin ubicación</span><strong>@Model.Summary.WithoutAssignment</strong><small>Sin asignación activa</small>
+        <span>@CatTexts["Sin ubicación"]</span><strong>@Model.Summary.WithoutAssignment</strong><small>@CatTexts["Sin asignación activa"]</small>
     </a>
 </nav>
 
-<form method="get" class="product-catalog-filters mb-3" role="search">
+<form method="get" class="product-catalog-filters mb-3" role="search" data-product-catalog-search-form
+      data-lookup-url="@Url.Page("/Operations/Lookup")">
+    <div class="product-catalog-filter-heading"><h2>@CatTexts["Buscar y filtrar"]</h2><span>@CatTexts["Catálogo de productos"]</span></div>
     <div class="product-catalog-filter-grid">
         <div class="product-catalog-search">
-            <label for="search" class="form-label">Buscar producto</label>
-            <input id="search" name="search" value="@Model.Search" class="form-control" autofocus
-                   placeholder="SKU, descripción, referencia o ubicación" />
+            <label for="search" class="form-label">@CatTexts["Buscar producto"]</label>
+            <div class="input-group">
+                <input id="search" name="search" value="@Model.Search" class="form-control" autofocus
+                       placeholder="@CatTexts["SKU, descripción, referencia o ubicación"]" data-product-catalog-search />
+                <button type="button" class="btn btn-outline-secondary" data-product-catalog-camera
+                        aria-label="@CatTexts["Escanear producto con cámara"]"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg></button>
+            </div>
         </div>
         <div>
-            <label for="status" class="form-label">Estado</label>
+            <label for="status" class="form-label">@CatTexts["Estado"]</label>
             <select id="status" name="status" class="form-select">
-                <option value="active">Activos</option>
-                <option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option>
-                <option value="all" selected="@(Model.Status == "all")">Todos</option>
+                <option value="active">@CatTexts["Activos"]</option>
+                <option value="inactive" selected="@(Model.Status == "inactive")">@CatTexts["Inactivos"]</option>
+                <option value="all" selected="@(Model.Status == "all")">@CatTexts["Todos"]</option>
             </select>
         </div>
         <div>
-            <label for="stock" class="form-label">Existencia</label>
+            <label for="stock" class="form-label">@CatTexts["Existencia"]</label>
             <select id="stock" name="stock" class="form-select">
-                <option value="all">Todos</option>
-                <option value="balance" selected="@(Model.Stock == "balance")">Con saldo</option>
-                <option value="empty" selected="@(Model.Stock == "empty")">Sin saldo</option>
-                <option value="negative" selected="@(Model.Stock == "negative")">Negativos</option>
-                <option value="minimum" selected="@(Model.Stock == "minimum")">Bajo mínimo</option>
+                <option value="all">@CatTexts["Todos"]</option>
+                <option value="balance" selected="@(Model.Stock == "balance")">@CatTexts["Con saldo"]</option>
+                <option value="empty" selected="@(Model.Stock == "empty")">@CatTexts["Sin saldo"]</option>
+                <option value="negative" selected="@(Model.Stock == "negative")">@CatTexts["Negativos"]</option>
+                <option value="minimum" selected="@(Model.Stock == "minimum")">@CatTexts["Bajo mínimo"]</option>
             </select>
         </div>
         <div>
-            <label for="assignment" class="form-label">Asignación</label>
+            <label for="assignment" class="form-label">@CatTexts["Asignación"]</label>
             <select id="assignment" name="assignment" class="form-select">
-                <option value="all">Todas</option>
-                <option value="assigned" selected="@(Model.Assignment == "assigned")">Asignados</option>
-                <option value="unassigned" selected="@(Model.Assignment == "unassigned")">Sin ubicación</option>
+                <option value="all">@CatTexts["Todas"]</option>
+                <option value="assigned" selected="@(Model.Assignment == "assigned")">@CatTexts["Asignados"]</option>
+                <option value="unassigned" selected="@(Model.Assignment == "unassigned")">@CatTexts["Sin ubicación"]</option>
             </select>
         </div>
     </div>
@@ -98,9 +106,9 @@
         </summary>
         <div class="product-catalog-filter-grid product-catalog-filter-grid-advanced">
             <div>
-                <label for="unitId" class="form-label">Unidad base</label>
+                <label for="unitId" class="form-label">@CatTexts["Unidad base"]</label>
                 <select id="unitId" name="unitId" class="form-select">
-                    <option value="">Todas</option>
+                    <option value="">@CatTexts["Todas"]</option>
                     @foreach (var option in Model.UnitOptions)
                     {
                         <option value="@option.Value" selected="@(option.Value == Model.UnitId?.ToString())">@option.Text</option>
@@ -108,9 +116,9 @@
                 </select>
             </div>
             <div>
-                <label for="typeId" class="form-label">Tipo</label>
+                <label for="typeId" class="form-label">@CatTexts["Tipo"]</label>
                 <select id="typeId" name="typeId" class="form-select">
-                    <option value="">Todos</option>
+                    <option value="">@CatTexts["Todos"]</option>
                     @foreach (var option in Model.TypeOptions)
                     {
                         <option value="@option.Value" selected="@(option.Value == Model.TypeId?.ToString())">@option.Text</option>
@@ -118,9 +126,9 @@
                 </select>
             </div>
             <div>
-                <label for="classId" class="form-label">Clase</label>
+                <label for="classId" class="form-label">@CatTexts["Clase"]</label>
                 <select id="classId" name="classId" class="form-select">
-                    <option value="">Todas</option>
+                    <option value="">@CatTexts["Todas"]</option>
                     @foreach (var option in Model.ClassOptions)
                     {
                         <option value="@option.Value" selected="@(option.Value == Model.ClassId?.ToString())">@option.Text</option>
@@ -131,54 +139,79 @@
     </details>
 
     <div class="product-catalog-filter-actions">
-        <button class="btn btn-primary" type="submit">Buscar</button>
-        <a asp-page="Index" class="btn btn-outline-secondary">Limpiar filtros</a>
+        <button class="btn btn-primary" type="submit">@CatTexts["Buscar"]</button>
+        <a asp-page="Index" class="btn btn-outline-secondary">@CatTexts["Limpiar filtros"]</a>
     </div>
 </form>
 
+<div class="modal fade" id="product-catalog-camera-scanner" tabindex="-1"
+     aria-labelledby="product-catalog-camera-scanner-title" aria-hidden="true" data-camera-scanner data-product-catalog-camera-modal>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="product-catalog-camera-scanner-title">@CatTexts["Escanear producto"]</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@CatTexts["Cerrar"]"></button>
+            </div>
+            <div class="modal-body">
+                <div class="camera-preview" data-camera-preview>
+                    <video class="w-100" autoplay muted playsinline data-camera-video></video>
+                </div>
+                <p class="mb-0 mt-3" role="status" aria-live="polite" data-camera-status>@CatTexts["Preparando cámara…"]</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-lg d-none" data-camera-switch>@CatTexts["Cambiar cámara"]</button>
+                <label class="btn btn-outline-primary btn-lg mb-0" for="product-catalog-camera-photo">@CatTexts["Tomar foto"]</label>
+                <input id="product-catalog-camera-photo" class="visually-hidden" type="file" accept="image/*"
+                       capture="environment" data-camera-photo />
+                <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">@CatTexts["Cancelar"]</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="product-catalog-results-bar mb-3" role="status">
     <div>
-        <strong>@Model.TotalResults @(Model.TotalResults == 1 ? "producto" : "productos")</strong>
+        <h2 class="product-catalog-results-title">@CatTexts["Productos"] <span>@Model.TotalResults</span></h2>
         @if (Model.TotalResults > 0)
         {
-            <span class="text-body-secondary">Mostrando @Model.FirstResult–@Model.LastResult</span>
+            <span class="text-body-secondary">@CatTexts["Mostrando {0}–{1}", Model.FirstResult, Model.LastResult]</span>
         }
     </div>
-    <div class="product-catalog-active-filters" aria-label="Filtros activos">
+    <div class="product-catalog-active-filters" aria-label="@CatTexts["Filtros activos"]">
         @if (!string.IsNullOrWhiteSpace(Model.Search))
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("search", null))">
-                <span class="product-catalog-chip-label">Búsqueda: “@Model.Search”</span>
+                <span class="product-catalog-chip-label">@CatTexts["Búsqueda: “{0}”", Model.Search ?? string.Empty]</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Quitar el filtro de búsqueda</span>
+                <span class="visually-hidden">@CatTexts["Quitar el filtro de búsqueda"]</span>
             </a>
         }
         @if (Model.Status == "active")
         {
-            <span class="product-catalog-filter-chip is-static">Activos</span>
+            <span class="product-catalog-filter-chip is-static">@CatTexts["Activos"]</span>
         }
         else
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("status", "active"))">
-                <span class="product-catalog-chip-label">@(Model.Status == "inactive" ? "Inactivos" : "Todos los estados")</span>
+                <span class="product-catalog-chip-label">@(Model.Status == "inactive" ? CatTexts["Inactivos"].Value : CatTexts["Todos los estados"].Value)</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Volver a productos activos</span>
+                <span class="visually-hidden">@CatTexts["Volver a productos activos"]</span>
             </a>
         }
         @if (Model.Stock != "all")
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("stock", "all"))">
-                <span class="product-catalog-chip-label">@(Model.Stock switch { "balance" => "Con saldo", "empty" => "Sin saldo", "negative" => "Negativos", _ => "Bajo mínimo" })</span>
+                <span class="product-catalog-chip-label">@(Model.Stock switch { "balance" => CatTexts["Con saldo"].Value, "empty" => CatTexts["Sin saldo"].Value, "negative" => CatTexts["Negativos"].Value, _ => CatTexts["Bajo mínimo"].Value })</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Quitar el filtro de existencia</span>
+                <span class="visually-hidden">@CatTexts["Quitar el filtro de existencia"]</span>
             </a>
         }
         @if (Model.Assignment != "all")
         {
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("assignment", "all"))">
-                <span class="product-catalog-chip-label">@(Model.Assignment == "assigned" ? "Asignados" : "Sin ubicación")</span>
+                <span class="product-catalog-chip-label">@(Model.Assignment == "assigned" ? CatTexts["Asignados"].Value : CatTexts["Sin ubicación"].Value)</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Quitar el filtro de asignación</span>
+                <span class="visually-hidden">@CatTexts["Quitar el filtro de asignación"]</span>
             </a>
         }
         @if (Model.UnitLabel is not null)
@@ -186,7 +219,7 @@
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("unitId", null))">
                 <span class="product-catalog-chip-label">Unidad: @Model.UnitLabel</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Quitar el filtro de unidad</span>
+                <span class="visually-hidden">@CatTexts["Quitar el filtro de unidad"]</span>
             </a>
         }
         @if (Model.TypeLabel is not null)
@@ -194,7 +227,7 @@
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("typeId", null))">
                 <span class="product-catalog-chip-label">Tipo: @Model.TypeLabel</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Quitar el filtro de tipo</span>
+                <span class="visually-hidden">@CatTexts["Quitar el filtro de tipo"]</span>
             </a>
         }
         @if (Model.ClassLabel is not null)
@@ -202,12 +235,12 @@
             <a class="product-catalog-filter-chip" asp-all-route-data="@RouteValues(("classId", null))">
                 <span class="product-catalog-chip-label">Clase: @Model.ClassLabel</span>
                 <span class="product-catalog-chip-remove" aria-hidden="true"></span>
-                <span class="visually-hidden">Quitar el filtro de clase</span>
+                <span class="visually-hidden">@CatTexts["Quitar el filtro de clase"]</span>
             </a>
         }
         @if (Model.HasActiveFilters)
         {
-            <a class="product-catalog-filter-chip is-clear" asp-page="Index">Limpiar todo</a>
+            <a class="product-catalog-filter-chip is-clear" asp-page="Index">@CatTexts["Limpiar todo"]</a>
         }
     </div>
 </div>
@@ -217,51 +250,85 @@
     <section class="product-catalog-empty" aria-labelledby="empty-products-title">
         @if (Model.HasActiveFilters)
         {
-            <h2 id="empty-products-title" class="h5 mb-0">No hay productos que coincidan</h2>
-            <p class="mb-0">Ningún producto cumple los filtros aplicados. Quita alguno o amplía la búsqueda al catálogo completo.</p>
+            <h2 id="empty-products-title" class="h5 mb-0">@CatTexts["No hay productos que coincidan"]</h2>
+            <p class="mb-0">@CatTexts["Ningún producto cumple los filtros aplicados. Quita alguno o amplía la búsqueda al catálogo completo."]</p>
             <div class="product-catalog-empty-actions">
-                <a asp-page="Index" class="btn btn-outline-primary">Limpiar filtros</a>
-                <a class="btn btn-outline-secondary" asp-all-route-data="@RouteValues(("status", "all"), ("stock", "all"), ("assignment", "all"))">Buscar en todos los estados</a>
+                <a asp-page="Index" class="btn btn-outline-primary">@CatTexts["Limpiar filtros"]</a>
+                <a class="btn btn-outline-secondary" asp-all-route-data="@RouteValues(("status", "all"), ("stock", "all"), ("assignment", "all"))">@CatTexts["Buscar en todos los estados"]</a>
             </div>
         }
         else
         {
-            <h2 id="empty-products-title" class="h5 mb-0">El catálogo está vacío</h2>
-            <p class="mb-0">Importa el archivo de productos o crea el primer SKU para comenzar.</p>
+            <h2 id="empty-products-title" class="h5 mb-0">@CatTexts["El catálogo está vacío"]</h2>
+            <p class="mb-0">@CatTexts["Importa el archivo de productos o crea el primer SKU para comenzar."]</p>
             <div class="product-catalog-empty-actions">
-                <a asp-page="Import" class="btn btn-outline-primary">Importar Excel</a>
-                <a asp-page="Create" class="btn btn-primary">Crear producto</a>
+                <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a>
+                <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a>
             </div>
         }
     </section>
 }
 else
 {
+    <div data-product-recipe-catalog data-recipe-summary-url="@Url.Page("Index", "RecipeSummary")"
+         data-product-details-url="@Url.Page("Details", new { id = Guid.Empty })">
     <div class="product-catalog-table d-none d-lg-block">
         <table class="table table-hover align-middle mb-0">
-            <caption class="visually-hidden">Catálogo de productos filtrado</caption>
-            <thead><tr><th scope="col">Producto</th><th scope="col" class="text-end">Existencia</th><th scope="col" class="text-end">Ubicaciones</th><th scope="col">Estado</th><th scope="col"><span class="visually-hidden">Acciones</span></th></tr></thead>
+            <caption class="visually-hidden">@CatTexts["Catálogo de productos filtrado"]</caption>
+            <thead><tr><th scope="col">@CatTexts["Producto"]</th><th scope="col" class="text-end">@CatTexts["Existencia"]</th><th scope="col" class="text-end">@CatTexts["Ubicaciones"]</th><th scope="col">@CatTexts["Estado"]</th><th scope="col"><span class="visually-hidden">@CatTexts["Acciones"]</span></th></tr></thead>
             <tbody>
                 @foreach (var item in Model.Products)
                 {
-                    <tr>
+                    <tr class="@(item.ActiveRecipeVersion is not null ? "product-recipe-trigger" : null)"
+                        data-product-recipe-trigger="@(item.ActiveRecipeVersion is not null ? "true" : null)">
                         <td class="product-catalog-product-cell">
+                            @if (item.ActiveRecipeVersion is int keyboardRecipeVersion)
+                            {
+                                <button type="button" class="btn btn-sm btn-outline-primary visually-hidden-focusable product-recipe-keyboard-toggle"
+                                        aria-expanded="false" aria-controls="product-recipe-desktop-@item.Id"
+                                        data-product-recipe-toggle data-product-id="@item.Id">
+                                    Mostrar u ocultar receta v@(keyboardRecipeVersion) de @item.Sku
+                                </button>
+                            }
                             <a asp-page="Details" asp-route-id="@item.Id" class="product-catalog-sku">@item.Sku</a>
-                            <p class="product-catalog-description mb-1">@(item.Description ?? "Sin descripción")</p>
-                            <div class="product-catalog-meta"><span>@(item.ExternalReference ?? "Sin referencia")</span><span>@item.Unit</span><span>@(item.Type ?? "Sin tipo") / @(item.Class ?? "Sin clase")</span></div>
+                            <p class="product-catalog-description mb-1">@(item.Description ?? CatTexts["Sin descripción"].Value)</p>
+                            <div class="product-catalog-meta"><span>@(item.ExternalReference ?? CatTexts["Sin referencia"].Value)</span><span>@item.Unit</span><span>@(item.Type ?? CatTexts["Sin tipo"].Value) / @(item.Class ?? CatTexts["Sin clase"].Value)</span></div>
+                            @if (item.ActiveRecipeVersion is int recipeVersion)
+                            {
+                                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                    <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
+                                    <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? CatTexts["Lista completa"].Value : CatTexts["Lista incompleta"].Value)</span>
+                                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                                       class="btn btn-sm btn-outline-secondary product-recipe-action">@(item.ActiveRecipeIsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                                    <span class="pc-chip is-inactive">@CatTexts["Sin receta activa"]</span>
+                                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                                       class="btn btn-sm btn-outline-primary product-recipe-action">@CatTexts["Configurar receta"]</a>
+                                </div>
+                            }
                         </td>
-                        <td class="product-catalog-stock text-end @(item.IsNegative ? "text-danger" : null)"><strong>@item.Quantity.ToString("0.####") @item.Unit</strong><small>Mínimo @item.Minimum.ToString("0.####")</small></td>
+                        <td class="product-catalog-stock text-end @(item.IsNegative ? "text-danger" : null)"><strong>@item.Quantity.ToString("0.####") @item.Unit</strong><small>@CatTexts["Mínimo {0}", item.Minimum.ToString("0.####")]</small></td>
                         <td class="product-catalog-count text-end">
-                            <strong>@item.LocationCount</strong><small class="d-block text-body-secondary">con saldo</small>
-                            @if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">Sin asignación</span> }
+                            <strong>@item.LocationCount</strong><small class="d-block text-body-secondary">@CatTexts["con saldo.lower"]</small>
+                            @if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">@CatTexts["Sin asignación"]</span> }
                         </td>
                         <td>
                             <div class="product-catalog-statuses">
                                 @foreach (var badge in StatusBadges(item)) { <span class="@badge.Css">@badge.Text</span> }
                             </div>
                         </td>
-                        <td><div class="product-catalog-row-actions"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Ficha</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">Editar</a></div></td>
+                        <td><div class="product-catalog-row-actions"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">@CatTexts["Ficha"]</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">@CatTexts["Editar"]</a></div></td>
                     </tr>
+                    @if (item.ActiveRecipeVersion is not null)
+                    {
+                        <tr id="product-recipe-desktop-@item.Id" class="product-recipe-detail-row" hidden data-product-recipe-panel>
+                            <td colspan="5"><div class="product-recipe-panel" role="region" aria-label="Receta de @item.Sku" data-product-recipe-content></div></td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -270,39 +337,73 @@ else
     <div class="product-catalog-card-list d-lg-none">
         @foreach (var item in Model.Products)
         {
-            <article class="product-catalog-card @RowState(item)">
+            <article class="product-catalog-card @RowState(item) @(item.ActiveRecipeVersion is not null ? "product-recipe-trigger" : null)"
+                     data-product-recipe-trigger="@(item.ActiveRecipeVersion is not null ? "true" : null)">
                 <header>
-                    <div><a asp-page="Details" asp-route-id="@item.Id" class="product-catalog-sku product-catalog-card-link">@item.Sku</a><p class="product-catalog-description mb-0">@(item.Description ?? "Sin descripción")</p></div>
+                    <div><a asp-page="Details" asp-route-id="@item.Id" class="product-catalog-sku product-catalog-card-link">@item.Sku</a><p class="product-catalog-description mb-0">@(item.Description ?? CatTexts["Sin descripción"].Value)</p></div>
                     <div class="product-catalog-statuses">
                         @foreach (var badge in StatusBadges(item)) { <span class="@badge.Css">@badge.Text</span> }
                     </div>
                 </header>
-                <div class="product-catalog-meta"><span>@(item.ExternalReference ?? "Sin referencia")</span><span>@item.Unit</span><span>@(item.Type ?? "Sin tipo") / @(item.Class ?? "Sin clase")</span></div>
+                <div class="product-catalog-meta"><span>@(item.ExternalReference ?? CatTexts["Sin referencia"].Value)</span><span>@item.Unit</span><span>@(item.Type ?? CatTexts["Sin tipo"].Value) / @(item.Class ?? CatTexts["Sin clase"].Value)</span></div>
                 <dl class="product-catalog-card-facts">
-                    <div><dt>Existencia</dt><dd class="@(item.IsNegative ? "text-danger" : null)">@item.Quantity.ToString("0.####") @item.Unit</dd><small>Mínimo @item.Minimum.ToString("0.####")</small></div>
-                    <div><dt>Ubicaciones</dt><dd>@item.LocationCount con saldo</dd>@if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">Sin asignación</span> }</div>
+                    <div><dt>@CatTexts["Existencia"]</dt><dd class="@(item.IsNegative ? "text-danger" : null)">@item.Quantity.ToString("0.####") @item.Unit</dd><small>@CatTexts["Mínimo {0}", item.Minimum.ToString("0.####")]</small></div>
+                    <div><dt>@CatTexts["Ubicaciones"]</dt><dd>@CatTexts["{0} con saldo", item.LocationCount]</dd>@if (!item.HasAssignment) { <span class="pc-chip is-warning mt-1">@CatTexts["Sin asignación"]</span> }</div>
                 </dl>
-                <footer><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">Ficha</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">Editar</a></footer>
+                @if (item.ActiveRecipeVersion is int recipeVersion)
+                {
+                    <button type="button" class="btn btn-sm btn-outline-primary visually-hidden-focusable product-recipe-keyboard-toggle"
+                            aria-expanded="false" aria-controls="product-recipe-mobile-@item.Id"
+                            data-product-recipe-toggle data-product-id="@item.Id">
+                        Mostrar u ocultar receta v@(recipeVersion) de @item.Sku
+                    </button>
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
+                        <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? CatTexts["Lista completa"].Value : CatTexts["Lista incompleta"].Value)</span>
+                    </div>
+                    <section id="product-recipe-mobile-@item.Id" class="product-recipe-panel mt-2" hidden
+                             aria-label="Receta de @item.Sku" data-product-recipe-panel data-product-recipe-content></section>
+                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                       class="btn btn-outline-secondary product-recipe-action w-100 mt-2">@(item.ActiveRecipeIsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a>
+                }
+                else
+                {
+                    <div class="d-grid gap-2">
+                        <span class="pc-chip is-inactive">@CatTexts["Sin receta activa"]</span>
+                        <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                           class="btn btn-outline-primary product-recipe-action">@CatTexts["Configurar receta"]</a>
+                    </div>
+                }
+                <footer><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">@CatTexts["Ficha"]</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">@CatTexts["Editar"]</a></footer>
             </article>
         }
+    </div>
     </div>
 }
 
 @if (Model.TotalPages > 1)
 {
-    <nav class="product-catalog-pagination mt-4" aria-label="Paginación de productos">
+    <nav class="product-catalog-pagination mt-4" aria-label="@CatTexts["Paginación de productos"]">
         <ul class="pagination mb-0 flex-wrap justify-content-center">
-            <li class="page-item page-nav @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", "1"))">Primera</a></li>
-            <li class="page-item page-nav @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", (Model.CurrentPage - 1).ToString()))">Anterior</a></li>
+            <li class="page-item page-nav @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", "1"))">@CatTexts["Primera"]</a></li>
+            <li class="page-item page-nav @(Model.CurrentPage <= 1 ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", (Model.CurrentPage - 1).ToString()))">@CatTexts["Anterior"]</a></li>
             @foreach (var pageNumber in Model.VisiblePages)
             {
                 <li class="page-item @(pageNumber == Model.CurrentPage ? "active" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", pageNumber.ToString()))" aria-current="@(pageNumber == Model.CurrentPage ? "page" : null)">@pageNumber</a></li>
             }
-            <li class="page-item page-nav @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", (Model.CurrentPage + 1).ToString()))">Siguiente</a></li>
-            <li class="page-item page-nav @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", Model.TotalPages.ToString()))">Última</a></li>
+            <li class="page-item page-nav @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", (Model.CurrentPage + 1).ToString()))">@CatTexts["Siguiente"]</a></li>
+            <li class="page-item page-nav @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)"><a class="page-link" asp-all-route-data="@RouteValues(("pageNumber", Model.TotalPages.ToString()))">@CatTexts["Última"]</a></li>
         </ul>
-        <p class="product-catalog-pagination-hint mb-0">Página @Model.CurrentPage de @Model.TotalPages · @Model.TotalResults @(Model.TotalResults == 1 ? "producto" : "productos")</p>
+        <p class="product-catalog-pagination-hint mb-0">@CatTexts["Página {0} de {1} · {2} productos", Model.CurrentPage, Model.TotalPages, Model.TotalResults]</p>
     </nav>
+}
+
+</div>
+
+@section Scripts {
+    <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
+    <script src="~/js/operations.js" asp-append-version="true" defer></script>
+    <script src="~/js/product-recipe-summary.js" asp-append-version="true" defer></script>
 }
 
 @functions {

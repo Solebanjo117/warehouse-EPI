@@ -1,53 +1,60 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Users.CreateModel
 @{
-    ViewData["Title"] = "Crear usuario";
+    ViewData["Title"] = CatTexts["Crear usuario"].Value;
 }
 
-<div class="row justify-content-center">
+<div class="row justify-content-center admin-form-workspace">
     <div class="col-12 col-lg-7">
-        <h1 class="h2 mb-4">Crear usuario</h1>
-        <form method="post" class="card shadow-sm">
+        <h1 class="h2 mb-4 admin-form-title">@CatTexts["Crear usuario"]</h1>
+        <form method="post" class="card admin-form-card">
             <div class="card-body p-4">
                 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 
+                <fieldset class="admin-form-section"><legend>@CatTexts["Identificación y rol"]</legend>
                 <div class="mb-3">
-                    <label asp-for="Input.FullName" class="form-label">Nombre completo</label>
+                    <label asp-for="Input.FullName" class="form-label">@CatTexts["Nombre completo"]</label>
                     <input asp-for="Input.FullName" class="form-control form-control-lg" autocomplete="off" autofocus />
                     <span asp-validation-for="Input.FullName" class="text-danger"></span>
                 </div>
 
                 <div class="mb-3">
-                    <label asp-for="Input.RoleId" class="form-label">Rol</label>
+                    <label asp-for="Input.RoleId" class="form-label">@CatTexts["Rol"]</label>
                     <select asp-for="Input.RoleId" asp-items="Model.Roles" class="form-select form-select-lg">
-                        <option value="">Seleccione</option>
+                        <option value="">@CatTexts["Seleccione"]</option>
                     </select>
                     <span asp-validation-for="Input.RoleId" class="text-danger"></span>
                 </div>
 
+                </fieldset>
+                <fieldset class="admin-form-section"><legend>@CatTexts["NIP"]</legend>
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label asp-for="Input.Pin" class="form-label">NIP</label>
+                        <label asp-for="Input.Pin" class="form-label">@CatTexts["NIP"]</label>
                         <input asp-for="Input.Pin" class="form-control form-control-lg" inputmode="numeric"
                                pattern="[0-9]{4,8}" autocomplete="new-password" />
                         <span asp-validation-for="Input.Pin" class="text-danger"></span>
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label asp-for="Input.ConfirmPin" class="form-label">Confirmar NIP</label>
+                        <label asp-for="Input.ConfirmPin" class="form-label">@CatTexts["Confirmar NIP"]</label>
                         <input asp-for="Input.ConfirmPin" class="form-control form-control-lg" inputmode="numeric"
                                pattern="[0-9]{4,8}" autocomplete="new-password" />
                         <span asp-validation-for="Input.ConfirmPin" class="text-danger"></span>
                     </div>
                 </div>
 
+                </fieldset>
+                <fieldset class="admin-form-section"><legend>@CatTexts["Estado del usuario"]</legend>
                 <div class="form-check form-switch mb-4">
                     <input asp-for="Input.IsActive" class="form-check-input" />
-                    <label asp-for="Input.IsActive" class="form-check-label">Usuario activo</label>
+                    <label asp-for="Input.IsActive" class="form-check-label">@CatTexts["Usuario activo"]</label>
                 </div>
 
-                <div class="d-flex gap-2">
-                    <button type="submit" class="btn btn-primary btn-lg">Guardar</button>
-                    <a asp-page="Index" class="btn btn-outline-secondary btn-lg">Cancelar</a>
+                </fieldset>
+                <div class="d-flex gap-2 admin-form-actions">
+                    <button type="submit" class="btn btn-primary btn-lg">@CatTexts["Guardar"]</button>
+                    <a asp-page="Index" class="btn btn-outline-secondary btn-lg">@CatTexts["Cancelar"]</a>
                 </div>
             </div>
         </form>
@@ -57,3 +64,5 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 }
+
+@section Styles { <link rel="stylesheet" href="~/css/admin-forms.css" asp-append-version="true" /> }

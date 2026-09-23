@@ -2,18 +2,23 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
+using WarehouseEPI.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class EditModel(LocationRackAdministrationService racks) : PageModel
+public sealed class EditModel(LocationRackAdministrationService racks, WarehouseDbContext db) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
+    [BindProperty] public DeleteInputModel DeleteInput { get; set; } = new();
     public LocationRackEditView Rack { get; private set; } = null!;
     public LocationRackEditSummary? ReviewSummary { get; private set; }
     public IReadOnlyList<string> ReviewErrors { get; private set; } = [];
     public bool IsReviewed { get; private set; }
+    public IReadOnlyList<ProductionStage> Processes { get; private set; } = [];
     [TempData] public string? Message { get; set; }
 
     public async Task<IActionResult> OnGetAsync(string rowCode, short rackNumber,
@@ -27,15 +32,23 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
             OperationId = Guid.NewGuid(),
             RowCode = rack.RowCode,
             RackNumber = rack.RackNumber,
+            OperationalRole = rack.OperationalRole,
+            ProcessIds = rack.ProcessIds.ToArray(),
+            ProcessConfigurationVersion = rack.ProcessConfigurationVersion,
             PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
+                .Select(item => item.PalletNumber).ToArray(),
+            WipPallets = rack.Positions.Where(item => item.IsPhysicallyPresent && item.OperationalRole == LocationOperationalRole.Wip)
                 .Select(item => item.PalletNumber).ToArray()
         };
+        PrepareDeleteInput(rack);
+        await LoadProcessesAsync(token);
         return Page();
     }
 
     public async Task<IActionResult> OnPostReviewAsync(CancellationToken token)
     {
         if (!await LoadRackAsync(token)) return NotFound();
+        await LoadProcessesAsync(token);
         var result = await racks.ReviewAsync(Command(pin: null), token);
         ReviewErrors = result.Errors;
         ReviewSummary = result.Summary;
@@ -48,6 +61,7 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken token)
     {
         if (!await LoadRackAsync(token)) return NotFound();
+        await LoadProcessesAsync(token);
         var result = await racks.SaveAsync(Command(Input.Pin), token);
         Input.Pin = string.Empty;
         ModelState.Remove($"{nameof(Input)}.{nameof(InputModel.Pin)}");
@@ -68,16 +82,69 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
         return Page();
     }
 
+    public async Task<IActionResult> OnPostDeleteAsync(CancellationToken token)
+    {
+        var rack = await racks.GetAsync(DeleteInput.RowCode, DeleteInput.RackNumber, token);
+        if (rack is null) return NotFound();
+        Rack = rack;
+        Input = new InputModel
+        {
+            OperationId = Guid.NewGuid(),
+            RowCode = rack.RowCode,
+            RackNumber = rack.RackNumber,
+            OperationalRole = rack.OperationalRole,
+            ProcessIds = rack.ProcessIds.ToArray(),
+            ProcessConfigurationVersion = rack.ProcessConfigurationVersion,
+            PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
+                .Select(item => item.PalletNumber).ToArray(),
+            WipPallets = rack.Positions.Where(item => item.IsPhysicallyPresent && item.OperationalRole == LocationOperationalRole.Wip)
+                .Select(item => item.PalletNumber).ToArray()
+        };
+        var result = await racks.DeleteAsync(new LocationRackDeleteCommand(DeleteInput.OperationId,
+            CurrentUserId(), DeleteInput.RowCode, DeleteInput.RackNumber, DeleteInput.Reason,
+            DeleteInput.Pin, DeleteInput.ConfirmationCode), token);
+        DeleteInput.Pin = string.Empty;
+        ModelState.Remove($"{nameof(DeleteInput)}.{nameof(DeleteInputModel.Pin)}");
+        if (result.Status == LocationRackDeleteStatus.Success)
+        {
+            Message = $"Se eliminó definitivamente el rack {DeleteInput.RowCode}-{DeleteInput.RackNumber}.";
+            return RedirectToPage("../Index", new { viewMode = "racks" });
+        }
+        ReviewErrors = result.Status switch
+        {
+            LocationRackDeleteStatus.InvalidPin => ["No fue posible validar el NIP de un ADMIN activo."],
+            LocationRackDeleteStatus.Unauthorized => ["La sesión ADMIN ya no es válida."],
+            LocationRackDeleteStatus.IdempotencyConflict => ["La operación ya fue utilizada con otro contenido."],
+            _ => result.Errors ?? ["No fue posible eliminar el rack."]
+        };
+        return Page();
+    }
+
     private async Task<bool> LoadRackAsync(CancellationToken token)
     {
         var rack = await racks.GetAsync(Input.RowCode, Input.RackNumber, token);
         if (rack is null) return false;
         Rack = rack;
+        await LoadProcessesAsync(token);
+        PrepareDeleteInput(rack);
         return true;
     }
 
+    private void PrepareDeleteInput(LocationRackEditView rack)
+    {
+        if (DeleteInput.OperationId == Guid.Empty) DeleteInput.OperationId = Guid.NewGuid();
+        DeleteInput.RowCode = rack.RowCode;
+        DeleteInput.RackNumber = rack.RackNumber;
+    }
+
     private LocationRackEditCommand Command(string? pin) => new(Input.OperationId,
-        CurrentUserId(), Input.RowCode, Input.RackNumber, Input.PresentPallets, Input.Reason, pin);
+        CurrentUserId(), Input.RowCode, Input.RackNumber, Input.OperationalRole,
+        Input.PresentPallets, Input.Reason, pin, Input.ProcessIds, Input.ProcessConfigurationVersion,
+        Input.WipPallets);
+
+    private async Task LoadProcessesAsync(CancellationToken token) => Processes = await db.ProductionStages.AsNoTracking()
+        .Where(x => x.IsActive || Input.ProcessIds.Contains(x.Id) || Rack.InheritedProcessIds.Contains(x.Id))
+        .OrderBy(x => x.Name).ToListAsync(token);
 
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
         ? id : Guid.Empty;
@@ -87,8 +154,22 @@ public sealed class EditModel(LocationRackAdministrationService racks) : PageMod
         public Guid OperationId { get; set; }
         public string RowCode { get; set; } = string.Empty;
         public short RackNumber { get; set; }
+        public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Storage;
         public short[] PresentPallets { get; set; } = [];
+        public short[] WipPallets { get; set; } = [];
         public string? Reason { get; set; }
         public string Pin { get; set; } = string.Empty;
+        public Guid[] ProcessIds { get; set; } = [];
+        public uint ProcessConfigurationVersion { get; set; }
+    }
+
+    public sealed class DeleteInputModel
+    {
+        public Guid OperationId { get; set; }
+        public string RowCode { get; set; } = string.Empty;
+        public short RackNumber { get; set; }
+        public string? Reason { get; set; }
+        public string Pin { get; set; } = string.Empty;
+        public string? ConfirmationCode { get; set; }
     }
 }

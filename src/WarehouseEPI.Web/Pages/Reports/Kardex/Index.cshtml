@@ -1,0 +1,402 @@
+@page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Reports.Kardex.IndexModel
+@{
+    ViewData["Title"] = Model.Kardex is not null ? $"Kardex - {Model.Kardex.Product.Sku}" : CatTexts["Kardex por producto"].Value;
+    var isAdmin = User.IsInRole("ADMIN");
+}
+
+@section Styles { <link rel="stylesheet" href="~/css/kardex-report.css" asp-append-version="true" /> }
+
+@section Scripts {
+    <script src="~/js/kardex-product-lookup.js" asp-append-version="true"></script>
+}
+
+<div class="container-fluid py-3 kardex-report">
+    <header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 small">
+                    <li class="breadcrumb-item"><a asp-page="/Index">@CatTexts["Inicio"]</a></li>
+                    <li class="breadcrumb-item"><a asp-page="/Reports/Inventory/Index">@CatTexts["Inventario"]</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">@CatTexts["Kardex"]</li>
+                </ol>
+            </nav>
+            <h1 class="h2 mb-1">@CatTexts["Kardex de producto"]</h1>
+            <p class="text-muted mb-0">@CatTexts["Historial cronológico de movimientos y saldo progresivo. Zona: {0}.", Model.TimeZoneId]</p>
+        </div>
+        @if (Model.Kardex is not null && isAdmin)
+        {
+            <div class="d-flex gap-2">
+                <a class="btn btn-outline-secondary" asp-page-handler="Export" asp-route-format="csv" asp-route-sku="@Model.Sku" asp-route-locationId="@Model.LocationId" asp-route-period="@Model.Period" asp-route-from="@Model.From" asp-route-to="@Model.To">
+                    <svg class="app-icon me-1" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>CSV
+                </a>
+                <a class="btn btn-outline-secondary" asp-page-handler="Export" asp-route-format="xlsx" asp-route-sku="@Model.Sku" asp-route-locationId="@Model.LocationId" asp-route-period="@Model.Period" asp-route-from="@Model.From" asp-route-to="@Model.To">
+                    <svg class="app-icon me-1" aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>Excel
+                </a>
+            </div>
+        }
+    </header>
+
+    <!-- Formulario de Consulta -->
+    <form method="get" class="operation-card mb-4" data-kardex-search-form
+          data-products-url="@Url.Page("/Reports/Kardex/Index", "Products")">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4 col-lg-3">
+                <div class="lookup-field">
+                    <label for="kardex-sku" class="form-label fw-semibold">@CatTexts["Producto"]</label>
+                    <input id="kardex-sku" name="sku" value="@Model.Sku" class="form-control"
+                           type="search" autocomplete="off" autocapitalize="characters"
+                           placeholder="@CatTexts["SKU, descripción o código de barras"]" required autofocus
+                           aria-describedby="kardex-search-feedback" aria-autocomplete="list"
+                           aria-controls="kardex-product-results" data-kardex-product-input />
+                    <div id="kardex-product-results" class="lookup-results list-group" role="listbox"
+                         data-kardex-product-results></div>
+                    <div id="kardex-search-feedback" class="form-text" role="status" aria-live="polite"
+                         data-kardex-search-feedback></div>
+                </div>
+            </div>
+            <div class="col-md-4 col-lg-2">
+                <label for="kardex-location" class="form-label fw-semibold">@CatTexts["Ubicación"]</label>
+                <select id="kardex-location" name="locationId" class="form-select">
+                    <option value="">@CatTexts["Consolidado global"]</option>
+                    @foreach (var opt in Model.LocationOptions)
+                    {
+                        <option value="@opt.Value" selected="@(Model.LocationId?.ToString() == opt.Value)">@opt.Text</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-4 col-lg-2">
+                <label for="kardex-period" class="form-label fw-semibold">@CatTexts["Período"]</label>
+                <select id="kardex-period" name="period" class="form-select">
+                    <option value="30" selected="@(Model.Period == "30")">@CatTexts["Últimos 30 días"]</option>
+                    <option value="today" selected="@(Model.Period == "today")">@CatTexts["Hoy"]</option>
+                    <option value="yesterday" selected="@(Model.Period == "yesterday")">@CatTexts["Ayer"]</option>
+                    <option value="this-week" selected="@(Model.Period == "this-week")">@CatTexts["Esta semana"]</option>
+                    <option value="last-week" selected="@(Model.Period == "last-week")">@CatTexts["Semana pasada"]</option>
+                    <option value="7" selected="@(Model.Period == "7")">@CatTexts["Últimos 7 días"]</option>
+                    <option value="this-month" selected="@(Model.Period == "this-month")">@CatTexts["Este mes"]</option>
+                    <option value="last-month" selected="@(Model.Period == "last-month")">@CatTexts["Mes pasado"]</option>
+                    <option value="all" selected="@(Model.Period == "all")">@CatTexts["Todo el historial"]</option>
+                    <option value="custom" selected="@(Model.Period == "custom")">@CatTexts["Personalizado"]</option>
+                </select>
+            </div>
+            <div class="col-md-3 col-lg-2">
+                <label for="kardex-from" class="form-label">@CatTexts["Desde"]</label>
+                <input id="kardex-from" name="from" value="@Model.From?.ToString("yyyy-MM-dd")" type="date" class="form-control" />
+            </div>
+            <div class="col-md-3 col-lg-2">
+                <label for="kardex-to" class="form-label">@CatTexts["Hasta"]</label>
+                <input id="kardex-to" name="to" value="@Model.To?.ToString("yyyy-MM-dd")" type="date" class="form-control" />
+            </div>
+            <div class="col-md-2 col-lg-1">
+                <button type="submit" class="btn btn-primary w-100">@CatTexts["Consultar"]</button>
+            </div>
+        </div>
+    </form>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="alert alert-warning mb-4" role="alert">
+            <h5 class="alert-heading h6 mb-1">@Model.ErrorMessage</h5>
+            @if (Model.MatchingProducts.Count > 0)
+            {
+                <p class="small mb-2">@CatTexts["Quizá quisiste consultar alguno de estos productos:"]</p>
+                <ul class="mb-0 small">
+                    @foreach (var p in Model.MatchingProducts)
+                    {
+                        <li>
+                            <a asp-route-sku="@p.Sku" asp-route-locationId="@Model.LocationId"
+                               asp-route-period="@Model.Period" asp-route-from="@Model.From" asp-route-to="@Model.To">
+                                <strong>@p.Sku</strong> - @p.Description
+                                @if (!p.IsActive) { <span class="badge text-bg-secondary">@CatTexts["Inactivo"]</span> }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+
+    @if (Model.Kardex is not null)
+    {
+        var k = Model.Kardex;
+        var unit = k.Product.BaseUnit.Code;
+
+        <!-- Encabezado del Producto y Ámbito -->
+        <div class="operation-card mb-4 bg-light">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <span class="text-uppercase small text-muted fw-semibold">@CatTexts["Producto seleccionado"]</span>
+                    <h2 class="h4 mb-0">@k.Product.Sku <span class="fw-normal text-muted fs-5">· @(k.Product.Description ?? CatTexts["Sin descripción"].Value)</span></h2>
+                </div>
+                <div class="text-end">
+                    <span class="badge text-bg-primary fs-6">
+                        @(k.ScopedLocation is not null ? $"Ubicación: {k.ScopedLocation.Code}" : CatTexts["Consolidado global del almacén"].Value)
+                    </span>
+                    <div class="small text-muted mt-1">@CatTexts["Unidad base:"] <strong>@unit</strong></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarjetas de Resumen Numérico -->
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="operation-card text-center p-3 h-100">
+                    <div class="text-uppercase small text-muted">@CatTexts["Saldo inicial"]</div>
+                    <div class="h4 mb-0 text-secondary">@k.Summary.InitialBalance.ToString("#,##0.0000")</div>
+                    <small class="text-muted">@CatTexts["Apertura"]</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="operation-card text-center p-3 h-100">
+                    <div class="text-uppercase small text-success">@CatTexts["Entradas (+)"]</div>
+                    <div class="h4 mb-0 text-success">+@k.Summary.TotalEntries.ToString("#,##0.0000")</div>
+                    <small class="text-muted">@CatTexts["Ingresos"]</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="operation-card text-center p-3 h-100">
+                    <div class="text-uppercase small text-danger">@CatTexts["Salidas (-)"]</div>
+                    <div class="h4 mb-0 text-danger">-@k.Summary.TotalExits.ToString("#,##0.0000")</div>
+                    <small class="text-muted">@CatTexts["Consumos / Despachos"]</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="operation-card text-center p-3 h-100">
+                    <div class="text-uppercase small text-info">@CatTexts["Transferencias"]</div>
+                    <div class="h4 mb-0 text-info">@k.Summary.TotalTransfers.ToString("#,##0.0000")</div>
+                    <small class="text-muted">@(k.ScopedLocation is null ? CatTexts["Neutral en almacén"].Value : CatTexts["Movimiento interno"].Value)</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="operation-card text-center p-3 h-100">
+                    <div class="text-uppercase small text-warning">@CatTexts["Ajustes netos"]</div>
+                    <div class="h4 mb-0 text-warning">@(k.Summary.NetAdjustments >= 0 ? "+" : "")@k.Summary.NetAdjustments.ToString("#,##0.0000")</div>
+                    <small class="text-muted">@CatTexts["Conteos / Mermas"]</small>
+                </div>
+            </div>
+            <div class="col-6 col-md-4 col-lg-2">
+                <div class="operation-card text-center p-3 h-100 bg-primary-subtle border-primary">
+                    <div class="text-uppercase small text-primary fw-bold">@CatTexts["Saldo final"]</div>
+                    <div class="h4 mb-0 text-primary fw-bold">@k.Summary.EndingBalance.ToString("#,##0.0000")</div>
+                    <small class="text-muted">@CatTexts["Al cierre del período"]</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="operation-card mb-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <div class="text-uppercase small text-muted">@CatTexts["Existencia actual"]</div>
+                <strong class="h4 mb-0 @(k.Summary.CurrentPhysicalBalance < 0 ? "text-danger" : null)">
+                    @k.Summary.CurrentPhysicalBalance.ToString("#,##0.0000") @k.Product.BaseUnit.Code
+                </strong>
+                <div class="small text-muted">Consultada el @Model.CurrentAtLocal.ToString("dd/MM/yyyy HH:mm") · @Model.TimeZoneId</div>
+            </div>
+            <div class="small text-muted">
+                Ámbito: @(k.ScopedLocation?.Code ?? CatTexts["Almacén completo"].Value)<br />
+                Saldo inicial + entradas − salidas = saldo al cierre. Ajustes y transferencias son desgloses.
+            </div>
+        </div>
+
+        @if (k.Summary.InitialBalance < 0)
+        {
+            <div class="alert alert-danger" role="alert">@CatTexts["El período inicia con saldo negativo."]</div>
+        }
+
+        <!-- Tabla Cronológica del Kardex -->
+        <section class="operation-card p-0 overflow-hidden">
+            <div class="table-responsive receiving-table">
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>@CatTexts["Fecha / Hora"]</th>
+                            <th>@CatTexts["Tipo"]</th>
+                            <th>@CatTexts["Folio / Referencia"]</th>
+                            <th>@CatTexts["Ruta / Ubicación"]</th>
+                            <th>@CatTexts["Lote"]</th>
+                            <th>@CatTexts["Estado"]</th>
+                            <th>@CatTexts["Responsable"]</th>
+                            <th class="text-end">@CatTexts["Entrada (+)"]</th>
+                            <th class="text-end">@CatTexts["Salida (-)"]</th>
+                            <th class="text-end">@CatTexts["Saldo"]</th>
+                            <th class="text-center"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (k.PageNumber > 1)
+                        {
+                            <tr class="table-info fw-semibold">
+                                <td data-label="@CatTexts["Fecha / Hora"]">—</td>
+                                <td data-label="@CatTexts["Tipo"]"><span class="badge text-bg-info">@CatTexts["Continuación"]</span></td>
+                                <td data-label="@CatTexts["Referencia"]">@CatTexts["Saldo anterior a esta página"]</td>
+                                <td data-label="@CatTexts["Ubicación"]">@(k.ScopedLocation?.Code ?? CatTexts["Consolidado"].Value)</td>
+                                <td data-label="@CatTexts["Lote"]">—</td><td data-label="@CatTexts["Estado"]">—</td><td data-label="@CatTexts["Responsable"]">—</td>
+                                <td data-label="@CatTexts["Entrada (+)"]" class="text-end">—</td><td data-label="@CatTexts["Salida (-)"]" class="text-end">—</td>
+                                <td data-label="@CatTexts["Saldo"]" class="text-end fw-bold">@k.BalanceBeforePage.ToString("#,##0.0000")</td><td></td>
+                            </tr>
+                        }
+                        else
+                        {
+                        <tr class="table-secondary fw-semibold">
+                            <td data-label="@CatTexts["Fecha / Hora"]">@(k.FromLocal.HasValue ? k.FromLocal.Value.ToString("dd/MM/yyyy HH:mm") : CatTexts["Inicio"].Value)</td>
+                            <td data-label="@CatTexts["Tipo"]"><span class="badge text-bg-secondary">@CatTexts["Saldo inicial"]</span></td>
+                            <td data-label="@CatTexts["Referencia"]">@CatTexts["Apertura de período"]</td>
+                            <td data-label="@CatTexts["Ubicación"]">@(k.ScopedLocation?.Code ?? CatTexts["Consolidado"].Value)</td>
+                            <td data-label="@CatTexts["Lote"]">—</td>
+                            <td data-label="@CatTexts["Estado"]"><span class="badge text-bg-light">@CatTexts["Apertura"]</span></td>
+                            <td data-label="@CatTexts["Responsable"]">—</td>
+                            <td data-label="@CatTexts["Entrada (+)"]" class="text-end text-muted">—</td>
+                            <td data-label="@CatTexts["Salida (-)"]" class="text-end text-muted">—</td>
+                            <td data-label="@CatTexts["Saldo"]" class="text-end fw-bold">@k.Summary.InitialBalance.ToString("#,##0.0000")</td>
+                            <td></td>
+                        </tr>
+                        }
+
+                        @if (k.Rows.Count == 0)
+                        {
+                            <tr>
+                                <td colspan="11" class="text-center py-4 text-muted">
+                                    @CatTexts["No se registraron movimientos en el período seleccionado. El saldo se mantiene inalterado."]
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var row in k.Rows)
+                            {
+                                var typeBadge = row.Type switch
+                                {
+                                    WarehouseEPI.Core.Entities.InventoryMovementType.Entry => "text-bg-success",
+                                    WarehouseEPI.Core.Entities.InventoryMovementType.Exit => "text-bg-danger",
+                                    WarehouseEPI.Core.Entities.InventoryMovementType.Transfer => "text-bg-info",
+                                    _ => "text-bg-warning"
+                                };
+
+                                var statusBadge = row.Status.Contains("Reverso", StringComparison.Ordinal) ? "text-bg-danger"
+                                    : row.Status.Contains("Original corregido", StringComparison.Ordinal) ? "text-bg-secondary"
+                                    : row.Status.Contains("Reemplazo", StringComparison.Ordinal) ? "text-bg-primary"
+                                    : "text-bg-success";
+
+                                <tr class="@(row.IsNegative ? "table-danger" : row.Status.Contains("Reverso", StringComparison.Ordinal) ? "table-danger-subtle" : row.Status.Contains("Original corregido", StringComparison.Ordinal) ? "table-light text-muted" : null)">
+                                    <td data-label="@CatTexts["Fecha / Hora"]">@row.OccurredAtLocal.ToString("dd/MM/yyyy HH:mm")</td>
+                                    <td data-label="@CatTexts["Tipo"]">
+                                        <span class="badge @typeBadge">@row.Type</span>
+                                        <div class="small text-muted">@row.PurposeLabel</div>
+                                    </td>
+                                    <td data-label="@CatTexts["Referencia"]">
+                                        <strong>@row.Reference</strong>
+                                        <div class="small text-muted">@row.MovementId.ToString()[..8]</div>
+                                    </td>
+                                    <td data-label="@CatTexts["Ruta / Ubicación"]">@row.RouteOrLocation</td>
+                                    <td data-label="@CatTexts["Lote"]">
+                                        @if (!string.IsNullOrEmpty(row.LotNumber))
+                                        {
+                                            <span class="badge bg-light text-dark border">@row.LotNumber</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td data-label="@CatTexts["Estado"]">
+                                        <span class="badge @statusBadge">@row.Status</span>
+                                        @if (row.PassedToNegative)
+                                        {
+                                            <span class="badge text-bg-danger d-block mt-1">@CatTexts["Pasa a negativo"]</span>
+                                        }
+                                    </td>
+                                    <td data-label="@CatTexts["Responsable"]">@row.ResponsibleName</td>
+                                    <td data-label="@CatTexts["Entrada (+)"]" class="text-end fw-semibold text-success">
+                                        @(row.EntryQuantity > 0 ? $"+{row.EntryQuantity.ToString("#,##0.0000")}" : "—")
+                                    </td>
+                                    <td data-label="@CatTexts["Salida (-)"]" class="text-end fw-semibold text-danger">
+                                        @(row.ExitQuantity > 0 ? $"-{row.ExitQuantity.ToString("#,##0.0000")}" : "—")
+                                    </td>
+                                    <td data-label="@CatTexts["Saldo"]" class="text-end fw-bold">
+                                        <span class="@(row.IsNegative ? "text-danger" : null)">@row.RunningBalance.ToString("#,##0.0000")</span>
+                                    </td>
+                                    <td data-label="@CatTexts["Acciones"]" class="text-center">
+                                        <a class="btn btn-sm btn-outline-secondary" href="@row.DetailsUrl" title="@CatTexts["Ver detalle del movimiento"]">@CatTexts["Detalle"]</a>
+                                    </td>
+                                </tr>
+                                @if (isAdmin && row.Corrections.Count > 0)
+                                {
+                                    <tr class="table-light">
+                                        <td colspan="11" class="py-2">
+                                            <details>
+                                                <summary class="fw-semibold">@CatTexts["Relaciones de corrección ({0})", row.Corrections.Count]</summary>
+                                                @foreach (var correction in row.Corrections)
+                                                {
+                                                    <div class="border rounded p-2 mt-2 small">
+                                                        <strong>@correction.Relation</strong> · @correction.RecordedAtLocal.ToString("dd/MM/yyyy HH:mm")
+                                                        <div>Motivo: @correction.Reason</div>
+                                                        <div>@CatTexts["Solicitó: {0} · Autorizó: {1}", correction.RequestedBy, correction.AuthorizedBy]</div>
+                                                        <div class="d-flex flex-wrap gap-2 mt-1">
+                                                            <a href="@correction.OriginalDetailsUrl">Original</a>
+                                                            <a href="@correction.ReversalDetailsUrl">@CatTexts["Reverso"]</a>
+                                                            @if (correction.ReplacementDetailsUrl is not null)
+                                                            {
+                                                                <a href="@correction.ReplacementDetailsUrl">@CatTexts["Reemplazo"]</a>
+                                                            }
+                                                            else
+                                                            {
+                                                                <span class="text-muted">@CatTexts["Sin reemplazo"]</span>
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                }
+                                            </details>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        }
+                    </tbody>
+                    <tfoot class="table-light fw-bold">
+                        <tr>
+                            <td colspan="7" class="text-uppercase">@CatTexts["Totales del período"]</td>
+                            <td data-label="Entradas del período" class="text-end text-success">+@k.Summary.TotalEntries.ToString("#,##0.0000")</td>
+                            <td data-label="Salidas del período" class="text-end text-danger">-@k.Summary.TotalExits.ToString("#,##0.0000")</td>
+                            <td data-label="Saldo al cierre" class="text-end text-primary fs-6">@k.Summary.EndingBalance.ToString("#,##0.0000")</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+        @if (k.IsPaged && k.TotalPages > 1)
+        {
+            <nav class="mt-3" aria-label="@CatTexts["Páginas del Kárdex"]">
+                <div class="small text-muted mb-2">@CatTexts["Página {0} de {1} · {2} líneas de movimiento. Los lotes de cada línea permanecen juntos.", k.PageNumber, k.TotalPages, k.TotalLines]</div>
+                <ul class="pagination pagination-sm flex-wrap">
+                    <li class="page-item @(k.PageNumber == 1 ? "disabled" : null)">
+                        <a class="page-link" asp-route-sku="@Model.Sku" asp-route-locationId="@Model.LocationId"
+                           asp-route-period="@Model.Period" asp-route-from="@Model.From" asp-route-to="@Model.To"
+                           asp-route-pageNumber="@(k.PageNumber - 1)">@CatTexts["Anterior"]</a>
+                    </li>
+                    @for (var pageItem = Math.Max(1, k.PageNumber - 2); pageItem <= Math.Min(k.TotalPages, k.PageNumber + 2); pageItem++)
+                    {
+                        <li class="page-item @(pageItem == k.PageNumber ? "active" : null)">
+                            <a class="page-link" asp-route-sku="@Model.Sku" asp-route-locationId="@Model.LocationId"
+                               asp-route-period="@Model.Period" asp-route-from="@Model.From" asp-route-to="@Model.To"
+                               asp-route-pageNumber="@pageItem">@pageItem</a>
+                        </li>
+                    }
+                    <li class="page-item @(k.PageNumber == k.TotalPages ? "disabled" : null)">
+                        <a class="page-link" asp-route-sku="@Model.Sku" asp-route-locationId="@Model.LocationId"
+                           asp-route-period="@Model.Period" asp-route-from="@Model.From" asp-route-to="@Model.To"
+                           asp-route-pageNumber="@(k.PageNumber + 1)">@CatTexts["Siguiente"]</a>
+                    </li>
+                </ul>
+            </nav>
+        }
+    }
+    else if (string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="operation-card text-center py-5">
+            <h2 class="h5">@CatTexts["Busca un producto para consultar su Kárdex"]</h2>
+            <p class="text-muted mb-0">@CatTexts["Escribe o escanea un SKU, descripción o código de barras."]</p>
+        </div>
+    }
+</div>

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 
@@ -78,6 +79,38 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
     }
 
     [Fact]
+    public async Task Adjustment_starts_blank_and_rejects_a_missing_final_count()
+    {
+        var seed = await SeedAsync("WEB-ADJUSTMENT-BLANK", "WEB-ADJUSTMENT-BLANK-AREA", "4210");
+        using var client = CreateClient();
+
+        var response = await client.GetAsync("/Operations/Adjustment");
+        var html = await response.Content.ReadAsStringAsync();
+        var quantityInput = Regex.Match(html, "<input[^>]*data-quantity[^>]*>", RegexOptions.IgnoreCase).Value;
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.NotEmpty(quantityInput);
+        Assert.DoesNotMatch("value=\"0(?:[.,]0*)?\"", quantityInput);
+
+        var operationId = Guid.NewGuid();
+        var values = CommonValues(seed, operationId, seed.Pin,
+            await GetTokenAsync(client, "/Operations/Adjustment"), 1m);
+        values.Remove("Input.Quantity");
+        values["Input.LocationId"] = seed.LocationId.ToString();
+        values["Input.ExpectedBalanceVersion"] = "0";
+        values["Input.Notes"] = "Conteo físico sin cantidad";
+
+        var invalid = await client.PostAsync("/Operations/Adjustment", new FormUrlEncodedContent(values));
+        var invalidBody = await invalid.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, invalid.StatusCode);
+        Assert.Contains("Captura el conteo final.", invalidBody);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        Assert.False(await db.InventoryMovements.AnyAsync(item => item.OperationId == operationId));
+    }
+
+    [Fact]
     public async Task Entry_requires_valid_pin_is_idempotent_and_receipt_is_reloadable()
     {
         var seed = await SeedAsync("WEB-ENTRY", "WEB-ENTRY-AREA", "4201", barcode: "WEB-BAR-ENTRY");
@@ -142,11 +175,19 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
                 balance.ProductId == seed.ProductId && balance.LocationId == seed.SecondLocationId)).Version;
         }
         var adjustmentValues = CommonValues(seed, Guid.NewGuid(), seed.Pin,
-            await GetTokenAsync(client, "/Operations/Adjustment"), 1m);
+            await GetTokenAsync(client, "/Operations/Adjustment"), 0m);
         adjustmentValues["Input.LocationId"] = seed.SecondLocationId.Value.ToString();
         adjustmentValues["Input.ExpectedBalanceVersion"] = version.ToString();
         adjustmentValues["Input.Notes"] = "Conteo físico de prueba";
         await PostSuccessAsync(client, "/Operations/Adjustment", adjustmentValues);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            var adjustedBalance = await db.InventoryBalances.SingleAsync(balance =>
+                balance.ProductId == seed.ProductId && balance.LocationId == seed.SecondLocationId);
+            Assert.Equal(0m, adjustedBalance.Quantity);
+        }
 
         var query = await client.GetAsync($"/Inventory?productId={seed.ProductId}");
         var queryBody = await query.Content.ReadAsStringAsync();
@@ -199,13 +240,15 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
     }
 
     [Fact]
-    public async Task Bidirectional_lookup_handlers_are_public_read_only_and_return_relationships()
+    public async Task Relationship_handlers_hide_zero_assignments_except_the_entry_default()
     {
         var seed = await SeedAsync("WEB-REL", "WEB-REL-AREA", "4205");
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
             db.Locations.Add(new Location { Code = seed.Sku, Kind = LocationKind.Area });
+            var product = await db.Products.SingleAsync(item => item.Id == seed.ProductId);
+            product.DefaultEntryLocationId = seed.LocationId;
             db.ProductLocationAssignments.Add(new ProductLocationAssignment
             {
                 ProductId = seed.ProductId,
@@ -215,19 +258,29 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         }
 
         using var client = CreateClient();
-        var locations = Assert.IsType<List<RelationshipLocation>>(
+        var locationsWithoutContext = Assert.IsType<List<RelationshipLocation>>(
             await client.GetFromJsonAsync<List<RelationshipLocation>>(
                 $"/Operations/Lookup?handler=ProductLocations&productId={seed.ProductId}"));
+        var locationsForUnknownOperation = Assert.IsType<List<RelationshipLocation>>(
+            await client.GetFromJsonAsync<List<RelationshipLocation>>(
+                $"/Operations/Lookup?handler=ProductLocations&productId={seed.ProductId}&operation=unknown"));
+        var locationsForExit = Assert.IsType<List<RelationshipLocation>>(
+            await client.GetFromJsonAsync<List<RelationshipLocation>>(
+                $"/Operations/Lookup?handler=ProductLocations&productId={seed.ProductId}&operation=exit"));
+        var locationsForEntry = Assert.IsType<List<RelationshipLocation>>(
+            await client.GetFromJsonAsync<List<RelationshipLocation>>(
+                $"/Operations/Lookup?handler=ProductLocations&productId={seed.ProductId}&operation=entry"));
         var products = Assert.IsType<List<RelationshipProduct>>(
             await client.GetFromJsonAsync<List<RelationshipProduct>>(
                 $"/Operations/Lookup?handler=LocationProducts&locationId={seed.LocationId}"));
 
-        Assert.Single(locations);
-        Assert.Equal(seed.LocationCode, locations[0].Code);
-        Assert.True(locations[0].HasActiveAssignment);
-        Assert.Single(products);
-        Assert.Equal(seed.Sku, products[0].Sku);
-        Assert.True(products[0].HasActiveAssignment);
+        Assert.Empty(locationsWithoutContext);
+        Assert.Empty(locationsForUnknownOperation);
+        Assert.Empty(locationsForExit);
+        var entryLocation = Assert.Single(locationsForEntry);
+        Assert.Equal(seed.LocationCode, entryLocation.Code);
+        Assert.True(entryLocation.HasActiveAssignment);
+        Assert.Empty(products);
 
         var resolution = Assert.IsType<CodeResolution>(await client.GetFromJsonAsync<CodeResolution>(
             $"/Operations/Lookup?handler=ResolveCode&code={seed.Sku}"));
@@ -437,15 +490,11 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         if (secondLocation is not null)
             db.Add(secondLocation);
 
+        Product? otherProduct = null;
         if (assignOtherProduct)
         {
-            var other = new Product { Sku = $"OTHER-{sku}", BaseUnitId = 1 };
-            db.Add(other);
-            db.ProductLocationAssignments.Add(new ProductLocationAssignment
-            {
-                Product = other,
-                Location = location
-            });
+            otherProduct = new Product { Sku = $"OTHER-{sku}", BaseUnitId = 1 };
+            db.Add(otherProduct);
         }
 
         if (createAdmin)
@@ -462,6 +511,14 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         }
 
         await db.SaveChangesAsync();
+        if (otherProduct is not null)
+        {
+            var inventory = scope.ServiceProvider.GetRequiredService<InventoryMovementService>();
+            var occupied = await inventory.ConfirmAsync(new(
+                Guid.NewGuid(), InventoryMovementType.Entry, pin,
+                [new(otherProduct.Id, 1m, DestinationLocationId: location.Id)]));
+            Assert.Equal(InventoryMovementStatus.Success, occupied.Status);
+        }
         return new(product.Id, product.Sku, location.Id, location.Code,
             secondLocation?.Id, secondLocation?.Code, pin);
     }

@@ -74,6 +74,7 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 
 // Add services to the container.
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/Admin/Users", "AdminOnly");
@@ -84,7 +85,34 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeFolder("/Admin/Account", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Settings", "AdminOnly");
     options.Conventions.AuthorizeFolder("/Admin/Labels", "AdminOnly");
-});
+    options.Conventions.AuthorizeFolder("/Admin/Production", "AdminOnly");
+}).AddDataAnnotationsLocalization(options =>
+    options.DataAnnotationLocalizerProvider = (modelType, factory) =>
+        factory.Create(WarehouseEPI.Web.Localization.UiTextCatalog.ForModel(modelType)));
+builder.Services.AddOptions<Microsoft.AspNetCore.Mvc.MvcOptions>()
+    .Configure<Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.SharedTexts>>(
+        (options, texts) =>
+        {
+            var messages = options.ModelBindingMessageProvider;
+            messages.SetAttemptedValueIsInvalidAccessor((value, field) =>
+                texts["El valor '{0}' no es válido para {1}.", value, field]);
+            messages.SetMissingBindRequiredValueAccessor(field =>
+                texts["Falta un valor para {0}.", field]);
+            messages.SetMissingKeyOrValueAccessor(() => texts["Se requiere un valor."]);
+            messages.SetMissingRequestBodyRequiredValueAccessor(() =>
+                texts["Se requiere el contenido de la solicitud."]);
+            messages.SetNonPropertyAttemptedValueIsInvalidAccessor(value =>
+                texts["El valor '{0}' no es válido.", value]);
+            messages.SetNonPropertyUnknownValueIsInvalidAccessor(() =>
+                texts["El valor proporcionado no es válido."]);
+            messages.SetNonPropertyValueMustBeANumberAccessor(() =>
+                texts["El campo debe ser un número."]);
+            messages.SetUnknownValueIsInvalidAccessor(field =>
+                texts["El valor proporcionado no es válido para {0}.", field]);
+            messages.SetValueIsInvalidAccessor(value => texts["El valor '{0}' no es válido.", value]);
+            messages.SetValueMustBeANumberAccessor(field => texts["El campo {0} debe ser un número.", field]);
+            messages.SetValueMustNotBeNullAccessor(field => texts["El campo {0} es obligatorio.", field]);
+        });
 builder.Services.AddDbContext<WarehouseDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("Warehouse")));
@@ -104,12 +132,30 @@ builder.Services.AddSingleton<WarehouseMapPreviewStore>();
 builder.Services.AddSingleton<WarehouseMapReferenceStorage>();
 builder.Services.AddScoped<LocationGenerationService>();
 builder.Services.AddScoped<LocationRackAdministrationService>();
+builder.Services.AddScoped<LocationAreaAdministrationService>();
 builder.Services.AddScoped<LocationLookupService>();
 builder.Services.AddScoped<ProductLocationAssignmentService>();
 builder.Services.AddScoped<WarehouseMapService>();
+builder.Services.AddScoped<WarehouseMapCalibrationService>();
 builder.Services.AddScoped<InventoryMovementService>();
 builder.Services.AddScoped<ReceivingService>();
 builder.Services.AddScoped<ReceivingQueryService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionQueryService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionProcessConfigurationService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionWipDefaultService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionPlanningService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionMaterialService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionSupplyService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionSupplyPreparationService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionTraceabilityService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionExecutionService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDailyScheduleService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDailyCaptureService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDailyBalanceService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionScheduleImportService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDailyExportService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionImportDraftService>();
 builder.Services.AddScoped<InventoryCorrectionService>();
 builder.Services.AddScoped<WipDispositionService>();
 builder.Services.AddScoped<WipDispositionCorrectionService>();
@@ -121,20 +167,30 @@ builder.Services.AddScoped<ProductCatalogQueryService>();
 builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.AddScoped<CycleCountService>();
 builder.Services.AddScoped<WarehouseEPI.Web.Security.CycleCountPreparationProtector>();
+builder.Services.AddScoped<WarehouseEPI.Web.Security.CycleCountOperatorSession>();
 builder.Services.AddScoped<OperationalInventoryQueryService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.BarcodeRenderingService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelTemplateService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelAssetService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.LabelDocumentService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Labels.PalletLicensePlateService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Inventory.PalletTrackingService>();
 builder.Services.AddScoped<MovementReportService>();
 builder.Services.AddScoped<ReportExportService>();
+builder.Services.AddScoped<ProductionReportService>();
 builder.Services.AddScoped<DailyDashboardService>();
 builder.Services.AddScoped<InventoryAnalyticsService>();
 builder.Services.AddScoped<OperationalAlertService>();
 builder.Services.AddScoped<OperationalExceptionService>();
 builder.Services.AddScoped<UnifiedTraceService>();
 builder.Services.AddScoped<UnifiedTraceExportService>();
+builder.Services.AddScoped<KardexReportService>();
+builder.Services.AddScoped<KardexExportService>();
+builder.Services.AddScoped<MovementTraceabilityService>();
+builder.Services.AddScoped<WorkloadReportService>();
+builder.Services.AddScoped<WorkQueueService>();
+builder.Services.AddScoped<HeatmapReportService>();
+builder.Services.AddScoped<ExecutiveReportService>();
 builder.Services.AddHostedService<OperationalExceptionReconciliationHostedService>();
 builder.Services.AddScoped<WarehouseSettingsService>();
 builder.Services.AddScoped<WarehouseClock>();
@@ -272,6 +328,8 @@ app.UseHttpsRedirection();
 
 app.UseRouting();
 
+app.UseRequestLocalization(WarehouseEPI.Web.Localization.UiLanguage.CreateOptions());
+
 app.UseMiddleware<CorrelationAndRequestLoggingMiddleware>();
 
 app.Use(async (context, next) =>
@@ -289,7 +347,11 @@ app.Use(async (context, next) =>
         headers["X-Frame-Options"] = "DENY";
         headers["Cross-Origin-Opener-Policy"] = "same-origin";
         headers["Cross-Origin-Resource-Policy"] = "same-origin";
-        headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(), usb=(), payment=()";
+        var path = context.Request.Path;
+        var allowsGeolocation = path == "/Locations"
+            || path == "/Admin/Catalogs/Locations"
+            || path == "/Admin/Catalogs/Locations/Map/Calibration";
+        headers["Permissions-Policy"] = $"camera=(self), microphone=(), geolocation={(allowsGeolocation ? "(self)" : "()")}, usb=(), payment=()";
         if (context.Response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true)
             headers.CacheControl = "no-store";
         return Task.CompletedTask;
@@ -301,6 +363,22 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapGet("/Locations/MapCalibration", async Task<IResult>
+    (HttpContext context, WarehouseMapCalibrationService calibrations, CancellationToken cancellationToken) =>
+{
+    context.Response.Headers.CacheControl = "no-store";
+    var state = await calibrations.GetStateAsync(includePoints: false, cancellationToken);
+    return TypedResults.Ok(new
+    {
+        state.Exists,
+        state.IsCurrent,
+        state.Revision,
+        state.LayoutVersion,
+        state.PublishedAt,
+        state.Transform
+    });
+}).AllowAnonymous();
 
 app.MapGet("/health/live", async Task<IResult>
     (HttpContext context, HealthCheckService healthChecks, CancellationToken cancellationToken) =>

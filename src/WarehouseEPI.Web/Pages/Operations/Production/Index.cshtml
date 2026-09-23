@@ -1,0 +1,52 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@using System.Globalization
+@using WarehouseEPI.Web.Production
+@{
+    ViewData["Title"] = ProdTexts["Producción diaria"];
+    string Qty(decimal value) => value.ToString("0.####");
+    string AreaLabel(ProductionDailyArea area) => area switch { ProductionDailyArea.Cutting => ProdTexts["Corte"], ProductionDailyArea.Sewing => ProdTexts["Costura"], _ => ProdTexts["Ready to Pack"] };
+}
+<div class="container-fluid py-3 production-daily" data-production-daily data-no-description="@ProdTexts["Sin descripción"]" data-product-url="@Url.Page("/Operations/Lookup", "Products")">
+    <header class="production-daily__header mb-3">
+        <div>
+            <h1 class="h2 mb-1">@ProdTexts["Producción diaria"]</h1>
+            <p class="text-body-secondary mb-0">@ProdTexts["Registra la producción por fecha, área y turno."]</p>
+        </div>
+        <nav class="d-flex flex-wrap gap-2" aria-label="@ProdTexts["Acciones de producción"]">
+            @if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Production/Schedule" asp-route-WeekId="@Model.WeekId" class="btn btn-outline-primary" data-capture-context-link>@ProdTexts["Programa semanal"]</a> }
+
+            <a asp-page="Advanced" class="btn btn-outline-secondary" data-capture-context-link>@ProdTexts["Producción avanzada"]</a>
+        </nav>
+    </header>
+
+    @if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert" tabindex="-1" data-production-errors></div>
+
+    <nav class="nav nav-pills gap-2 mb-4" aria-label="@ProdTexts["Vistas de producción"]">
+        <a data-capture-context-link class="nav-link @(Model.Tab=="capture"?"active":"")" aria-current="@(Model.Tab=="capture"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="capture" asp-route-Day="@Model.Day" asp-route-Area="@Model.Area" asp-route-ShiftId="@Model.ShiftId">@ProdTexts["Capturar"]</a>
+        <a data-capture-context-link class="nav-link @(Model.Tab=="balance"?"active":"")" aria-current="@(Model.Tab=="balance"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="balance">@ProdTexts["Balance"]</a>
+        <a data-capture-context-link class="nav-link @(Model.Tab=="history"?"active":"")" aria-current="@(Model.Tab=="history"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="history">@ProdTexts["Historial"]</a>
+    </nav>
+    @if(Model.Tab=="capture"){<partial name="_CaptureGroup" model="Model"/>}
+    @if(Model.Tab=="balance"){<partial name="_WeeklyBalance" model="Model"/>}
+    @if(Model.Tab=="history") {
+        <form method="get" class="d-flex flex-wrap gap-2 mb-3 align-items-end"><input type="hidden" name="Tab" value="history"/><div><label asp-for="WeekId" class="form-label">@ProdTexts["Semana"]</label><select asp-for="WeekId" class="form-select form-select-lg">@foreach(var week in Model.Weeks){<option value="@week.Id">@week.WeekStart.ToString("dd/MM/yyyy") · @ProductionDailyText.WeekStatus(ProdTexts,week.Status)</option>}</select></div><button class="btn btn-outline-primary btn-lg">@ProdTexts["Ver"]</button></form>
+        @if(Model.Details.Count==0){<p class="alert alert-info">@ProdTexts["No hay capturas para esta semana."]</p>}
+    }
+    @if (Model.Tab=="history" && Model.Details.Count > 0)
+    {
+        <section class="mt-4" aria-labelledby="capture-detail-heading"><h2 id="capture-detail-heading" class="h4">@ProdTexts["Capturas que forman el balance"]</h2>
+            <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>@ProdTexts["Fecha"]</th><th>@ProdTexts["Área / turno"]</th><th>SKU</th><th class="text-end">@ProdTexts["Piezas"]</th><th>@ProdTexts["Responsable"]</th><th>@ProdTexts["Órdenes"]</th><th>@ProdTexts["Estado"]</th></tr></thead><tbody>
+            @foreach (var item in Model.Details) { <tr><td>@item.EffectiveDate.ToString("dd/MM/yyyy")</td><td>@AreaLabel(item.Area) · @item.Shift</td><td>@item.Sku</td><td class="text-end">@Qty(item.Quantity)</td><td>@item.Responsible</td><td>@string.Join(", ", item.Orders)</td><td>@(item.Status == ProductionDailyCaptureStatus.Active ? ProdTexts["Activa"] : ProdTexts["Revertida"])
+            @if(User.IsInRole("ADMIN") && item.Status == ProductionDailyCaptureStatus.Active){<details><summary class="link-danger">@ProdTexts["Revertir"]</summary><form method="post" asp-page-handler="Reverse" class="d-grid gap-2 mt-2"><input asp-for="WeekId" type="hidden"/><input name="Reverse.OperationId" value="@Guid.NewGuid()" type="hidden"/><input name="Reverse.CaptureId" value="@item.Id" type="hidden"/><input name="Reverse.Reason" class="form-control" placeholder="@ProdTexts["Motivo obligatorio"]"/><input name="Reverse.Pin" class="form-control" type="password" inputmode="numeric" placeholder="@ProdTexts["NIP ADMIN"]"/><button class="btn btn-sm btn-danger">@ProdTexts["Confirmar reverso"]</button></form></details>}</td></tr> }
+            </tbody></table></div>
+        </section>
+    }
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /><script src="~/js/production-daily.js" asp-append-version="true"></script><script src="~/js/production-balance-editor.js" asp-append-version="true"></script><script src="~/js/production-daily-products.js" asp-append-version="true"></script> }
+@section Styles { <link rel="stylesheet" href="~/css/production-daily.css" asp-append-version="true" /> }

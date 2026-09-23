@@ -1,15 +1,17 @@
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
 public sealed class EntryModel(
     InventoryMovementService movementService,
     InventoryQueryService inventoryQuery,
-    OperationalInventoryQueryService operationalQuery)
-    : OperationPageModel(movementService, inventoryQuery, operationalQuery)
+    OperationalInventoryQueryService operationalQuery, IStringLocalizer<OperationsTexts> texts)
+    : OperationPageModel(movementService, inventoryQuery, operationalQuery, texts)
 {
     public override InventoryMovementType MovementType => InventoryMovementType.Entry;
-    public override string PageTitle => "Entrada";
-    public override string PageHelp => "Registra material recibido en una ubicación.";
+    public override string PageTitle => T("Entrada");
+    public override string PageHelp => T("Registra material recibido en una ubicación.");
 }

@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.Receiving;
 
-public sealed class NewModel(ReceivingService service) : PageModel
+public sealed class NewModel(ReceivingService service, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public void OnGet() => Input = new() { OperationId = Guid.NewGuid(), Lines = [new()] };
@@ -16,11 +18,11 @@ public sealed class NewModel(ReceivingService service) : PageModel
         var result = await service.OpenAsync(new(Input.OperationId, Input.Type, Input.Number, Input.Origin, Input.DocumentDate, Input.Notes, Input.Pin,
             Input.Lines.Select(item => new OpenReceivingDocumentLineCommand(item.ProductId, item.ExpectedQuantity)).ToArray()), token);
         Input.Pin = string.Empty;
-        if (result.Status == ReceivingCommandStatus.Success && result.DocumentId is Guid id) { TempData["Success"] = "Documento abierto; las cantidades esperadas quedaron congeladas."; return RedirectToPage("Details", new { id }); }
+        if (result.Status == ReceivingCommandStatus.Success && result.DocumentId is Guid id) { TempData["Success"] = texts["Documento abierto; las cantidades esperadas quedaron congeladas."]; return RedirectToPage("Details", new { id }); }
         ModelState.AddModelError(string.Empty, Message(result)); EnsureLine(); return Page();
     }
     private void EnsureLine() { if (Input.Lines.Count == 0) Input.Lines.Add(new()); }
-    private static string Message(ReceivingCommandResult result) => result.Status switch { ReceivingCommandStatus.InvalidPin => "NIP inválido o usuario sin permiso operativo.", ReceivingCommandStatus.IdempotencyConflict => "La operación ya fue usada con contenido diferente.", _ => result.ValidationErrors.FirstOrDefault() ?? "No fue posible abrir el documento." };
+    private string Message(ReceivingCommandResult result) => result.Status switch { ReceivingCommandStatus.InvalidPin => texts["NIP inválido o usuario sin permiso operativo."], ReceivingCommandStatus.IdempotencyConflict => texts["La operación ya fue usada con contenido diferente."], _ => texts[result.ValidationErrors.FirstOrDefault() ?? "No fue posible abrir el documento."] };
     public sealed class InputModel
     {
         public Guid OperationId { get; set; } = Guid.NewGuid();

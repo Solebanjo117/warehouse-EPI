@@ -39,6 +39,8 @@ public sealed class BackupScriptContractTests
         var content = File.ReadAllText(ScriptPath("Test-WarehouseEpiBackupRestore.ps1"));
 
         Assert.Contains("warehouse_epi_restore_validation_", content, StringComparison.Ordinal);
+        Assert.Contains("Substring(0, 30)", content, StringComparison.Ordinal);
+        Assert.True("warehouse_epi_restore_validation_".Length + 30 <= 63);
         Assert.Contains("CREATE DATABASE", content, StringComparison.Ordinal);
         Assert.Contains("DROP DATABASE IF EXISTS", content, StringComparison.Ordinal);
         Assert.Contains("ruta insegura", content, StringComparison.OrdinalIgnoreCase);
@@ -58,6 +60,13 @@ public sealed class BackupScriptContractTests
         Assert.Contains("BrandingDirectory", create, StringComparison.Ordinal);
         Assert.Contains("RequiredExternalSecrets", create, StringComparison.Ordinal);
         Assert.Contains("ContainsSecrets = $false", create, StringComparison.Ordinal);
+        Assert.Contains("[Text.UTF8Encoding]::new($false)", create, StringComparison.Ordinal);
+        Assert.Contains("ZipFileExtensions]::CreateEntryFromFile", create, StringComparison.Ordinal);
+        Assert.DoesNotContain("-Encoding utf8NoBOM", create, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("[IO.Path]::GetRelativePath", create, StringComparison.Ordinal);
+        Assert.DoesNotContain("Compress-Archive", create, StringComparison.Ordinal);
+        Assert.DoesNotContain("[Convert]::ToHexString", validate, StringComparison.Ordinal);
+        Assert.DoesNotContain("SHA256]::HashData", validate, StringComparison.Ordinal);
         Assert.DoesNotContain("user-secrets list", create, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("service-settings.json", create, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SHA256", validate, StringComparison.OrdinalIgnoreCase);

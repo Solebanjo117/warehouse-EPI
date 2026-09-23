@@ -60,8 +60,9 @@ El sistema debe priorizar:
 ### Productos e inventario
 
 - Un producto puede existir en múltiples ubicaciones.
-- Un producto puede tener varias ubicaciones fijas asignadas, sin una ubicación
-  principal, y una ubicación puede estar asignada a varios productos. La
+- Un producto puede tener varias ubicaciones fijas asignadas y una ubicación
+  principal de entrada opcional; una ubicación puede estar asignada a varios
+  productos. La ubicación principal siempre mantiene una asignación activa. La
   asignación permanece aunque el saldo sea cero; no sustituye al saldo real.
 - Al confirmar una entrada, la cantidad queda ligada al producto y a la
   ubicación seleccionada.
@@ -218,9 +219,13 @@ el conteo final, conservando saldo anterior y diferencia.
 
 Cada confirmación valida directamente el NIP de un usuario activo `ADMIN` u
 `OPERATOR`, sin crear sesión y sin almacenar el NIP en el movimiento. Las
-asignaciones producto-ubicación se crean o reactivan dentro de la misma
-transacción; si el pallet ya contiene otros productos se devuelve una solicitud
-de confirmación específica antes de escribir.
+asignaciones producto-ubicación se reconcilian dentro de la misma transacción
+con el saldo agregado de todos los lotes: se crean o reactivan con saldo distinto
+de cero y se desactivan cuando el saldo queda exactamente en cero. Una
+transferencia total mueve también la ubicación principal de entrada al único
+destino resultante; una salida, ajuste o conteo sin destino la limpia. La
+confirmación de pallet compartido considera únicamente otros productos con
+saldo neto distinto de cero, no asignaciones administrativas agotadas.
 
 Los movimientos resuelven internamente un lote diario `AUTO-YYYYMMDD` por
 producto usando la fecha local `America/Matamoros`. Entrada y aumentos de
@@ -450,8 +455,9 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   teclado numérico y una tabla administrativa paginada. La búsqueda acepta
   código o descripción de ubicación y también SKU, descripción, referencia o
   código de barras de productos asignados.
-- Existe una asignación fija muchos-a-muchos entre productos y ubicaciones, sin
-  ubicación principal. Las asignaciones se desactivan y reactivan sin borrado,
+- Existe una asignación fija muchos-a-muchos entre productos y ubicaciones. Cada
+  producto puede marcar una de ellas como principal de entrada; las demás siguen
+  siendo relaciones secundarias. Las asignaciones se desactivan y reactivan sin borrado,
   permanecen visibles aunque posteriormente el saldo sea cero y se administran
   desde ambos detalles.
 - Cada posición muestra hasta tres SKU y permite navegar al producto; Productos
@@ -492,7 +498,10 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   código o descripción de ubicación, con selección por escáner HID y Enter.
 - El escaneo es bidireccional: un producto muestra ubicaciones con asignación
   activa o saldo distinto de cero y una ubicación muestra sus productos bajo la
-  misma regla. Una única relación se autocompleta; varias exigen selección. Una
+  misma regla. Entrada solo autoselecciona el destino principal explícito y
+  disponible; permite cambiarlo y solicita captura manual si queda bloqueado,
+  inactivo o retirado. En las demás operaciones, una única relación puede
+  autocompletarse y varias exigen selección. Una
   pareja nueva se anuncia en pantalla y solo se crea al confirmar con NIP.
 - En transferencias, el producto puede autocompletar únicamente el origen. El
   destino muestra su contenido sin reemplazar el producto seleccionado.
@@ -719,10 +728,14 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   dispositivos: 250 px expandida y colapsable en laptop, rail de 72 px con
   expansión superpuesta en tablet horizontal, y barra superior con drawer en
   tablet vertical o pantallas estrechas.
-- El menú agrupa Operación, Inventario, Catálogos y Administración, marca la
-  página activa y conserva el estado colapsado en laptop. Las rutas protegidas
-  de inventario, catálogos y administración solamente se renderizan para una
-  sesión `ADMIN`.
+- El menú lateral muestra Inicio y los módulos Operaciones, Producción, Inventario,
+  Etiquetas, Reportes, Catálogos y Administración. Cada módulo abre su pantalla
+  de tarjetas; Catálogos, Administración y las acciones administrativas de los
+  otros módulos solo se renderizan para una sesión ADMIN. El Inicio conserva sus
+  accesos rápidos y las rutas de operación mantienen sus permisos originales.
+- El módulo activo se resuelve por segmentos completos de la página, también en
+  fichas y ediciones. El estado contraído de laptop se conserva. Las páginas
+  internas incluyen un retorno al módulo, oculto durante cámara e impresión.
 - El drawer admite teclado, cierre con Escape y fondo de descarte. Cuando se abre
   el lector por cámara, la navegación se oculta y el modal ocupa la ventana
   completa para priorizar la vista previa.
@@ -821,21 +834,34 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   físicamente lector HID, cámara, foco, tablet horizontal/vertical y temas
   Claro/Oscuro/Sistema.
 
-#### Fase 11.6: trazabilidad de movimientos y lotes — en implementación; validación física pendiente
+#### Fase 11.6: trazabilidad de movimientos y lotes — implementada en código; validación física pendiente
 
 - El historial ADMIN usa periodos locales del almacén (por defecto los últimos
   30 días), consultas UTC de intervalo semiabierto, paginación de 25 y
   exportación trazable por cambio de saldo.
 - El detalle de movimiento expone snapshots históricos de lote, enlaces
   administrativos y la cadena de corrección sin alterar movimientos confirmados.
-- La ficha ADMIN prioriza trazabilidad rápida: cabecera local, metadatos de
-  auditoría, tarjetas por producto y cambios de saldo legibles en laptop y
-  tablet. No añade impresión, PDF, operaciones prellenadas ni cambios al POST.
+- La ficha ADMIN `/Admin/Inventory/Movements/Details/{id}` es el registro
+  profesional de trazabilidad del movimiento. Conserva cabecera, metadatos,
+  productos, lotes y cambios de saldo, y agrega una cronología causal de la
+  cadena original/reverso/reemplazo, la confirmación documental, las
+  disposiciones WIP y las acciones de la ubicación de conteo relacionadas.
+  Abrir cualquier miembro de una corrección devuelve el mismo contexto y marca
+  cuál es la ficha actual; no incorpora otras recepciones del documento ni
+  acciones de otras ubicaciones de la campaña.
+- La ficha usa la identidad configurada del negocio/almacén y `WarehouseClock`,
+  distingue eventos que impactan inventario de eventos informativos, y permite
+  imprimir o guardar como PDF desde el navegador en Carta vertical. La hoja
+  oculta navegación y acciones, restaura encabezados semánticos, admite varias
+  páginas y no incluye firmas. No genera PDF en servidor ni cambia contratos
+  POST, movimientos, saldos o esquema.
 - Lotes internos cuenta con filtros, saldo agregado, ficha de distribución,
   movimientos relacionados y auditoría de cambios de fecha. La fecha sigue
   afectando únicamente FEFO futuro y exige motivo/NIP ADMIN.
-- Sigue pendiente la validación física en laptop, tablet horizontal/vertical,
-  lector HID y cámara; no se aplicó migración ni se modificó el esquema.
+- El servicio transversal es de solo lectura y se validó con pruebas focales
+  InMemory y PostgreSQL contra `warehouse_epi_test`. Sigue pendiente la
+  validación visual en navegador, Carta vertical en impresora real y tablet
+  horizontal/vertical; no se aplicó migración ni se modificó el esquema.
 
 #### Fase 11.7: Catálogo y ficha integral de Productos — implementación inicial; validación física pendiente
 
@@ -880,6 +906,24 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   visual de Crear/Editar e Importación, que quedaron deliberadamente fuera de
   esta entrega de presentación.
 
+##### Ubicación principal de entrada — implementada en código; migración y validación física pendientes
+
+- Crear y Editar producto admiten una ubicación principal opcional. Elegirla
+  crea o reactiva su asignación fija; cambiarla conserva las asignaciones
+  secundarias y limpiar el selector no las elimina. Desasignar la principal sí
+  retira ambas relaciones en una sola operación lógica.
+- `/Operations/Entry` autoselecciona únicamente esa relación explícita cuando
+  sigue física, activa, no bloqueada y asignada. La sugerencia puede cambiarse;
+  una principal no disponible produce una advertencia y mantiene la captura
+  manual. Salida, Transferencia, Ajuste y WIP conservan su comportamiento.
+- La migración `20260904143029_AddProductDefaultEntryLocation` agrega solamente
+  `products.default_entry_location_id`, su índice y la FK `RESTRICT`, sin
+  backfill. El SQL fue revisado, pero la migración no se aplicó a PostgreSQL.
+- Pasaron 14 pruebas focales de modelo, asignación, consulta y contrato cliente;
+  `operations.js` pasó validación sintáctica. La prueba web integral continúa
+  afectada por el HTTP 400/antiforgery preexistente. Faltan navegador y prueba
+  física con tablet, lector HID y cámara.
+
 #### Fase 11.8: Ubicaciones y croquis interactivo — implementada; validación física pendiente
 
 - Ubicaciones abre por defecto un croquis SVG limpio basado en las fotografías
@@ -890,6 +934,11 @@ Si `dotnet` no está en `PATH`, sustituirlo por:
   saldos por producto, y enlaza ficha, Existencias y Movimientos. La ficha de
   ubicación incorpora saldos, asignaciones históricas, vecinos y movimientos
   recientes; la tabla usa 25 registros y tarjetas en tablet vertical.
+- En la consulta pública y ADMIN, el croquis conserva los controles de zoom y
+  desplazamiento interno y admite pellizcar con dos dedos entre 100 % y 400 %,
+  manteniendo como referencia el punto situado entre los dedos. Al finalizar el
+  gesto se evita abrir accidentalmente un rack; la validación en tablet física
+  continúa pendiente.
 - La ficha de ubicación consulta en bloque las nueve posiciones del mismo rack
   e identifica la posición actual dentro de la cuadrícula 3x3. Cada pallet
   muestra estado operativo, saldo real agrupado por producto/unidad, primer SKU,
@@ -1076,11 +1125,63 @@ revisiones conservarán NIP ADMIN, idempotencia, versión y auditoría.
   física con ratón y tablet Android siguen pendientes; no se atribuye fluidez al
   hardware real hasta medirla con un plano de 100–300 objetos y estrés de 500.
 
+##### Fase 11.9.5: lienzo ampliable del croquis — implementada; migración y validación visual/física pendientes
+
+- `WarehouseMapLayout` persiste ancho y alto. Los layouts existentes reciben
+  `1600 × 900`; el servidor solo acepta crecimiento hacia la derecha y abajo,
+  en incrementos de 25, hasta `6400 × 3600`. Elementos operativos, arquitectura
+  y fondos continúan obligados a permanecer dentro del lienzo enviado.
+- El editor ofrece un tirador táctil y accesible por teclado en la esquina
+  inferior derecha. El tamaño es borrador, participa en cancelar/deshacer y solo
+  se publica después de la revisión existente y la confirmación con NIP ADMIN.
+  La consulta, la cuadrícula y los fondos usan las dimensiones persistidas sin
+  alterar las coordenadas anteriores ni crear almacenes o ubicaciones.
+- En la consulta, **Ajustar** usa el ancho disponible en lugar de reducir todo
+  el lienzo alto para hacerlo caber simultáneamente. La proporción SVG se
+  conserva y el excedente vertical se recorre dentro del panel con scroll nativo;
+  el zoom continúa entre 100 % y 400 % sin cambiar el `viewBox` persistido.
+- La selección múltiple representa estilos diferentes como **Varios** sin
+  serializar un valor vacío. Antes de revisar o guardar, el editor normaliza
+  borradores antiguos al catálogo semántico y limita el grosor a `0–12`; si el
+  servidor rechaza un estilo, informa etiqueta, UUID, trazo, relleno y grosor.
+- La auditoría usa esquema 6 e incluye dimensiones antes/después; los resúmenes
+  de esquemas anteriores siguen siendo legibles. La migración
+  `20260831183516_AddWarehouseMapCanvasDimensions` solo agrega ambas columnas y
+  su restricción al layout. No se aplicó a PostgreSQL ni se publicó una Release.
+- Sintaxis JavaScript, 64 pruebas focales y el build Web Release aislado sin
+  advertencias aprobaron. La comprobación visual en navegador y la prueba física
+  táctil continúan pendientes y deben ejecutarse contra la aplicación actualizada
+  antes de declarar cierre operativo.
+
 Quedan fuera de 11.9 la importación o exportación DWG/DXF, curvas Bézier,
 bibliotecas CAD completas, colaboración simultánea en tiempo real, cálculo
 estructural, rutas automáticas de evacuación y reglas legales no confirmadas.
 Importar PDF o intercambiar formatos técnicos se evaluará después de validar el
 editor SVG y demostrar una necesidad operativa concreta.
+
+##### Ubicación aproximada y calibración geográfica — implementada en código; migración y validación física pendientes
+
+- El croquis público y ADMIN ofrece **Mi ubicación**. Tras una acción explícita del
+  usuario solicita permiso al navegador, usa `watchPosition` y dibuja un marcador
+  con un círculo conservador de incertidumbre. Las coordenadas se transforman y se
+  conservan únicamente en el navegador; el servidor solo entrega la calibración
+  publicada y su revisión.
+- `/Admin/Catalogs/Locations/Map/Calibration` permite marcar cuatro o más
+  referencias y al menos una comprobación, capturar cada punto durante 20 segundos,
+  revisar errores y publicar con motivo y NIP ADMIN. El borrador vive en
+  `sessionStorage` sin incluir el NIP.
+- El servidor resume las muestras por mediana, proyecta latitud/longitud a metros
+  locales y obtiene una transformación afín por mínimos cuadrados. Las comprobaciones
+  miden el error sin participar en el ajuste. Referencias inválidas, fuera del lienzo
+  o degeneradas bloquean; la baja precisión produce advertencias porque la función
+  se presenta siempre como aproximada.
+- La calibración guarda puntos, coeficientes, error, versión del croquis y revisiones
+  independientes con idempotencia. Una nueva publicación del croquis la deja
+  pendiente de revisión automáticamente. `Permissions-Policy` habilita geolocalización
+  solo en las consultas del croquis y en la pantalla de calibración; el uso en LAN
+  requiere HTTPS válido.
+- `20260917174125_AddWarehouseMapGeolocationCalibration` crea únicamente las tablas
+  de calibraciones, puntos y revisiones. No se aplicó a ninguna base de datos.
 
 ##### Acciones operativas desde el croquis y corrección reversible de racks — implementada; migración sin aplicar y validación visual/física pendiente
 
@@ -1102,6 +1203,21 @@ editor SVG y demostrar una necesidad operativa concreta.
   motivo y estados JSON antes/después. La corrección usa transacción serializable
   y bloqueo de las filas del rack; no aumenta la versión ni la auditoría del
   croquis arquitectónico.
+- El editor ofrece además **Eliminar rack definitivamente** sólo cuando ninguna
+  posición tiene asignaciones (activas o históricas), filas de saldo aunque estén
+  en cero, movimientos, cambios de saldo, conteos, incidencias ni actividad WIP.
+  La confirmación exige motivo, NIP ADMIN y escribir el código exacto del rack;
+  el servidor vuelve a comprobar las referencias dentro de una transacción
+  serializable. Se eliminan todas sus posiciones y la geometría operativa del
+  croquis, se incrementa la versión del croquis y se conservan revisiones JSON
+  de ambas operaciones como auditoría. No requiere migración de esquema.
+- El editor de áreas ofrece **Eliminar área definitivamente** con el mismo
+  criterio estricto para áreas generales y WIP: cualquier asignación, fila de
+  saldo, movimiento, cambio de saldo, conteo, incidencia o disposición impide
+  el borrado. Exige motivo, código exacto y NIP ADMIN; elimina también su
+  geometría y registra una revisión/versionado cuando el croquis ya existe.
+  Si aún no hay un croquis inicializado, elimina sólo el catálogo porque no hay
+  geometría publicada. Tampoco requiere migración de esquema.
 - Las posiciones retiradas se excluyen del croquis publicado, cuadrículas físicas,
   búsquedas/precargas operativas, movimientos, conteos cíclicos y consulta pública
   de inventario. Permanecen accesibles por ID y desde la tabla ADMIN para consultar
@@ -1363,6 +1479,8 @@ pendientes.
 
 #### Fase 13.5: conteos cíclicos persistentes y ajustes autorizados — implementada; migración y validación física pendientes
 
+- Se agregó programación recurrente por `SKU + ubicación`: frecuencias semanal, quincenal, mensual, trimestral, semestral y anual, calculadas desde una fecha ancla con `WarehouseClock`. El calendario público muestra fecha, SKU, ubicación y estado, pero no existencia esperada; la cantidad se captura ciegamente al contar.
+- `CycleCountScheduling` agrega los planes y su alcance selectivo dentro de campañas liberadas desde calendario. Una campaña manual conserva el alcance completo actual por ubicación. La migración está generada y revisada en código, pero no aplicada a PostgreSQL ni publicada; siguen pendientes pruebas LAN/tablet/HID/cámara.
 - Se incorporó el modelo persistente de campañas `CC-000001`, ubicaciones,
   intentos/reconteos, líneas por producto + ubicación y acciones de auditoría.
   Las campañas y ubicaciones conservan estados explícitos; una ubicación no
@@ -1473,6 +1591,12 @@ pendientes.
 - Los enlaces contextuales únicamente precargan los flujos existentes; ajuste,
   transferencia, asignación, ubicación, salida, conteo y WIP mantienen sus propias
   validaciones, NIP, concurrencia e idempotencia. El centro nunca cambia inventario.
+- La ficha de seguimiento fue enriquecida en código para explicar las ocho categorías,
+  mostrar motivo, acción recomendada, responsable, vigencia en hora local del almacén
+  e historial descendente con transiciones. `ReasonText` se actualiza sin crear eventos
+  periódicos y se conserva al resolverse; la migración
+  `20260904144551_EnrichOperationalExceptionContext` agrega el contexto con backfill,
+  pero aún no se ha aplicado a la base operativa ni se ha publicado en una Release.
 - La migración `20260828143458_AddOperationalExceptionCenter`, posterior a
   `20260828120000_WipTrackedInventory`, crea tablas, FKs, checks, índices de filtros
   y la unicidad parcial de caso activo. Ya fue aplicada a la base operativa; todavía
@@ -1539,6 +1663,77 @@ pendientes.
 - Falta validación física: hoja ciega impresa, captura y borrador en tablet Android, lector
   HID y comprobación en DevTools de que las páginas sin captura ya no descargan las
   bibliotecas pesadas.
+
+#### Croquis adaptable de consulta — 17 de septiembre de 2026
+
+- Consulta pública y ADMIN: mapa a todo el ancho sin selección; al abrir un rack o
+  área, columna de detalle de 22 rem desde 1200 px y panel inferior de hasta 48dvh
+  en pantallas menores. La vista normal mantiene una altura estable entre 34 y
+  46 rem (`70svh`); sólo la vista ampliada calcula el espacio visible. El encabezado
+  del detalle mantiene accesible su cierre.
+- `Ver todo` ajusta ancho y alto del lienzo; `Acercar selección` centra el elemento
+  y busca una escala legible. La búsqueda abre y acerca la coincidencia sin quitar
+  otros elementos. Botones, pellizco y desplazamiento comparten la misma cámara;
+  al redimensionar se conserva el ajuste completo o la escala y centro de consulta,
+  dentro de los límites del lienzo. El panel inferior se descuenta del área visible.
+- El scroll de la página no recalcula la cámara: conserva altura, escala, tamaño
+  renderizado y centro en vista general, zoom, selección, búsqueda y `Mi ubicación`.
+  Los recálculos quedan limitados a resize/orientación, cambios del panel y vista ampliada.
+- `Ampliar croquis` ocupa la ventana sin Fullscreen API. El fondo queda inerte para
+  teclado; Escape cierra primero el detalle y luego la vista ampliada, restaurando
+  foco y desplazamiento. El estado no persiste tras recargar.
+- Sin cambios al editor, geometría guardada, APIs, inventario ni migraciones.
+  Implementado en `_LocationIndex.cshtml`, `warehouse-map-query.js` y CSS acotado
+  a la consulta. No se inició ni se publicó el servicio.
+- Verificación de la corrección de scroll: 12/12 pruebas de cámara y 2/2 de
+  geolocalización JavaScript; compilación .NET correcta y 20/20 contratos focales.
+- Chrome con HTML generado por WebApplicationFactory y datos en memoria: revisados
+  1366×768, 1024×768 y 768×1024, claro/oscuro, ajuste, selección, vista ampliada,
+  teclado/Escape, búsqueda, WIP y mapa de calor. Es validación de navegador con
+  datos de prueba, no aceptación de la Release ni de tablet física; ambas pendientes.
+
+#### Fase 13.9: consolidación de reportes y mapa de calor integrado — implementada en código; validación visual y física pendiente
+
+- **Mapa de calor** es un modo del croquis compartido de Ubicaciones pública y ADMIN.
+  Reutiliza el mismo SVG, geometría, selección, zoom, desplazamiento y paneles; permite
+  alternar entre ocupación actual y actividad de 7, 14, 30 días o intervalo personalizado.
+  La escala usa todos los racks del croquis y no cambia por búsqueda o paginación. Los
+  racks sin coordenadas permanecen en el detalle tabular.
+- Ocupación agrega primero por producto y posición, considera ocupada una posición si
+  existe algún saldo neto positivo y muestra negativos y bloqueos como indicadores
+  independientes. Actividad cuenta movimientos efectivos distintos por rack; una
+  transferencia que toca dos racks cuenta una vez en cada uno. Un error de consulta se
+  muestra como error y nunca como valor cero.
+- La ruta anterior `/Reports/Heatmap` es únicamente un adaptador: redirige al croquis
+  público o administrativo según el rol y conserva métrica, período, fechas, fila y
+  búsqueda. Sus descargas permanecen compatibles y protegidas para ADMIN; la interfaz
+  duplicada y el acceso separado se retiraron. Kárdex continúa separado de Existencias
+  y conserva la ubicación de contexto cuando se abre desde el detalle de inventario.
+- Cobertura reconoce surtimientos y retornos WIP actuales como transferencias, conserva
+  los registros históricos válidos y clasifica sin redondear: crítico menor de 7 días,
+  bajo de 7 a 14, normal mayor de 14 a 45 y exceso mayor de 45. Antigüedad usa la fecha
+  local de creación del lote; `LotDate` permanece informativa y el último intervalo se
+  denomina **Más de 90 días**. Se conservan las categorías funcionales de estancamiento.
+- Capacidad ejecutiva agrega por producto y ubicación antes de evaluar existencia positiva
+  y negativos. Kárdex desglosa lotes históricos, reconstruye la apertura de todo el
+  historial y mantiene la misma granularidad en pantalla y exportación. Los períodos
+  predefinidos prevalecen sobre fechas anteriores; `custom` usa las fechas y `all` elimina
+  ambos límites.
+- Excel evita fórmulas sobre rangos vacíos; CSV escapa una vez cada campo de metadatos y
+  conserva BOM, defensa contra fórmulas y números nativos. La impresión ejecutiva usa un
+  listener externo compatible con CSP.
+- No se agregaron migraciones, dependencias ni escrituras de inventario. No se inició,
+  detuvo ni desplegó el servicio operativo. La comprobación automatizada, PostgreSQL
+  aislado, navegador y dispositivos físicos se registran por separado en cada entrega.
+- Verificación del 9 de septiembre de 2026: la solución compiló con 0 advertencias y
+  0 errores; aprobaron 79 pruebas de Reporting, incluidas las consultas relacionales
+  contra `warehouse_epi_test`, y 66 pruebas focales de cálculos, rutas, Ubicaciones,
+  exportación y CSP. `node --check` aprobó los dos scripts modificados y
+  `git diff --check` no encontró errores de espacios.
+- El servicio `WarehouseEPI` estaba detenido y no había un listener de desarrollo, por
+  lo que se respetó el límite de no iniciarlo. Quedan pendientes la validación en
+  navegador de ambos temas, teclado, tablet, zoom, selección y diálogo de impresión,
+  además de las pruebas físicas HID, cámara e impresora.
 
 ### Fase 14: PWA y operación sin conexión
 
@@ -1847,6 +2042,15 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
   `OperationalRole.Wip`, pero ahora controlan inventario por producto,
   ubicación y lote. `TracksInventory` se conserva temporalmente en contratos
   como `true`; `IsWip` identifica el rol sin inferirlo a partir del saldo.
+- Los racks físicos también pueden clasificarse completos como WIP desde
+  `Editar rack`. El rol se aplica uniformemente a sus posiciones presentes y
+  retiradas; una posición creada o restaurada hereda el rol del rack. El saldo,
+  las asignaciones y el historial permanecen por pallet exacto, por ejemplo
+  `M-1-1`, y el croquis combina la consulta del rack sin crear una ubicación
+  agregada `M-1`. La migración `20260904120000_AllowRackWip` elimina solamente
+  la restricción que reservaba WIP para áreas; fue verificada en
+  `warehouse_epi_test`, pero permanece sin aplicar en la base operativa hasta
+  su autorización explícita.
 - Entrada, Salida, Transferencia, Ajuste, asignaciones y conteos cíclicos
   admiten WIP con las mismas validaciones operativas que otras ubicaciones.
   `Surtir WIP` crea una transferencia `ProductionIssue` desde rack a WIP y
@@ -1870,7 +2074,103 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
   la suite relevante completa, validación visual de temas/anchos y pruebas
   físicas de tablet, cámara y lector.
 
+## 13.9 Procesos asociados a WIP (implementado en código, pendiente de despliegue)
+
+- El catálogo ADMIN `/Admin/Production/Processes` reutiliza `ProductionStage` como proceso y permite mantener código, nombre, estado y asociaciones WIP. Las rutas de producción consumen el mismo catálogo; los turnos continúan configurándose en la pantalla de rutas.
+- Un proceso puede asociarse a varias áreas WIP, filas completas y racks con posiciones WIP. Las áreas se identifican por `Location.Id`; una fila se identifica sólo por `RowCode` y aplica a todos sus racks, incluidos los de almacenamiento y los creados posteriormente. Los racks directos se configuran una sola vez por fila y número; sólo sus posiciones WIP presentes son destinos de producción.
+- El editor ADMIN de racks permite mezclar posiciones WIP y de almacenamiento. Cada posición conserva su identidad, saldo, placas, asignaciones e historial al reclasificarse; al retirarla físicamente se conserva su función. Si se retira la última posición WIP, se quitan las asociaciones directas del rack y permanecen las heredadas de fila. El croquis y la vista Racks señalan cada función y los racks mixtos.
+- El editor del proceso reúne áreas, filas y racks en un buscador con sugerencias y selección múltiple. Elegir una fila retira asociaciones directas redundantes de sus racks y no admite excepciones individuales. Los vínculos no disponibles siguen visibles para poder retirarlos.
+- La misma relación se edita desde el proceso, desde `Editar área` y desde `Editar rack`. Un contador de versión compartido rechaza ediciones obsoletas; los cambios del rack conservan revisión, motivo, NIP ADMIN e idempotencia.
+- `Editar rack` separa las asociaciones directas editables de los procesos heredados por fila, que son de sólo lectura y enlazan al proceso de origen. Eliminar o reclasificar un rack retira únicamente sus asociaciones directas; la fila permanece configurada para otros racks y para futuras altas.
+- Cambiar una ubicación o rack a una función distinta de WIP retira sus asociaciones. Desactivar un proceso usado en una ruta activa se rechaza. No se eliminan procesos físicamente y las instantáneas de órdenes existentes conservan sus nombres y secuencias.
+- Esta configuración por sí sola no mueve inventario ni atribuye saldos a procesos. La integración operativa opcional con órdenes se implementó después en 13.10.
+- La migración `20260910154113_ProcessWipAssignments`, aplicada en la base local el 10 de septiembre de 2026, creó la revisión de configuración, su auditoría y asociaciones de área o rack. La ampliación para filas completas quedó en la migración incremental `20260910175524_ProcessRowAssignments`, pendiente de aplicar y publicar; no se debe modificar retroactivamente la migración ya registrada.
+
+## 13.10 Material WIP vinculado a órdenes y procesos (implementado en código, pendiente de despliegue)
+
+- `Surtir WIP` permite elegir **Para una orden** o **Surtimiento general**. El modo de orden busca únicamente órdenes liberadas o en proceso y etapas cuyo proceso sea efectivo para el área, rack o fila del destino. El vínculo es opcional, se crea en la misma transacción que `ProductionIssue` y no reclasifica movimientos históricos.
+- `ProductionMaterialIssueLink` relaciona la línea original con la orden y su etapa. `ProductionMaterialOperation` y sus líneas registran consumos, regresos a bodega, devoluciones a proveedor y reversos mediante una cabecera idempotente. El pendiente siempre se deriva como surtido menos operaciones vigentes; no se guarda un total paralelo.
+- La página de la orden muestra Material WIP por proceso y permite confirmar varias líneas con cantidades editables, observaciones y un solo NIP. Registrar avance continúa siendo una acción independiente porque no existe BOM para convertir producto terminado en materia prima consumida.
+- La reserva conserva los lotes recibidos por el surtimiento original. Las operaciones de la orden toman esos lotes; el flujo WIP general calcula saldo total, reservado y libre y asigna FEFO sólo entre lotes libres. Si una cantidad invade una reserva se rechaza y se muestran enlaces a las órdenes que la poseen.
+- Cada vínculo, operación o reverso incrementa la versión de la orden. Los formularios obsoletos, reintentos con contenido distinto y cantidades superiores al pendiente se rechazan. Una confirmación que agrupa varias ubicaciones se ejecuta dentro de una sola transacción.
+- La corrección genérica de consumos o devoluciones vinculados queda bloqueada y dirige al reverso ADMIN de la orden. Un surtimiento sin operaciones posteriores puede corregirse; su vínculo pasa al reemplazo compatible o se retira si sólo se revierte.
+- La migración incremental `20260910185035_ProductionMaterialOrderLinks` crea las tres tablas e índices de vínculo, operación y líneas. Depende de `20260910175524_ProcessRowAssignments`; ambas están pendientes de aplicar. El SQL revisable está en `docs/sql/20260910185035_ProductionMaterialOrderLinks.sql`. No se desplegó ni reinició la aplicación.
+- Verificación actual: compilación Release, contratos JavaScript, 51 pruebas focales de producción/inventario/WIP y una prueba PostgreSQL aislada de material pasan. Siguen pendientes la aplicación de migraciones, la prueba PostgreSQL aislada de esta migración y la validación visual/física en tablet, lector y red local.
+
+## 13.11 Seguimiento visual de producción por lotes (implementado en código, pendiente de despliegue)
+
+- Las recetas ADMIN son versionadas por producto. Pueden comenzar como una lista de materiales con cantidades y etapas todavía pendientes; quedan marcadas como incompletas hasta tener una ruta activa y una etapa válida para cada material. Una orden nueva sólo copia una receta completa y escala el plan contra la cantidad autorizada; editar el catálogo después no cambia la orden.
+- La versión histórica admitía varios lotes por orden. P5 restringe las órdenes nuevas a un único lote de producción; las históricas conservan sus lotes sin admitir nuevos. Cada lote recibe folio y un único `ProductLot` del terminado; todas sus recepciones parciales entran a ese lote de inventario. La etiqueta Code 128 identifica el lote y su reimpresión no crea producción.
+- El resultado por etapa confirma con un NIP las cantidades procesada, buena, retrabajo y merma junto con los consumos reales. Los consumos toman únicamente reservas WIP de la orden, conservan los lotes de materia prima y se guardan con el resultado y sus vínculos dentro de la misma transacción. Un reintento idéntico devuelve la operación previa y uno diferente se rechaza.
+- Las entregas entre procesos quedan identificadas y cada recepción o conciliación señala la entrega concreta. Una etapa posterior sólo puede procesar lo recibido para ese lote. El retrabajo conserva la procedencia previa y sólo agrega material cuando se captura consumo adicional.
+- La orden presenta `Materiales → Procesos → Producto terminado → Bodega`, selector de lote, estados por unidad, pendientes, resultados parciales, procedencia e historial. El listado permite buscar orden, lote o SKU, filtrar por estado, proceso, fecha y alertas, y pagina de 25 en 25. `/Operations/Production/Trace` consulta trazabilidad desde materia prima o terminado.
+- Los ajustes del plan exigen NIP ADMIN y motivo y generan evento auditable. El reverso del resultado conserva el original, revierte sus movimientos de material y exige resolver primero la cadena posterior. El cierre continúa bloqueado por entregas, retrabajo, producto sin destino o material WIP reservado.
+- La migración incremental `20260911125505_ProductionBatchTraceability` agrega recetas, planes, lotes, resultados, consumos y relaciones de eventos. Su SQL revisable está en `docs/sql/20260911125505_ProductionBatchTraceability.sql`. No se aplicó a la base operativa, no se publicó y no se reinició el servicio.
+- La validación automatizada cubre versionado y copia de recetas, límites e idempotencia de lotes, recepción entre etapas, reversos, contratos de interfaz, preservación de una orden anterior al bajar/subir la migración y trazabilidad PostgreSQL con recepciones parciales. La validación visual en laptop/tablet y las pruebas físicas de impresión, HID y cámara siguen siendo actividades separadas.
+- La receta y la primera ruta se administran dentro de `Editar producto`, después de sus datos principales. La ficha resume ruta, etapas y receta activa; `/Admin/Production/Routes` permanece como catálogo general alternativo. La URL anterior `/Admin/Production/Recipes` redirige al listado de productos y conserva los servicios y versiones históricas.
+- Los materiales de receta y la ubicación principal del producto usan el buscador compartido con sugerencias, Enter/HID, selección manual y cámara. Cada página carga una sola instancia del modal; procesos, unidades, tipos y clases permanecen como listas cerradas. Las filas vacías son opcionales; una fila iniciada requiere producto activo y cantidad positiva, mientras la etapa puede quedar pendiente hasta crear la ruta.
+
+## 13.12 Integración integral de órdenes, materiales, WIP y analítica — P1, P2 y P3 implementadas en código; P3 reaplicada, despliegue pendiente
+
+- La especificación funcional y técnica está en `docs/PRODUCTION_ORDER_TRACKING.md`. Define el recorrido desde la creación y liberación de una orden hasta el surtimiento Rack → WIP, consumo por lote, avance entre procesos, recepción del terminado, alertas para bodega y analítica.
+- Cada material conservará su ubicación principal de almacén y podrá tener un WIP predeterminado por proceso. Esta regla se configura una vez en el material; no se repite en cada receta. La receta define cantidad y proceso de incorporación, y la orden copia el destino WIP resuelto para conservar su fotografía histórica.
+- Liberar una orden generará solicitudes identificables de surtimiento. La cola **Surtimientos a producción** mostrará a bodega material, pendiente, prioridad, ubicaciones y lotes sugeridos y WIP de destino. La solicitud no mueve inventario; el traslado real se crea únicamente después de escanear o seleccionar y confirmar con NIP.
+- P1 ya está implementada en código. Crear, Editar y Detalles del producto permiten configurar y auditar una regla por material/proceso; el editor y listado de procesos admiten un WIP predeterminado general. Los destinos válidos son área WIP, rack con al menos una posición WIP operativa o posición exacta; sólo las posiciones WIP pueden resolver un destino de rack. Se validan con las asociaciones actuales o propuestas del proceso. Una referencia que luego queda bloqueada, inactiva, ausente, reclasificada o incompatible se conserva y muestra la causa, sin mover inventario ni elegir otra ubicación.
+- Los cambios P1 exigen NIP ADMIN, motivo, versión esperada e identificador idempotente. Producto y reglas se crean en una transacción; en Editar las reglas tienen formulario independiente. La migración `20260911184026_MaterialWipDefaults`, su SQL revisable y una prueba PostgreSQL aislada acompañan el cambio. La migración P1 no se aplicó a la base configurada y la validación visual/física continúa pendiente.
+- P2 fotografía en cada línea del plan el destino WIP y su origen de resolución. La precedencia es material/proceso, predeterminado general del proceso, único destino concreto y selección manual ADMIN. No sustituye silenciosamente configuraciones inválidas; bloquea la liberación hasta resolver receta, ruta, material, cantidad, proceso y destino. La disponibilidad actual de almacén y WIP es sólo informativa y un faltante no bloquea ni reserva inventario.
+- La revisión de un borrador completa únicamente información ausente: incorpora la primera ruta disponible, después la primera receta completa compatible y finalmente resuelve destinos WIP. También permite una excepción de destino válida con NIP ADMIN, motivo, versión esperada e idempotencia, sin alterar P1. Las órdenes ya liberadas sin fotografía permanecen intactas. La migración `20260914122652_Phase132ProductionPlanningSnapshot`, su SQL revisable y pruebas de resolución, historial, liberación y PostgreSQL acompañan el cambio; no se aplicó a la base configurada y falta validación visual/física.
+- Como complemento UX implementado en código de P2, el listado ADMIN de productos incorpora una fila desplegable de consulta para la receta activa. Muestra versión, cantidad base, materiales, unidades, procesos, destinos WIP efectivos, fuente y estado sin mezclar requerimientos con existencias; tiene carga diferida, una sola expansión y edición únicamente desde la ficha completa. El listado y el handler permanecen bajo `AdminOnly`.
+- Crear producto permite guardar normalmente o continuar a `Receta y materiales`. Editar producto permite guardar primero una lista versionada de materiales sin ruta, crear después la primera ruta con procesos ordenados y NIP ADMIN y asignar las etapas en una versión posterior. Cada handler valida sólo su formulario, por lo que crear ruta no exige reenviar SKU, unidad ni el NIP de receta. Listado y ficha distinguen `Configurar receta`, `Completar receta` y `Editar receta`. La migración `20260914152059_RecipeDraftMaterialStages` vuelve opcional la etapa y su descenso se detiene sin pérdida si existen materiales pendientes; no fue aplicada. Las materias primas pueden permanecer sin configuración de producción y una ruta activa no se sustituye desde este flujo.
+- P3 genera solicitudes al liberar órdenes nuevas, reserva existencia libre por ubicación y lote sin mover inventario y mantiene requerido, cancelado, entregado, pendiente, reservado y faltante por separado. Las órdenes liberadas antes de P3 no se incorporan retroactivamente. La cola **Surtimientos a producción** cuenta órdenes distintas, ordena urgentes y vencidas, permite toma informativa, reserva adicional elegida por bodega y reporte de problemas; ADMIN cambia prioridad o cancela pendientes con NIP y motivo.
+- La salida WIP existente recibe la línea de solicitud y sus versiones, confirma movimiento, vínculo y conciliación de reserva dentro de la misma transacción y rechaza excesos o reservas ajenas. El saldo negativo conserva la advertencia vigente y se permite únicamente sin invadir reservas de otra orden. Pausar conserva solicitudes y reservas y suspende entregas; los cambios de cantidad quedan bloqueados hasta una conciliación posterior.
+- La migración `20260914181154_Phase133ProductionSupplyRequests` está aplicada otra vez en la base configurada desde el 15 de septiembre de 2026. Durante el desarrollo P4, `dotnet ef migrations remove --force` revirtió P3 inesperadamente; se reaplicó inmediatamente el mismo esquema. Las tablas P3 quedaron recreadas y cualquier dato P3 anterior requiere respaldo o WAL para recuperarse. No se publicó ni se reinició el servicio.
+
+## 13.13 Preparación guiada y surtimiento a producción — P4 implementada en código; migración y despliegue pendientes
+
+- `/Operations/ProductionSupply/Prepare` muestra el contexto de una línea, disponibilidad física, reserva propia, reservas ajenas, libre utilizable, preparación guardada, responsable y problemas. Admite varios orígenes de almacén y saldo libre del destino WIP, con captura manual, Enter/HID y cámara; el escaneo identifica y enfoca, pero no confirma.
+- La preparación persiste fuentes, cantidades, destino, responsable, fecha y versión con NIP. Puede recuperarse desde otra tablet, se revalida al continuar y se descarta con NIP y motivo. Guardar no crea movimientos ni nuevas reservas.
+- La confirmación acepta reducciones por origen y ejecuta en una transacción los traslados reales, asignaciones de WIP sin movimiento, lotes, reservas, pendientes, eventos y un registro común que relaciona todos los movimientos y vínculos. Un reintento idéntico devuelve el resultado anterior y contenido distinto produce conflicto.
+- El éxito muestra un comprobante con operación, confirmación, cantidad, pendiente, destino y componentes creados; el handler `Result` recupera el mismo resultado persistido después de una respuesta incierta. Los enlaces P3 con `supplyRequestLineId` redirigen a P4 y los enlaces ambiguos por etapa abren la cola.
+- `ProductionMaterialIssueLink` identifica producto, WIP, cantidad, procedencia, lotes y cantidad anulada. Consumo, disponibilidad, protección WIP, correcciones y trazabilidad aceptan traslados y asignaciones. La asignación libre existente no cambia saldo físico y puede anularse parcialmente con NIP ADMIN sólo mientras siga disponible.
+- El destino ADMIN se conserva por línea, con motivo y evento, sin cambiar entregas anteriores. Las devoluciones a bodega distinguen reposición, que reabre el pendiente sin reserva automática, y sobrante, que no lo reabre. Producción calcula `Material listo en WIP` antes del primer consumo y `Surtimiento completo` después.
+- La migración generada es `20260915143955_Phase134GuidedProductionSupply` y su SQL revisable está en `docs/sql/20260915143955_Phase134GuidedProductionSupply.sql`. Su backfill usa movimientos y cambios de saldo históricos y aborta ante cualquier vínculo o lote inconciliable. **P4 no se aplicó a la base operativa, no se publicó y no se reinició el servicio. Las migraciones se validan por separado en `warehouse_epi_test`.**
+- Verificación actual: compilación Release sin advertencias, modelo EF sin cambios pendientes, sintaxis JavaScript válida, 44 pruebas focales de servicios/UI, 80 pruebas de producción no PostgreSQL y 7 pruebas PostgreSQL de planificación/material ejecutadas secuencialmente. La integración PostgreSQL P4 confirma almacén más WIP en una sola operación y consulta su comprobante persistido. Cubren además confirmación común, reducción al entregar, idempotencia, dos tablets, devoluciones, destino por línea y anulación WIP. La corrida amplia confirmó 573 de 596 pruebas; reportó 22 fallos HTTP 400/antiforgery por fábricas web paralelas y una expectativa de reporte `stagnantCategory=90plus`, fuera del cambio P4. Sigue pendiente la validación visual/física en laptop, tablet, HID, cámara, temas y pérdida de red.
+
+- P5 agrega ejecución integrada y P6 agrega analítica de producción en código; permanece P7 para migración operativa, validación y despliegue. Estas fases preservan reservas, lotes, idempotencia, reversos y el motor de inventario como fuente única.
+
+## 13.14 Ejecución integrada de producción — P5 implementada y verificada en código; despliegue pendiente
+
+- La orden mantiene meta original/vigente y un único lote nuevo; los lotes históricos se conservan. El control de versión impide crear simultáneamente un segundo lote.
+- `/Operations/Production/Execution` reúne cierres, reapertura, revisiones, reservas y solicitudes de retrabajo. OPERATOR confirma el cierre principal; diferencias, retenciones, ajustes, reapertura y cierre definitivo requieren ADMIN. Avances y recepciones posteriores conservan `PrincipalClosed`.
+- Los pendientes de retrabajo conservan resultado original, proceso, lote, cantidades e intentos. El descarte requiere ADMIN y no duplica producto bueno. Los recuperados continúan por la ruta existente.
+- Ajustar fecha/meta/autorizado/materiales conserva valores anteriores/nuevos, invalida preparaciones y concilia solicitudes y reservas. No sustituye materiales ni altera catálogo; no reduce por debajo de cantidades ejecutadas. Antes de cerrar fabricación incompleta, ADMIN debe ajustar la meta.
+- Merma de materia prima se confirma por OPERATOR con NIP y genera salida real desde su WIP reservado. `/Admin/Production/Reasons` incorpora motivos por categoría y Otro con comentario, preservando su descripción histórica.
+- Migración generada: `20260915161501_Phase135ProductionExecution`, sobre P4. Reconstruye retrabajos históricos únicamente desde resultados efectivos con origen inequívoco; aborta ante ambigüedad. No aplica cambios a la base operativa ni recupera datos perdidos de P3.
+- Verificación P5: Release sin advertencias ni errores; EF sin cambios de modelo pendientes; JavaScript y diff correctos. Pasaron 88 pruebas de producción/UI, 10 focales P5, 9 PostgreSQL conjuntas P2/material/P5 y dos comprobaciones finales de cierre/permisos e intentos sucesivos (con solapamiento entre corridas). El SQL está en `docs/sql/20260915161501_Phase135ProductionExecution.sql`. La prueba física y el piloto permanecen pendientes.
+- Permanecen fuera de P5: captura con fecha anterior, sustitución manual, tránsito, analítica/exportaciones P6 y despliegue/piloto P7. Las pruebas aisladas, la migración operativa y la validación física se informan por separado.
+
+## 13.15 Analítica y alertas de producción — P6 implementada y verificada en código; despliegue pendiente
+
+- `/Reports/Production` incorpora vistas ADMIN de órdenes, materiales, retrabajo/merma y registros, con filtros GET, paginación, Excel, CSV e impresión. Su presentación adapta el patrón HermeX Operations UI a Razor Pages, Bootstrap y temas de Warehouse EPI.
+- Cumplimiento significa recepción efectiva de la meta vigente en bodega. Se conserva visible la meta original. Materiales compara consumo efectivo tanto con el plan autorizado como con la receta histórica proporcional a la entrada de primera pasada; retrabajo y desperdicio permanecen separados.
+- Los registros se filtran por fecha real y turno registrado. Originales revertidos y sus reversos permanecen explicables sin duplicar totales efectivos. Unidades distintas no se agregan en una cantidad única.
+- Cada proceso admite umbrales opcionales de inactividad y retrabajo. La edición conserva NIP ADMIN, motivo, versión e idempotencia. Sin umbral se muestra antigüedad sin declarar atraso; las pausas suspenden la alerta de inactividad.
+- La cola pública incluye órdenes en cierre principal con pendientes posteriores y las dirige a Ejecución; responsables, analítica y exportaciones siguen protegidos para ADMIN.
+- Migración generada: `20260916142819_Phase136ProductionAnalytics`; SQL revisable: `docs/sql/20260916142819_Phase136ProductionAnalytics.sql`. Agrega solamente `inactivity_alert_hours`, `rework_alert_hours` y su restricción positiva.
+- Verificación P6: compilación Release sin advertencias, JavaScript válido, 42 pruebas focales de P6/configuración/cola/navegación y 106 pruebas amplias de producción. Cinco pruebas P6 incluyen ejecución de las cuatro consultas en PostgreSQL, cumplimiento por recepción, exportación tipada y sanitizada y rechazo sobre 10,000 filas. No se aplicó la migración a la base operativa, no se publicó el servicio y quedan pendientes navegador, impresión y tablet física.
 ## 14. Contexto breve para pegar en otro chat
+
+### Acuerdos de Order Tracking — 11 de septiembre de 2026
+
+Detalle en `docs/PRODUCTION_ORDER_TRACKING.md`. Son decisiones documentadas; no implican implementación verificada ni despliegue.
+
+- Reservar material para la orden desde la liberación, antes del traslado, mostrando folio y motivo y distinguiendo reserva en almacén de reserva en WIP.
+- Permitir elegir material libre ya existente en WIP, surtimiento completo desde almacén o una combinación. Una reserva ajena requiere reasignación auditada.
+- Permitir ajustes de la orden con valores anteriores, motivo, responsable y fecha, conciliando solicitudes, reservas y operaciones dependientes.
+- Mantener **un solo lote por orden**, sin división opcional: el grupo puede avanzar durante varios días y recibir parcialmente en bodega. Los consumos conservan los lotes de materia prima vinculados al mismo lote terminado; no se identifican piezas individuales.
+- Dedicar registros y analítica a retrabajo y merma. Permitir cierre de fabricación por debajo o por encima de la meta, conservando retrabajo para días posteriores asociado a la misma orden y lote.
+- P3 permite liberar con faltantes, reserva únicamente existencia libre y deja la asignación posterior a una acción de bodega. La toma de una solicitud es informativa y otro operador puede continuar; la concurrencia se resuelve al confirmar. Decisiones confirmadas de P5: cierre principal por OPERATOR con autorización ADMIN de diferencias; retención explícita de reservas; cierre definitivo y reapertura ADMIN; retrabajo en el mismo proceso y descarte ADMIN.
+
 
 ```text
 Estoy desarrollando Warehouse EPI en
@@ -1928,3 +2228,815 @@ sistema, pero su contrato e implementación siguen pendientes. Después quedan e
 piloto físico, conteos/alertas avanzados, PWA/offline, liberación v1.0,
 QuickBooks y paneles LED. No agregues QuickBooks ni LED antes de sus fases.
 ```
+
+#### Navegación modular inspirada en HermeX — 2026-09-15
+
+- Patrón tomado de pos-frontend: navigation/modules.ts, NavMain.vue y
+  ModuleHubLayout.vue. Se adapta a Razor Pages, Bootstrap y SVG existentes;
+  no incorpora Vue, Tailwind ni dependencias remotas.
+- Navigation/ModuleNavigation.cs centraliza módulos, secciones, acciones, iconos,
+  destinos, parámetros y visibilidad. El layout y Pages/Modules/Index consumen
+  el mismo catálogo. Las tarjetas son enlaces normales y funcionan sin JS.
+- Ruta nueva /Modules/{module}. Claves, orden y contenido:
+  - operations: Entrada, Salida, Transferencia, Ajuste y Conteos cíclicos.
+  - production: Surtimientos a producción, Seguimiento de producción y Procesar
+    WIP; ADMIN dispone de Procesos. Órdenes de trabajo permanece disponible por
+    URL para soporte, pero se oculta de la navegación habitual porque el Programa
+    semanal crea sus órdenes y Producción avanzada permite atenderlas.
+  - inventory: Existencias y Ubicaciones (ruta pública o ADMIN según sesión);
+    ADMIN también dispone de Movimientos, Lotes y Centro de excepciones.
+  - labels: Generar etiquetas y Placas de pallet; Diseñar formatos solo ADMIN.
+  - reports: Resumen operativo/Tablero diario, Pendientes con view=pending
+    para ADMIN/Carga de trabajo para público, Analítica de inventario, Kardex y WIP.
+    Los enlaces contextuales Hoy/Gestión/Equipo se conservan.
+  - catalogs (ADMIN): Productos, Tipos, Clases y Unidades.
+  - administration (ADMIN): Usuarios, Estado del sistema y Datos del negocio.
+- Claves desconocidas devuelven 404. Los módulos exclusivos de ADMIN evalúan
+  AdminOnly; ocultan accesos sin sustituir la autorización de los destinos.
+- Recepciones contra documento y Trazabilidad unificada siguen fuera de la
+  navegación modular; sus rutas y funcionalidad permanecen disponibles como antes.
+- Conserva Inicio, cuenta, login/logout, tema, campana, sidebar de 250 px, rail
+  de 72 px, drawer, Escape y cámara. Tarjetas de 96 px mínimos; 1 columna móvil,
+  2 desde 768 px y 3 desde 1200 px, con colores claro/oscuro de EPI.
+- El contador de surtimientos aparece en Producción y su tarjeta de surtimientos.
+  operational-notifications.js comparte una petición por ciclo de 30 segundos,
+  evita solicitudes superpuestas, oculta cero y muestra 99+; ante error conserva
+  el último estado y reintenta en el siguiente ciclo.
+- Implementación sin migraciones ni cambios de API de negocio. No implica arranque,
+  reinicio ni despliegue de la instalación. Validación visual y física pendientes.
+- Verificación de esta implementación: compilación correcta en salida aislada
+  artifacts/module-navigation-validation y 55 pruebas focales aprobadas (módulos,
+  permisos, navegación, CSP, scripts, notificaciones y surtimientos).
+- Comprobación JavaScript ejecutada: petición compartida, exclusión de consultas
+  superpuestas, etiquetas accesibles de ambas representaciones, 99+, cero y pausa
+  con documento oculto; node --check y git diff --check correctos.
+- La revisión amplia inicial de 172 pruebas detectó una expectativa antigua de
+  Ubicaciones en el lateral, corregida y cubierta por la ejecución focal, y dos
+  fallos previos fuera del cambio de navegación: RackOperationsContractTests
+  espera la firma antigua de OnGetAsync y ProductBarcodeAdministrationContractTests
+  espera el marcado anterior de Lotes internos en la ficha de producto.
+- No se encontró una instancia abierta en el navegador disponible. Revisión visual
+  a 390/900/1280 px, claro/oscuro, teclado y prueba física de tablet pendientes.
+  No se inició, detuvo ni desplegó la aplicación y no se aplicaron migraciones.
+
+#### Existencias: rediseño visual de consulta rápida — 2026-09-15
+
+- /Inventory conserva la consulta pública por producto o ubicación: no requiere
+  NIP ni inicio de sesión y no incorpora catálogo general, recetas ni edición.
+  Productos administra el catálogo y sus fichas; Ubicaciones explora la estructura
+  física del almacén; Existencias consulta saldos a partir de un código.
+- Diseño inspirado en la composición sobria de HermeX y consistente con EPI:
+  buscador destacado, superficies neutras, bordes suaves, resumen de identidad,
+  total global por producto y acciones secundarias. Retorno al módulo Inventario
+  desde el layout; se retira el enlace local redundante al Menú operativo.
+- Los cinco filtros y sus contadores conservan su significado, al igual que la
+  paginación de 25 registros. Filas de cuatro columnas desde 992 px; tarjetas con
+  el mismo marcado por debajo. Descripciones completas, códigos monoespaciados
+  y cantidades alineadas con cifras de ancho uniforme.
+- El total global sigue procediendo del modelo, independiente del filtro y la
+  página; no se añade un total que mezcle unidades al consultar ubicaciones.
+  Conserva estados negativos, bloqueo/inactividad, saldo sin asignación,
+  asignación en cero y foco del resultado destacado desde alertas.
+- Cambios limitados a Pages/Inventory/Index.cshtml y css/inventory-index.css.
+  Conserva rutas, campos, atributos de cámara/escaneo, sugerencias, Enter/HID,
+  permisos y enlaces a Kardex/Ficha/Movimientos/Croquis. Sin cambios en
+  operations.js, servicios, modelos, API ni base de datos.
+- Vista inicial solo con encabezado y buscador. Los mensajes existentes siguen
+  distinguiendo código inexistente, código ambiguo y filtro sin resultados.
+- Revisión visual en navegador a 390/900/1280 px y prueba física pendientes;
+  no se inició, reinició ni desplegó la aplicación.
+- Verificación: compilación correcta en artifacts/inventory-ui-validation y 42 pruebas focales aprobadas de Existencias, cámara, módulos, CSP y carga de scripts. Comparación de atributos de captura/filtros/foco/paginación y git diff --check correctos. La revisión estática confirma que el total global se consulta por separado del filtro y la página.
+
+#### Movimientos y Lotes: listados y fichas operativas — 2026-09-15
+
+- Rediseño visual inspirado en HermeX y consistente con Productos/Existencias:
+  encabezados compactos, filtros agrupados, superficies neutras y cantidades
+  legibles. Conserva ADMIN, rutas, parámetros, consultas y acciones protegidas.
+- Movimientos mantiene Vigentes/Auditoría completa, población, período local,
+  zona horaria, filtros rápidos, exportaciones Excel/CSV, paginación y returnUrl.
+  Conserva las distintas columnas de cada población y Generar placa cuando procede.
+- La ficha de movimiento conserva resumen, relaciones, cadena de corrección,
+  líneas/cambios de saldo, eventos, impresión y acciones. Sus ajustes nuevos están
+  dentro de @media screen para preservar las reglas existentes de impresión.
+- Lotes conserva búsqueda, filtros de saldo/fecha, paginación, contador y nota
+  de generación automática. Su ficha presenta número/producto, fecha interna,
+  creación y saldo; separa distribución, movimientos y auditoría de fecha,
+  incluyendo el estado vacío de movimientos relacionados.
+- Corregir movimiento y Cambiar fecha conservan sus formularios y autorizaciones.
+  No añade creación manual de lotes, exportaciones ni impresión de lotes.
+- Reutiliza las hojas CSS locales y añade lot-details.css. Los listados conservan
+  tabla desde 1200 px y tarjetas con el mismo marcado por debajo; las fichas apilan
+  sus bloques y conservan tablas relacionadas. Colores claro/oscuro de EPI,
+  controles de 44 px, códigos completos y ajuste de descripciones.
+- Sin cambios de API, servicios, cálculos, modelos, base de datos o migraciones.
+  No implica inicio, reinicio ni despliegue. Revisión visual a 390/900/1280 px,
+  vista previa de impresión y validación física pendientes.
+- Verificación: compilación correcta en artifacts/movement-lot-ui-validation y 67 pruebas aprobadas de movimientos/lotes, módulos, CSP y carga de scripts. git diff --check correcto. Comparación estática confirma conservación de rutas/handlers/parámetros existentes y del bloque previo de estilos de impresión de movimientos; pendiente comprobación visual real.
+
+#### Crear y Editar producto: composición visual HermeX — 2026-09-15
+
+- Adaptación de las secciones y jerarquía visual de los formularios de Productos
+  de HermeX (`pos-frontend/resources/js/pages/Products/Create.vue` y `Edit.vue`)
+  a Razor Pages y Bootstrap de EPI. Encabezado compacto, superficies neutras,
+  bordes suaves, azul de EPI, foco visible y temas mediante tokens existentes.
+- El mismo formulario general se organiza en Identificación, Clasificación y
+  existencia mínima y Configuración operativa. Campos en dos columnas desde
+  768 px; descripción y ubicación ocupan el ancho completo.
+- Conserva las cuatro pestañas de edición, contadores, cambios pendientes y
+  subpestañas de materiales/ruta. Cuatro pestañas por fila desde 992 px y dos
+  por debajo. Materiales reutiliza sus filas como bloques etiquetados por debajo
+  de 1200 px; WIP apila sus controles por debajo de 992 px.
+- Mantiene guardados independientes, destinos `nextStep=details/production`,
+  validaciones, valores tras errores, desplegable WIP, NIP, búsquedas, cámara,
+  Enter/HID y filtros/paginación de ubicaciones. La barra inferior conserva
+  acciones dentro de su formulario y permite ajuste de botones; pasa al flujo
+  normal con altura de viewport de 500 px o menos para reducir solapamientos.
+- Hoja local `wwwroot/css/product-editor.css`, cargada solamente por Crear y
+  Editar después de los estilos globales. Sin modificaciones de JavaScript,
+  modelos, servicios, API, permisos, base de datos ni migraciones.
+- Compilación y pruebas focales mediante VSTest en salida aislada
+  `artifacts/product-editor-validation`, con `--no-restore -p:UseAppHost=false`.
+  Cobertura: ProductEditorUxContractTests, ProductCatalogTests,
+  ProductProductionConfigurationPageTests, ProductDefaultEntryLocationTests,
+  ProductionWipDefaultsUxContractTests, ModuleNavigationTests,
+  ContentSecurityPolicyContractTests y ScriptLoadingContractTests.
+- Verificación automatizada: 62 correctas, 0 fallidas, 0 omitidas. Inspección
+  de atributos de formularios y `git diff --check` correctos; se conservan
+  handlers y controles existentes. No fue necesario cambiar expectativas.
+- Revisión visual a 390/900/1280 px en claro/oscuro pendiente: el navegador
+  disponible no tenía una sesión abierta de EPI. Teclado, filas dinámicas y
+  cámara requieren comprobación interactiva; tablet, HID y cámara físicos
+  pendientes. No se inició, reinició ni desplegó la aplicación.
+
+#### Centro de excepciones: listado y seguimiento — 2026-09-15
+
+- Rediseño inspirado en la composición sobria de HermeX y consistente con
+  Productos, Existencias y Movimientos. Hoja local `exception-center.css`,
+  cargada en Alerts y Alerts/Details después de los estilos globales; estilos
+  limitados a `.alerts-workspace` y `.exception-detail`.
+- Listado: encabezado compacto, cuatro indicadores existentes (cuatro columnas
+  desde 1200 px, dos por debajo), filtros en tres/dos/una columnas según ancho,
+  filas desde 1200 px y tarjetas por debajo con el mismo contenido. Categoría,
+  prioridad y etiquetas permanecen visibles también en escritorio; referencias
+  y descripciones pueden ajustar línea sin truncarse.
+- Ficha: resumen, motivo, acción recomendada, formulario de seguimiento e
+  historial diferenciados mediante superficies neutras. Motivo/siguiente paso
+  se apilan por debajo de 992 px. Historial descendente completo, con estado
+  vacío específico; conserva formulario sólo para casos no resueltos.
+- Preserva valores de indicadores, fechas/formato, filtros GET, paginación,
+  accesos heredados, `Refresh`/`Update`, campos ocultos, `TargetUrl`, ADMIN,
+  antiforgery y guardado existente. Sin cambios de JavaScript, servicios,
+  modelos, API, reconciliación, campana, base de datos ni migraciones.
+- Validación: compilación correcta en `artifacts/exception-center-validation`
+  y 45 pruebas aprobadas, 0 fallidas, 0 omitidas: contratos del centro y ficha,
+  servicio de excepciones, integración PostgreSQL, módulos, CSP y scripts.
+  Comparación de atributos confirma conservación de controles, rutas y
+  parámetros; `git diff --check` correcto. No se cambiaron expectativas.
+- El servicio conserva validación de nota para espera, responsable activo,
+  resolución automática, idempotencia y concurrencia por inspección del código.
+  La suite existente no cubre todas las variantes de POST de seguimiento;
+  la comprobación interactiva de esos casos permanece pendiente.
+- Revisión visual a 390/900/1280 px en claro/oscuro, teclado y validación física
+  pendientes: el navegador disponible no tenía una sesión abierta de EPI.
+  No se inició, reinició ni desplegó la aplicación.
+
+#### Ubicaciones y fichas públicas/ADMIN: diseño HermeX — 2026-09-15
+
+- Composición visual consistente con Productos, Existencias y Movimientos.
+  El listado compartido conserva Croquis/Racks/Tabla y sus variantes públicas
+  y ADMIN, con encabezado compacto, indicadores neutros, filtros agrupados,
+  navegación con aria-current y etiquetas visibles. Tabla usa filas desde
+  1200 px y tarjetas por debajo con el mismo marcado.
+- Croquis y Racks conservan geometría, colores operativos, métricas, selección,
+  filtros temporales, paneles, zoom y enlaces. Sólo cambian superficies de
+  herramientas/paneles y tipografía; no se modificaron sus scripts.
+- Fichas: encabezado por código, resumen operativo y secciones de saldos,
+  posiciones y asignaciones. ADMIN conserva asignación de otro producto y
+  movimientos recientes. Bloques apilados por debajo de 1200 px y tablas
+  etiquetadas por debajo de 768 px; códigos/descripciones pueden ajustar línea.
+- Hojas locales locations-index.css y location-details.css, limitadas a sus
+  contenedores y a medios de pantalla, cargadas por las páginas públicas y
+  ADMIN. Sin cambios globales ni en editores, generación o impresión.
+- Comparación de atributos confirma conservación de formularios, handlers,
+  campos, rutas, parámetros y enlaces; se añaden etiquetas y carga de CSS.
+  Sin cambios en API, modelos, servicios, cálculos, permisos o base de datos.
+- Compilación correcta en artifacts/locations-ui-validation. Pruebas focales:
+  63 aprobadas, 1 fallida, 0 omitidas (64 en total), incluyendo ubicaciones,
+  fichas, racks, impresión, operaciones, navegación, CSP y scripts.
+  El fallo RackOperationsContractTests.Operation_get_validates_prefill_without_changing_post_contract
+  espera `Task OnGetAsync(Guid? productId` en OperationPageModel.cs, mientras
+  el código operativo existente usa Task<IActionResult>. Ese archivo ya tenía
+  cambios locales ajenos a este rediseño y no se modificó ni se ajustó la prueba.
+- git diff --check correcto. Revisión visual a 390/900/1280 px en claro/oscuro,
+  teclado, modal/paneles y validación física pendientes: el navegador disponible
+  no tenía una sesión abierta de EPI. No se inició, reinició ni desplegó la app.
+
+#### Reportes: claridad visual HermeX, primera etapa — 2026-09-15
+
+- Tablero diario/Resumen operativo Hoy y las vistas de Analítica de inventario
+  mantienen sus datos, filtros, rutas y permisos. Superficies neutras, controles
+  de 44 px, foco visible y jerarquía consistente con los rediseños anteriores.
+- Tablero: indicadores separados por atención/actividad, gráfica y detalle
+  en dos columnas desde 992 px, apilados por debajo. Se conservan selección,
+  fallback, datos, actualización, caché, errores y el JavaScript existente.
+  El código actual ya contenía comparación operativa; se preservó íntegramente,
+  sin añadir comparaciones ni alterar cálculos como parte de este rediseño.
+- Analítica: barras HTML nativas mediante meter en ocupación, antigüedad y
+  cobertura. Valores procedentes exclusivamente de summary; escala visual
+  compartida por grupo respecto del mayor conteo, con mínimo técnico de 1
+  cuando todos son cero. No son porcentajes, rankings ni totales de la página.
+  Categorías independientes; se mantienen etiquetas/valores sin JavaScript.
+- Filtros de antigüedad/cobertura preceden sus resúmenes; exportaciones
+  secundarias conservan handlers y parámetros. Tablas con etiquetas añadidas
+  y filas apiladas por debajo de 1200 px. Indicadores en una/dos/cuatro columnas
+  según ancho. Se conservan casos sin fecha, sin consumo, agotados, negativos,
+  unidades y distinción entre permanencia y caducidad.
+- Cambios limitados a la vista de analítica y las hojas locales existentes
+  dashboard-index.css/reports-inventory-index.css. Sin cambios de servicios,
+  API, DTOs, exportadores, permisos, zona horaria, base de datos ni migraciones.
+- Compilación y 81 pruebas aprobadas, 0 fallidas, 0 omitidas, con salida aislada
+  artifacts/reports-visual-validation y --no-restore -p:UseAppHost=false.
+  Filtro: Dashboard, InventoryAnalytics, ReportExportServiceTests,
+  ModuleNavigationTests, ContentSecurityPolicyContractTests y
+  ScriptLoadingContractTests. Incluye integración PostgreSQL. Comparación de
+  atributos GET/exportación y git diff --check correctos; sin cambios de tests.
+- Revisión visual a 390/900/1280 px en claro/oscuro, interacción del gráfico,
+  teclado y prueba física pendientes: navegador disponible sin sesión EPI
+  abierta. No se inició, reinició ni desplegó la aplicación.
+
+#### Reportes etapa 2: Gestión / Resumen ejecutivo — 2026-09-15
+
+- Rediseño visual local de /Reports/Executive, manteniendo Hoy/Gestión/Equipo,
+  ADMIN, situación actual, actividad del período y zona horaria. Acciones de
+  impresión/Excel secundarias; secciones con superficies neutras, acento azul,
+  estados textuales, controles de 44 px y foco visible.
+- Salud del inventario en una/dos/cuatro columnas a 0/768/1200 px. Tablas de
+  productos apiladas por debajo de 1200 px y filas con etiquetas por debajo
+  de 768 px; se conservan orden, cantidades, unidades, enlaces y estados vacíos.
+- Períodos rápidos con aria-current; explicación junto al selector de que sólo
+  modifica actividad/comparación. Referencia anterior visible en comparaciones,
+  conservando valores anteriores, deltas, porcentajes y Sin base anterior.
+- Barras nativas meter por tipo de movimiento, con valores existentes y escala
+  visual respecto del mayor conteo (mínimo técnico 1 cuando todos son cero).
+  No representan cantidades físicas ni valoraciones favorables/desfavorables.
+- Vista ejecutiva y executive-report.css modificados; sin cambios de JavaScript,
+  servicios, DTOs, cálculos, API, exportadores, base de datos o migraciones.
+  Los estilos CSS originales se conservaron completos; nuevos ajustes en
+  @media screen y ocultación específica al imprimir de barras/notas visuales.
+  Encabezado impreso, cifras, metadatos y metodología se conservan.
+- Compilación correcta en artifacts/executive-ui-validation con --no-restore
+  -p:UseAppHost=false. Filtro: ExecutiveReport, ReportExportServiceTests,
+  ModuleNavigationTests, ContentSecurityPolicyContractTests y ScriptLoadingContractTests.
+  Resultado: 55 aprobadas, 1 fallida, 0 omitidas (56 en total).
+- Fallo preexistente confirmado en HEAD:
+  ExecutiveReportServiceTests.Executive_report_consolidates_inventory_capacity_and_flow_correctly
+  espera stagnantCategory=90plus, mientras StagnantUrl ya dirige a
+  /Admin/Inventory/Alerts?category=StagnantInventory. Servicio y prueba intactos;
+  no se cambió una expectativa ajena al marcado para ocultar el fallo.
+- Comparación de atributos confirma conservación de rutas, parámetros GET,
+  exportación y botón de impresión. git diff --check correcto.
+- Revisión visual a 390/900/1280 px claro/oscuro, teclado, vista previa de
+  impresión multipágina y validación física pendientes: navegador disponible
+  sin sesión EPI abierta. No se inició, reinició ni desplegó la aplicación.
+
+#### Reportes etapa 3: Pendientes / Carga de trabajo / Equipo — 2026-09-15
+
+- Rediseño de la vista compartida /Reports/Workload con hoja local
+  workload-report.css, limitada a .workload-page y medios de pantalla.
+  Encabezados compactos, superficies neutras, filtros agrupados, foco visible,
+  controles de 44 px y estilos mediante tokens de EPI.
+- Pendientes conserva producción, conteos y excepciones ADMIN, búsqueda,
+  contadores totales, estados, vencimientos, referencias, cantidades y acciones
+  TargetUrl/ActionLabel. Filas continuas en escritorio y bloques apilados por
+  debajo de 1200 px. Resúmenes en una/dos/tres columnas según ancho.
+- Actividad realizada/Equipo conserva períodos, franjas, tipo, filtros ADMIN,
+  desgloses, actividad diaria, comparación de responsables y paginación.
+  Períodos rápidos con aria-current; tablas con etiquetas por debajo de 1200 px.
+  Se conserva la aclaración de que volumen no equivale a productividad.
+- Público mantiene ausencia de identidades de responsables y excepciones ADMIN.
+  Sin cambios en servicios, modelos, métricas, API, permisos, JavaScript,
+  exportadores, base de datos o migraciones. Comparación de atributos confirma
+  rutas, filtros, nombres y enlaces conservados; sólo se añade el enlace CSS.
+- Compilación correcta en artifacts/workload-ui-validation con --no-restore
+  -p:UseAppHost=false; 55 aprobadas, 0 fallidas, 0 omitidas. Filtro Workload,
+  WorkQueue, ReportExportServiceTests, ModuleNavigationTests,
+  ContentSecurityPolicyContractTests y ScriptLoadingContractTests. Incluye
+  privacidad pública, límites/búsqueda de cola, franjas y exportaciones Excel/CSV.
+  git diff --check correcto; expectativas de pruebas sin cambios.
+- Revisión visual a 390/900/1280 px claro/oscuro y validación física pendientes:
+  navegador disponible sin sesión EPI abierta. No se inició, reinició ni desplegó.
+
+#### Reportes etapas 4 y 5: Kardex y WIP — 2026-09-15
+
+- Adaptación del patrón visual de HermeX a Razor/Bootstrap y tokens EPI:
+  encabezados compactos, filtros neutros, superficies delimitadas, cantidades
+  alineadas con cifras uniformes, controles de 44 px y foco visible.
+- Kardex carga kardex-report.css exclusivamente en su contenedor .kardex-report.
+  Conserva estado inicial, búsqueda/sugerencias, ámbito global o ubicación,
+  saldos, desgloses, fórmula, cronología, agrupación y continuidad entre páginas.
+  Filas etiquetadas por debajo de 1200 px; saldos iniciales, continuación,
+  correcciones y celdas combinadas mantienen sus relaciones y desplegables.
+- WIP reutiliza wip-report-index.css y el marcado existente del parcial:
+  inventario actual, actividad efectiva y estimaciones históricas permanecen
+  separados, con tablas/filas adaptables sin duplicar datos ni sumar unidades.
+- /Reports/Wip/Details conserva el historial legado de solo lectura; los
+  movimientos actuales siguen abriendo sus enlaces existentes. Nueva hoja
+  wip-report-details.css, metadatos en cuadrícula, resumen en una/dos/cuatro
+  columnas a 0/768/1200 px y unidad del surtimiento junto a las cuatro cantidades.
+  Devoluciones, compensaciones, estados y filas históricas íntegros.
+- Ajustes limitados a vistas y CSS local de pantalla; JavaScript, consultas,
+  servicios, DTOs, cálculos, permisos, exportadores y base de datos sin cambios
+  por este rediseño. Comparación de atributos confirma contratos conservados;
+  no se modificaron expectativas de pruebas ni estilos de impresión.
+- Compilación correcta con --no-restore y -p:UseAppHost=false en
+  artifacts/kardex-wip-ui-validation. Verificación final: 71 aprobadas,
+  0 fallidas, 0 omitidas. Filtro Kardex, Wip_report, WipExitFlowContractTests,
+  ReportExportServiceTests, ModuleNavigationTests,
+  ContentSecurityPolicyContractTests y ScriptLoadingContractTests; incluye
+  integración PostgreSQL de Kardex/WIP y exportaciones. Registro local:
+  artifacts/kardex-wip-validation.log.
+- La selección inicial amplia de Wip obtuvo 95 aprobadas y 6 fallidas:
+  incluyó pruebas de migraciones que bajan la versión del esquema compartido,
+  causando ausencia de products.default_entry_location_id. La ejecución focal
+  de reportes anterior aprobó sin alterar servicios ni la base operativa.
+- Revisión visual a 390/900/1280 px en claro/oscuro, teclado, textos largos y
+  cantidades grandes pendiente: navegador disponible sin sesión EPI abierta.
+  Validación física HID/tablet pendiente. Implementado en código; no se inició,
+  reinició ni desplegó la aplicación y no se aplicaron migraciones operativas.
+
+#### Importador de productos: comparación y actualización manual — 2026-09-16
+
+- La pantalla existente `/Admin/Catalogs/Products/Import` permite elegir entre
+  agregar y actualizar o conservar el modo anterior de solo agregar nuevos.
+- Se admite `ITEM LISTING` con `ITEM (COMPLETE)`, además de `ITEMS` con
+  `COMPLETE PART #`. Si ambas hojas están presentes, se utiliza `ITEMS`.
+- Vista previa de altas, cambios campo por campo (actual/propuesto), productos
+  sin cambios e incidencias; filtros y paginación de 25. Confirmación ADMIN,
+  antiforgery y token de un solo uso, ligado al autor y vigente 30 minutos.
+- En modo actualización se conservan celdas vacías y productos ausentes; solo se
+  escriben descripción, referencia, clase y unidad. Estado, mínimos, tipo,
+  ubicación, inventario y producción permanecen intactos. Una unidad escrita pero
+  desconocida y cambio de unidad con movimientos omiten la fila. U/M vacía usa
+  Sin asignar en altas y conserva la unidad en productos existentes.
+- El lector consolida duplicados compatibles y omite grupos contradictorios,
+  tomando el valor no vacío de cada campo cuando el otro está vacío. Las filas válidas
+  pueden confirmarse con incidencias; estructura inválida bloquea el archivo.
+- Antes de guardar se revisan nuevamente valores, catálogos y movimientos.
+  PostgreSQL coordina esa comprobación y escritura con bloqueo transaccional
+  breve de las tablas afectadas. No hay conexión Microsoft ni bloqueo permanente
+  de edición local. No se conserva el Excel ni se agrega un historial persistente.
+- No requiere una migración nueva. No se aplicaron datos a la base operativa,
+  ni se inició/reinició o desplegó el servicio. Revisión visual en navegador y
+  prueba transaccional real de esta ampliación en PostgreSQL pendientes.
+- Verificación Release: 54 pruebas aprobadas, 0 fallidas, 0 omitidas, incluyendo
+  lectores, servicio, HTTP con antiforgery, conservación de vacíos/estado/mínimos,
+  rechazo de vista previa desactualizada y unidad con movimientos. Se excluyó
+  la prueba previa de paginación general que espera 2 páginas para 60 productos
+  aunque el catálogo ya pagina de 25 en 25. La validación HTTP usa EF InMemory.
+- Ajuste posterior: las clases inexistentes se muestran como nuevas en la vista
+  previa y se crean activas al confirmar, con código normalizado como nombre,
+  una por código y en la misma transacción que los productos. Las clases
+  inactivas no se duplican ni reactivan. Aplica a ambos modos de importación.
+- Resolución manual de U/M: la vista previa ofrece un selector de unidades
+  activas para cada valor desconocido o de formato inválido (p. ej.
+  Sq. Foot:SQFT). POST con antiforgery y autor del token; recalcula sin escribir
+  productos, invalida la vista previa anterior y exige confirmar la nueva.
+  La selección solo afecta a ese archivo y no convierte cantidades.
+- Duplicados: descripción, referencia, clase y unidad se completan con el único
+  valor no vacío disponible. Dos valores no vacíos diferentes conservan el
+  conflicto. Se registran todas las filas consolidadas; no se elige por parecido.
+- Verificación de selector y consolidación: 39 pruebas aprobadas en dos tandas
+  (38 de importación/lector y 1 HTTP del selector con antiforgery). Separadas
+  para no exceder el límite ADMIN de 10 POST/minuto del host de pruebas;
+  el primer pase conjunto alcanzó ese límite y devolvió HTTP 429. Compilación
+  Release y diff --check correctos. Sin despliegue ni importación operativa.
+- Resolución de duplicados en vista previa: cada SKU contradictorio muestra
+  selectores para descripción, referencia completa, clase o unidad cuando hay
+  varios valores no vacíos. El usuario elige entre valores del archivo; el
+  servidor valida autor, vigencia, SKU y opciones. Los campos complementarios
+  se conservan automáticamente. Resolver genera un token nuevo, invalida el
+  anterior y vuelve a validar catálogo/unidades/movimientos antes de confirmar.
+  No se escribe el Excel ni se guardan productos durante la resolución.
+- Verificación de resolución de duplicados: compilación Release correcta,
+  36 pruebas de lector/servicio y 1 HTTP del selector aprobadas. Incluye elección
+  de referencia completa, campos complementarios, rechazo de valor falsificado
+  y otro autor, invalidación del token anterior, antiforgery y ausencia de
+  escrituras antes de confirmar. Sin despliegue; revisión visual pendiente.
+
+#### Etiquetas: generación y placas de pallet — 2026-09-16
+
+- Rediseño de /Operations/Labels y /Operations/PalletLabels inspirado en la
+  composición sobria de HermeX y adaptado a Razor/Bootstrap de EPI. Hoja local
+  labels-workspace.css cargada después de label-4x6.css, con reglas únicamente
+  de pantalla y contenedor .labels-workspace; variantes de generación y placas.
+- Generador: selector neutro, producto y datos en dos columnas desde 992 px,
+  campos en dos desde 768 px, secciones visibles y acción al final. Producto,
+  descripción y unidad completos, sin modificar búsqueda, HID/Enter, foco,
+  campos dinámicos, valores, validaciones ni límite de 1 a 100 copias.
+- Placas: metadatos en una/dos/cuatro columnas, datos de impresión agrupados,
+  recientes como filas desde 1200 px y tarjetas por debajo, destino destacado,
+  texto completo y selección con aria-current. Se preservan las ocho entradas,
+  orden, elegibilidad, rutas UUID/PLT/id y condiciones de visibilidad.
+- Vista previa debajo de captura, barra de impresión adaptable y controles de
+  captura con mínimo de 44 px. No se alteran lienzo, ampliación de código,
+  SVG, dimensiones físicas, saltos, márgenes ni contenido impreso. La ampliación
+  conserva su disparador dentro del código y su comportamiento existente.
+- Comparación literal confirma artículos imprimibles idénticos y conservación
+  de IDs, nombres, atributos data-*, formularios y parámetros Razor. JavaScript,
+  label-4x6.css, PageModels, servicios y plantillas sin cambios en esta tarea.
+  No se agrega data-label-workspace a Placas ni se cambian acceso público, NIP,
+  persistencia, API o base de datos. Administración de formatos fuera de alcance.
+- Revisión visual 390/900/1280 px claro/oscuro y vista previa de impresión
+  multipágina pendientes: navegador disponible sin pestañas EPI; conexión a
+  localhost:5142 rechazada. Validación física de impresora, escala, márgenes y
+  lectura HID/Code 128 pendiente. No se inició, reinició ni desplegó la aplicación.
+- Compilación correcta en artifacts/labels-ui-validation con --no-restore y
+  -p:UseAppHost=false. Resultado focal: 78 aprobadas, 1 fallida, 0 omitidas.
+  Incluye LabelRouteTests, LabelEditorContractTests, LabelDesignTests,
+  ExcelLabelTemplatePresetTests, PalletLicensePlate, Barcode, ModuleNavigation,
+  ContentSecurityPolicyContractTests y ScriptLoadingContractTests.
+- El filtro Barcode incluyó ProductBarcodeAdministrationContractTests:
+  falla en línea 21 al exigir el antiguo marcado de Lotes internos en la ficha
+  de Producto, modificado por un rediseño previo. Archivo y prueba ajenos a esta
+  implementación; no se alteraron para ocultar el fallo. Las pruebas HTTP de
+  etiquetas conservan su fallback preexistente para un host que devuelve 400;
+  su aprobación por sí sola no acredita todos los escenarios en navegador.
+- git diff --check correcto. No se actualizaron expectativas de pruebas.
+
+#### Administración: Usuarios, Sistema y Datos del negocio — 2026-09-16
+
+- Adaptación visual de HermeX a las cinco vistas ADMIN existentes: listado,
+  Crear/Editar usuario, Estado del sistema y Datos del negocio. Se conservan
+  retorno modular, acciones, permisos, campos y guardados actuales.
+- Usuarios reutiliza users-index.css: tabla desde 1200 px y tarjetas con
+  etiquetas por debajo, nombre/rol completos, contador y estados actuales.
+- Crear/Editar comparten admin-forms.css, limitada a .admin-form-workspace:
+  fieldsets de identificación/rol, NIP y estado; confirmación en dos columnas
+  desde 768 px; acciones apilables, controles de 44 px y foco visible. No se
+  modifica captura de contraseña, autofocus, validación ni protecciones ADMIN.
+- Datos del negocio separa identidad, configuración horaria, alertas y logo
+  dentro del mismo formulario multipart y guardado; conserva límites, formatos,
+  sugerencias de zona, eliminación condicional del logo y mensajes existentes.
+- Sistema reutiliza system-status.css: tres tarjetas desde 992 px, una debajo;
+  conserva valores, barras, fechas locales actuales y fallos sanitizados.
+  Fallos como tabla desde 1200 px y filas etiquetadas por debajo, sin duplicar.
+- No hay cambios de JavaScript, PageModels, servicios, seguridad NIP, métricas,
+  API, almacenamiento, base de datos o migraciones. Se mantienen los estilos
+  globales y los cambios locales ajenos. No se alteraron expectativas de pruebas.
+- Revisión visual 390/900/1280 px claro/oscuro, teclado, errores, nombres y
+  correlaciones largas pendiente; no hay sesión EPI en el navegador disponible
+  y localhost:5142 rechazó la conexión en la revisión de esta sesión.
+  Validación física pendiente. No se inició, reinició ni desplegó la aplicación.
+- Compilación correcta en artifacts/admin-ui-validation con --no-restore y
+  -p:UseAppHost=false. Primera selección: 54 aprobadas, 4 fallidas, 0 omitidas;
+  AdminRouteTests, UserPinServiceTests, PinProtectorTests, WarehouseSettingsTests,
+  SystemStatus, ModuleNavigationTests, CSP y carga de scripts. ObservabilityTests
+  ejecutadas adicionalmente contra esa compilación: 7 aprobadas. Total: 61
+  aprobadas y 4 fallidas; no se declaran aprobadas las comprobaciones HTTP.
+- Los cuatro fallos están en AdminRouteTests: GET / devuelve 400 (cabeceras y
+  acceso público), GET /Admin/Login devuelve 400 (limitación de intentos) y no
+  se encuentra token antiforgery (inicio ADMIN). Fallan antes de comprobar las
+  pantallas rediseñadas; origen exacto del rechazo HTTP no resuelto en esta tarea.
+  No se cambiaron host, autenticación ni pruebas para ocultar ese resultado.
+- Comparación estática confirma conservación de atributos de campos, formularios,
+  identificadores y rutas en las cinco vistas. git diff --check correcto.
+  Pruebas de seguridad NIP, zona horaria y sanitización aprobadas; queda pendiente
+  la comprobación interactiva completa de altas/ediciones, protecciones ADMIN,
+  logo válido/inválido/eliminación y estados del diagnóstico en instancia real.
+
+## 2026-09-17 — Seguimiento operativo de license plates
+
+Se añadieron placas persistentes, composición por lote, eventos y reversos y activación documental con NIP. Los formularios operativos no capturan ni crean pallets: entradas y recepciones dejan saldo sin placa. `/Operations/PalletLabels` centraliza la identificación por ubicación, producto y cantidad libre sin solicitar NIP; el evento conserva responsable nulo y se presenta como `Sin identificación de operador`. La pantalla muestra desde su carga inicial los 10 movimientos auditables más recientes de todo el almacén y usa exclusivamente la plantilla publicada `PLT-LICENSE-PLATE` para creación, previsualización y reimpresión. La identificación excluye reservas, preparaciones abiertas y material WIP perteneciente a órdenes, y permite anulación ADMIN con NIP de una identificación sin dependencias. Salidas, transferencias, producción y WIP toman placas por antigüedad antes del saldo sin placa; en transferencias solamente la porción identificada puede conservarse, dividirse o unirse, mientras la porción sin placa permanece sin placa. Conteos y ajustes conservan las placas y llevan la diferencia al saldo sin placa. Consulta, historial, activación histórica e impresión permanecen visibles. Migraciones existentes: `20260917162528_OperationalPalletTracking` y la aditiva no aplicada `20260918173248_AllowAnonymousPalletIdentification`; no se aplicaron a la base operativa ni se desplegó el servicio. Guía y límites de aceptación: [PALLET_TRACKING.md](PALLET_TRACKING.md). Las pruebas usan bases temporales; navegador y dispositivos requieren aceptación separada.
+
+## 2026-09-21 — Cantidad íntegra y búsqueda bidireccional de placas
+
+- El ajuste automático trabaja sobre la placa positiva vigente: el total físico contado reemplaza su cantidad y queda enlazado al movimiento para reverso, historial e impresión. Un ajuste de 46 a 50 imprime 50 y no identifica solamente la diferencia de 4.
+- La identificación reutiliza la placa positiva del producto y ubicación. Los duplicados históricos sin reservas se consolidan de forma idempotente sobre la placa más antigua, agotando las secundarias con eventos antes/después; los casos con reservas o preparaciones se bloquean.
+- **Imprimir placa** desde una entrada, ajuste o salida resuelve la placa actual. Los movimientos antiguos sin vínculo usan producto y cambios de saldo; cualquier normalización se ejecuta por POST con antiforgery, nunca durante un GET.
+- La búsqueda de `/Operations/PalletLabels` puede comenzar por producto o ubicación y reutiliza el patrón operativo de resultados seleccionables. El segundo lado se limita a combinaciones con stock positivo y conserva fallback GET, Enter/HID y controles táctiles.
+- No se agregó migración. El servicio no se desplegó y la validación física en navegador, tablet, HID e impresora permanece pendiente.
+
+## 2026-09-18 — Base bilingüe y conversión de textos de pantallas
+
+- Trabajo orquestado con tres agentes por áreas, conservando el árbol de trabajo
+  previo. Se conectaron 114 vistas/parciales Razor a `IStringLocalizer<T>` y cuatro
+  catálogos: Shared 171, Operations 565, Production 462 y Catalog 1,595 entradas;
+  total 2,793 pares de texto español/inglés (hay términos compartidos entre módulos).
+- Selector ES/EN en el menú, persistido por navegador mediante cookie propia.
+  POST protegido por antiforgery, idiomas admitidos explícitos y retorno local.
+  Español inicial; la cultura operativa existente se conserva y solo cambia la
+  cultura de interfaz. No modifica valores POST, claves de dominio ni datos humanos.
+- Inicio, navegación, controles comunes y mensajes de scripts compartidos convertidos.
+  Los scripts reciben un diccionario pequeño en un atributo HTML codificado;
+  no se agrega JavaScript inline ni dependencias externas.
+- Se adaptaron las expectativas estáticas de pruebas para los textos que ahora
+  proceden de recursos, manteniendo comprobaciones de rutas, atributos y acceso.
+- Compilación final correcta. Comando de validación:
+
+  `dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --no-restore -p:UseAppHost=false --filter 'FullyQualifiedName~Localization|FullyQualifiedName~ContractTests|FullyQualifiedName~ModuleNavigationTests' --logger 'trx;LogFileName=localization-final.trx' --results-directory artifacts/localization-tests --verbosity minimal`
+
+- Resultado final: Passed: 204, Failed: 1, Skipped: 0. Las 28 pruebas de localización
+  pasaron: recursos/argumentos, claves duplicadas, cookies, idiomas inválidos,
+  redirecciones locales, antiforgery, render ES/EN, persistencia del selector y
+  conservación de cultura numérica (es-MX, fr-FR e invariante).
+- Fallo ajeno a esta conversión: `RackOperationsContractTests.Operation_get_validates_prefill_without_changing_post_contract`
+  aún busca `Task OnGetAsync(Guid? productId`; el `OperationPageModel` previamente
+  modificado declara `Task<IActionResult> OnGetAsync`. No se cambió ese método ni
+  se relajó esa prueba en esta tarea. Resultado detallado en
+  `artifacts/localization-tests/localization-final.trx`.
+- El host de las nuevas pruebas fija `AllowedHosts=localhost`, evitando el rechazo
+  HTTP 400 observado al heredar configuración local. No cambia AllowedHosts de la
+  instalación ni el factory compartido de las pruebas anteriores.
+- `node --check` correcto para site.js y operational-notifications.js. Catálogos
+  sin colisiones de claves y `git diff --check` correcto.
+- Alcance pendiente de la versión inglesa integral: mensajes generados por
+  PageModels/servicios y respuestas JSON, textos de scripts específicos, listas
+  generadas en backend y encabezados de exportaciones/documentos. Se conservan
+  los datos humanos/históricos. Guía: [LOCALIZATION.md](LOCALIZATION.md).
+- Implementado en código; revisión visual en navegador y validación física
+  tablet/HID/cámara/impresión pendientes. No se inició la aplicación operativa,
+  no se aplicaron migraciones ni se desplegó una Release.
+
+### 2026-09-21 — Corrección de configuración, semanas e idioma en producción diaria
+
+- `ProductionDailySetup` propone sólo coincidencias únicas entre procesos/turnos
+  activos. Las asociaciones se guardan exclusivamente por acción ADMIN, con la
+  versión esperada existente. Captura muestra T1/T2 en ese orden y bloquea UI y
+  POST si la configuración está incompleta o contiene asociaciones inactivas.
+- Programa inicializa el lunes mediante `WarehouseClock`, conserva el valor de
+  creación después de errores y prioriza semana actual, última abierta y última
+  disponible. Hay estados vacíos descriptivos, selector más ancho y mensajes
+  para identificadores inexistentes. Ningún GET crea semanas ni catálogos.
+- Captura, Balance, Programa, Importación y título de Producción avanzada usan
+  `ProductionTexts`; las nuevas tarjetas usan `SharedTexts`. Mensajes variables
+  se adaptan en `ProductionDailyText` mediante plantillas y argumentos. SKU,
+  catálogos, notas, referencias, historial y formato Excel permanecen intactos.
+- Días de semana siguen el idioma de interfaz; fechas enviadas, punto decimal,
+  selección `ProductId` y Enter conservan sus contratos. JavaScript recibe el
+  texto sin descripción por atributo de datos codificado por Razor.
+- Verificación: compilación aislada y 61 pruebas focales de producción diaria y
+  localización; 2 pruebas JavaScript del buscador ES/EN. Incluye renderizado HTTP
+  ES/EN, domingo en la zona del almacén, fecha conservada, creación explícita,
+  configuración guardada, turno inactivo, importación inválida y paridad de recursos.
+- Implementado en código. Sin migración nueva/aplicada, importación operativa ni
+  despliegue. Anchuras revisadas en CSS; revisión visual de navegador, temas y
+  tablet física pendiente. No se reinició la aplicación ni el servicio.
+
+### 2026-09-21 — Resolver bloqueos desde el importador del programa diario
+
+- `/Admin/Production/Routes`: el alta de turno ya no se invalida por los campos
+  del formulario de ruta (fallback de prefijo vacío del model binding) y la
+  página lista los turnos registrados.
+- `/Admin/Production/ScheduleImport` ofrece la tarjeta **Resolver bloqueos**
+  sobre el mismo archivo (token de 30 min, sin volver a subirlo):
+  configuración diaria (Corte/Costura/Ready to Pack/T1/T2, con las sugerencias
+  de `ProductionDailySetup`, guardada con `ConfigureAsync` como en Programa);
+  vínculo por texto para áreas, turnos y SKU sin resolver; corrección de
+  cantidad o fecha, u **Omitir fila**, en filas con datos inválidos (máximo 100
+  por validación). **Aplicar y volver a validar** y **Descartar soluciones**.
+- Los vínculos y correcciones valen solo para esa importación: no crean alias
+  de catálogo ni modifican el Excel. `ProductionScheduleImportService` los
+  recibe como `ProductionScheduleImportResolutions`, resuelve `ProductId` en la
+  previsualización y registra lo aplicado en
+  `production_schedule_import_batches.resolution_summary` (huella de la
+  operación incluye el resumen).
+- Un turno reconocido (Shift 1/2, T1/T2, Turno 1/2) sin configuración diaria ya
+  no genera un bloqueo por fila; lo cubre el bloqueo único de configuración.
+- `production-daily.js` admite varios buscadores de SKU en la misma página.
+- Migración aditiva `20260921172707_ScheduleImportResolutions` (columna
+  `resolution_summary text NULL`), **no aplicada** a `warehouseEPI`.
+- Verificación: pruebas nuevas de servicio (vínculos, corrección, omisión,
+  corrección inválida, resumen de auditoría), HTTP de extremo a extremo
+  (configurar → vincular/corregir → descartar → confirmar → token expirado),
+  alta de turno en Rutas y 33 pruebas JavaScript. `has-pending-model-changes`
+  limpio; formato de los archivos tocados limpio. Suite completa Release: 751 de
+  830; las 79 fallas son previas o de entorno (HTTP 400 por `AllowedHosts`
+  heredado, base PostgreSQL de prueba en esquema antiguo según el orden de
+  ejecución —pasan aisladas—, `ProductionBlockAPostTests`, reporte ejecutivo y
+  contrato de racks). `quality.ps1` se detiene en `dotnet format whitespace`
+  por archivos del trabajo en curso ajenos a este cambio.
+- Implementado en código; revisión visual en navegador pendiente. Sin migración
+  aplicada, importación operativa ni despliegue.
+
+### Corrección de bloqueos de apertura del importador (22 de septiembre de 2026)
+
+- `/Admin/Production/ScheduleImport` muestra las causas de conciliación junto a
+  cada bloqueo y enlaza al producto conservando el borrador y ajustando búsqueda
+  y paginación. Los mensajes están disponibles en ES/EN.
+- Si el producto no aparece en el cierre, la incidencia usa fila nula y explica
+  la ausencia; no atribuye valores inválidos a celdas inexistentes. La vista
+  tampoco muestra filas cero o negativas de revisiones guardadas anteriormente.
+- Un producto sin líneas ni capturas en la semana histórica de origen y sin
+  arrastre en destino puede resolverse sin paquetes cuando su cierre es único y
+  contiene tres ceros numéricos válidos. En ese caso, la apertura inicial vacía
+  por sí sola no bloquea. Se conservan las validaciones de ruta, SKU, anotaciones
+  y evidencia contradictoria (incluidos valores no cero, errores y fórmulas sin
+  resultado verificable). Los productos con actividad siguen requiriendo la
+  conciliación existente. No se convierten datos vacíos en cero.
+- Los borradores editables recalculan su previsualización y deben volver a
+  validarse si cambia la huella, conservando las resoluciones. Las importaciones
+  confirmadas mantienen su revisión histórica. Sin cambios de esquema ni POST.
+- Verificación automática: **64 aprobadas, 0 fallidas, 0 omitidas**; incluye
+  servicio, borradores antiguos, HTTP con navegación fuera de la página actual,
+  ES/EN y contratos de UI. Resultado: `artifacts/schedule-import-findings/results/`
+  `focused-final.trx`; binlogs en `artifacts/schedule-import-findings/`.
+- Comando ejecutado (salida aislada del servicio):
+
+```powershell
+dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --no-restore --filter "FullyQualifiedName~ProductionOpeningImportTests|FullyQualifiedName~ProductionScheduleImportRouteTests|FullyQualifiedName~ProductionDailyModuleTests|FullyQualifiedName~ProductionDailyUxContractTests|FullyQualifiedName~LocalizationTests" -p:UseAppHost=false -p:OutputPath=C:/Users/JUANANTONIOCASTILLAO/Documents/warehouse-EPI/artifacts/schedule-import-findings/bin/ '-bl:artifacts/schedule-import-findings/test-{}.binlog' --logger 'trx;LogFileName=focused-final.trx' --results-directory artifacts/schedule-import-findings/results
+```
+
+- Implementado en código. Validación visual en navegador/operador pendiente;
+  no se modificó el Excel ni la base operativa, no se publicó ni reinició el servicio.
+
+### Eliminar borradores de importación (22 de septiembre de 2026)
+
+- `/Admin/Production/ScheduleImport` muestra `Eliminar` junto a cada borrador
+  guardado no confirmado (en revisión, listo o descartado), con fecha de última
+  modificación y confirmación del navegador (`form[data-confirm]` en
+  `production-daily.js`, sin JS inline). Si se elimina otro borrador, la revisión
+  abierta se conserva; si se elimina el abierto, vuelve a la lista.
+- `ProductionImportDraftService.DeleteAsync` borra el borrador y todas sus
+  revisiones (por clave, sin cargar las previsualizaciones) en un solo
+  `SaveChanges`. Solo el propietario ADMIN puede eliminar; el token `version`
+  hace que una confirmación o revisión concurrente gane y el borrado responda
+  con conflicto.
+- La guarda de inmutabilidad de `WarehouseDbContext` sigue rechazando modificar
+  el archivo o el propietario y borrar revisiones sueltas o borradores
+  confirmados. Solo admite borrar un borrador no confirmado junto con sus
+  revisiones. Sin cambios de esquema ni migración.
+- Verificación automática: servicio (InMemory), HTTP con lista, redirección y
+  rechazo de confirmados, PostgreSQL (borrado real y dos borrados concurrentes con
+  un único éxito), prueba JS de la confirmación y localización ES/EN.
+
+### Apertura en cero desde el cierre del Excel (22 de septiembre de 2026)
+
+- Decisión del usuario, que sustituye la regla anterior del mismo día: la tabla
+  «Pendiente próxima semana» es el arrastre del propio Excel. Si un producto
+  tiene en ella una fila única con 0/0/0 numéricos (valor en caché de fórmula
+  incluido), o no aparece en un cierre válido, la semana destino abre en 0 sin
+  conciliación y sin paquetes, aunque haya programa, capturas, anotaciones
+  `Column1`/`Column2`, líneas sin `Tipo`, negativos diarios o no tenga una ruta
+  compatible.
+- Siguen bloqueando: celdas del cierre vacías, con texto, error, fórmula sin
+  resultado o negativas; filas duplicadas; cierre inexistente, sin columnas o
+  ambiguo; arrastre ya incluido en la semana destino y pendientes mayores que 0.
+  Una resolución manual guardada sigue teniendo prioridad. Se retiró el mensaje
+  «El cierre en cero contradice…» (código y ES/EN).
+- Con `Production_Schedule_Report_2026_1.xlsx`, sin rutas compatibles: 39
+  productos revisados, 29 abren en 0 y quedan 10 con pendiente > 0 (T7-E-50CF-12M-CFX08-US,
+  M6-S-50UP-8M-NOHDL-US, T6-E-70CF-12M-CFX06-US, G4-P-50SK-10M-NOHDL-US-CUST,
+  W6-P-75MH-20M-SDX10-US, B6-E-97CF-24M-CFX06-US, G6-E-50SK-10M-NOHDL-US,
+  T6-E-50CF-12M-NOHDL-US, K6-E-60SP-18M-SHX08-US, M6-E-50UP-8M-NOHDL-CN). Esos
+  requieren ruta compatible o apertura manual.
+- Verificación automática: 69 aprobadas, 0 fallidas (`ProductionOpeningImportTests`,
+  `ProductionScheduleImportRouteTests`, `ProductionDailyModuleTests`,
+  `ProductionDailyUxContractTests`, `LocalizationTests`), con salida en
+  `artifacts/validation/opening-zero`. El archivo real se comprobó con una prueba
+  temporal InMemory ya eliminada.
+- Implementado en código. Sin cambios de esquema ni migración; los borradores
+  abiertos deben volver a validarse. No se modificó el Excel ni la base
+  operativa, no se publicó ni reinició el servicio.
+
+### Módulo diario sin ruta ni receta obligatorias (22 de septiembre de 2026)
+
+- Decisiones del usuario, que sustituyen lo dicho en las dos secciones anteriores
+  de este día sobre rutas y conciliación de apertura:
+  1. Los datos históricos del Excel no se cuadran. Si los operadores capturaron o
+     cerraron mal, se importa lo que hay; solo detiene lo que no se puede leer.
+  2. El cierre «Pendiente próxima semana» manda. Ausente ⇒ 0; negativo ⇒ 0.
+     Cuando no es monótono manda Ready to Pack: `S' = min(S, R)`,
+     `C' = min(C, S')`; paquetes Corte `C'`, Costura `S'−C'`, RTP `R−S'`.
+  3. Importador y Programa ya no exigen ruta ni receta. La ruta es opcional: si
+     el producto tiene una con procesos diarios en orden, la orden los usa (puede
+     saltar Costura); si no, Corte → Costura → Ready to Pack.
+  4. El Programa nunca usa receta: sus órdenes no llevan plan de materiales y
+     capturar no pide surtimiento.
+- Importador (`ProductionOpeningReconciliation.cs`): sin consulta de rutas ni
+  validaciones de Tipo, Column1/Column2, avances negativos, arrastre del lunes,
+  simulación de saldos o SKU repetidos. Bloquean solo tabla de cierre ausente,
+  ambigua o sin columnas, fila duplicada y celda vacía/texto/error/fórmula sin
+  resultado («El cierre contiene pendientes vacíos o no numéricos.»). El arrastre
+  escrito en la semana destino se sustituye sin bloquear. La conciliación manual
+  sigue con prioridad («La resolución requiere motivo y cantidades válidas.»).
+  Las rutas salen de la huella de dependencias. `_ImportOpening.cshtml` ya no
+  enlaza a Rutas.
+- Programa (`ProductionDailyScheduleService.cs`): `BuildDailyOrderAsync` crea las
+  órdenes de publicación y de sustitución de SKU con etapas de la configuración
+  diaria (o de la ruta opcional) desde `StartArea`, `UsesBatchTraceability`, sin
+  receta ni plan; `ReleaseDailyOrderAsync` libera sin la validación avanzada. Se
+  retiraron los recortes y la siembra de arrastre. La publicación exige solo la
+  configuración completa, procesos y turnos configurados activos y SKU activos.
+  `EffectiveGoodAsync` toma el máximo por etapa (antes sumaba etapas y una línea
+  de 10 capturada en Corte y Costura contaba 20). Producción avanzada
+  (`ProductionService`, `ProductionPlanningService`) no cambió.
+- Balance: sin ruta con procesos diarios aplican las tres áreas.
+- Captura (`ProductionDailyCaptureService.cs`): corrección de un error previo. La
+  asignación se agregaba a una captura ya guardada con `Id` preasignado y EF la
+  trataba como modificada, por lo que la guarda de inmutabilidad rechazaba toda
+  confirmación de captura. Ahora se marca como nueva.
+- Textos ES/EN: tres claves nuevas y 15 retiradas en `ProductionTexts*.resx`
+  (795/795); `ProductionDailyText.cs` sin «El arrastre no conserva…».
+- Verificación automática: 238 de 239 pruebas de producción y localización
+  aprobadas; la falla es `ProductionBlockAPostTests.Real_form_preserves_bad_decimal…`
+  (Producción avanzada, previa). Nuevas pruebas: reparto RTP, cierre ilegible,
+  publicación sin ruta/receta (3 formas de etapas, lote, balance, capturas Corte →
+  Costura y edición de línea) y procesos inactivos. Con el archivo real y una
+  prueba temporal InMemory ya eliminada: 39/39 aperturas resueltas, importación
+  confirmada y 09-21 publicada con 30 órdenes liberadas y con lote.
+- `dotnet format` sigue marcando construcciones previas en estos archivos
+  (`foreach` anidados sin llaves, inicializadores en varias líneas); el código
+  nuevo sigue el estilo existente. Sin migración, sin cambios en la base
+  operativa, sin despliegue ni reinicio del servicio.
+
+### Balance diario por recorrido de orden (22 de septiembre de 2026)
+
+- Las líneas publicadas calculan el balance con las etapas guardadas en su orden;
+  editar o desactivar la ruta del producto no cambia ese recorrido. Los borradores
+  comparten con publicación la selección de procesos y el inicio del arrastre.
+- Las asignaciones de capturas activas se acumulan por línea, etapa y fecha efectiva.
+  Cada resultado alimenta únicamente la siguiente etapa de esa orden; después se
+  suman los pendientes por producto. Un SKU puede combinar Corte → RTP con un
+  arrastre Costura → RTP sin ocultar Costura ni inventar pendientes en ella.
+- Las órdenes anteriores aportan su pendiente al inicio de la semana; las capturas
+  posteriores al día consultado y las reversadas no se descuentan. El avance de
+  la semana usa los resultados finales de cada recorrido y su apertura pendiente.
+- Las líneas y capturas históricas sin asignación conservan su cálculo agregado,
+  separado de las órdenes publicadas. El histórico importado anterior no vuelve
+  a alimentar los paquetes de apertura ya confirmados.
+- Pantalla y Excel mantienen los mismos DTO y el mismo servicio de balance. No se
+  cambia la importación, la confirmación/reintento de reversos ni Producción avanzada.
+- Sin migración de aplicación, cambios en la base operativa ni despliegue.
+- Verificación focal: 68/68 pruebas aprobadas de balance, módulo diario, apertura,
+  importación y rutas web. Incluye el recorrido completo con exportación y reverso
+  en PostgreSQL temporal aislado, creado y eliminado por la prueba; también
+  capturas parciales/FIFO, separación del histórico, cierre por fecha efectiva y
+  conservación del recorrido al editar/desactivar la ruta. Navegador y tablet
+  quedan pendientes; la prueba relacional usa el modelo actual con EnsureCreated.
+
+### Programa semanal y captura por tandas (22 de septiembre de 2026)
+
+- Flujo semanal agrupado de lunes a sábado, conservando el día al agregar productos
+  con el buscador existente. Referencias/notas y configuración quedan en secciones
+  secundarias. La apertura se presenta como «Abrir semana para capturar» con NIP ADMIN.
+- Copia editable de productos/días de la última semana anterior, sin cantidades,
+  arrastres ni referencias. Se conservan líneas repetidas y se controla el doble envío.
+- Arrastre programado opcional, separado del balance físico y de la apertura del
+  importador: programar 15 de 20 mantiene 20 disponibles. Tiene versión y auditoría;
+  no crea órdenes, lotes ni resultados, ni limita las capturas reales.
+- Agregar productos a una semana abierta crea línea, orden liberada y lote en una
+  transacción, con NIP ADMIN. Se permite abrir sin líneas nuevas si hay pendientes anteriores.
+- Captura por fecha/área/turno, revisión sin NIP y confirmación de toda la tanda con
+  un NIP. Se mantienen capturas individuales, FIFO, reversos y trazabilidad. Se revalida
+  la revisión y se conservan las entradas ante errores. Operación/huella sin NIP y
+  transacción serializable protegen reintentos, concurrencia y rollback de toda la tanda.
+- Capturar, Balance e Historial tienen vistas separadas conservando la semana;
+  el balance por orden y la exportación siguen usando el servicio existente.
+- Migración `20260922153940_DailyProductionWorkflow` generada para cabeceras/items de
+  tanda y arrastres programados; modelo sin cambios pendientes. Aplicada únicamente
+  por pruebas en PostgreSQL temporal, nunca en la base operativa.
+- Verificación: 103 pruebas .NET de módulo diario, importación, balance/exportación,
+  rutas y localización; 5 JavaScript. Incluye POST con antiforgery y errores conservados,
+  arrastre opcional, copia, incorporación abierta, rollback, concurrencia y reintentos.
+- Sin despliegue, reinicio ni validación visual de la versión nueva. Ver
+  `docs/PRODUCTION_DAILY_WORKFLOW.md` para contratos y la limitación detectada al
+  volver a capturar sobre ciertas órdenes con reverso previo, fuera de este alcance.
+
+
+### Captura diaria flexible (22 de septiembre de 2026)
+
+- Nuevas órdenes diarias con las tres etapas, desde `StartArea`; las publicadas conservan su snapshot. Semana vacía permitida con NIP ADMIN.
+- Capturas reales sin tope por programa/disponible, cualquier SKU activo, un NIP por tanda. Extras de Corte generan orden/lote internos separados del programa (`IsExtra`); Costura/RTP pueden quedar por conciliar (`IsFlexible`).
+- Conciliación FIFO automática y auditable, por área/fecha, sin modificar la captura original ni duplicar cantidades. Balance firmado por fecha efectiva y por orden, partes sin asignación separadas del importado, pendientes/diferencias entre semanas. Excel comparte el servicio y muestra extras y por conciliar por área.
+- Buscador de catálogo para agregar productos, filtros que conservan cantidades/notas y revisión con pendiente/extras/diferencia. Reverso idempotente para capturas sin asignación; se mantienen restricciones por operaciones posteriores y el fallo previo de recaptura fuera de alcance.
+- Migración generada `20260922171239_FlexibleDailyProduction`; no aplicada a la base operativa. Sin despliegue ni reinicio. Contratos y detalle en `docs/PRODUCTION_DAILY_WORKFLOW.md`.
+
+- Verificación de esta entrega: regresión 127/127; cierres focales 13/13 (incluido PostgreSQL aislado) y 11/11; JavaScript 6/6. Modelo sin cambios pendientes frente a la migración. Navegador/tablet pendientes; no se inició una instancia operativa.
+
+
+### Selector y Balance semanal (22 de septiembre de 2026)
+
+- Captura con selector único agrupado: programados de la semana/intenciones, pendientes anteriores del área, catálogo activo. Paginación independiente, selección sin duplicar filas ni perder cantidades/notas. Lookup específico `DailyProducts`; el general no cambia.
+- Balance semanal por SKU: plan completo, arrastre inicial firmado por área, realizado y pendiente al corte; detalle de días/turnos y arrastre programado separado. `GetWeeklyAsync` agrega capturas sin truncar a 500 y alimenta la nueva hoja `Weekly summary` con los filtros del resumen.
+- Sin migración, despliegue, reinicio o base operativa. Pruebas SQL en PostgreSQL temporal, regresión y cierre web documentados en `docs/PRODUCTION_DAILY_WORKFLOW.md`; validación visual pendiente por falta de instancia abierta.
+
+- Corrección posterior del POST de revisión: `Group.Fingerprint` hidden vacío activaba Required implícito y ocultaba el paso NIP. Binding nullable de huella/NIP, errores de campos visibles y foco en revisión/error. Prueba HTTP envía el hidden real y confirma 2 piezas: 18 pendientes en Corte de un plan de 20 y 2 en Costura. Cierre web 7/7 y JS 14/14; sin tocar datos operativos ni desplegar.
+
+### Balance diario por fecha (22 de septiembre de 2026)
+
+- Pendiente entre turnos: la tabla sigue inicial → T1 → pendiente para T2 → T2 → final. El corte intermedio reutiliza el motor con capturas T1 de esa fecha, sin anticipar entradas de T2; el pendiente final conserva signo. Excel también incluye el saldo intermedio. Sin cambios en persistencia ni operaciones.
+
+- Ajuste posterior: tabla más alta (88vh), SKU ancho sin salto de línea, cantidades centradas y columnas T1/T2 por proceso, además del total diario. Excel comparte el desglose por los dos turnos configurados; no se cambia la captura ni la persistencia.
+
+- Sustituye la tabla semanal y sus desplegables por una tabla del día elegido en `Through`, con actualización automática. SKU sin descripción; programación del día y, por proceso, pendiente inicial firmado, realizado de ambos turnos y pendiente al cierre. Conserva población semanal, filtros de producto/área/referencia, extras y conciliación; intención de arrastre separada.
+- `GetDailySummaryAsync` comparte cantidades con la nueva hoja Excel `Balance diario`, conservando las hojas existentes. Aperturas importadas se incorporan una vez en su fecha. El saldo anterior conserva diferencias incluso si una captura antigua se concilia con una orden de la semana nueva. No cambia captura, órdenes ni conciliación operativa.
+- Verificación: 33/33 iniciales; cierre de motor/resumen 15/15 tras los últimos ajustes, con PostgreSQL aislado; JavaScript 15/15. Incluye más de 500 capturas, turnos, reversos, programación futura y diferencias entre semanas. Evidencia en `docs/PRODUCTION_DAILY_WORKFLOW.md`. Sin migración, base real, despliegue ni reinicio; validación visual pendiente por ausencia de instancia compatible abierta.
+
+
+### Editor T1/T2 del balance (23 de septiembre de 2026)
+
+- Edición de totales por celda con previsualización conjunta, teclado/deshacer y confirmación atómica. Aumentos ADMIN/OPERATOR; reducciones ADMIN con motivo, reverso/sustitución y bloqueo por dependencias. Programa y pendientes no se editan.
+- Auditoría de operación/celdas/capturas, huellas para concurrencia e idempotencia. No guarda NIP. La simulación es de solo lectura y el balance guardado se compara con el revisado antes del commit.
+- Corrige entregas/recepciones que seguían contando traspasos reversados e impedían recapturar. Migración generada `20260922192755_DailyBalanceCellEditing`; base real, despliegue y servicio intactos. Detalles y evidencia en `docs/PRODUCTION_DAILY_WORKFLOW.md`.
+
+- Verificación del editor: cierre 24/24 y JavaScript 19/19, modelo alineado con migración; PostgreSQL aislado comprueba reversos/sustituciones, concurrencia y rollback de toda la edición. Regresión inicial 115/116 con comparación decimal corregida en el cierre. Visual pendiente por ausencia de instancia compatible.

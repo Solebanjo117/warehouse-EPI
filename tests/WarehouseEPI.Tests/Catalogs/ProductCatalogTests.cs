@@ -201,7 +201,9 @@ public sealed class ProductCatalogTests
         await using var db = CreateContext();
         await db.Database.EnsureCreatedAsync();
         var unit = await db.Units.SingleAsync(candidate => candidate.Code == "UNASSIGNED");
-        var page = new WarehouseEPI.Web.Pages.Admin.Catalogs.Units.IndexModel(db)
+        var page = new WarehouseEPI.Web.Pages.Admin.Catalogs.Units.IndexModel(
+            db,
+            new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts>())
         {
             TempData = new TempDataDictionary(new DefaultHttpContext(), new MemoryTempDataProvider()),
             Input = new WarehouseEPI.Web.Pages.Admin.Catalogs.Units.IndexModel.InputModel

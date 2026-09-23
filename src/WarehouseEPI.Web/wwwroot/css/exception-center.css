@@ -1,0 +1,121 @@
+/* Local presentation for the ADMIN exception list and follow-up. */
+.alerts-workspace,
+.exception-detail { max-width: 80rem; margin-inline: auto; min-width: 0; }
+
+.alerts-workspace .inventory-page-header,
+.exception-detail .exception-detail-header {
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+.alerts-workspace h1,
+.exception-detail h1 { font-size: 1.65rem; font-weight: 700; }
+.alerts-workspace .eyebrow,
+.exception-detail .exception-detail-section-label { font-size: .75rem; color: var(--bs-secondary-color); letter-spacing: .05em; }
+.alerts-workspace .inventory-page-header > .d-flex { flex-wrap: wrap; align-items: start; }
+.alerts-workspace :is(.btn, .form-control, .form-select, .page-link),
+.exception-detail :is(.btn, .form-control, .form-select) { min-height: 44px; }
+.alerts-workspace :is(.btn, .badge),
+.exception-detail :is(.btn, .badge) { white-space: normal; }
+.alerts-workspace :is(a, button, input, select):focus-visible,
+.exception-detail :is(a, button, input, select, textarea):focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+.alerts-workspace :is(strong, small, .inventory-card-label),
+.exception-detail :is(p, strong, dd, time, small) { overflow-wrap: anywhere; }
+.alerts-workspace :is(strong, time),
+.exception-detail :is(dd, time) { font-variant-numeric: tabular-nums; }
+
+.alerts-workspace .alert-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; }
+.alerts-workspace .alert-metrics article {
+    min-width: 0;
+    min-height: 96px;
+    padding: 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .65rem;
+    background: var(--bs-body-bg);
+    box-shadow: none;
+}
+.alerts-workspace .alert-metrics article > span { display: none; }
+.alerts-workspace .alert-metrics strong { color: var(--bs-body-color); font-size: 1.6rem; }
+.alerts-workspace .alert-metrics small { font-size: .9rem; }
+.alerts-workspace .alert-metrics .is-danger { border-top: 3px solid var(--bs-danger); }
+.alerts-workspace .analytics-filter-card {
+    padding: 1rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .65rem;
+    background: var(--bs-tertiary-bg);
+    box-shadow: none;
+}
+.alerts-workspace .analytics-filter-card > .row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .85rem;
+    margin: 0;
+}
+.alerts-workspace .analytics-filter-card > .row > div { width: auto; min-width: 0; margin: 0; padding: 0; }
+.alerts-workspace .form-label { font-weight: 600; }
+.alerts-workspace .alert-list { border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); overflow: visible; }
+.alerts-workspace .alert-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, .9fr) minmax(0, 1fr) minmax(10rem, .8fr);
+    padding: 1rem;
+    gap: 1rem;
+    border-left: 0;
+    background: transparent;
+    box-shadow: none;
+}
+.alerts-workspace .alert-row small { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.5; }
+.alerts-workspace .alert-row .inventory-card-label { display: block; font-size: .8rem; color: var(--bs-secondary-color); }
+.alerts-workspace .alert-row.is-negative > div:first-child > .inventory-card-label { color: var(--bs-danger-text-emphasis); font-weight: 700; }
+.alerts-workspace .alert-row > div:first-child > strong { font-size: 1.05rem; }
+.alerts-workspace .alert-row > .d-flex { align-content: center; }
+.alerts-workspace .inventory-empty,
+.exception-detail .exception-history-empty { padding: 1.5rem; border: 1px dashed var(--bs-border-color); border-radius: .65rem; background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); }
+.alerts-workspace .pagination { flex-wrap: wrap; }
+
+.exception-detail .exception-detail-header > a { display: inline-flex; align-items: center; min-height: 44px; justify-self: start; }
+.exception-detail :is(.exception-detail-summary, .exception-detail-reason, .exception-detail-next, .exception-detail-follow-up, .exception-detail-history) {
+    min-width: 0;
+    border: 1px solid var(--bs-border-color);
+    border-radius: .65rem;
+    background: var(--bs-body-bg);
+    padding: 1.25rem;
+    box-shadow: none;
+}
+.exception-detail .exception-detail-facts { gap: 1rem; }
+.exception-detail .exception-detail-facts > div { padding: 0; border: 0; }
+.exception-detail .exception-detail-facts dt { font-size: .8rem; }
+.exception-detail .exception-detail-dates { margin-top: 1rem; padding-top: 1rem; }
+.exception-detail .exception-detail-guidance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.exception-detail .exception-detail-next { border-top: 3px solid var(--bs-primary); }
+.exception-detail .exception-detail-section-heading { border-bottom: 1px solid var(--bs-border-color); padding-bottom: 1rem; }
+.exception-detail .exception-detail-section-heading h2 { font-size: 1.2rem; font-weight: 650; }
+.exception-detail .exception-detail-form-grid > div { min-width: 0; }
+.exception-detail .form-label { font-weight: 600; }
+.exception-detail .exception-timeline article { border: 0; border-bottom: 1px solid var(--bs-border-color); border-radius: 0; padding: .85rem 0 1.25rem; margin-bottom: .5rem; }
+.exception-detail .exception-timeline > li:last-child article { border-bottom: 0; margin-bottom: 0; padding-bottom: 0; }
+.exception-detail .exception-timeline-marker { background: var(--bs-secondary-color); box-shadow: none; }
+.exception-detail .exception-timeline-note { border-left-width: 2px; border-radius: .25rem; }
+
+@media (max-width: 1199.98px) {
+    .alerts-workspace .alert-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .alerts-workspace .analytics-filter-card > .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .alerts-workspace .alert-list { display: grid; gap: .75rem; border: 0; background: transparent; }
+    .alerts-workspace .alert-row { grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); }
+    .alerts-workspace .alert-row:last-child { border-bottom: 1px solid var(--bs-border-color); }
+    .alerts-workspace .alert-row > div:first-child,
+    .alerts-workspace .alert-row > div:last-child { grid-column: 1 / -1; }
+    .alerts-workspace .alert-row > div:last-child { justify-content: flex-start !important; }
+}
+@media (max-width: 991.98px) {
+    .exception-detail .exception-detail-guidance { grid-template-columns: minmax(0, 1fr); }
+    .exception-detail .exception-detail-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 767.98px) {
+    .alerts-workspace .analytics-filter-card > .row { grid-template-columns: minmax(0, 1fr); }
+    .exception-detail :is(.exception-detail-summary, .exception-detail-reason, .exception-detail-next, .exception-detail-follow-up, .exception-detail-history) { padding: 1rem; }
+}
+@media (max-width: 575.98px) {
+    .alerts-workspace .alert-row { grid-template-columns: minmax(0, 1fr); }
+    .alerts-workspace .alert-row .btn { flex: 1 1 auto; }
+    .exception-detail :is(.exception-detail-facts, .exception-detail-dates, .exception-detail-form-grid) { grid-template-columns: minmax(0, 1fr); }
+    .exception-detail .exception-timeline-changes > div { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+}

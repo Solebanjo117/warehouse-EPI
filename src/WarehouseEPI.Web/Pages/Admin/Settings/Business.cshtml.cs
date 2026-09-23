@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Branding;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Settings;
 
@@ -13,7 +15,7 @@ namespace WarehouseEPI.Web.Pages.Admin.Settings;
 public sealed class BusinessModel(
     WarehouseDbContext dbContext,
     WarehouseSettingsService settingsService,
-    BrandingStorage brandingStorage) : PageModel
+    BrandingStorage brandingStorage, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
 
@@ -38,7 +40,7 @@ public sealed class BusinessModel(
         Input.WarehouseCode = Input.WarehouseCode.Trim().ToUpperInvariant();
         Input.TimeZoneId = Input.TimeZoneId.Trim();
         if (!WarehouseClock.IsValidTimeZone(Input.TimeZoneId))
-            ModelState.AddModelError("Input.TimeZoneId", "La zona horaria no está disponible en este servidor.");
+            ModelState.AddModelError("Input.TimeZoneId", text["La zona horaria no está disponible en este servidor."].Value);
         if (!ModelState.IsValid) return Page();
 
         StoredLogo? uploaded = null;
@@ -48,7 +50,7 @@ public sealed class BusinessModel(
         }
         catch (BrandingValidationException exception)
         {
-            ModelState.AddModelError("Input.Logo", exception.Message);
+            ModelState.AddModelError("Input.Logo", text[exception.Message].Value);
             return Page();
         }
 
@@ -84,7 +86,7 @@ public sealed class BusinessModel(
         }
         if ((uploaded is not null || Input.RemoveLogo) && previousLogo != settings.LogoFileName)
             brandingStorage.Delete(previousLogo);
-        TempData["Success"] = "Los datos del negocio fueron actualizados.";
+        TempData["Success"] = text["Los datos del negocio fueron actualizados."].Value;
         return RedirectToPage();
     }
 

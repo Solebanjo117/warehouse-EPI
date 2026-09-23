@@ -189,7 +189,7 @@
 
 /* Tablet vertical: la misma tabla se reordena en fichas. Sin desplazamiento
    horizontal y sin duplicar el marcado. */
-@media (max-width: 991.98px) {
+@media (max-width: 1199.98px) {
     .users-table,
     .users-table tbody,
     .users-table tr,
@@ -238,4 +238,17 @@
     }
 
     .users-name { font-size: 1.2rem; }
+}
+
+@media screen {
+    .users-page { min-width: 0; gap: 1.25rem; }
+    .users-page h1 { font-size: 1.65rem; font-weight: 700; }
+    .users-page .users-role { flex-wrap: wrap; }
+    .users-page .users-tally strong { font-family: inherit; font-variant-numeric: tabular-nums; }
+    .users-page .users-table th { background: var(--bs-tertiary-bg); }
+    .users-page a:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+}
+@media screen and (max-width: 1199.98px) {
+    .users-page .users-table td[data-label]::before { content: attr(data-label); display: block; margin-bottom: .25rem; font-size: .8rem; font-weight: 600; color: var(--bs-secondary-color); }
+    .users-page .users-table td { min-width: 0; }
 }

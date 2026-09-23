@@ -16,6 +16,18 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+$utf8NoBom = [Text.UTF8Encoding]::new($false)
+
+function Get-PackageRelativePath(
+    [string]$Root,
+    [string]$Path) {
+    $item = Get-Item -LiteralPath $Path
+    $resolvedRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\'
+    if (-not $item.FullName.StartsWith($resolvedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "El archivo '$($item.FullName)' queda fuera del paquete temporal."
+    }
+    return $item.FullName.Substring($resolvedRoot.Length).Replace('\', '/')
+}
 
 function Add-ManifestFile(
     [Collections.Generic.List[object]]$Files,
@@ -23,7 +35,7 @@ function Add-ManifestFile(
     [string]$Path,
     [string]$Kind) {
     $item = Get-Item -LiteralPath $Path
-    $relativePath = [IO.Path]::GetRelativePath($Root, $item.FullName).Replace('\', '/')
+    $relativePath = Get-PackageRelativePath $Root $item.FullName
     $Files.Add([ordered]@{
         Path = $relativePath
         Kind = $Kind
@@ -102,7 +114,7 @@ try {
     }
 
     $instructionsPath = Join-Path $stagingPath 'RESTORE.txt'
-    @'
+    $restoreInstructions = @'
 Warehouse EPI - respaldo de migración
 
 Este ZIP contiene la base PostgreSQL, referencias del croquis, branding y hashes.
@@ -114,7 +126,8 @@ Antes de restaurar:
 3. Cree el archivo protegido PGPASSFILE en la laptop destino.
 4. Ejecute Test-WarehouseEpiMigrationBackup.ps1.
 5. Ejecute Restore-WarehouseEpiMigrationBackup.ps1; warehouseEPI no debe existir.
-'@ | Set-Content -LiteralPath $instructionsPath -Encoding utf8NoBOM
+'@
+    [IO.File]::WriteAllText($instructionsPath, $restoreInstructions, $utf8NoBom)
 
     $files = [Collections.Generic.List[object]]::new()
     Add-ManifestFile $files $stagingPath (Join-Path $databaseStaging $databaseBackup.Name) 'database'
@@ -123,7 +136,7 @@ Antes de restaurar:
     Get-ChildItem -LiteralPath $brandingStaging -File | Sort-Object Name |
         ForEach-Object { Add-ManifestFile $files $stagingPath $_.FullName 'branding' }
 
-    [ordered]@{
+    $manifestJson = [ordered]@{
         SchemaVersion = 1
         PackageType = 'WarehouseEPI-MigrationBackup'
         CreatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
@@ -131,9 +144,20 @@ Antes de restaurar:
         ContainsSecrets = $false
         RequiredExternalSecrets = @('Security:PinLookupKey', 'PostgreSQL credentials', 'LAN CA PFX')
         Files = $files
-    } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $stagingPath 'manifest.json') -Encoding utf8NoBOM
+    } | ConvertTo-Json -Depth 6
+    [IO.File]::WriteAllText((Join-Path $stagingPath 'manifest.json'), $manifestJson, $utf8NoBom)
 
-    Compress-Archive -Path (Join-Path $stagingPath '*') -DestinationPath $temporaryPackagePath -CompressionLevel Optimal
+    Add-Type -AssemblyName System.IO.Compression
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $packageArchive = [IO.Compression.ZipFile]::Open($temporaryPackagePath, [IO.Compression.ZipArchiveMode]::Create)
+    try {
+        Get-ChildItem -LiteralPath $stagingPath -Recurse -File | Sort-Object FullName | ForEach-Object {
+            $entryPath = Get-PackageRelativePath $stagingPath $_.FullName
+            $null = [IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                $packageArchive, $_.FullName, $entryPath, [IO.Compression.CompressionLevel]::Optimal)
+        }
+    }
+    finally { $packageArchive.Dispose() }
     $null = & (Join-Path $PSScriptRoot 'Test-WarehouseEpiMigrationBackup.ps1') -PackagePath $temporaryPackagePath
     $packageHash = (Get-FileHash -LiteralPath $temporaryPackagePath -Algorithm SHA256).Hash.ToLowerInvariant()
     Set-Content -LiteralPath $temporaryHashPath -Value "$packageHash  $packageName" -Encoding ascii

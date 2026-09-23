@@ -25,7 +25,8 @@ if (-not (Test-Path -LiteralPath $PsqlPath -PathType Leaf) -or -not (Test-Path -
     throw 'No se encontraron las herramientas PostgreSQL requeridas para la restauración.'
 }
 
-$temporaryDatabase = "warehouse_epi_restore_validation_$([Guid]::NewGuid().ToString('N'))"
+$temporaryDatabaseSuffix = [Guid]::NewGuid().ToString('N').Substring(0, 30)
+$temporaryDatabase = "warehouse_epi_restore_validation_$temporaryDatabaseSuffix"
 $env:PGPASSFILE = $resolvedPassFile
 $created = $false
 $referenceValidationPath = Join-Path ([IO.Path]::GetTempPath()) "warehouse-epi-reference-restore-$([Guid]::NewGuid().ToString('N'))"

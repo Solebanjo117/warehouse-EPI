@@ -58,7 +58,7 @@ public sealed class ReceivingService(
         };
         foreach (var (line, index) in normalized.Lines.OrderBy(item => products[item.ProductId].Sku).Select((item, index) => (item, index)))
             document.Lines.Add(new ReceivingDocumentLine { LineNumber = index + 1, ProductId = line.ProductId, UnitId = products[line.ProductId].BaseUnitId, ExpectedQuantity = line.ExpectedQuantity });
-        document.Events.Add(new ReceivingDocumentEvent { OperationId = command.OperationId, RequestFingerprint = fingerprint, Type = ReceivingDocumentEventType.Opened, ActorUserId = user.Id, RecordedAt = now, Notes = "Documento abierto con cantidades esperadas congeladas." });
+        AddEvent(document, new ReceivingDocumentEvent { OperationId = command.OperationId, RequestFingerprint = fingerprint, Type = ReceivingDocumentEventType.Opened, ActorUserId = user.Id, RecordedAt = now, Notes = "Documento abierto con cantidades esperadas congeladas." });
         db.ReceivingDocuments.Add(document);
         try
         {
@@ -113,12 +113,13 @@ public sealed class ReceivingService(
                 normalized.OperationId,
                 InventoryMovementType.Entry,
                 normalized.Pin,
-                normalized.Lines.Select(item => new InventoryMovementLineCommand(item.ProductId, item.Quantity, DestinationLocationId: item.DestinationLocationId)).ToArray(),
+                normalized.Lines.Select(item => new InventoryMovementLineCommand(item.ProductId, item.Quantity, DestinationLocationId: item.DestinationLocationId, PalletQuantities: item.PalletQuantities)).ToArray(),
                 Reference: document.Number,
                 Notes: normalized.DifferenceNotes,
                 ApprovedSharedAssignments: normalized.ApprovedSharedAssignments,
                 Purpose: InventoryMovementPurpose.DocumentReceipt);
-            var movementResult = await movements.ConfirmAuthorizedAsync(movementCommand, user, token);
+            var movementResult = await movements.ConfirmAuthorizedAsync(movementCommand, user,
+                cancellationToken: token);
             if (movementResult.Status != InventoryMovementStatus.Success || movementResult.MovementId is not Guid movementId)
                 return await AbortAsync(transaction, MapMovementResult(movementResult, document.Id), token);
 
@@ -147,7 +148,7 @@ public sealed class ReceivingService(
                 });
             }
             db.ReceivingConfirmations.Add(confirmation);
-            document.Events.Add(new ReceivingDocumentEvent { OperationId = normalized.OperationId, RequestFingerprint = fingerprint, Type = ReceivingDocumentEventType.ReceiptConfirmed, ActorUserId = user.Id, RecordedAt = now, Notes = normalized.DifferenceNotes });
+            AddEvent(document, new ReceivingDocumentEvent { OperationId = normalized.OperationId, RequestFingerprint = fingerprint, Type = ReceivingDocumentEventType.ReceiptConfirmed, ActorUserId = user.Id, RecordedAt = now, Notes = normalized.DifferenceNotes });
             await db.SaveChangesAsync(token);
             await ApplyStatusAsync(document, correction: false, token);
             await db.SaveChangesAsync(token);
@@ -178,7 +179,7 @@ public sealed class ReceivingService(
             .Select(item => item.ReceivingDocument).SingleOrDefaultAsync(token);
         if (document is null || document.Status is ReceivingDocumentStatus.ClosedWithDifferences or ReceivingDocumentStatus.Cancelled) return;
         var now = timeProvider.GetUtcNow();
-        document.Events.Add(new ReceivingDocumentEvent { Type = ReceivingDocumentEventType.ReceiptCorrected, RecordedAt = now, Notes = reason });
+        AddEvent(document, new ReceivingDocumentEvent { Type = ReceivingDocumentEventType.ReceiptCorrected, RecordedAt = now, Notes = reason });
         await ApplyStatusAsync(document, correction: true, token);
         await db.SaveChangesAsync(token);
     }
@@ -221,7 +222,7 @@ public sealed class ReceivingService(
                 document.ClosedByUserId = user.Id;
                 document.CloseReason = reason;
             }
-            document.Events.Add(new ReceivingDocumentEvent { OperationId = command.OperationId, RequestFingerprint = fingerprint, Type = cancel ? ReceivingDocumentEventType.Cancelled : ReceivingDocumentEventType.ClosedWithDifferences, ActorUserId = user.Id, Notes = reason, RecordedAt = now });
+            AddEvent(document, new ReceivingDocumentEvent { OperationId = command.OperationId, RequestFingerprint = fingerprint, Type = cancel ? ReceivingDocumentEventType.Cancelled : ReceivingDocumentEventType.ClosedWithDifferences, ActorUserId = user.Id, Notes = reason, RecordedAt = now });
             await db.SaveChangesAsync(token);
             if (transaction is not null) await transaction.CommitAsync(token);
             return new(ReceivingCommandStatus.Success, document.Id, DocumentStatus: document.Status);
@@ -245,9 +246,9 @@ public sealed class ReceivingService(
         document.CompletedAt = exact ? now : null;
         if (document.Status == previous) return;
         if (exact)
-            document.Events.Add(new ReceivingDocumentEvent { Type = ReceivingDocumentEventType.AutomaticallyCompleted, RecordedAt = now, Notes = "Las cantidades efectivas coinciden exactamente con el documento." });
+            AddEvent(document, new ReceivingDocumentEvent { Type = ReceivingDocumentEventType.AutomaticallyCompleted, RecordedAt = now, Notes = "Las cantidades efectivas coinciden exactamente con el documento." });
         else if (correction && previous == ReceivingDocumentStatus.Completed)
-            document.Events.Add(new ReceivingDocumentEvent { Type = ReceivingDocumentEventType.ReopenedAfterCorrection, RecordedAt = now, Notes = "Una corrección dejó cantidades pendientes." });
+            AddEvent(document, new ReceivingDocumentEvent { Type = ReceivingDocumentEventType.ReopenedAfterCorrection, RecordedAt = now, Notes = "Una corrección dejó cantidades pendientes." });
     }
 
     private async Task<Dictionary<Guid, decimal>> EffectiveQuantitiesAsync(Guid documentId, CancellationToken token)
@@ -280,7 +281,11 @@ public sealed class ReceivingService(
     {
         DifferenceNotes = string.IsNullOrWhiteSpace(command.DifferenceNotes) ? null : command.DifferenceNotes.Trim(),
         Lines = command.Lines.Where(item => item.ProductId != Guid.Empty || item.Quantity != 0 || item.DestinationLocationId != Guid.Empty)
-            .Select(item => item with { ExternalLotReference = string.IsNullOrWhiteSpace(item.ExternalLotReference) ? null : item.ExternalLotReference.Trim() }).ToArray(),
+            .Select(item => item with
+            {
+                ExternalLotReference = string.IsNullOrWhiteSpace(item.ExternalLotReference) ? null : item.ExternalLotReference.Trim(),
+                PalletQuantities = item.PalletQuantities
+            }).ToArray(),
         ApprovedSharedAssignments = (command.ApprovedSharedAssignments ?? []).Distinct().OrderBy(item => item.ProductId).ThenBy(item => item.LocationId).ToArray()
     };
 
@@ -295,6 +300,12 @@ public sealed class ReceivingService(
         if (command.Lines.GroupBy(item => item.ProductId).Any(group => group.Count() > 1)) errors.Add("Cada producto puede aparecer una sola vez en el documento.");
         if (command.Lines.Any(item => item.ProductId == Guid.Empty || item.ExpectedQuantity <= 0 || decimal.Round(item.ExpectedQuantity, 4) != item.ExpectedQuantity)) errors.Add("Cada línea requiere producto y cantidad positiva con máximo cuatro decimales.");
         return errors;
+    }
+
+    private void AddEvent(ReceivingDocument document, ReceivingDocumentEvent item)
+    {
+        item.ReceivingDocumentId = document.Id;
+        db.ReceivingDocumentEvents.Add(item);
     }
 
     private static List<string> ValidateConfirmation(ConfirmReceivingCommand command)
@@ -317,7 +328,7 @@ public sealed class ReceivingService(
     private static string Fingerprint(ConfirmReceivingCommand command)
     {
         var value = new StringBuilder().Append(command.DocumentId.ToString("N")).Append('|').Append(command.DifferenceAcknowledged).Append('|').Append(command.DifferenceNotes);
-        foreach (var line in command.Lines) value.Append('|').Append(line.ProductId.ToString("N")).Append(':').Append(line.Quantity.ToString("G29", CultureInfo.InvariantCulture)).Append(':').Append(line.DestinationLocationId.ToString("N")).Append(':').Append(line.ExternalLotReference);
+        foreach (var line in command.Lines) value.Append('|').Append(line.ProductId.ToString("N")).Append(':').Append(line.Quantity.ToString("G29", CultureInfo.InvariantCulture)).Append(':').Append(line.DestinationLocationId.ToString("N")).Append(':').Append(line.ExternalLotReference).Append(line.PalletQuantities is null ? string.Empty : System.Text.Json.JsonSerializer.Serialize(line.PalletQuantities));
         foreach (var approval in command.ApprovedSharedAssignments ?? []) value.Append("|A:").Append(approval.ProductId.ToString("N")).Append(':').Append(approval.LocationId.ToString("N"));
         return Hash(value.ToString());
     }

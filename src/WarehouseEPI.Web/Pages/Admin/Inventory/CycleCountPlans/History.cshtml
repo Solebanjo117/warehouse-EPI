@@ -1,0 +1,26 @@
+@page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Admin.Inventory.CycleCountPlans.HistoryModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Web.Pages.Operations.CycleCounts
+@{
+    ViewData["Title"] = CatTexts["Historial del plan"].Value;
+    string EventLabel(CycleCountPlanEventType type) => type switch { CycleCountPlanEventType.Created => CatTexts["Creación"].Value, CycleCountPlanEventType.Updated => CatTexts["Modificación"].Value, CycleCountPlanEventType.Paused => CatTexts["Pausa"].Value, CycleCountPlanEventType.Reactivated => CatTexts["Reactivación"].Value, CycleCountPlanEventType.Advanced => CatTexts["Avance por finalización"].Value, _ => type.ToString() };
+}
+<div class="inventory-analytics">
+    <header class="inventory-page-header analytics-header"><div><a asp-page="Index" class="small text-decoration-none">@CatTexts["← Planes de conteo"]</a><h1 class="h2 mt-2 mb-1">@CatTexts["Historial del plan"]</h1><p class="text-muted mb-0">@Model.Plan?.Sku · @Model.Plan?.LocationCode</p></div></header>
+    <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>@CatTexts["Fecha local"]</th><th>@CatTexts["Acción"]</th><th>@CatTexts["Responsable"]</th><th>@CatTexts["Cambios"]</th></tr></thead><tbody>
+    @foreach (var row in Model.Result.Items)
+    {
+        var item = row.Event;
+        <tr><td>@row.LocalDate.ToString("dd/MM/yyyy HH:mm")</td><td>@EventLabel(item.Type)</td><td>@item.ResponsibleName</td><td>
+            @if (item.PreviousFrequency != item.NewFrequency && item.NewFrequency is not null) { <div>Frecuencia: @(item.PreviousFrequency is null ? "—" : CycleCountPlanPresentation.FrequencyLabel(item.PreviousFrequency.Value)) → @CycleCountPlanPresentation.FrequencyLabel(item.NewFrequency.Value)</div> }
+            @if (item.PreviousAnchorDate != item.NewAnchorDate) { <div>Ancla: @(item.PreviousAnchorDate?.ToString("dd/MM/yyyy") ?? "—") → @(item.NewAnchorDate?.ToString("dd/MM/yyyy") ?? "—")</div> }
+            @if (item.PreviousNextDueDate != item.NewNextDueDate) { <div>@CatTexts["Próximo: {0} → {1}", item.PreviousNextDueDate?.ToString("dd/MM/yyyy") ?? "—", item.NewNextDueDate?.ToString("dd/MM/yyyy") ?? "—"]</div> }
+            @if (item.PreviousIsActive != item.NewIsActive) { <div>Estado: @(item.PreviousIsActive is null ? "—" : item.PreviousIsActive.Value ? CatTexts["Activo"].Value : CatTexts["Pausado"].Value) → @(item.NewIsActive == true ? CatTexts["Activo"].Value : CatTexts["Pausado"].Value)</div> }
+        </td></tr>
+    }
+    @if (Model.Result.Items.Count == 0) { <tr><td colspan="4" class="text-center text-body-secondary py-4">@CatTexts["No hay eventos registrados."]</td></tr> }
+    </tbody></table></div>
+    @if (Model.Result.TotalPages > 1) { <nav aria-label="@CatTexts["Páginas del historial"]"><ul class="pagination justify-content-center">@for (var p = 1; p <= Model.Result.TotalPages; p++) { <li class="page-item @(p == Model.Result.Page ? "active" : null)"><a class="page-link" asp-route-id="@Model.Plan!.Id" asp-route-pageNumber="@p">@p</a></li> }</ul></nav> }
+</div>

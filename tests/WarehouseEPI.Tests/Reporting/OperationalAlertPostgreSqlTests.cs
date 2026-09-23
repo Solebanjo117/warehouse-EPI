@@ -36,7 +36,7 @@ public sealed class OperationalAlertPostgreSqlTests(PostgreSqlInventoryFixture f
     public async Task Snapshot_and_all_detail_queries_translate_on_postgresql()
     {
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        var seed = await fixture.SeedAsync($"PG-ALERT-{suffix}", $"PGA-{suffix}", "4386");
+        var seed = await fixture.SeedAsync($"PG-ALERT-{suffix}", $"PGA-{suffix}", "4398");
         await using var db = fixture.CreateDbContext();
         var product = await db.Products.SingleAsync(x => x.Id == seed.ProductId);
         var location = await db.Locations.SingleAsync(x => x.Id == seed.LocationId);

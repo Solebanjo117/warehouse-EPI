@@ -1,45 +1,52 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Reports.Wip.DetailsModel
-@{ ViewData["Title"] = "Detalle WIP"; }
+@{ ViewData["Title"] = CatTexts["Detalle WIP"].Value; }
 
-<div class="container py-4">
+<div class="container py-4 wip-report-detail">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
         <div>
-            <a asp-page="Index">← Reporte WIP</a>
+            <a asp-page="Index">@CatTexts["← Reporte WIP"]</a>
             <h1 class="h2 mt-2 mb-1">@Model.Issue.ProductSku: @Model.Issue.SourceLocation → @Model.Issue.WipArea</h1>
-            <p class="mb-0">Salida original @Model.Issue.OccurredAt.ToString("dd/MM/yyyy HH:mm") · @Model.Issue.Responsible · folio @Model.Issue.MovementId</p>
+            <dl class="wip-detail-facts mb-0">
+                <div><dt>@CatTexts["Salida original"]</dt><dd>@Model.Issue.OccurredAt.ToString("dd/MM/yyyy HH:mm")</dd></div>
+                <div><dt>@CatTexts["Responsable"]</dt><dd>@Model.Issue.Responsible</dd></div>
+                <div><dt>@CatTexts["Folio"]</dt><dd>@Model.Issue.MovementId</dd></div>
+            </dl>
         </div>
-        <span class="badge text-bg-secondary fs-6">Historial legado de solo lectura</span>
+        <span class="badge text-bg-secondary fs-6">@CatTexts["Historial legado de solo lectura"]</span>
     </div>
 
     <div class="row g-3 mb-4">
-        <div class="col"><div class="card card-body"><span>Enviado</span><strong>@Model.Issue.Issued.ToString("0.####") @Model.Issue.Unit</strong></div></div>
-        <div class="col"><div class="card card-body"><span>Devuelto a bodega</span><strong>@Model.Issue.WarehouseReturned.ToString("0.####")</strong></div></div>
-        <div class="col"><div class="card card-body"><span>Devuelto a proveedor</span><strong>@Model.Issue.SupplierReturned.ToString("0.####")</strong></div></div>
-        <div class="col"><div class="card card-body border-warning"><span>Consumo asumido</span><strong>@Model.Issue.AssumedConsumed.ToString("0.####")</strong></div></div>
+        <div class="col"><div class="card card-body"><span>@CatTexts["Enviado"]</span><strong>@Model.Issue.Issued.ToString("0.####") @Model.Issue.Unit</strong></div></div>
+        <div class="col"><div class="card card-body"><span>@CatTexts["Devuelto a bodega"]</span><strong>@Model.Issue.WarehouseReturned.ToString("0.####") @Model.Issue.Unit</strong></div></div>
+        <div class="col"><div class="card card-body"><span>@CatTexts["Devuelto a proveedor"]</span><strong>@Model.Issue.SupplierReturned.ToString("0.####") @Model.Issue.Unit</strong></div></div>
+        <div class="col"><div class="card card-body border-warning"><span>@CatTexts["Consumo asumido"]</span><strong>@Model.Issue.AssumedConsumed.ToString("0.####") @Model.Issue.Unit</strong></div></div>
     </div>
 
-    <h2 class="h4">Devoluciones y compensaciones</h2>
+    <h2 class="h4">@CatTexts["Devoluciones y compensaciones"]</h2>
     <div class="table-responsive">
         <table class="table">
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Responsable</th><th>Referencia</th><th>Estado</th></tr></thead>
+            <thead><tr><th>@CatTexts["Fecha"]</th><th>@CatTexts["Tipo"]</th><th>@CatTexts["Cantidad"]</th><th>@CatTexts["Responsable"]</th><th>@CatTexts["Referencia"]</th><th>@CatTexts["Estado"]</th></tr></thead>
             <tbody>
                 @if (Model.Dispositions.Count == 0)
                 {
-                    <tr><td colspan="6" class="text-center text-muted">Sin devoluciones.</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted">@CatTexts["Sin devoluciones."]</td></tr>
                 }
                 @foreach (var row in Model.Dispositions)
                 {
                     <tr class="@(row.IsReversal || row.WasReversed ? "table-secondary" : null)">
-                        <td>@row.OccurredAt.ToString("dd/MM/yyyy HH:mm")</td>
-                        <td>@(row.Type == "WarehouseReturn" ? "A bodega" : "A proveedor")</td>
-                        <td>@row.Quantity.ToString("0.####") @Model.Issue.Unit</td>
-                        <td>@row.Responsible</td>
-                        <td>@row.Reference</td>
-                        <td>@(row.IsReversal ? "Compensación" : row.WasReversed ? "Corregida" : "Vigente")</td>
+                        <td data-label="@CatTexts["Fecha"]">@row.OccurredAt.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td data-label="@CatTexts["Tipo"]">@(row.Type == "WarehouseReturn" ? CatTexts["A bodega"].Value : CatTexts["A proveedor"].Value)</td>
+                        <td data-label="@CatTexts["Cantidad"]">@row.Quantity.ToString("0.####") @Model.Issue.Unit</td>
+                        <td data-label="@CatTexts["Responsable"]">@row.Responsible</td>
+                        <td data-label="@CatTexts["Referencia"]">@row.Reference</td>
+                        <td data-label="@CatTexts["Estado"]">@(row.IsReversal ? CatTexts["Compensación"].Value : row.WasReversed ? CatTexts["Corregida"].Value : CatTexts["Vigente"].Value)</td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
 </div>
+
+@section Styles { <link rel="stylesheet" href="~/css/wip-report-details.css" asp-append-version="true" /> }

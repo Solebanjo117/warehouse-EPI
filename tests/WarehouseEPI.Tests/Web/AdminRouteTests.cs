@@ -1,7 +1,12 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -12,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using WarehouseEPI.Web.Pages.Admin;
 
 namespace WarehouseEPI.Tests.Web;
 
@@ -211,6 +217,14 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("href=\"/Admin/Catalogs/Products\"", createHtml);
         Assert.Contains("name=\"Input.Sku\"", createHtml);
         Assert.Contains("name=\"Input.BaseUnitId\"", createHtml);
+        Assert.Contains("name=\"Input.DefaultEntryLocationId\"", createHtml);
+        Assert.Contains("Ubicación principal de entrada", createHtml);
+        Assert.Contains("data-cycle-plan-search", createHtml);
+        Assert.Contains("data-cycle-plan-results", createHtml);
+        Assert.Contains("data-cycle-plan-clear", createHtml);
+        Assert.Contains("data-cycle-plan-camera", createHtml);
+        Assert.Contains("/js/cycle-count.js", createHtml);
+        Assert.DoesNotContain("<select id=\"Input_DefaultEntryLocationId\"", createHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Códigos de barras", createHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", createHtml, StringComparison.Ordinal);
 
@@ -255,6 +269,13 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("Guardar cambios", editHtml);
         Assert.Contains("Ver ficha", editHtml);
         Assert.Contains("Ubicaciones asignadas", editHtml);
+        Assert.Contains("name=\"Input.DefaultEntryLocationId\"", editHtml);
+        Assert.Contains("data-cycle-plan-search", editHtml);
+        Assert.Contains("role=\"combobox\"", editHtml);
+        Assert.Contains("aria-controls=\"default-entry-location-results\"", editHtml);
+        Assert.Contains("data-cycle-plan-camera", editHtml);
+        Assert.Contains("Configuración de producción", editHtml);
+        Assert.Contains("/js/cycle-count.js", editHtml);
         Assert.DoesNotContain("Códigos de barras", editHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", editHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AddBarcode", editHtml, StringComparison.Ordinal);
@@ -266,6 +287,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var detailsHtml = await detailsPage.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, detailsPage.StatusCode);
         Assert.Contains("Lotes internos", detailsHtml);
+        Assert.Contains("Configuración de producción", detailsHtml);
         Assert.DoesNotContain("Códigos de barras", detailsHtml, StringComparison.OrdinalIgnoreCase);
 
         var editResponse = await client.PostAsync(
@@ -335,6 +357,41 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.True(await verificationDb.Locations.AnyAsync(location => location.Code == "Z-1-9"));
 
         var generatedLocation = await verificationDb.Locations.SingleAsync(location => location.Code == "Z-1-9");
+        var createWithDefaultPage = await client.GetStringAsync("/Admin/Catalogs/Products/Create");
+        var createWithDefaultResponse = await client.PostAsync(
+            "/Admin/Catalogs/Products/Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Sku"] = "WEB-DEFAULT-ENTRY",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "0",
+                ["Input.DefaultEntryLocationId"] = generatedLocation.Id.ToString(),
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = Antiforgery(createWithDefaultPage)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, createWithDefaultResponse.StatusCode);
+        verificationDb.ChangeTracker.Clear();
+        var productWithDefault = await verificationDb.Products.SingleAsync(product => product.Sku == "WEB-DEFAULT-ENTRY");
+        Assert.Equal(generatedLocation.Id, productWithDefault.DefaultEntryLocationId);
+        Assert.True(await verificationDb.ProductLocationAssignments.AnyAsync(assignment =>
+            assignment.ProductId == productWithDefault.Id && assignment.LocationId == generatedLocation.Id && assignment.IsActive));
+
+        var invalidDefaultPage = await client.GetStringAsync("/Admin/Catalogs/Products/Create");
+        var invalidDefaultResponse = await client.PostAsync(
+            "/Admin/Catalogs/Products/Create",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Sku"] = "WEB-INVALID-DEFAULT",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "0",
+                ["Input.DefaultEntryLocationId"] = Guid.NewGuid().ToString(),
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = Antiforgery(invalidDefaultPage)
+            }));
+        Assert.Equal(HttpStatusCode.OK, invalidDefaultResponse.StatusCode);
+        Assert.Contains("Seleccione una ubicación física activa y no bloqueada.",
+            await invalidDefaultResponse.Content.ReadAsStringAsync());
+
         var assignmentPage = await client.GetAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}?locationSearch=Z-1-9");
         var assignmentHtml = await assignmentPage.Content.ReadAsStringAsync();
         var assignmentToken = Regex.Match(assignmentHtml, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
@@ -351,6 +408,28 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         verificationDb.ChangeTracker.Clear();
         Assert.True(await verificationDb.ProductLocationAssignments.AnyAsync(assignment =>
             assignment.ProductId == savedProduct.Id && assignment.LocationId == generatedLocation.Id && assignment.IsActive));
+
+        var defaultEditPage = await client.GetStringAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}");
+        var defaultEditResponse = await client.PostAsync(
+            $"/Admin/Catalogs/Products/Edit/{savedProduct.Id}",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["Input.Id"] = savedProduct.Id.ToString(),
+                ["Input.Sku"] = "WEB-EDITED",
+                ["Input.Description"] = "Producto actualizado desde el formulario",
+                ["Input.BaseUnitId"] = "1",
+                ["Input.MinimumStock"] = "3.5",
+                ["__Invariant"] = "Input.MinimumStock",
+                ["Input.DefaultEntryLocationId"] = generatedLocation.Id.ToString(),
+                ["Input.IsActive"] = "true",
+                ["__RequestVerificationToken"] = Antiforgery(defaultEditPage)
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, defaultEditResponse.StatusCode);
+        verificationDb.ChangeTracker.Clear();
+        Assert.Equal(generatedLocation.Id,
+            (await verificationDb.Products.SingleAsync(product => product.Id == savedProduct.Id)).DefaultEntryLocationId);
+        Assert.Contains("Principal de entrada",
+            await client.GetStringAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}"));
 
         var detailResponse = await client.GetAsync($"/Admin/Catalogs/Locations/{generatedLocation.Id}");
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
@@ -371,6 +450,41 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.True(productRackSearch.StatusCode == HttpStatusCode.OK,
             $"Búsqueda por rack devolvió {productRackSearch.StatusCode}: {productRackSearchBody}");
         Assert.Contains("WEB-EDITED", productRackSearchBody);
+    }
+
+    [Fact]
+    public void Logout_page_registers_the_post_form_target()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Logout.cshtml"));
+        var layout = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
+
+        Assert.Contains("@page", page, StringComparison.Ordinal);
+        Assert.Contains("@model WarehouseEPI.Web.Pages.Admin.LogoutModel", page, StringComparison.Ordinal);
+        Assert.Contains("<form method=\"post\" asp-page=\"/Admin/Logout\">", layout, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Logout_handler_expires_the_admin_cookie_and_redirects_home()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+            .AddCookie(options => options.Cookie.Name = "WarehouseEPI.Admin");
+        await using var provider = services.BuildServiceProvider();
+        var httpContext = new DefaultHttpContext { RequestServices = provider };
+        httpContext.Request.Headers.Cookie = "WarehouseEPI.Admin=authenticated";
+        var page = new LogoutModel
+        {
+            PageContext = new PageContext { HttpContext = httpContext }
+        };
+
+        var result = await page.OnPostAsync();
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("/Index", redirect.PageName);
+        var setCookie = httpContext.Response.Headers.SetCookie.ToString();
+        Assert.Contains("WarehouseEPI.Admin=", setCookie, StringComparison.Ordinal);
+        Assert.Contains("expires=", setCookie, StringComparison.OrdinalIgnoreCase);
     }
 
     public sealed class WarehouseApplicationFactory : WebApplicationFactory<Program>
@@ -410,5 +524,23 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var tokenMatch = Regex.Match(html, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
         Assert.True(tokenMatch.Success, "No se encontró el token antiforgery.");
         return WebUtility.HtmlDecode(tokenMatch.Groups[1].Value);
+    }
+
+    private static string RepositoryPath(params string[] parts)
+    {
+        var root = Environment.GetEnvironmentVariable("WAREHOUSE_EPI_REPOSITORY_ROOT");
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (string.IsNullOrWhiteSpace(root) && directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "WarehouseEPI.sln")))
+                root = directory.FullName;
+            directory = directory.Parent;
+        }
+
+        Assert.False(string.IsNullOrWhiteSpace(root), "No se encontró la raíz del repositorio.");
+        var path = root!;
+        foreach (var part in parts)
+            path = Path.Combine(path, part);
+        return path;
     }
 }

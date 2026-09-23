@@ -1,0 +1,36 @@
+@media screen {
+ .wip-report-detail { max-width: 88rem; min-width: 0; }
+ .wip-report-detail > .d-flex { border-bottom: 1px solid var(--bs-border-color); padding-bottom: 1rem; }
+ .wip-report-detail h1 { font-size: 1.65rem; font-weight: 700; overflow-wrap: anywhere; }
+ .wip-report-detail h2 { font-size: 1.25rem; }
+ .wip-report-detail .wip-detail-facts { display: grid; grid-template-columns: minmax(0,1fr); gap: 1rem; margin-top: 1rem; }
+ .wip-report-detail dt { color: var(--bs-secondary-color); font-size: .8rem; }
+ .wip-report-detail dd { margin: .2rem 0 0; overflow-wrap: anywhere; }
+ .wip-report-detail .card { border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); box-shadow: none; padding: 1rem; height: 100%; }
+ .wip-report-detail .card strong { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+ .wip-report-detail .card strong { overflow-wrap: anywhere; }
+ .wip-report-detail td[data-label="Cantidad"] { text-align: right; }
+ .wip-report-detail .row > .col { flex: 0 0 100%; }
+ .wip-report-detail .table { --bs-table-bg: var(--bs-body-bg); }
+ .wip-report-detail .table :is(td,th) { padding: .85rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+ .wip-report-detail th { background: var(--bs-tertiary-bg); color: var(--bs-secondary-color); font-size: .8rem; }
+ .wip-report-detail .badge { white-space: normal; }
+ .wip-report-detail a { display: inline-flex; align-items: center; min-height: 44px; }
+ .wip-report-detail a:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+}
+@media screen and (min-width: 768px) {
+ .wip-report-detail .row > .col { flex-basis: 50%; }
+ .wip-report-detail .wip-detail-facts { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media screen and (min-width: 1200px) {
+ .wip-report-detail .row > .col { flex-basis: 25%; }
+}
+@media screen and (max-width: 1199.98px) {
+ .wip-report-detail .table-responsive { overflow: visible; }
+ .wip-report-detail .table,
+ .wip-report-detail tbody { display: block; width: 100%; }
+ .wip-report-detail thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+ .wip-report-detail tr { display: block; margin-bottom: .75rem; border: 1px solid var(--bs-border-color); border-radius: .65rem; }
+ .wip-report-detail td { display: block; border: 0; }
+ .wip-report-detail td[data-label]::before { content: attr(data-label); display: block; font-size: .8rem; font-weight: 600; color: var(--bs-secondary-color); }
+}

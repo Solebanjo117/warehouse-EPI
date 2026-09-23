@@ -15,7 +15,7 @@ public sealed class OperationalExceptionPostgreSqlTests(PostgreSqlInventoryFixtu
     public async Task Migration_and_reconciliation_use_postgresql_indexes_and_xmin()
     {
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        var seed = await fixture.SeedAsync($"PG-EXCEPTION-{suffix}", $"PEX-{suffix}", "4386");
+        var seed = await fixture.SeedAsync($"PG-EXCEPTION-{suffix}", $"PEX-{suffix}", "4397");
         await using var db = fixture.CreateDbContext();
         db.InventoryBalances.Add(new InventoryBalance { ProductId = seed.ProductId, LocationId = seed.LocationId, Quantity = -1m });
         await db.SaveChangesAsync();
@@ -27,6 +27,7 @@ public sealed class OperationalExceptionPostgreSqlTests(PostgreSqlInventoryFixtu
         var page = await service.GetPageAsync(new(Category: OperationalExceptionCategory.NegativeInventory));
         var migrator = db.GetService<IMigrator>();
         var down = migrator.GenerateScript("20260828143458_AddOperationalExceptionCenter", "20260828120000_WipTrackedInventory");
+        var enrichment = migrator.GenerateScript("20260904143029_AddProductDefaultEntryLocation", "20260904144551_EnrichOperationalExceptionContext");
         await using var command = db.Database.GetDbConnection().CreateCommand();
         command.CommandText = "SELECT count(*) FROM pg_indexes WHERE tablename = 'operational_exception_cases' AND indexname = 'IX_operational_exception_cases_category_condition_key'";
         await db.Database.OpenConnectionAsync();
@@ -34,8 +35,11 @@ public sealed class OperationalExceptionPostgreSqlTests(PostgreSqlInventoryFixtu
 
         Assert.True(result.Created > 0);
         Assert.Contains(page.Items, item => item.PrimaryText == $"PG-EXCEPTION-{suffix}" && item.Version > 0);
+        Assert.Contains(page.Items, item => item.PrimaryText == $"PG-EXCEPTION-{suffix}" && item.ReasonText.Contains("menor que cero", StringComparison.Ordinal));
         Assert.Equal(1, indexCount);
         Assert.Contains("DROP TABLE operational_exception_events", down, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("reason_text", enrichment, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("ALTER COLUMN reason_text SET NOT NULL", enrichment, StringComparison.OrdinalIgnoreCase);
 
         var balance = await db.InventoryBalances.SingleAsync(item =>
             item.ProductId == seed.ProductId && item.LocationId == seed.LocationId);

@@ -1,0 +1,102 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleImportModel
+@using WarehouseEPI.Core.Entities
+@using global::System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    var preview = Model.Preview!;
+    var destination = preview.Weeks.FirstOrDefault(x => x.IsDraft);
+}
+<section class="border rounded p-3 my-3" aria-labelledby="opening-title" data-import-opening>
+    <h3 class="h5" id="opening-title">@T["Conciliar apertura"]</h3>
+    <p>@T["Destino: 21/09/2026. Origen: cierre de la semana del 14/09/2026. Los pendientes por proceso no son paquetes independientes."]</p>
+    @if (Model.CanEdit)
+    {
+        <div class="d-flex flex-wrap gap-2 mb-3">
+            <form method="post" asp-page-handler="Revalidate"><input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/><button class="btn btn-outline-primary">@T["Volver a validar"]</button></form>
+            <form method="post" asp-page-handler="DiscardDraft"><input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/><button class="btn btn-outline-secondary">@T["Descartar borrador"]</button></form>
+        </div>
+        @if (preview.ClosingCandidates.Count > 1)
+        {
+            <form method="post" asp-page-handler="Closing" class="row g-2 mb-3">
+                <input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/>
+                <div class="col-md-8"><label for="closing-table" class="form-label">@T["Tabla de cierre"]</label><select id="closing-table" name="ClosingTable" class="form-select"><option value="">@T["Selecciona una tabla de cierre válida."]</option>@foreach(var candidate in preview.ClosingCandidates){<option value="@candidate" selected="@(candidate == Model.ClosingTable)">@candidate</option>}</select></div>
+                <div class="col-md-4 align-self-end"><button class="btn btn-primary">@T["Seleccionar cierre y volver a validar"]</button></div>
+            </form>
+        }
+        @if (Model.Draft?.IsCurrent == false)
+        { <p class="alert alert-warning" role="alert">@T["La revisión cambió. Vuelve a validar antes de confirmar."]</p> }
+    }
+    <dl class="row mb-2">
+        <dt class="col-md-8">@T["Líneas originales / capturas"]</dt><dd class="col-md-4">@preview.LineCount / @preview.CaptureCount</dd>
+        <dt class="col-md-8">@T["Programa nuevo de la semana destino: líneas / piezas"]</dt><dd class="col-md-4">@(destination?.Lines.Count(x => !x.IsCarryover) ?? 0) / @(destination?.Lines.Where(x => !x.IsCarryover).Sum(x => x.Quantity).ToString("0.####", CultureInfo.InvariantCulture) ?? "0")</dd>
+        <dt class="col-md-8">@T["Paquetes de apertura resueltos"]</dt><dd class="col-md-4">@(destination?.OpeningCarryovers.Count ?? 0)</dd>
+        @foreach(var area in Enum.GetValues<ProductionDailyArea>())
+        { <dt class="col-md-8">@T["Inicio en"] @Model.AreaName(area)</dt><dd class="col-md-4">@(destination?.OpeningCarryovers.Where(x => x.Area == area).Sum(x => x.Quantity).ToString("0.####", CultureInfo.InvariantCulture) ?? "0")</dd> }
+        <dt class="col-md-8">@T["Líneas finales: semana destino / importación completa"]</dt><dd class="col-md-4">@(destination?.FinalLines.Count ?? 0) / @preview.FinalLineCount</dd>
+        <dt class="col-md-8">@T["SKU pendientes de resolución"]</dt><dd class="col-md-4">@preview.OpeningReview.Count(x => !x.Resolved)</dd>
+    </dl>
+    @if (!preview.CanConfirm) { <p class="text-body-secondary">@T["Los totales finales son parciales mientras existan bloqueos."]</p> }
+    <form method="get" class="row g-2 mb-3">
+        <input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/>
+        <div class="col-md-5"><label for="opening-search" class="form-label">@T["Buscar SKU"]</label><input id="opening-search" name="Search" value="@Model.Search" type="search" class="form-control"/></div>
+        <div class="col-md-5"><label for="opening-filter" class="form-label">@T["Estado"]</label><select id="opening-filter" name="OnlyPending" class="form-select"><option value="true" selected="@Model.OnlyPending">@T["Requieren revisión"]</option><option value="false" selected="@(!Model.OnlyPending)">@T["Todos los SKU"]</option></select></div>
+        <div class="col-md-2 align-self-end"><button class="btn btn-outline-primary w-100">@T["Filtrar"]</button></div>
+    </form>
+    <p>@T["Página {0} de {1} · {2} productos", Model.ReviewPage, Model.ReviewPages, Model.ReviewTotal]</p>
+    @foreach(var row in Model.ReviewRows)
+    {
+        <article class="border rounded p-3 mb-3" id="product-@row.ProductId" data-opening-product="@row.ProductId">
+            <div class="d-flex flex-wrap justify-content-between gap-2"><h4 class="h6 text-break">@row.Sku</h4><span class="badge @(row.Resolved ? "text-bg-success" : "text-bg-warning")">@T[row.Resolved ? "Resuelto" : "Requiere revisión"]</span></div>
+            <p>@T["Programa"]: @row.Planned.ToString("0.####", CultureInfo.InvariantCulture)</p>
+            <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@T["Área"]</th><th>@T["Capturas: piezas"]</th><th>@T["Pendiente en el Excel"]</th><th>@T["Piezas que empiezan aquí"]</th></tr></thead><tbody>
+                @foreach(var area in Enum.GetValues<ProductionDailyArea>())
+                { <tr><th>@Model.AreaName(area)</th><td>@row.Completed[(int)area].ToString("0.####", CultureInfo.InvariantCulture)</td><td>@(row.Closing[(int)area]?.ToString("0.####", CultureInfo.InvariantCulture) ?? T["Sin dato"].Value)</td><td>@(row.Resolved ? row.Packages.Where(x => x.Area == area).Sum(x => x.Quantity).ToString("0.####", CultureInfo.InvariantCulture) : T["Por resolver"].Value)</td></tr> }
+            </tbody></table></div>
+            @if(row.Problems.Count > 0){<ul>@foreach(var problem in row.Problems){<li>@T[problem]</li>}</ul>}
+            @if(row.Resolution is not null){<p><strong>@T["Motivo"]:</strong> @row.Resolution.Reason</p>}
+            @if(Model.CanEdit)
+            {
+                <details open="@(!row.Resolved)"><summary class="py-2">@T["Definir apertura física"]</summary>
+                    <form method="post" asp-page-handler="Opening" class="row g-3 mt-1">
+                        <input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/><input type="hidden" name="Opening.ProductId" value="@row.ProductId"/>
+                        @foreach(var area in Enum.GetValues<ProductionDailyArea>())
+                        {
+                            var field = area.ToString();
+                            var value = row.Resolution?.For(area) ?? (row.Resolved ? row.Packages.Where(x => x.Area == area).Sum(x => x.Quantity) : (decimal?)null);
+                            var applies = row.ApplicableAreas.Contains(area);
+                            <div class="col-md-4"><label for="opening-@row.ProductId-@field" class="form-label">@T["Inicio en"] @Model.AreaName(area)</label><input id="opening-@row.ProductId-@field" name="Opening.@field" value="@(applies ? value?.ToString("0.####", CultureInfo.InvariantCulture) : "0")" type="text" inputmode="decimal" pattern="[0-9]+(\.[0-9]{1,4})?" required readonly="@(!applies)" class="form-control"/></div>
+                        }
+                        <div class="col-12"><label for="reason-@row.ProductId" class="form-label">@T["Motivo"]</label><textarea id="reason-@row.ProductId" name="Opening.Reason" maxlength="500" required class="form-control">@row.Resolution?.Reason</textarea><p class="form-text">@T["Para declarar sin pendiente, escribe cero en las tres áreas y explica el motivo."]</p></div>
+                        <div class="col-12"><button class="btn btn-primary">@T["Guardar conciliación"]</button></div>
+                    </form>
+                </details>
+            }
+            <a class="btn btn-link" asp-route-PreviewToken="@Model.PreviewToken" asp-route-Search="@Model.Search" asp-route-OnlyPending="@Model.OnlyPending" asp-route-ReviewPage="@Model.ReviewPage" asp-route-EvidenceProduct="@row.ProductId" asp-fragment="product-@row.ProductId">@T["Ver evidencia del archivo"]</a>
+            @if(Model.EvidenceProduct == row.ProductId)
+            {
+                var cells = preview.Evidence.Where(x => row.SourceSkus.Contains(x.Sku)).ToArray();
+                var pages = Math.Max(1, (cells.Length + 99) / 100);
+                var page = Math.Clamp(Model.EvidencePage, 1, pages);
+                <p>@T["Evidencia: página {0} de {1} · {2} celdas", page, pages, cells.Length]</p>
+                <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@T["Origen"]</th><th>@T["Columna"]</th><th>@T["Valor original"]</th><th>@T["Fórmula"]</th></tr></thead><tbody>
+                @foreach(var cell in cells.Skip((page - 1) * 100).Take(100))
+                {<tr><td>@cell.Sheet · @cell.Table · @cell.Cell</td><td>@cell.Header</td><td>@cell.Text <small>@T[cell.State]</small></td><td class="text-break">@cell.Formula</td></tr>}
+                </tbody></table></div>
+                <div class="d-flex gap-2">
+                @if(page > 1){<a class="btn btn-outline-secondary" asp-route-PreviewToken="@Model.PreviewToken" asp-route-Search="@Model.Search" asp-route-OnlyPending="@Model.OnlyPending" asp-route-ReviewPage="@Model.ReviewPage" asp-route-EvidenceProduct="@row.ProductId" asp-route-EvidencePage="@(page - 1)" asp-fragment="product-@row.ProductId">@T["Anterior"]</a>}
+                @if(page < pages){<a class="btn btn-outline-secondary" asp-route-PreviewToken="@Model.PreviewToken" asp-route-Search="@Model.Search" asp-route-OnlyPending="@Model.OnlyPending" asp-route-ReviewPage="@Model.ReviewPage" asp-route-EvidenceProduct="@row.ProductId" asp-route-EvidencePage="@(page + 1)" asp-fragment="product-@row.ProductId">@T["Siguiente"]</a>}
+                </div>
+            }
+        </article>
+    }
+    @if(Model.ReviewRows.Count == 0){<p>@T["No hay productos con estos filtros."]</p>}
+    <nav aria-label="@T["Páginas de conciliación"]" class="d-flex gap-2">
+        @if(Model.ReviewPage > 1){<a class="btn btn-outline-secondary" asp-route-PreviewToken="@Model.PreviewToken" asp-route-Search="@Model.Search" asp-route-OnlyPending="@Model.OnlyPending" asp-route-ReviewPage="@(Model.ReviewPage - 1)">@T["Anterior"]</a>}
+        @if(Model.ReviewPage < Model.ReviewPages){<a class="btn btn-outline-secondary" asp-route-PreviewToken="@Model.PreviewToken" asp-route-Search="@Model.Search" asp-route-OnlyPending="@Model.OnlyPending" asp-route-ReviewPage="@(Model.ReviewPage + 1)">@T["Siguiente"]</a>}
+    </nav>
+    <details class="mt-3"><summary class="py-2">@T["Ver líneas finales de la semana destino"]</summary>
+        <div class="table-responsive"><table class="table table-sm"><thead><tr><th>@T["Fecha"]</th><th>SKU</th><th>@T["Cantidad"]</th><th>@T["Área de inicio"]</th><th>@T["Origen"]</th></tr></thead><tbody>
+            @foreach(var line in destination?.FinalLines ?? []){<tr><td>@line.Date.ToString("dd/MM/yyyy")</td><td>@line.Sku</td><td>@line.Quantity.ToString("0.####", CultureInfo.InvariantCulture)</td><td>@(line.StartArea.HasValue ? Model.AreaName(line.StartArea.Value) : T["Programa nuevo"].Value)</td><td>@(line.SourceSheet ?? destination!.Sheet) · @line.SourceRow</td></tr>}
+        </tbody></table></div>
+    </details>
+</section>

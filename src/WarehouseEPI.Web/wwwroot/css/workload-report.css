@@ -1,0 +1,55 @@
+/* Shared public/ADMIN report presentation; operational contracts unchanged. */
+@media screen {
+ .workload-page { max-width: 88rem; margin-inline: auto; min-width: 0; }
+ .workload-page > header { border-bottom: 1px solid var(--bs-border-color); padding-bottom: 1rem; }
+ .workload-page h1 { font-size: 1.65rem; font-weight: 700; }
+ .workload-page h2 { font-size: 1.25rem; font-weight: 650; }
+ .workload-page .card { min-width: 0; border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); box-shadow: none; }
+ .workload-page .card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; padding: 1rem; background: var(--bs-tertiary-bg); }
+ .workload-page .card-body { padding: 1rem; }
+ .workload-page .card-footer { background: var(--bs-body-bg); flex-wrap: wrap; gap: .75rem; }
+ .workload-page .analytics-filter-card { border: 1px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-tertiary-bg); padding: 1rem; box-shadow: none; }
+ .workload-page :is(.btn,.nav-link,.form-control,.form-select) { min-height: 44px; }
+ .workload-page :is(.btn-lg,.form-control-lg) { font-size: 1rem; }
+ .workload-page :is(.btn,.badge) { white-space: normal; }
+ .workload-page :is(a,button,input,select):focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+ .workload-page :is(strong,small,p,h4,td,.badge) { overflow-wrap: anywhere; }
+ .workload-page :is(strong,td) { font-variant-numeric: tabular-nums; }
+ .workload-page .workload-view-tabs .nav-link { border: 1px solid var(--bs-border-color); border-radius: .5rem; }
+ .workload-page .workload-view-tabs .active { border-color: var(--bs-primary); color: var(--bs-primary-text-emphasis); background: var(--bs-primary-bg-subtle); }
+ .workload-page .workload-summary-card { border-top: 3px solid var(--bs-primary); }
+ .workload-page .workload-summary-card-warning { border-top-color: var(--bs-warning); }
+ .workload-page :is(.workload-summary-card,.workload-metric) strong { font-size: 1.65rem; color: var(--bs-body-color); }
+ .workload-page .workload-item-list { gap: 0; }
+ .workload-page .workload-item { border: 0; border-bottom: 1px solid var(--bs-border-color); border-radius: 0; padding: 1rem 0; }
+ .workload-page .workload-item:first-child { padding-top: 0; }
+ .workload-page .workload-item:last-child { border-bottom: 0; padding-bottom: 0; }
+ .workload-page .workload-primary-action { flex-shrink: 0; max-width: 100%; }
+ .workload-page .workload-empty { border: 1px dashed var(--bs-border-color); border-radius: .5rem; background: var(--bs-tertiary-bg); }
+ .workload-page .list-group-item.d-flex { flex-wrap: wrap; }
+ .workload-page .table { --bs-table-bg: var(--bs-body-bg); }
+ .workload-page .table :is(td,th) { padding: .85rem; }
+ .workload-page .table th { font-size: .8rem; color: var(--bs-secondary-color); background: var(--bs-tertiary-bg); }
+ .workload-page [aria-label="Resumen de trabajo pendiente"] > div { width: 100%; }
+}
+@media screen and (min-width: 768px) {
+ .workload-page [aria-label="Resumen de trabajo pendiente"] > div { width: 50%; }
+}
+@media screen and (min-width: 1200px) {
+ .workload-page [aria-label="Resumen de trabajo pendiente"] > div { width: 33.333333%; }
+}
+@media screen and (max-width: 1199.98px) {
+ .workload-page .workload-item { flex-direction: column; align-items: stretch; }
+ .workload-page .workload-primary-action { align-self: flex-start; }
+ .workload-page .table-responsive { overflow: visible; }
+ .workload-page .table,
+ .workload-page .table tbody { display: block; width: 100%; }
+ .workload-page .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+ .workload-page .table tbody tr { display: block; border-bottom: 1px solid var(--bs-border-color); padding-block: .5rem; }
+ .workload-page .table tbody td { display: block; border: 0; text-align: left !important; }
+ .workload-page .table td[data-label]::before { content: attr(data-label); display: block; font-size: .8rem; font-weight: 600; color: var(--bs-secondary-color); margin-bottom: .2rem; }
+}
+@media screen and (max-width: 767.98px) {
+ .workload-page .workload-primary-action { align-self: stretch; }
+ .workload-page .row > div:has(> .workload-metric) { width: 100%; }
+}

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0</value></resheader>
+  <data name="Buscando ubicación… Acepta el permiso del navegador."><value>Finding location… Allow the browser permission.</value></data>
+  <data name="Permiso de ubicación denegado. Habilítalo en el navegador y pulsa Mi ubicación."><value>Location permission denied. Enable it in the browser and press My location.</value></data>
+  <data name="La ubicación tardó demasiado. Mantén la página abierta para reintentar."><value>Location took too long. Keep the page open and try again.</value></data>
+  <data name="No se pudo obtener la ubicación en este momento. El equipo seguirá intentando."><value>Location could not be obtained right now. The device will keep trying.</value></data>
+  <data name="Abre Warehouse EPI por HTTPS para usar la ubicación."><value>Open Warehouse EPI over HTTPS to use location.</value></data>
+  <data name="Este equipo o navegador no ofrece geolocalización."><value>This device or browser does not provide geolocation.</value></data>
+  <data name="No se recibió ninguna lectura. Comprueba el permiso y repite la captura."><value>No reading was received. Check permission and capture again.</value></data>
+  <data name="Se generará una placa con toda la cantidad de entrada."><value>One plate will be created with the full receipt quantity.</value></data>
+  <data name="Quitar pallet"><value>Remove pallet</value></data>
+  <data name="Selecciona primero producto y ubicación."><value>Select a product and location first.</value></data>
+  <data name=" · Bloqueada"><value> · Blocked</value></data>
+  <data name=" · Inactivo"><value> · Inactive</value></data>
+  <data name=" · Ref. {0}"><value> · Ref. {0}</value></data>
+  <data name="{0} {1}. Usa flechas y Enter para elegir."><value>{0} {1}. Use arrows and Enter to choose.</value></data>
+  <data name="{0} resultados disponibles. Usa flechas y Enter para seleccionar."><value>{0} results available. Use arrows and Enter to select.</value></data>
+  <data name="Buscando productos y ubicaciones…"><value>Searching products and locations…</value></data>
+  <data name="Buscando…"><value>Searching…</value></data>
+  <data name="Escribe para buscar y selecciona un producto o una ubicación."><value>Type to search and select a product or location.</value></data>
+  <data name="Mostrando {0} ubicaciones seleccionadas."><value>Showing {0} selected locations.</value></data>
+  <data name="No fue posible buscar en la red local. Conservamos el texto para que puedas consultar o reintentar."><value>Unable to search the local network. The text was kept so you can consult or retry.</value></data>
+  <data name="No fue posible buscar en la red local. Puedes escribir el filtro y usar Buscar."><value>Unable to search the local network. You can type the filter and use Search.</value></data>
+  <data name="No se encontraron productos ni ubicaciones."><value>No products or locations were found.</value></data>
+  <data name="No se encontraron productos. Puedes consultar el texto escrito para confirmar."><value>No products were found. You can use the typed text to confirm.</value></data>
+  <data name="Producto"><value>Product</value></data>
+  <data name="producto encontrado"><value>product found</value></data>
+  <data name="productos encontrados"><value>products found</value></data>
+  <data name="Selecciona al menos una ubicación antes de revisar."><value>Select at least one location before reviewing.</value></data>
+  <data name="Selecciona al menos una ubicación."><value>Select at least one location.</value></data>
+  <data name="Sin descripción"><value>No description</value></data>
+  <data name="Ubicación"><value>Location</value></data>
+  <data name="Ubicación física"><value>Physical location</value></data>
+  <data name="La ubicación estimada está fuera del croquis. Precisión reportada: {0} m."><value>The estimated location is outside the floor plan. Reported accuracy: {0} m.</value></data>
+  <data name="Ubicación aproximada · precisión reportada {0} m · hace {1} s."><value>Approximate location · reported accuracy {0} m · {1} s ago.</value></data>
+  <data name="No se pudo consultar la calibración. Pulsa Mi ubicación para reintentar."><value>Calibration could not be loaded. Press My location to try again.</value></data>
+  <data name="Aún no hay una calibración publicada para este croquis."><value>No calibration has been published for this floor plan yet.</value></data>
+  <data name="La calibración está pendiente de revisión porque cambió el croquis."><value>The calibration needs review because the floor plan changed.</value></data>
+  <data name="La calibración cambió. Pulsa Mi ubicación para cargar la revisión actual."><value>The calibration changed. Press My location to load the current revision.</value></data>
+  <data name="No se pudo comprobar la vigencia de la calibración. El marcador usa la última revisión conocida."><value>Calibration status could not be checked. The marker is using the last known revision.</value></data>
+  <data name="No se pudo comprobar la calibración. Pulsa Detener ubicación o espera para reintentar."><value>Calibration could not be checked. Press Stop location or wait to try again.</value></data>
+  <data name="Última posición desactualizada: hace {0} s."><value>Last position is stale: {0} s ago.</value></data>
+<data name="Ampliar croquis"><value>Expand map</value></data><data name="Salir de vista ampliada"><value>Exit expanded view</value></data><data name="Sin actividad"><value>No activity</value></data><data name="Sin ocupación"><value>No occupancy</value></data><data name="Descripción"><value>Description</value></data><data name="Unidad"><value>Unit</value></data><data name="Referencia externa"><value>External reference</value></data><data name="Cantidad"><value>Quantity</value></data><data name="Fecha MFG"><value>MFG date</value></data><data name="Campo"><value>Field</value></data><data name="Nuevo texto"><value>New text</value></data><data name="Personalizados"><value>Custom</value></data><data name="Campo {0}"><value>Field {0}</value></data><data name="{0} negativas · {1} bloqueadas"><value>{0} negative · {1} blocked</value></data><data name="Borrador descartado."><value>Draft discarded.</value></data><data name="Punto"><value>Point</value></data><data name="referencia"><value>reference</value></data><data name="comprobación"><value>check</value></data><data name="este punto"><value>this point</value></data><data name="No hay destinos compatibles con esa búsqueda."><value>No compatible destinations for that search.</value></data><data name="destino disponible"><value>destination available</value></data><data name="destinos disponibles"><value>destinations available</value></data><data name="Buscando destinos WIP…"><value>Searching WIP destinations…</value></data><data name="Escribe para buscar un área WIP, una fila completa o un rack WIP."><value>Type to search for a WIP area, full row, or WIP rack.</value></data><data name="Escribe para buscar un área, rack o posición WIP."><value>Type to search for an area, rack, or WIP position.</value></data><data name="No se encontraron destinos WIP adicionales."><value>No additional WIP destinations were found.</value></data><data name="El proceso no tendrá WIP predeterminado."><value>The process will not have a default WIP.</value></data><data name="{0} destinos disponibles. Usa flechas y Enter para elegir."><value>{0} destinations available. Use arrows and Enter to choose.</value></data><data name="Selecciona un destino de los resultados o limpia la búsqueda."><value>Select a destination from the results or clear the search.</value></data><data name="Selecciona un destino de los resultados antes de guardar."><value>Select a destination from the results before saving.</value></data><data name="{0}: {1} lecturas capturadas."><value>{0}: {1} readings captured.</value></data><data name="Buscando ubicación… Mantén el equipo en este punto."><value>Finding location… Keep the device at this point.</value></data><data name="Capturando {0}: {1} lecturas, {2} s restantes."><value>Capturing {0}: {1} readings, {2} seconds remaining.</value></data><data name="Elige un tipo y toca su posición exacta en el croquis."><value>Choose a type and tap its exact position on the map.</value></data><data name="Toca en el croquis dónde está la {0}."><value>Tap the map where the {0} is located.</value></data><data name="Toca la nueva posición de {0} en el croquis."><value>Tap the new position of {0} on the map.</value></data>
+  <data name="Actualizando datos…"><value>Updating data…</value></data>
+  <data name="Advertencia: la placa quedará con saldo negativo. Revisa la cantidad antes de confirmar."><value>Warning: the plate will have a negative balance. Check the quantity before confirming.</value></data>
+  <data name="Cambiando cámara…"><value>Switching camera…</value></data>
+  <data name="Cambiar cámara ({0} de {1})"><value>Switch camera ({0} of {1})</value></data>
+  <data name="Captura las cantidades observadas."><value>Enter the observed quantities.</value></data>
+  <data name="Centra el código; para etiquetas largas, acércalo y espera a que enfoque."><value>Center the code; for long labels, move closer and wait for focus.</value></data>
+  <data name="Código detectado. Validando…"><value>Code detected. Validating…</value></data>
+  <data name="Datos generados: "><value>Data generated: </value></data>
+  <data name="Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente."><value>Data was not updated. The last valid snapshot is retained and another attempt will run automatically.</value></data>
+  <data name="Desglose de pallets"><value>Pallet breakdown</value></data>
+  <data name="error desconocido"><value>unknown error</value></data>
+  <data name="Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico."><value>This browser cannot use the camera. You can type or use the physical scanner.</value></data>
+  <data name="hora no disponible"><value>time unavailable</value></data>
+  <data name="Hoy"><value>Today</value></data>
+  <data name="La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente."><value>The camera is being used by another application. Close it and try again.</value></data>
+  <data name="La cámara no admite la configuración solicitada. Prueba con Tomar foto."><value>The camera does not support the requested settings. Try Take photo.</value></data>
+  <data name="La cámara requiere HTTPS. Puedes escribir o usar el escáner físico."><value>The camera requires HTTPS. You can type or use the physical scanner.</value></data>
+  <data name="La placa no corresponde al producto y ubicación seleccionados."><value>The plate does not match the selected product and location.</value></data>
+  <data name="Leyendo el código de la foto…"><value>Reading the code from the photo…</value></data>
+  <data name="Material sin placa: {0}"><value>Material without a plate: {0}</value></data>
+  <data name="No fue posible buscar en la red local. Intenta nuevamente."><value>The local network search failed. Try again.</value></data>
+  <data name="No fue posible iniciar la cámara ({0}).{1} Prueba con Tomar foto, escribe o usa el escáner físico."><value>The camera could not start ({0}).{1} Try Take photo, type, or use the physical scanner.</value></data>
+  <data name="No fue posible leer la foto. Puedes escribir o usar el escáner físico."><value>The photo could not be read. You can type or use the physical scanner.</value></data>
+  <data name="No fue posible validar el código. La cámara seguirá activa para reintentar."><value>The code could not be validated. The camera will remain active for another attempt.</value></data>
+  <data name="No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico."><value>Camera permission was not granted. You can type or use the physical scanner.</value></data>
+  <data name="No se detectó un código de barras en la foto. Reanudando la cámara…"><value>No barcode was detected in the photo. Resuming the camera…</value></data>
+  <data name="No se encontró un producto con ese código. Intenta nuevamente."><value>No product was found with that code. Try again.</value></data>
+  <data name="No se encontró una cámara disponible. Puedes escribir o usar el escáner físico."><value>No available camera was found. You can type or use the physical scanner.</value></data>
+  <data name="No se pudo consultar las placas."><value>Plates could not be loaded.</value></data>
+  <data name="No se pudo leer la placa. Acerca la cámara o escribe su folio."><value>The plate could not be read. Move the camera closer or enter its number.</value></data>
+  <data name="Permiso de ubicación denegado. Habilítalo en el navegador y vuelve a intentar."><value>Location permission was denied. Enable it in the browser and try again.</value></data>
+  <data name="Preparando cámara…"><value>Preparing camera…</value></data>
+  <data name="Respuesta del tablero incompleta."><value>Incomplete dashboard response.</value></data>
+  <data name="Saldo sin placa: {0}. Revisa las cantidades seleccionadas antes de confirmar."><value>Balance without a plate: {0}. Check the selected quantities before confirming.</value></data>
+  <data name="Sin actividad en el período"><value>No activity in the period</value></data>
+  <data name="Sin actividad en el período."><value>No activity in the period.</value></data>
+  <data name="Sin actividad registrada"><value>No recorded activity</value></data>
+  <data name="SKUs distintos: {0}"><value>Distinct SKUs: {0}</value></data>
+  <data name="Solicitando la cámara trasera…"><value>Requesting the rear camera…</value></data>
+  <data name="Total identificado: {0}"><value>Identified total: {0}</value></data>
+  <data name="Total: {0} operaciones"><value>Total: {0} operations</value></data>
+  <data name="Ubicación operativa"><value>Operational location</value></data>
+  <data name="Últimos {0} días"><value>Last {0} days</value></data>
+  <data name="Un pallet con la cantidad total."><value>One pallet with the full quantity.</value></data>
+  <data name="Confirma el pallet compartido"><value>Confirm the shared pallet</value></data>
+  <data name="El destino es informativo y no cambia el producto de la transferencia."><value>The destination is informational and does not change the transfer product.</value></data>
+  <data name="El producto seleccionado se asociará aquí al confirmar con NIP."><value>The selected product will be assigned here when confirmed with a PIN.</value></data>
+  <data name="Esta pareja se asociará al confirmar con NIP."><value>This pair will be assigned when confirmed with a PIN.</value></data>
+  <data name="Producto relacionado"><value>Related product</value></data>
+  <data name="Productos relacionados; elige uno"><value>Related products; choose one</value></data>
+  <data name="Salida general"><value>General issue</value></data>
+  <data name="Selecciona producto y ubicación"><value>Select a product and location</value></data>
+  <data name="Selecciona una ubicación WIP."><value>Select a WIP location.</value></data>
+  <data name="Surtir WIP"><value>Supply WIP</value></data>
+  <data name="Tipo de salida"><value>Issue type</value></data>
+  <data name="Tipo pendiente"><value>Type pending</value></data>
+  <data name="Ubicación destino"><value>Destination location</value></data>
+  <data name="Ubicación origen"><value>Source location</value></data>
+  <data name="Ubicación relacionada"><value>Related location</value></data>
+  <data name="Ubicaciones relacionadas; elige una"><value>Related locations; choose one</value></data>
+  <data name="Código de producto detectado. Se aplicó en Producto."><value>Product code detected. It was applied to Product.</value></data>
+  <data name="El código coincide con un producto y una ubicación. Escanéalo en el campo correcto."><value>The code matches both a product and a location. Scan it in the correct field.</value></data>
+  <data name="No fue posible validar el código. Intenta nuevamente."><value>The code could not be validated. Try again.</value></data>
+  <data name="No se encontró un registro operativo con ese código."><value>No operational record was found with that code.</value></data>
+  <data name="No se encontró un registro operativo con ese código. Intenta nuevamente."><value>No operational record was found with that code. Try again.</value></data>
+  <data name="Selecciona el tipo de salida."><value>Select the issue type.</value></data>
+  <data name="Selecciona un registro de la lista o escanea un código válido."><value>Select a record from the list or scan a valid code.</value></data>
+  <data name="El código coincide con un producto y una ubicación. Elige qué deseas consultar."><value>The code matches both a product and a location. Choose what you want to view.</value></data>
+  <data name="No se encontró un producto ni una ubicación con ese código."><value>No product or location was found with that code.</value></data>
+  <data name="Solicitando cámara trasera…"><value>Requesting rear camera…</value></data>
+  <data name="Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar." xml:space="preserve"><value>Center the code; the camera will remain open until it is detected or you cancel.</value></data>
+  <data name="El código no corresponde a esta captura. Intenta nuevamente." xml:space="preserve"><value>The code does not match this count. Try again.</value></data>
+  <data name="El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente." xml:space="preserve"><value>The browser could not play the preview. Close the scanner and try again.</value></data>
+  <data name="Escribe para buscar o usa un lector HID." xml:space="preserve"><value>Type to search or use an HID scanner.</value></data>
+  <data name="Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico." xml:space="preserve"><value>This browser does not support live scanning. You can take a photo, type, or use the physical scanner.</value></data>
+  <data name="La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>The camera requires HTTPS. You can take a photo, type, or use the physical scanner.</value></data>
+  <data name="No fue posible abrir el lector. Escribe el código o usa un lector HID." xml:space="preserve"><value>The scanner could not be opened. Type the code or use an HID scanner.</value></data>
+  <data name="No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico." xml:space="preserve"><value>The camera could not be started. Try taking a photo, typing, or using the physical scanner.</value></data>
+  <data name="No fue posible leer la foto. Puedes escribir o usar el lector físico." xml:space="preserve"><value>The photo could not be read. You can type or use the physical scanner.</value></data>
+  <data name="No fue posible procesar el código. Intenta nuevamente." xml:space="preserve"><value>The code could not be processed. Try again.</value></data>
+  <data name="No fue posible validar el código en la red local. Intenta nuevamente." xml:space="preserve"><value>The code could not be validated on the local network. Try again.</value></data>
+  <data name="No se concedió permiso para usar la cámara. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>Camera permission was not granted. You can take a photo, type, or use the physical scanner.</value></data>
+  <data name="No se detectó un código de barras en la foto. Intenta nuevamente." xml:space="preserve"><value>No barcode was detected in the photo. Try again.</value></data>
+  <data name="No se encontraron {0}." xml:space="preserve"><value>No {0} were found.</value></data>
+  <data name="No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>No available camera was found. You can take a photo, type, or use the physical scanner.</value></data>
+  <data name="También puedes usar un lector HID como teclado." xml:space="preserve"><value>You can also use an HID scanner as a keyboard.</value></data>
+  <data name="Validando código…" xml:space="preserve"><value>Validating code…</value></data>
+</root>

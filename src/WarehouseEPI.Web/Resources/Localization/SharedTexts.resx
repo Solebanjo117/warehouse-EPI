@@ -1,0 +1,187 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Programa semanal" xml:space="preserve"><value>Programa semanal</value></data>
+  <data name="Captura diaria" xml:space="preserve"><value>Captura diaria</value></data>
+  <data name="Balance" xml:space="preserve"><value>Balance</value></data>
+  <data name="Producción avanzada" xml:space="preserve"><value>Producción avanzada</value></data>
+  <data name="Registrar piezas buenas con reparto y balance automáticos." xml:space="preserve"><value>Registrar piezas buenas con reparto y balance automáticos.</value></data>
+  <data name="Consultar plan, arrastre, pendientes y adelantos." xml:space="preserve"><value>Consultar plan, arrastre, pendientes y adelantos.</value></data>
+  <data name="Atender merma, retrabajo, diferencias, recepción y diagnóstico." xml:space="preserve"><value>Atender merma, retrabajo, diferencias, recepción y diagnóstico.</value></data>
+  <data name="Preparar, publicar e importar el programa lunes–sábado." xml:space="preserve"><value>Preparar, publicar e importar el programa lunes–sábado.</value></data>
+  <data name="Consultar y corregir órdenes desde el flujo avanzado." xml:space="preserve"><value>Consultar y corregir órdenes desde el flujo avanzado.</value></data>
+  <data name="¿Qué necesitas hacer?" xml:space="preserve"><value>¿Qué necesitas hacer?</value></data>
+  <data name="{0} categoría(s) de alerta aumentaron." xml:space="preserve"><value>{0} categoría(s) de alerta aumentaron.</value></data>
+  <data name="{0}, {1} órdenes pendientes de surtimiento" xml:space="preserve"><value>{0}, {1} órdenes pendientes de surtimiento</value></data>
+  <data name="← Volver a {0}" xml:space="preserve"><value>← Volver a {0}</value></data>
+  <data name="Abrir alertas operativas" xml:space="preserve"><value>Abrir alertas operativas</value></data>
+  <data name="Abrir menú" xml:space="preserve"><value>Abrir menú</value></data>
+  <data name="Acceso administrativo" xml:space="preserve"><value>Acceso administrativo</value></data>
+  <data name="Actividad y alertas del día" xml:space="preserve"><value>Actividad y alertas del día</value></data>
+  <data name="Actualizado {0} · {1} condición(es)" xml:space="preserve"><value>Actualizado {0} · {1} condición(es)</value></data>
+  <data name="Actualizar" xml:space="preserve"><value>Actualizar</value></data>
+  <data name="Administra los productos y su clasificación." xml:space="preserve"><value>Administra los productos y su clasificación.</value></data>
+  <data name="Administra usuarios y configuración del sistema." xml:space="preserve"><value>Administra usuarios y configuración del sistema.</value></data>
+  <data name="Administración" xml:space="preserve"><value>Administración</value></data>
+  <data name="Administrador" xml:space="preserve"><value>Administrador</value></data>
+  <data name="Administrar las clases del catálogo." xml:space="preserve"><value>Administrar las clases del catálogo.</value></data>
+  <data name="Administrar las unidades base." xml:space="preserve"><value>Administrar las unidades base.</value></data>
+  <data name="Administrar los tipos del catálogo." xml:space="preserve"><value>Administrar los tipos del catálogo.</value></data>
+  <data name="Administrar usuarios y accesos." xml:space="preserve"><value>Administrar usuarios y accesos.</value></data>
+  <data name="Advertencia" xml:space="preserve"><value>Advertencia</value></data>
+  <data name="Ajuste" xml:space="preserve"><value>Ajuste</value></data>
+  <data name="Alertas operativas" xml:space="preserve"><value>Alertas operativas</value></data>
+  <data name="Análisis de inventario" xml:space="preserve"><value>Análisis de inventario</value></data>
+  <data name="Analítica de inventario" xml:space="preserve"><value>Analítica de inventario</value></data>
+  <data name="Analizar existencias y condiciones del inventario." xml:space="preserve"><value>Analizar existencias y condiciones del inventario.</value></data>
+  <data name="Analizar órdenes, materiales, retrabajo y registros." xml:space="preserve"><value>Analizar órdenes, materiales, retrabajo y registros.</value></data>
+  <data name="Apariencia" xml:space="preserve"><value>Apariencia</value></data>
+  <data name="Buscar el saldo de productos por ubicación." xml:space="preserve"><value>Buscar el saldo de productos por ubicación.</value></data>
+  <data name="Cambiar al entorno" xml:space="preserve"><value>Cambiar al entorno</value></data>
+  <data name="Cambiar idioma" xml:space="preserve"><value>Cambiar idioma</value></data>
+  <data name="Capturar y revisar conteos de inventario." xml:space="preserve"><value>Capturar y revisar conteos de inventario.</value></data>
+  <data name="Carga de trabajo" xml:space="preserve"><value>Carga de trabajo</value></data>
+  <data name="Catálogos" xml:space="preserve"><value>Catálogos</value></data>
+  <data name="Centro de excepciones" xml:space="preserve"><value>Centro de excepciones</value></data>
+  <data name="Cerrar alertas" xml:space="preserve"><value>Cerrar alertas</value></data>
+  <data name="Cerrar sesión" xml:space="preserve"><value>Cerrar sesión</value></data>
+  <data name="Claro" xml:space="preserve"><value>Claro</value></data>
+  <data name="Clases de producto" xml:space="preserve"><value>Clases de producto</value></data>
+  <data name="con el valor" xml:space="preserve"><value>con el valor</value></data>
+  <data name="configurando la variable de entorno" xml:space="preserve"><value>configurando la variable de entorno</value></data>
+  <data name="Configurar la identidad del negocio y almacén." xml:space="preserve"><value>Configurar la identidad del negocio y almacén.</value></data>
+  <data name="Configurar los procesos de producción." xml:space="preserve"><value>Configurar los procesos de producción.</value></data>
+  <data name="Confirmando…" xml:space="preserve"><value>Confirmando…</value></data>
+  <data name="Consulta" xml:space="preserve"><value>Consulta</value></data>
+  <data name="Consulta existencias, ubicaciones y trazabilidad." xml:space="preserve"><value>Consulta existencias, ubicaciones y trazabilidad.</value></data>
+  <data name="Consultando condiciones actuales…" xml:space="preserve"><value>Consultando condiciones actuales…</value></data>
+  <data name="Consultar" xml:space="preserve"><value>Consultar</value></data>
+  <data name="Consultar el historial de un producto." xml:space="preserve"><value>Consultar el historial de un producto.</value></data>
+  <data name="Consultar el trabajo y la actividad del almacén." xml:space="preserve"><value>Consultar el trabajo y la actividad del almacén.</value></data>
+  <data name="Consultar fichas, existencias y recetas." xml:space="preserve"><value>Consultar fichas, existencias y recetas.</value></data>
+  <data name="Consultar los indicadores de la operación." xml:space="preserve"><value>Consultar los indicadores de la operación.</value></data>
+  <data name="Consultar movimientos y sus fichas." xml:space="preserve"><value>Consultar movimientos y sus fichas.</value></data>
+  <data name="Consultar saldos y trazabilidad por lote." xml:space="preserve"><value>Consultar saldos y trazabilidad por lote.</value></data>
+  <data name="Consultar y controlar" xml:space="preserve"><value>Consultar y controlar</value></data>
+  <data name="Consultar y registrar el avance de producción." xml:space="preserve"><value>Consultar y registrar el avance de producción.</value></data>
+  <data name="Consumo, bodega o proveedor" xml:space="preserve"><value>Consumo, bodega o proveedor</value></data>
+  <data name="Conteo ciego por ubicación" xml:space="preserve"><value>Conteo ciego por ubicación</value></data>
+  <data name="Conteos cíclicos" xml:space="preserve"><value>Conteos cíclicos</value></data>
+  <data name="Contraer menú" xml:space="preserve"><value>Contraer menú</value></data>
+  <data name="Control de inventario" xml:space="preserve"><value>Control de inventario</value></data>
+  <data name="Corregir existencias con trazabilidad." xml:space="preserve"><value>Corregir existencias con trazabilidad.</value></data>
+  <data name="Crítica" xml:space="preserve"><value>Crítica</value></data>
+  <data name="Datos del negocio" xml:space="preserve"><value>Datos del negocio</value></data>
+  <data name="Datos desactualizados · vuelve a intentar" xml:space="preserve"><value>Datos desactualizados · vuelve a intentar</value></data>
+  <data name="Diseñar formatos" xml:space="preserve"><value>Diseñar formatos</value></data>
+  <data name="Diseñar y publicar formatos de etiquetas." xml:space="preserve"><value>Diseñar y publicar formatos de etiquetas.</value></data>
+  <data name="El campo {0} debe ser un número." xml:space="preserve"><value>El campo {0} debe ser un número.</value></data>
+  <data name="El campo {0} es obligatorio." xml:space="preserve"><value>El campo {0} es obligatorio.</value></data>
+  <data name="El campo debe ser un número." xml:space="preserve"><value>El campo debe ser un número.</value></data>
+  <data name="El entorno Development no debe habilitarse en aplicaciones desplegadas." xml:space="preserve"><value>El entorno Development no debe habilitarse en aplicaciones desplegadas.</value></data>
+  <data name="El NIP se solicitará únicamente al confirmar." xml:space="preserve"><value>El NIP se solicitará únicamente al confirmar.</value></data>
+  <data name="El valor '{0}' no es válido para {1}." xml:space="preserve"><value>El valor '{0}' no es válido para {1}.</value></data>
+  <data name="El valor '{0}' no es válido." xml:space="preserve"><value>El valor '{0}' no es válido.</value></data>
+  <data name="El valor proporcionado no es válido para {0}." xml:space="preserve"><value>El valor proporcionado no es válido para {0}.</value></data>
+  <data name="El valor proporcionado no es válido." xml:space="preserve"><value>El valor proporcionado no es válido.</value></data>
+  <data name="Entrada" xml:space="preserve"><value>Entrada</value></data>
+  <data name="Error" xml:space="preserve"><value>Error</value></data>
+  <data name="Error." xml:space="preserve"><value>Error.</value></data>
+  <data name="Estado del sistema" xml:space="preserve"><value>Estado del sistema</value></data>
+  <data name="Etiquetas" xml:space="preserve"><value>Etiquetas</value></data>
+  <data name="Existencias" xml:space="preserve"><value>Existencias</value></data>
+  <data name="Existencias y actividad" xml:space="preserve"><value>Existencias y actividad</value></data>
+  <data name="Expandir menú" xml:space="preserve"><value>Expandir menú</value></data>
+  <data name="Explorar ubicaciones y el croquis del almacén." xml:space="preserve"><value>Explorar ubicaciones y el croquis del almacén.</value></data>
+  <data name="Falta un valor para {0}." xml:space="preserve"><value>Falta un valor para {0}.</value></data>
+  <data name="Genera etiquetas y placas para la operación." xml:space="preserve"><value>Genera etiquetas y placas para la operación.</value></data>
+  <data name="General o surtir WIP" xml:space="preserve"><value>General o surtir WIP</value></data>
+  <data name="Generar etiquetas" xml:space="preserve"><value>Generar etiquetas</value></data>
+  <data name="Generar placas desde entradas confirmadas." xml:space="preserve"><value>Generar placas desde entradas confirmadas.</value></data>
+  <data name="Identificador completo copiado." xml:space="preserve"><value>Identificador completo copiado.</value></data>
+  <data name="Identificador de solicitud:" xml:space="preserve"><value>Identificador de solicitud:</value></data>
+  <data name="Identificar saldo libre por ubicación e imprimir placas." xml:space="preserve"><value>Identificar saldo libre por ubicación e imprimir placas.</value></data>
+  <data name="Idioma" xml:space="preserve"><value>Idioma</value></data>
+  <data name="Impresión" xml:space="preserve"><value>Impresión</value></data>
+  <data name="Imprimir usando formatos publicados." xml:space="preserve"><value>Imprimir usando formatos publicados.</value></data>
+  <data name="Información" xml:space="preserve"><value>Información</value></data>
+  <data name="Inicio" xml:space="preserve"><value>Inicio</value></data>
+  <data name="Inventario" xml:space="preserve"><value>Inventario</value></data>
+  <data name="Kardex de productos" xml:space="preserve"><value>Kardex de productos</value></data>
+  <data name="Lotes" xml:space="preserve"><value>Lotes</value></data>
+  <data name="Mi cuenta" xml:space="preserve"><value>Mi cuenta</value></data>
+  <data name="Modo de desarrollo" xml:space="preserve"><value>Modo de desarrollo</value></data>
+  <data name="Módulos" xml:space="preserve"><value>Módulos</value></data>
+  <data name="Módulos del almacén" xml:space="preserve"><value>Módulos del almacén</value></data>
+  <data name="Mover entre ubicaciones" xml:space="preserve"><value>Mover entre ubicaciones</value></data>
+  <data name="Mover material entre ubicaciones." xml:space="preserve"><value>Mover material entre ubicaciones.</value></data>
+  <data name="Movimientos" xml:space="preserve"><value>Movimientos</value></data>
+  <data name="muestra información detallada sobre el error ocurrido." xml:space="preserve"><value>muestra información detallada sobre el error ocurrido.</value></data>
+  <data name="Navegación principal" xml:space="preserve"><value>Navegación principal</value></data>
+  <data name="NIP" xml:space="preserve"><value>NIP</value></data>
+  <data name="No fue posible copiar el identificador." xml:space="preserve"><value>No fue posible copiar el identificador.</value></data>
+  <data name="No hay condiciones visibles que requieran atención." xml:space="preserve"><value>No hay condiciones visibles que requieran atención.</value></data>
+  <data name="No hay valor para copiar." xml:space="preserve"><value>No hay valor para copiar.</value></data>
+  <data name="Ocurrió un error al procesar la solicitud." xml:space="preserve"><value>Ocurrió un error al procesar la solicitud.</value></data>
+  <data name="Operación" xml:space="preserve"><value>Operación</value></data>
+  <data name="Operación de almacén" xml:space="preserve"><value>Operación de almacén</value></data>
+  <data name="Operación LAN" xml:space="preserve"><value>Operación LAN</value></data>
+  <data name="Operaciones" xml:space="preserve"><value>Operaciones</value></data>
+  <data name="Órdenes de trabajo" xml:space="preserve"><value>Órdenes de trabajo</value></data>
+  <data name="Oscuro" xml:space="preserve"><value>Oscuro</value></data>
+  <data name="Para depurar localmente, habilita el entorno" xml:space="preserve"><value>Para depurar localmente, habilita el entorno</value></data>
+  <data name="Pendientes" xml:space="preserve"><value>Pendientes</value></data>
+  <data name="Placas de pallet" xml:space="preserve"><value>Placas de pallet</value></data>
+  <data name="Planificar y administrar órdenes de producción." xml:space="preserve"><value>Planificar y administrar órdenes de producción.</value></data>
+  <data name="Política de privacidad" xml:space="preserve"><value>Política de privacidad</value></data>
+  <data name="Preparar materiales de las órdenes pendientes." xml:space="preserve"><value>Preparar materiales de las órdenes pendientes.</value></data>
+  <data name="Procesar material en curso o registrar su retorno." xml:space="preserve"><value>Procesar material en curso o registrar su retorno.</value></data>
+  <data name="Procesar WIP" xml:space="preserve"><value>Procesar WIP</value></data>
+  <data name="Procesos" xml:space="preserve"><value>Procesos</value></data>
+  <data name="Producción" xml:space="preserve"><value>Producción</value></data>
+  <data name="Productos" xml:space="preserve"><value>Productos</value></data>
+  <data name="Puede mostrar información confidencial de las excepciones a los usuarios finales." xml:space="preserve"><value>Puede mostrar información confidencial de las excepciones a los usuarios finales.</value></data>
+  <data name="Recibir material" xml:space="preserve"><value>Recibir material</value></data>
+  <data name="Recibir material en el almacén." xml:space="preserve"><value>Recibir material en el almacén.</value></data>
+  <data name="Registra movimientos y verifica el inventario." xml:space="preserve"><value>Registra movimientos y verifica el inventario.</value></data>
+  <data name="Registrar conteo físico" xml:space="preserve"><value>Registrar conteo físico</value></data>
+  <data name="Registrar operación" xml:space="preserve"><value>Registrar operación</value></data>
+  <data name="Reporte WIP" xml:space="preserve"><value>Reporte WIP</value></data>
+  <data name="Reportes" xml:space="preserve"><value>Reportes</value></data>
+  <data name="Reportes de producción" xml:space="preserve"><value>Reportes de producción</value></data>
+  <data name="Resumen operativo" xml:space="preserve"><value>Resumen operativo</value></data>
+  <data name="Resumen y actividad" xml:space="preserve"><value>Resumen y actividad</value></data>
+  <data name="Retirar material o surtir WIP." xml:space="preserve"><value>Retirar material o surtir WIP.</value></data>
+  <data name="Revisa indicadores, saldos e historial del almacén." xml:space="preserve"><value>Revisa indicadores, saldos e historial del almacén.</value></data>
+  <data name="Revisar alerta" xml:space="preserve"><value>Revisar alerta</value></data>
+  <data name="Revisar condiciones que requieren atención." xml:space="preserve"><value>Revisar condiciones que requieren atención.</value></data>
+  <data name="Revisar el estado de la instalación." xml:space="preserve"><value>Revisar el estado de la instalación.</value></data>
+  <data name="Revisar el material en proceso." xml:space="preserve"><value>Revisar el material en proceso.</value></data>
+  <data name="Salida" xml:space="preserve"><value>Salida</value></data>
+  <data name="Se requiere el contenido de la solicitud." xml:space="preserve"><value>Se requiere el contenido de la solicitud.</value></data>
+  <data name="Se requiere un valor." xml:space="preserve"><value>Se requiere un valor.</value></data>
+  <data name="Seguimiento de producción" xml:space="preserve"><value>Seguimiento de producción</value></data>
+  <data name="Selecciona una operación o abre una consulta del almacén." xml:space="preserve"><value>Selecciona una operación o abre una consulta del almacén.</value></data>
+  <data name="Sin alertas activas." xml:space="preserve"><value>Sin alertas activas.</value></data>
+  <data name="Sistema" xml:space="preserve"><value>Sistema</value></data>
+  <data name="Surte materiales y da seguimiento a la producción." xml:space="preserve"><value>Surte materiales y da seguimiento a la producción.</value></data>
+  <data name="Surtimientos a producción" xml:space="preserve"><value>Surtimientos a producción</value></data>
+  <data name="Tablero diario" xml:space="preserve"><value>Tablero diario</value></data>
+  <data name="Tipos de producto" xml:space="preserve"><value>Tipos de producto</value></data>
+  <data name="Transferencia" xml:space="preserve"><value>Transferencia</value></data>
+  <data name="Ubicación {0}" xml:space="preserve"><value>Ubicación {0}</value></data>
+  <data name="Ubicaciones" xml:space="preserve"><value>Ubicaciones</value></data>
+  <data name="Unidades de medida" xml:space="preserve"><value>Unidades de medida</value></data>
+  <data name="Usuarios" xml:space="preserve"><value>Usuarios</value></data>
+  <data name="Utiliza esta página para detallar la política de privacidad del sitio." xml:space="preserve"><value>Utiliza esta página para detallar la política de privacidad del sitio.</value></data>
+  <data name="Ver existencias" xml:space="preserve"><value>Ver existencias</value></data>
+  <data name="Ver todas" xml:space="preserve"><value>Ver todas</value></data>
+  <data name="Verificación" xml:space="preserve"><value>Verificación</value></data>
+  <data name="Warehouse EPI, inicio" xml:space="preserve"><value>Warehouse EPI, inicio</value></data>
+  <data name="y reiniciando la aplicación." xml:space="preserve"><value>y reiniciando la aplicación.</value></data>
+  <data name="Turnos" xml:space="preserve"><value>Turnos</value></data>
+  <data name="Registrar turnos para la producción diaria." xml:space="preserve"><value>Registrar turnos para la producción diaria.</value></data>
+</root>

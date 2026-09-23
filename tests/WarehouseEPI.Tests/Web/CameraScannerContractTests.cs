@@ -45,6 +45,34 @@ public sealed class CameraScannerContractTests
     }
 
     [Fact]
+    public void Operations_and_product_catalog_share_the_validating_camera_engine()
+    {
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "operations.js"));
+
+        Assert.Contains("const createCameraScanner =", script, StringComparison.Ordinal);
+        Assert.Contains("window.BarcodeDetector", script, StringComparison.Ordinal);
+        Assert.Contains("reader.hints.set(zxingTryHarderHint, true)", script, StringComparison.Ordinal);
+        Assert.Contains("if (error && !isCodeNotDetectedError(error))", script, StringComparison.Ordinal);
+        Assert.Contains("if (result?.accepted)", script, StringComparison.Ordinal);
+        Assert.Contains("if (!accepted) resolving = false", script, StringComparison.Ordinal);
+        Assert.Contains("if (!stopped && !accepted && session === cameraSession)", script, StringComparison.Ordinal);
+        Assert.Contains("stream.getTracks().forEach(track => track.stop())", script, StringComparison.Ordinal);
+        Assert.Contains("cameraSession++", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Camera_modals_keep_the_preview_and_actions_inside_the_viewport()
+    {
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+
+        Assert.Contains("max-height: calc(100dvh - 1rem)", styles, StringComparison.Ordinal);
+        Assert.Contains("height: clamp(8rem, 42dvh, 20rem)", styles, StringComparison.Ordinal);
+        Assert.Contains("flex-wrap: wrap; justify-content: center", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("width: 100vw; max-width: 100vw; height: 100dvh", styles, StringComparison.Ordinal);
+        Assert.DoesNotContain("min-height: 100dvh; border: 0; border-radius: 0", styles, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Cycle_counts_open_a_live_camera_and_keep_photo_as_a_fallback()
     {
         var directory = RepositoryDirectory("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts");

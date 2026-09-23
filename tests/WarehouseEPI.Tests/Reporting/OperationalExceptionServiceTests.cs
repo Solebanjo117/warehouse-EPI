@@ -30,9 +30,31 @@ public sealed class OperationalExceptionServiceTests
         Assert.Equal(OperationalExceptionCategory.NegativeInventory, item.Category);
         Assert.Equal(OperationalExceptionStatus.New, item.Status);
         Assert.Contains("/Operations/Adjustment?productId=", item.TargetUrl, StringComparison.Ordinal);
+        Assert.Contains("-2 EA", item.ReasonText, StringComparison.Ordinal);
 
         var detail = await service.GetDetailAsync(item.Id);
         Assert.Contains(detail!.Events, history => history.Type == OperationalExceptionEventType.Detected);
+
+        var currentBalance = await db.InventoryBalances.SingleAsync();
+        currentBalance.Quantity = -4m;
+        await db.SaveChangesAsync();
+        var refreshed = await service.ReconcileAsync();
+        var refreshedDetail = await service.GetDetailAsync(item.Id);
+
+        Assert.Equal(1, refreshed.Updated);
+        Assert.Contains("-4 EA", refreshedDetail!.Case.ReasonText, StringComparison.Ordinal);
+        Assert.Single(refreshedDetail.Events);
+
+        currentBalance = await db.InventoryBalances.SingleAsync();
+        currentBalance.Quantity = 0m;
+        await db.SaveChangesAsync();
+        await service.ReconcileAsync();
+        var resolved = await service.GetDetailAsync(item.Id);
+
+        Assert.Equal(OperationalExceptionStatus.Resolved, resolved!.Case.Status);
+        Assert.Contains("-4 EA", resolved.Case.ReasonText, StringComparison.Ordinal);
+        Assert.Equal(2, resolved.Events.Count);
+        Assert.Equal(OperationalExceptionEventType.AutoResolved, resolved.Events[0].Type);
     }
 
     [Fact]

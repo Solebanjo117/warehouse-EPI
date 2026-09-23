@@ -1,0 +1,136 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Production.ProcessEditModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@{
+    ViewData["Title"] = Model.IsEdit ? ProdTexts["Editar proceso"].Value : ProdTexts["Nuevo proceso"].Value;
+}
+<div class="container-fluid py-3">
+    <a asp-page="Processes" class="small text-decoration-none">@ProdTexts["← Volver a procesos"]</a>
+    <h1 class="h2 mt-2">@ViewData["Title"]</h1>
+    <p class="text-body-secondary">@ProdTexts["Las asociaciones indican dónde puede realizarse el proceso; no mueven ni consumen inventario."]</p>
+    <form method="post" class="card card-body" data-process-editor
+          data-target-lookup-url="@Url.Page("ProcessEdit", "WipTargets")"
+          data-default-lookup-url="@Url.Page("ProcessEdit", "DefaultWipTargets", new { id = Model.Input.Id })">
+        <input asp-for="Input.Id" type="hidden" />
+        <input asp-for="Input.OperationId" type="hidden" />
+        <input asp-for="Input.ExpectedVersion" type="hidden" />
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert" tabindex="-1"></div>
+        <div class="row g-3">
+            <div class="col-12 col-md-4">
+                <label asp-for="Input.Code" class="form-label">@ProdTexts["Código"]</label>
+                <input asp-for="Input.Code" class="form-control form-control-lg text-uppercase" />
+                <span asp-validation-for="Input.Code" class="text-danger"></span>
+            </div>
+            <div class="col-12 col-md-8">
+                <label asp-for="Input.Name" class="form-label">@ProdTexts["Nombre"]</label>
+                <input asp-for="Input.Name" class="form-control form-control-lg" />
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
+            </div>
+            <div class="col-12">
+                <div class="form-check">
+                    <input asp-for="Input.IsActive" class="form-check-input" />
+                    <label asp-for="Input.IsActive" class="form-check-label">@ProdTexts["Proceso activo"]</label>
+                </div>
+            </div>
+            <div class="col-12" data-process-target-picker>
+                <label for="process-target-search" class="form-label fw-semibold">@ProdTexts["Áreas, filas o racks"] <span class="text-body-secondary fw-normal">@ProdTexts["(opcional)"]</span></label>
+                <div class="lookup-field">
+                    <input id="process-target-search" class="form-control form-control-lg" type="search"
+                           autocomplete="off" autocapitalize="characters" placeholder="@ProdTexts["Escribe WIP-2, M-1…"]"
+                           role="combobox" aria-autocomplete="list" aria-expanded="false"
+                           aria-controls="process-target-results" aria-describedby="process-target-feedback"
+                           data-process-target-search />
+                    <div id="process-target-results" class="lookup-results list-group" role="listbox"
+                         data-process-target-results></div>
+                </div>
+                <p id="process-target-feedback" class="form-text mb-0" role="status" aria-live="polite"
+                   data-process-target-feedback>@ProdTexts["Escribe para buscar un área WIP, una fila completa o un rack WIP."]</p>
+                @foreach (var target in Model.Process.Rows.Concat(Model.Process.Racks).Where(x => x.Selected))
+                {
+                    <input type="hidden" value="@target.Key" data-process-original-grouped-target />
+                }
+                <div class="mt-3 d-grid gap-2" data-process-target-list>
+                    <p class="text-body-secondary mb-0 @(Model.SelectedTargets.Count > 0 ? "d-none" : null)"
+                       data-process-target-empty>@ProdTexts["No hay destinos WIP asociados."]</p>
+                    @foreach (var target in Model.SelectedTargets)
+                    {
+                        <div class="border rounded p-3 d-flex flex-column flex-sm-row align-items-sm-center gap-2"
+                             data-process-target-item data-target-key="@target.Key" data-target-type="@(target.Key.StartsWith("F:", StringComparison.Ordinal) ? "row" : target.Key.StartsWith("R:", StringComparison.Ordinal) ? "rack" : "area")">
+                            <input type="hidden" name="Input.Targets" value="@target.Key" />
+                            <div class="flex-grow-1">
+                                <div class="d-flex flex-wrap align-items-center gap-2">
+                                    <strong>@target.Label</strong>
+                                    <span class="badge text-bg-secondary">@target.Type</span>
+                                    @if (!target.IsAvailable)
+                                    {
+                                        <span class="badge text-bg-warning">@ProdTexts["No disponible"]</span>
+                                    }
+                                </div>
+                                <small class="text-body-secondary">@target.Description</small>
+                            </div>
+                            <button type="button" class="btn btn-outline-danger align-self-start align-self-sm-center"
+                                    aria-label="@ProdTexts["Quitar {0}", target.Label]" data-process-target-remove>@ProdTexts["Quitar"]</button>
+                        </div>
+                    }
+                </div>
+                <span asp-validation-for="Input.Targets" class="text-danger"></span>
+            </div>
+            <div class="col-12" data-process-rack-reason aria-hidden="false">
+                <label asp-for="Input.Reason" class="form-label">@ProdTexts["Motivo del cambio"]</label>
+                <textarea asp-for="Input.Reason" class="form-control" rows="2" maxlength="500"></textarea>
+                <div class="form-text">@ProdTexts["Obligatorio al cambiar destinos WIP o umbrales de alerta."]</div>
+            </div>
+            <div class="col-12" data-wip-default-picker>
+                <label for="process-default-wip-search" class="form-label fw-semibold">@ProdTexts["WIP predeterminado del proceso"] <span class="text-body-secondary fw-normal">@ProdTexts["(opcional)"]</span></label>
+                <input asp-for="Input.DefaultWipTargetKey" type="hidden" data-wip-default-key />
+                <div class="lookup-field">
+                    <input id="process-default-wip-search" class="form-control form-control-lg" type="search"
+                           value="@(string.IsNullOrEmpty(Model.Input.DefaultWipTargetKey) ? "" : Model.Process.DefaultWipTargetLabel)"
+                           autocomplete="off" placeholder="@ProdTexts["Busca un área, rack o posición WIP"]"
+                           role="combobox" aria-autocomplete="list" aria-expanded="false"
+                           aria-controls="process-default-wip-results" data-wip-default-search />
+                    <div id="process-default-wip-results" class="lookup-results list-group" role="listbox" data-wip-default-results></div>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+                    <span class="form-text" role="status" aria-live="polite" data-wip-default-feedback>
+                        @ProdTexts["Alternativa general cuando el material no tenga una regla específica."]
+                    </span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-wip-default-clear>@ProdTexts["Sin predeterminado"]</button>
+                </div>
+                @if (!string.IsNullOrEmpty(Model.Input.DefaultWipTargetKey) && !Model.Process.DefaultWipTargetAvailable)
+                {
+                    <div class="alert alert-warning mt-2 mb-0">@ProdTexts["El destino guardado ya no está disponible. Selecciona otro o déjalo sin predeterminado."]</div>
+                }
+            </div>
+            <div class="col-12">
+                <h2 class="h5 mb-1">@ProdTexts["Alertas de producción"]</h2>
+                <p class="text-body-secondary mb-2">@ProdTexts["Vacío muestra la antigüedad sin clasificarla como atraso."]</p>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.InactivityAlertHours" class="form-label">@ProdTexts["Inactividad del proceso (horas)"]</label>
+                        <input asp-for="Input.InactivityAlertHours" class="form-control form-control-lg" inputmode="numeric" min="1" max="8760" />
+                        <span asp-validation-for="Input.InactivityAlertHours" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.ReworkAlertHours" class="form-label">@ProdTexts["Antigüedad del retrabajo (horas)"]</label>
+                        <input asp-for="Input.ReworkAlertHours" class="form-control form-control-lg" inputmode="numeric" min="1" max="8760" />
+                        <span asp-validation-for="Input.ReworkAlertHours" class="text-danger"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label asp-for="Input.Pin" class="form-label">@ProdTexts["NIP ADMIN"]</label>
+                <input asp-for="Input.Pin" value="" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" />
+                <span asp-validation-for="Input.Pin" class="text-danger"></span>
+            </div>
+            <div class="col-12 d-flex flex-wrap gap-2">
+                <button class="btn btn-primary btn-lg">@ProdTexts["Guardar proceso"]</button>
+                <a asp-page="Processes" class="btn btn-outline-secondary btn-lg">@ProdTexts["Cancelar"]</a>
+            </div>
+        </div>
+    </form>
+</div>
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/process-editor.js" asp-append-version="true" defer></script>
+}

@@ -1,3 +1,4 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.WipReturnModel
-@{ ViewData["Title"] = "Procesar WIP"; }
+@{ ViewData["Title"] = OpTexts["Procesar WIP"].Value; }

@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const debounce = (callback, delay = 250) => {
     let timer;
     return (...args) => {
@@ -15,7 +16,7 @@
 
   const describeProduct = (item) => [item.description, item.externalReference, item.unitCode]
     .filter(Boolean).join(" · ");
-  const describeLocation = (item) => item.description || "Ubicación operativa";
+  const describeLocation = (item) => item.description || text("Ubicación operativa");
 
   const preferredCameraStorageKey = "warehouseEpi.preferredCameraDeviceId";
   const cameraVideoConstraints = {
@@ -68,7 +69,7 @@
       button.classList.toggle("d-none", devices.length < 2);
       const currentDeviceId = stream.getVideoTracks?.()[0]?.getSettings?.().deviceId;
       const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
-      button.title = `Cambiar cámara (${(currentIndex >= 0 ? currentIndex : 0) + 1} de ${devices.length})`;
+      button.title = text("Cambiar cámara ({0} de {1})", (currentIndex >= 0 ? currentIndex : 0) + 1, devices.length);
     } catch {
       button.classList.add("d-none");
     }
@@ -81,6 +82,250 @@
     const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
     return devices[(currentIndex + 1 + devices.length) % devices.length].deviceId;
   };
+
+  const createCameraScanner = ({ element, onCode, onAccepted, onClosed, instruction }) => {
+    const modal = bootstrap.Modal.getOrCreateInstance(element);
+    const video = element.querySelector("[data-camera-video]");
+    const preview = element.querySelector("[data-camera-preview]");
+    const status = element.querySelector("[data-camera-status]");
+    const photo = element.querySelector("[data-camera-photo]");
+    const cameraSwitch = element.querySelector("[data-camera-switch]");
+    let controls;
+    let resolving = false;
+    let accepted = false;
+    let cameraSession = 0;
+
+    const supportedZxingFormats = () => [
+      ZXingBrowser.BarcodeFormat.CODE_128,
+      ZXingBrowser.BarcodeFormat.EAN_13,
+      ZXingBrowser.BarcodeFormat.EAN_8,
+      ZXingBrowser.BarcodeFormat.UPC_A,
+      ZXingBrowser.BarcodeFormat.UPC_E
+    ];
+    const supportedNativeFormats = ["code_128", "ean_13", "ean_8", "upc_a", "upc_e"];
+    const zxingTryHarderHint = 3;
+    const setStatus = (message) => { status.textContent = message; };
+
+    const stopCamera = () => {
+      controls?.stop();
+      controls = undefined;
+      const stream = video.srcObject;
+      if (stream && typeof stream.getTracks === "function")
+        stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    };
+
+    const describeCameraError = (error) => {
+      if (error?.name === "NotAllowedError")
+        return text("No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.");
+      if (error?.name === "NotFoundError")
+        return text("No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.");
+      if (error?.name === "NotReadableError")
+        return text("La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.");
+      if (error?.name === "OverconstrainedError")
+        return text("La cámara no admite la configuración solicitada. Prueba con Tomar foto.");
+      const detail = typeof error?.message === "string" && error.message.trim()
+        ? ` ${error.message.trim()}`
+        : "";
+      return text("No fue posible iniciar la cámara ({0}).{1} Prueba con Tomar foto, escribe o usa el escáner físico.", error?.name || text("error desconocido"), detail);
+    };
+
+    const isCodeNotDetectedError = (error) => {
+      if (["NotFoundException", "ChecksumException", "FormatException"].includes(error?.name)) return true;
+      return /No MultiFormat Readers were able to detect the code/i.test(error?.message || "");
+    };
+
+    const optimizeCameraForBarcodes = async (stream) => {
+      const track = stream.getVideoTracks?.()[0];
+      if (!track?.getCapabilities || !track.applyConstraints) return;
+      const capabilities = track.getCapabilities();
+      if (!capabilities.focusMode?.includes("continuous")) return;
+      try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }
+      catch { /* Continuous focus is optional; the default focus remains usable. */ }
+    };
+
+    const resolveDetectedCode = async (code) => {
+      if (resolving || accepted) return false;
+      resolving = true;
+      setStatus(text("Código detectado. Validando…"));
+      try {
+        const result = await onCode(code);
+        if (result?.accepted) {
+          accepted = true;
+          stopCamera();
+          modal.hide();
+          onAccepted?.(result, code);
+          return true;
+        }
+        setStatus(result?.message || text("No se encontró un producto con ese código. Intenta nuevamente."));
+      } catch {
+        setStatus(text("No fue posible validar el código. La cámara seguirá activa para reintentar."));
+      } finally {
+        if (!accepted) resolving = false;
+      }
+      return false;
+    };
+
+    const startNativeScanner = async (session) => {
+      if (typeof window.BarcodeDetector !== "function") return false;
+      try {
+        const availableFormats = await window.BarcodeDetector.getSupportedFormats();
+        const formats = supportedNativeFormats.filter(format => availableFormats.includes(format));
+        if (formats.length === 0 || session !== cameraSession) return false;
+        const detector = new window.BarcodeDetector({ formats });
+        let stopped = false;
+        controls = { stop: () => { stopped = true; } };
+
+        const scanNextFrame = async () => {
+          if (stopped || accepted || session !== cameraSession) return;
+          if (!resolving) {
+            try {
+              const [result] = await detector.detect(video);
+              if (result?.rawValue) await resolveDetectedCode(result.rawValue);
+            } catch {
+              // A missing code or an unavailable frame is normal while the camera focuses.
+            }
+          }
+          if (!stopped && !accepted && session === cameraSession)
+            window.setTimeout(() => void scanNextFrame(), 100);
+        };
+
+        void scanNextFrame();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const startCamera = async (requestedDeviceId, session = cameraSession) => {
+      if (!window.isSecureContext) {
+        preview.classList.add("d-none");
+        setStatus(text("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico."));
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia
+        || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
+        preview.classList.add("d-none");
+        setStatus(text("Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico."));
+        return;
+      }
+
+      preview.classList.remove("d-none");
+      setStatus(text("Solicitando la cámara trasera…"));
+      try {
+        const stream = await openCameraStream(requestedDeviceId);
+        if (session !== cameraSession) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        await optimizeCameraForBarcodes(stream);
+        video.srcObject = stream;
+        await video.play();
+        if (session !== cameraSession) {
+          stream.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
+          return;
+        }
+        await updateCameraSwitchButton(cameraSwitch, stream);
+        setStatus(instruction || text("Centra el código; para etiquetas largas, acércalo y espera a que enfoque."));
+
+        if (await startNativeScanner(session)) return;
+        if (!window.ZXingBrowser || session !== cameraSession) return;
+
+        const reader = new ZXingBrowser.BrowserMultiFormatReader();
+        reader.possibleFormats = supportedZxingFormats();
+        reader.hints.set(zxingTryHarderHint, true);
+        reader.reader.setHints(reader.hints);
+        controls = await reader.decodeFromStream(stream, video, async (result, error, decoderControls) => {
+          if (!controls) controls = decoderControls;
+          if (session !== cameraSession || accepted) return;
+          if (result && !resolving) {
+            await resolveDetectedCode(result.getText());
+            return;
+          }
+          if (error && !isCodeNotDetectedError(error)) {
+            stopCamera();
+            preview.classList.add("d-none");
+            setStatus(describeCameraError(error));
+          }
+        });
+      } catch (error) {
+        if (session !== cameraSession) return;
+        stopCamera();
+        preview.classList.add("d-none");
+        setStatus(describeCameraError(error));
+      }
+    };
+
+    photo.addEventListener("change", async () => {
+      const [file] = photo.files;
+      if (!file || resolving || accepted) return;
+      if (!window.ZXingBrowser) {
+        setStatus(text("No fue posible leer la foto. Puedes escribir o usar el escáner físico."));
+        return;
+      }
+
+      const session = ++cameraSession;
+      stopCamera();
+      setStatus(text("Leyendo el código de la foto…"));
+      const imageUrl = URL.createObjectURL(file);
+      try {
+        const reader = new ZXingBrowser.BrowserMultiFormatReader();
+        reader.possibleFormats = supportedZxingFormats();
+        const result = await reader.decodeFromImageUrl(imageUrl);
+        await resolveDetectedCode(result.getText());
+      } catch {
+        setStatus(text("No se detectó un código de barras en la foto. Reanudando la cámara…"));
+      } finally {
+        URL.revokeObjectURL(imageUrl);
+        photo.value = "";
+        if (!accepted && session === cameraSession) void startCamera(undefined, session);
+      }
+    });
+
+    cameraSwitch?.addEventListener("click", async () => {
+      cameraSwitch.disabled = true;
+      setStatus(text("Cambiando cámara…"));
+      try {
+        const deviceId = await nextCameraDeviceId(video.srcObject);
+        if (!deviceId) return;
+        const session = ++cameraSession;
+        stopCamera();
+        await startCamera(deviceId, session);
+      } catch (error) {
+        setStatus(describeCameraError(error));
+      } finally {
+        cameraSwitch.disabled = false;
+      }
+    });
+
+    element.addEventListener("hidden.bs.modal", () => {
+      const wasAccepted = accepted;
+      cameraSession++;
+      stopCamera();
+      photo.value = "";
+      resolving = false;
+      accepted = false;
+      onClosed?.({ accepted: wasAccepted });
+    });
+    window.addEventListener("pagehide", () => {
+      cameraSession++;
+      stopCamera();
+    }, { once: true });
+
+    return {
+      open: () => {
+        accepted = false;
+        resolving = false;
+        preview.classList.remove("d-none");
+        setStatus(text("Preparando cámara…"));
+        modal.show();
+        const session = ++cameraSession;
+        void startCamera(undefined, session);
+      }
+    };
+  };
+  window.WarehouseEpiCreateCameraScanner = createCameraScanner;
 
   const renderSuggestions = (container, items, kind, select) => {
     container.replaceChildren();
@@ -120,6 +365,7 @@
     const selected = {};
     const lookups = {};
     let productLocations = null;
+    let autoSelectedEntryDestinationForProductId = null;
     const locationProducts = {};
 
     const hiddenFor = (kind) => operationShell.querySelector(`[data-selected-id="${kind}"]`);
@@ -133,11 +379,11 @@
           : ["product", "location"];
 
     const fieldName = (kind) => ({
-      product: "Producto",
-      source: "Ubicación origen",
-      destination: "Ubicación destino",
-      "exit-mode": "Tipo de salida",
-      location: "Ubicación"
+      product: text("Producto"),
+      source: text("Ubicación origen"),
+      destination: text("Ubicación destino"),
+      "exit-mode": text("Tipo de salida"),
+      location: text("Ubicación")
     })[kind];
 
     const setOperationFeedback = (message) => {
@@ -195,7 +441,7 @@
       for (const kind of kinds) {
         const step = operationShell.querySelector(`[data-entry-step="${kind}"]`);
         const record = lookups[kind]?.record;
-        const title = kind === "exit-mode" ? (selectedExitMode() === "Wip" ? "Surtir WIP" : selectedExitMode() === "General" ? "Salida general" : "Tipo pendiente")
+        const title = kind === "exit-mode" ? (selectedExitMode() === "Wip" ? text("Surtir WIP") : selectedExitMode() === "General" ? text("Salida general") : text("Tipo pendiente"))
           : kind === "quantity" ? quantityText : kind === "notes" ? (notesInput?.value.trim() || "Motivo pendiente")
           : record?.querySelector("[data-selected-title]")?.textContent?.trim() || `${fieldName(kind)} pendiente`;
         const detail = kind === "quantity" ? (quantityComplete ? balanceText.textContent : "")
@@ -221,7 +467,7 @@
       const missing = kinds.length - completedCount;
       const state = operationShell.querySelector("[data-entry-summary-state]");
       state.textContent = ready ? "Lista para confirmar"
-        : completedCount === kinds.length ? "Confirma el pallet compartido"
+        : completedCount === kinds.length ? text("Confirma el pallet compartido")
           : `Faltan ${missing} ${missing === 1 ? "paso" : "pasos"}`;
       operationShell.querySelector(".entry-summary-card")?.classList.toggle("is-ready", ready);
       operationShell.querySelector("[data-review-button]").disabled = !ready;
@@ -232,7 +478,7 @@
       const source = number(balancePreview.dataset.source);
       const destination = number(balancePreview.dataset.destination);
       const location = number(balancePreview.dataset.location);
-      let message = "Selecciona producto y ubicación";
+      let message = text("Selecciona producto y ubicación");
       let isNegative = false;
 
       if (operation === "entry" && selected.product && selected.destination) {
@@ -275,8 +521,9 @@
 
     const relationshipMeta = (item) => {
       const quantity = format(number(item.quantity));
-      if (item.hasActiveAssignment && item.hasNonZeroBalance) return `Asignación activa · saldo ${quantity}`;
-      if (item.hasActiveAssignment) return "Asignación activa · saldo 0";
+      const prefix = item.isDefaultEntry ? "Principal de entrada · " : "";
+      if (item.hasActiveAssignment && item.hasNonZeroBalance) return `${prefix}Asignación activa · saldo ${quantity}`;
+      if (item.hasActiveAssignment) return `${prefix}Asignación activa · saldo 0`;
       return `Con saldo ${quantity}`;
     };
 
@@ -326,20 +573,20 @@
         panel.replaceChildren();
         panel.classList.remove("d-none");
         addRelationshipMessage(panel,
-          "Sin ubicaciones asociadas ni saldo. Escanea una ubicación; se asociará al confirmar.");
+          "Sin ubicaciones con saldo. Escanea o escribe una ubicación.");
         return;
       }
 
       const selectedLocation = selected[primaryLocationKind];
       renderRelationshipChoices(
         panel,
-        productLocations.length === 1 ? "Ubicación relacionada" : "Ubicaciones relacionadas; elige una",
+        productLocations.length === 1 ? text("Ubicación relacionada") : text("Ubicaciones relacionadas; elige una"),
         productLocations,
         "location",
-        (item) => void applySelection(primaryLocationKind, item, true),
+        (item) => void applySelection(primaryLocationKind, item, true).then(focusNextRequired),
         selectedLocation?.id);
       if (selectedLocation && !productLocations.some(item => item.id === selectedLocation.id))
-        addRelationshipMessage(panel, "Esta pareja se asociará al confirmar con NIP.", "text-primary");
+        addRelationshipMessage(panel, text("Esta pareja se asociará al confirmar con NIP."), "text-primary");
     };
 
     const canSelectProductFrom = (kind) => !((operation === "transfer" || operation === "wipissue" || isWipExit()) && kind === "destination");
@@ -352,22 +599,22 @@
         panel.replaceChildren();
         panel.classList.remove("d-none");
         addRelationshipMessage(panel,
-          "Sin productos asociados ni saldo. El producto se asociará al confirmar.");
+          "Sin productos con saldo. Busca o escanea un producto; se asociará al confirmar.");
         return;
       }
 
       const selectable = canSelectProductFrom(kind);
       renderRelationshipChoices(
         panel,
-        items.length === 1 ? "Producto relacionado" : "Productos relacionados; elige uno",
+        items.length === 1 ? text("Producto relacionado") : text("Productos relacionados; elige uno"),
         items,
         "product",
-        selectable ? (item) => void applySelection("product", item, true) : null,
+        selectable ? (item) => void applySelection("product", item, true).then(focusNextRequired) : null,
         selected.product?.id);
       if (selected.product && !items.some(item => item.id === selected.product.id))
-        addRelationshipMessage(panel, "El producto seleccionado se asociará aquí al confirmar con NIP.", "text-primary");
+        addRelationshipMessage(panel, text("El producto seleccionado se asociará aquí al confirmar con NIP."), "text-primary");
       if (!selectable)
-        addRelationshipMessage(panel, "El destino es informativo y no cambia el producto de la transferencia.");
+        addRelationshipMessage(panel, text("El destino es informativo y no cambia el producto de la transferencia."));
     };
 
     const refreshRelationshipPanels = () => {
@@ -379,12 +626,22 @@
     const loadProductLocations = async () => {
       if (!selected.product) return;
       const productId = selected.product.id;
-      const params = new URLSearchParams({ handler: "ProductLocations", productId });
+      const params = new URLSearchParams({ handler: "ProductLocations", productId, operation });
       const items = await requestJson(`${lookupUrl}?${params}`);
       if (selected.product?.id !== productId || !items) return;
       productLocations = items;
       renderProductRelationships();
-      if (operation !== "entry" && !selected[primaryLocationKind] && items.length === 1)
+      if (operation === "entry" && !selected[primaryLocationKind] && selected.product.defaultEntryLocationId) {
+        const defaultLocation = items.find(item => item.id === selected.product.defaultEntryLocationId);
+        if (selected.product.isDefaultEntryLocationAvailable && defaultLocation) {
+          await applySelection(primaryLocationKind, defaultLocation, true);
+          autoSelectedEntryDestinationForProductId = selected.product.id;
+          setOperationFeedback(`Destino principal aplicado: ${defaultLocation.code}. Puedes cambiarlo.`);
+        } else {
+          const code = selected.product.defaultEntryLocationCode || "configurada";
+          setOperationFeedback(`La ubicación principal ${code} no está disponible. Escanea o selecciona otro destino.`);
+        }
+      } else if (operation !== "entry" && !selected[primaryLocationKind] && items.length === 1)
         await applySelection(primaryLocationKind, items[0], true);
     };
 
@@ -396,18 +653,25 @@
       if (selected[kind]?.id !== locationId || !items) return;
       locationProducts[kind] = items;
       renderLocationRelationships(kind);
-      if (canSelectProductFrom(kind) && !selected.product && items.length === 1)
+      if (operation !== "entry" && canSelectProductFrom(kind) && !selected.product && items.length === 1)
         await applySelection("product", items[0], true);
     };
 
     const applySelection = async (kind, item, loadRelationships) => {
       const lookup = lookups[kind];
       const lookupKind = kind === "product" ? "product" : "location";
+      if (operation === "entry" && kind === "product" && selected.product?.id !== item.id &&
+        autoSelectedEntryDestinationForProductId === selected.product?.id) {
+        clearSelection(primaryLocationKind);
+        autoSelectedEntryDestinationForProductId = null;
+      }
+      if (operation === "entry" && kind === primaryLocationKind)
+        autoSelectedEntryDestinationForProductId = null;
       if (lookupKind === "location") {
         const expectsWip = (operation === "wipissue" || isWipExit()) && kind === "destination";
         const isWipLocation = item.isWip === true;
         if (expectsWip && !isWipLocation) {
-          const message = "Selecciona un rack WIP.";
+          const message = text("Selecciona una ubicación WIP.");
           lookup.input.setCustomValidity(message);
           lookup.input.reportValidity();
           setOperationFeedback(message);
@@ -416,6 +680,7 @@
       }
       selected[kind] = item;
       lookup.hidden.value = item.id;
+      lookup.hidden.dispatchEvent(new Event("change", { bubbles: true }));
       lookup.input.value = lookupKind === "product" ? item.sku : item.code;
       lookup.input.setCustomValidity("");
       lookup.record.querySelector("[data-selected-title]").textContent = lookup.input.value;
@@ -447,6 +712,7 @@
       const lookup = lookups[kind];
       selected[kind] = null;
       lookup.hidden.value = "";
+      lookup.hidden.dispatchEvent(new Event("change", { bubbles: true }));
       lookup.record.classList.add("d-none");
       lookup.input.setCustomValidity("");
       lookup.panel?.classList.add("d-none");
@@ -463,12 +729,22 @@
       refreshPreview();
     };
 
+    const nextRequiredKind = () => entryWorkstation
+      ? visibleGuidedKinds().find(kind => kind === "exit-mode"
+        ? !selectedExitMode()
+        : kind === "quantity" ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
+          : kind === "notes" ? !notesInput?.value.trim() : !selected[kind])
+      : requiredKinds().find(kind => !selected[kind]);
+
     const focusNextRequired = () => {
+      const focusLookupInput = (kind) => {
+        const input = lookups[kind]?.input;
+        input?.focus();
+        input?.select();
+      };
+
       if (entryWorkstation) {
-        const next = visibleGuidedKinds().find(kind => kind === "exit-mode"
-          ? !selectedExitMode()
-          : kind === "quantity" ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
-            : kind === "notes" ? !notesInput?.value.trim() : !selected[kind]);
+        const next = nextRequiredKind();
         if (next === "exit-mode") {
           (exitModePicker?.querySelector("input:checked") || exitModePicker?.querySelector("input"))?.focus();
           return;
@@ -476,19 +752,13 @@
         if (next === "quantity") { quantityInput.focus(); quantityInput.select(); return; }
         if (next === "notes") { notesInput?.focus(); return; }
         if (next) {
-          const relationshipPanel = next === primaryLocationKind && productLocations?.length
-            ? lookups.product?.panel : lookups[next]?.panel;
-          const relationshipButton = relationshipPanel?.querySelector("button.relationship-choice");
-          (relationshipButton || lookups[next]?.input)?.focus();
+          focusLookupInput(next);
           return;
         }
       }
-      const missing = requiredKinds().find(kind => !selected[kind]);
+      const missing = nextRequiredKind();
       if (missing) {
-        const relationshipPanel = entryWorkstation && missing === "destination"
-          ? lookups.product?.panel : lookups[missing]?.panel;
-        const relationshipButton = relationshipPanel?.querySelector("button.relationship-choice");
-        (relationshipButton || lookups[missing]?.input)?.focus();
+        focusLookupInput(missing);
         return;
       }
       quantityInput.focus();
@@ -563,7 +833,7 @@
       const lookupKind = kind === "product" ? "product" : "location";
       const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
       if (!resolution) {
-        const message = "No fue posible validar el código. Intenta nuevamente.";
+        const message = text("No fue posible validar el código. Intenta nuevamente.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
         setOperationFeedback(message);
@@ -573,7 +843,7 @@
       const product = resolution.product;
       const location = resolution.location;
       if (product && location) {
-        const message = "El código coincide con un producto y una ubicación. Escanéalo en el campo correcto.";
+        const message = text("El código coincide con un producto y una ubicación. Escanéalo en el campo correcto.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
         setOperationFeedback(message);
@@ -590,7 +860,7 @@
 
       const oppositeItem = lookupKind === "product" ? location : product;
       if (!oppositeItem) {
-        const message = "No se encontró un registro operativo con ese código.";
+        const message = text("No se encontró un registro operativo con ese código.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
         setOperationFeedback(message);
@@ -614,7 +884,7 @@
       await applySelection(targetKind, oppositeItem, true);
       const message = lookupKind === "product"
         ? `Código de ubicación detectado. Se aplicó en ${fieldName(targetKind)}.`
-        : "Código de producto detectado. Se aplicó en Producto.";
+        : text("Código de producto detectado. Se aplicó en Producto.");
       setOperationFeedback(message);
       focusNextRequired();
       return { selected: true, message };
@@ -622,255 +892,59 @@
 
     const scannerElement = operationShell.querySelector("[data-camera-scanner]");
     if (scannerElement) {
-      const scannerModal = bootstrap.Modal.getOrCreateInstance(scannerElement);
-      const scannerVideo = scannerElement.querySelector("[data-camera-video]");
-      const scannerPreview = scannerElement.querySelector("[data-camera-preview]");
-      const scannerStatus = scannerElement.querySelector("[data-camera-status]");
-      const scannerPhoto = scannerElement.querySelector("[data-camera-photo]");
-      const scannerSwitch = scannerElement.querySelector("[data-camera-switch]");
       let activeScannerLookup;
-      let scannerControls;
-      let resolvingCameraCode = false;
       let focusAfterScannerClose = false;
-      const supportedCameraBarcodeFormats = [
-        ZXingBrowser.BarcodeFormat.CODE_128,
-        ZXingBrowser.BarcodeFormat.EAN_13,
-        ZXingBrowser.BarcodeFormat.EAN_8,
-        ZXingBrowser.BarcodeFormat.UPC_A,
-        ZXingBrowser.BarcodeFormat.UPC_E
-      ];
-      const supportedNativeBarcodeFormats = ["code_128", "ean_13", "ean_8", "upc_a", "upc_e"];
-      const zxingTryHarderHint = 3;
-
-      const setScannerStatus = (message) => {
-        scannerStatus.textContent = message;
-      };
-
-      const stopCamera = () => {
-        scannerControls?.stop();
-        scannerControls = undefined;
-        const stream = scannerVideo.srcObject;
-        if (stream && typeof stream.getTracks === "function")
-          stream.getTracks().forEach(track => track.stop());
-        scannerVideo.srcObject = null;
-      };
-
-      const describeCameraError = (error) => {
-        if (error?.name === "NotAllowedError")
-          return "No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.";
-        if (error?.name === "NotFoundError")
-          return "No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.";
-        if (error?.name === "NotReadableError")
-          return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
-        if (error?.name === "OverconstrainedError")
-          return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
-        if (error === false)
-          return "El navegador no pudo reproducir la vista previa. Cierra el modal e inténtalo nuevamente.";
-        const detail = typeof error?.message === "string" && error.message.trim()
-          ? ` ${error.message.trim()}`
-          : "";
-        return `No fue posible iniciar la cámara (${error?.name || "error desconocido"}).${detail} Prueba con Tomar foto, escribe o usa el escáner físico.`;
-      };
-
-      const isCodeNotDetectedError = (error) => {
-        if (["NotFoundException", "ChecksumException", "FormatException"].includes(error?.name)) return true;
-
-        // The bundled production build minifies ZXing exception class names (for example, to "e").
-        // Its message still identifies the normal condition where the current video frame has no barcode.
-        return /No MultiFormat Readers were able to detect the code/i.test(error?.message || "");
-      };
-
-      const resolveCameraCode = async (code) => {
-        resolvingCameraCode = true;
-        const lookup = lookups[activeScannerLookup];
-        clearSelection(activeScannerLookup);
-        lookup.input.value = code;
-        setScannerStatus("Código detectado. Validando…");
-        try {
+      const scanner = createCameraScanner({
+        element: scannerElement,
+        onCode: async (code) => {
+          const lookup = lookups[activeScannerLookup];
+          clearSelection(activeScannerLookup);
+          lookup.input.value = code;
           const resolution = await resolveLookupCode(activeScannerLookup, code, false);
           if (resolution.selected) {
             focusAfterScannerClose = true;
-            stopCamera();
-            scannerModal.hide();
-            return;
+            return { accepted: true };
           }
-
-          setScannerStatus(resolution.message || "No se encontró un registro operativo con ese código. Intenta nuevamente.");
-        } catch {
-          setScannerStatus("No fue posible validar el código. Intenta nuevamente.");
-        }
-        resolvingCameraCode = false;
-      };
-
-      const startNativeBarcodeScanner = async () => {
-        if (typeof window.BarcodeDetector !== "function") return false;
-
-        try {
-          const availableFormats = await window.BarcodeDetector.getSupportedFormats();
-          const formats = supportedNativeBarcodeFormats.filter(format => availableFormats.includes(format));
-          if (formats.length === 0) return false;
-
-          const detector = new window.BarcodeDetector({ formats });
-          let stopped = false;
-          scannerControls = { stop: () => { stopped = true; } };
-
-          const scanNextFrame = async () => {
-            if (stopped || resolvingCameraCode) return;
-            try {
-              const [result] = await detector.detect(scannerVideo);
-              if (result?.rawValue) {
-                await resolveCameraCode(result.rawValue);
-                return;
-              }
-            } catch {
-              // A frame can be unavailable while the camera adjusts focus; retry the next one.
-            }
-
-            if (!stopped && !resolvingCameraCode)
-              window.setTimeout(() => void scanNextFrame(), 100);
+          return {
+            accepted: false,
+            message: resolution.message || text("No se encontró un registro operativo con ese código. Intenta nuevamente.")
           };
-
-          void scanNextFrame();
-          return true;
-        } catch {
-          return false;
-        }
-      };
-
-      const optimizeCameraForBarcodes = async (stream) => {
-        const track = stream.getVideoTracks?.()[0];
-        if (!track?.getCapabilities || !track.applyConstraints) return;
-
-        const capabilities = track.getCapabilities();
-        if (!capabilities.focusMode?.includes("continuous")) return;
-
-        try {
-          await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] });
-        } catch {
-          // Continuous focus is an optional camera capability; the default focus remains usable.
-        }
-      };
-
-      const startCameraScanner = async (requestedDeviceId) => {
-        if (!window.isSecureContext) {
-          scannerPreview.classList.add("d-none");
-          setScannerStatus("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico.");
-          return;
-        }
-        if (!navigator.mediaDevices?.getUserMedia
-          || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
-          scannerPreview.classList.add("d-none");
-          setScannerStatus("Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico.");
-          return;
-        }
-
-        scannerPreview.classList.remove("d-none");
-        setScannerStatus("Solicitando la cámara trasera…");
-        try {
-          // Open the device first. This keeps the permission request tied to the user's button tap
-          // and avoids relying on the decoder to create a second, hidden camera request on Android.
-          const stream = await openCameraStream(requestedDeviceId);
-          await optimizeCameraForBarcodes(stream);
-          scannerVideo.srcObject = stream;
-          await scannerVideo.play();
-          await updateCameraSwitchButton(scannerSwitch, stream);
-          setScannerStatus("Centra el código; para etiquetas largas, acércalo y espera a que enfoque.");
-
-          if (await startNativeBarcodeScanner()) return;
-
-          const reader = new ZXingBrowser.BrowserMultiFormatReader();
-          reader.possibleFormats = supportedCameraBarcodeFormats;
-          // DecodeHintType.TRY_HARDER is not exported by the browser bundle (its stable enum value is 3).
-          // It samples more scan lines, which is important for dense, long Code 128 labels.
-          reader.hints.set(zxingTryHarderHint, true);
-          reader.reader.setHints(reader.hints);
-          scannerControls = await reader.decodeFromStream(
-            stream,
-            scannerVideo,
-            async (result, error, controls) => {
-              if (!scannerControls) scannerControls = controls;
-              if (result && !resolvingCameraCode) {
-                await resolveCameraCode(result.getText());
-                return;
-              }
-
-              if (error && !isCodeNotDetectedError(error)) {
-                stopCamera();
-                scannerPreview.classList.add("d-none");
-                setScannerStatus(describeCameraError(error));
-              }
-            });
-        } catch (error) {
-          stopCamera();
-          scannerPreview.classList.add("d-none");
-          setScannerStatus(describeCameraError(error));
-        }
-      };
-
-      scannerPhoto.addEventListener("change", async () => {
-        const [photo] = scannerPhoto.files;
-        if (!photo || resolvingCameraCode) return;
-        if (!window.ZXingBrowser) {
-          setScannerStatus("No fue posible leer la foto. Puedes escribir o usar el escáner físico.");
-          return;
-        }
-
-        stopCamera();
-          setScannerStatus("Leyendo el código de la foto…");
-          const imageUrl = URL.createObjectURL(photo);
-          try {
-            const reader = new ZXingBrowser.BrowserMultiFormatReader();
-          reader.possibleFormats = supportedCameraBarcodeFormats;
-          const result = await reader.decodeFromImageUrl(imageUrl);
-          await resolveCameraCode(result.getText());
-        } catch {
-          setScannerStatus("No se detectó un código de barras en la foto. Intenta nuevamente.");
-        } finally {
-          URL.revokeObjectURL(imageUrl);
-          scannerPhoto.value = "";
-        }
-      });
-
-      scannerSwitch?.addEventListener("click", async () => {
-        scannerSwitch.disabled = true;
-        setScannerStatus("Cambiando cámara…");
-        try {
-          const deviceId = await nextCameraDeviceId(scannerVideo.srcObject);
-          if (!deviceId) return;
-          stopCamera();
-          await startCameraScanner(deviceId);
-        } catch (error) {
-          setScannerStatus(describeCameraError(error));
-        } finally {
-          scannerSwitch.disabled = false;
+        },
+        onClosed: () => {
+          const shouldFocusNext = focusAfterScannerClose;
+          activeScannerLookup = undefined;
+          focusAfterScannerClose = false;
+          if (shouldFocusNext) focusNextRequired();
         }
       });
 
       operationShell.querySelectorAll("[data-camera-scan]").forEach(button => {
         button.addEventListener("click", () => {
           activeScannerLookup = button.closest("[data-lookup-field]").dataset.lookupField;
-          resolvingCameraCode = false;
           focusAfterScannerClose = false;
-          scannerPreview.classList.remove("d-none");
-          setScannerStatus("Preparando cámara…");
-          scannerModal.show();
-          void startCameraScanner();
+          scanner.open();
         });
       });
-
-      scannerElement.addEventListener("hidden.bs.modal", () => {
-        const shouldFocusNext = focusAfterScannerClose;
-        stopCamera();
-        scannerPhoto.value = "";
-        activeScannerLookup = undefined;
-        resolvingCameraCode = false;
-        focusAfterScannerClose = false;
-        if (shouldFocusNext) focusNextRequired();
-      });
-      window.addEventListener("pagehide", stopCamera, { once: true });
     }
 
     operationShell.querySelectorAll("[data-lookup-field]").forEach(setupLookup);
+    if (entryWorkstation) {
+      window.WarehouseEpiHidCapture?.listen({
+        root: operationShell,
+        isEnabled: () => {
+          const targetKind = nextRequiredKind();
+          return Boolean(lookups[targetKind] && !selected[targetKind]);
+        },
+        onScan: async (code) => {
+          const targetKind = nextRequiredKind();
+          const lookup = lookups[targetKind];
+          if (!lookup || selected[targetKind]) return;
+          lookup.input.value = code;
+          lookup.results.replaceChildren();
+          await resolveLookupCode(targetKind, code, true);
+        }
+      });
+    }
     const refreshExitMode = () => {
       const destinationStep = operationShell.querySelector("[data-wip-destination-step]");
       const isWip = isWipExit();
@@ -929,18 +1003,18 @@
     const reviewButton = operationShell.querySelector("[data-review-button]");
     const modalElement = document.getElementById("confirm-operation");
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-    reviewButton.addEventListener("click", () => {
+    const openConfirmation = () => {
       const pinInput = operationShell.querySelector("[data-pin-input]");
       pinInput.required = false;
       if (operation === "exit" && !selectedExitMode()) {
-        exitModePicker?.querySelector("input")?.setCustomValidity("Selecciona el tipo de salida.");
+        exitModePicker?.querySelector("input")?.setCustomValidity(text("Selecciona el tipo de salida."));
         exitModePicker?.querySelector("input")?.reportValidity();
         return;
       }
       for (const kind of requiredKinds()) {
         if (!hiddenFor(kind).value) {
           const input = operationShell.querySelector(`[data-lookup-field="${kind}"] [data-lookup-input]`);
-          input.setCustomValidity("Selecciona un registro de la lista o escanea un código válido.");
+          input.setCustomValidity(text("Selecciona un registro de la lista o escanea un código válido."));
           input.reportValidity();
           return;
         }
@@ -962,6 +1036,21 @@
       pinInput.required = true;
       modal.show();
       modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
+    };
+    reviewButton.addEventListener("click", openConfirmation);
+    quantityInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      if (!quantityInput.checkValidity()) {
+        quantityInput.reportValidity();
+        return;
+      }
+      const next = nextRequiredKind();
+      if (next) {
+        focusNextRequired();
+        return;
+      }
+      openConfirmation();
     });
 
     form.addEventListener("submit", () => {
@@ -1022,7 +1111,7 @@
     };
     const showAmbiguousChoices = (resolution) => {
       results.replaceChildren();
-      const message = "El código coincide con un producto y una ubicación. Elige qué deseas consultar.";
+        const message = text("El código coincide con un producto y una ubicación. Elige qué deseas consultar.");
       setFeedback(message);
       addGroup("Producto", [resolution.product], "product");
       addGroup("Ubicación", [resolution.location], "location");
@@ -1051,7 +1140,7 @@
       }
       if (resolution.product) { navigate("product", resolution.product.id); return true; }
       if (resolution.location) { navigate("location", resolution.location.id); return true; }
-      const message = "No se encontró un producto ni una ubicación con ese código.";
+      const message = text("No se encontró un producto ni una ubicación con ese código.");
       input.setCustomValidity(message);
       setFeedback(message);
       return false;
@@ -1150,7 +1239,7 @@
           return;
         }
         preview.classList.remove("d-none");
-        status.textContent = "Solicitando cámara trasera…";
+        status.textContent = text("Solicitando cámara trasera…");
         try {
           const stream = await openCameraStream(requestedDeviceId);
           video.srcObject = stream;
@@ -1180,7 +1269,7 @@
       });
       cameraSwitch?.addEventListener("click", async () => {
         cameraSwitch.disabled = true;
-        status.textContent = "Cambiando cámara…";
+        status.textContent = text("Cambiando cámara…");
         try {
           const deviceId = await nextCameraDeviceId(video.srcObject);
           if (!deviceId) return;
@@ -1195,6 +1284,52 @@
       modalElement.addEventListener("shown.bs.modal", () => document.body.classList.add("camera-active"));
       modalElement.addEventListener("hidden.bs.modal", () => { stopCamera(); photo.value = ""; document.body.classList.remove("camera-active"); if (!resolving) input.focus(); });
       window.addEventListener("pagehide", stopCamera, { once: true });
+    }
+  }
+
+  const productCatalogForm = document.querySelector("[data-product-catalog-search-form]");
+  if (productCatalogForm) {
+    const input = productCatalogForm.querySelector("[data-product-catalog-search]");
+    const cameraButton = productCatalogForm.querySelector("[data-product-catalog-camera]");
+    const modalElement = document.querySelector("[data-product-catalog-camera-modal]");
+    const lookupUrl = productCatalogForm.dataset.lookupUrl;
+
+    if (input && cameraButton && modalElement && lookupUrl) {
+      const scanner = createCameraScanner({
+        element: modalElement,
+        instruction: "Centra el código del producto; para etiquetas largas, acércalo y espera a que enfoque.",
+        onCode: async (code) => {
+          let resolution;
+          try {
+            resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveInventoryCode", code })}`);
+          } catch {
+            return {
+              accepted: false,
+              message: "No fue posible validar el código en la red local. La cámara seguirá activa para reintentar."
+            };
+          }
+
+          if (!resolution?.product) {
+            return {
+              accepted: false,
+              message: resolution?.location
+                ? "El código corresponde a una ubicación, no a un producto. Intenta nuevamente."
+                : "No se encontró un producto con ese código. Intenta nuevamente."
+            };
+          }
+
+          return { accepted: true, sku: resolution.product.sku };
+        },
+        onAccepted: (result) => {
+          input.value = result.sku;
+          productCatalogForm.requestSubmit();
+        },
+        onClosed: ({ accepted }) => {
+          if (!accepted) input.focus();
+        }
+      });
+
+      cameraButton.addEventListener("click", () => scanner.open());
     }
   }
 })();

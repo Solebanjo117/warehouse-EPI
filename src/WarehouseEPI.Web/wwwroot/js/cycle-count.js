@@ -1,6 +1,107 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
+  const draftLifetimeMs = 12 * 60 * 60 * 1000;
+
+  // Icono del sprite de _Layout: los botones creados desde JS usan el mismo trazo que el marcado.
+  const cameraIcon = () => {
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("class", "app-icon");
+    svg.setAttribute("aria-hidden", "true");
+    const use = document.createElementNS(ns, "use");
+    use.setAttribute("href", "#icon-camera");
+    svg.append(use);
+    return svg;
+  };
+
   // La CSP no permite handlers en atributos: la impresión de la hoja ciega se enlaza aquí.
   document.querySelector("[data-cycle-print]")?.addEventListener("click", () => window.print());
+
+  const campaignDetail = document.querySelector("[data-cycle-campaign-detail]");
+  if (campaignDetail) {
+    const campaignId = campaignDetail.dataset.cycleCampaign;
+    const submittedLocation = campaignDetail.dataset.cycleSubmittedLocation;
+    if (submittedLocation) {
+      try { window.localStorage.removeItem(`warehouseEpi.cycleCount.${campaignId}.${submittedLocation}`); }
+      catch { /* almacenamiento no disponible */ }
+    }
+
+    campaignDetail.querySelectorAll("[data-cycle-location-card]").forEach((card) => {
+      const key = `warehouseEpi.cycleCount.${campaignId}.${card.dataset.cycleLocation}`;
+      try {
+        const draft = JSON.parse(window.localStorage.getItem(key) || "null");
+        if (!draft?.fields || Date.now() - draft.savedAt > draftLifetimeMs) {
+          if (draft) window.localStorage.removeItem(key);
+          return;
+        }
+        const hasCapture = Object.entries(draft.fields).some(([name, value]) =>
+          (name.endsWith(".Quantity") || name.endsWith(".Code")) && String(value).trim() !== "");
+        const link = card.querySelector("[data-cycle-count-link]");
+        if (hasCapture && link) {
+          link.textContent = "Continuar captura";
+          card.classList.add("has-cycle-draft");
+        }
+      } catch { /* un borrador ilegible no bloquea la campaña */ }
+    });
+
+    const filterShell = campaignDetail.querySelector("[data-cycle-filters]");
+    const cards = [...campaignDetail.querySelectorAll("[data-cycle-location-card]")];
+    const empty = campaignDetail.querySelector("[data-cycle-filter-empty]");
+    const applyFilter = (filter) => {
+      let visible = 0;
+      cards.forEach((card) => {
+        const show = filter === "all" || card.dataset.cycleFilterStatus === filter;
+        card.hidden = !show;
+        if (show) visible += 1;
+      });
+      campaignDetail.querySelectorAll("[data-cycle-rack]").forEach((rack) => {
+        rack.hidden = !rack.querySelector("[data-cycle-location-card]:not([hidden])");
+      });
+      campaignDetail.querySelectorAll("[data-cycle-row]").forEach((row) => {
+        row.hidden = !row.querySelector("[data-cycle-rack]:not([hidden])");
+      });
+      campaignDetail.querySelectorAll("[data-cycle-next-link]").forEach((link) => {
+        link.hidden = filter !== "all" && filter !== "pending";
+      });
+      empty?.classList.toggle("d-none", visible !== 0);
+      filterShell.querySelectorAll("[data-cycle-filter]").forEach((button) => {
+        const active = button.dataset.cycleFilter === filter;
+        button.setAttribute("aria-pressed", String(active));
+        button.classList.toggle("btn-primary", active);
+        button.classList.toggle("btn-outline-secondary", !active);
+      });
+    };
+    filterShell?.classList.remove("d-none");
+    filterShell?.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-cycle-filter]");
+      if (button) applyFilter(button.dataset.cycleFilter);
+    });
+
+    const remaining = campaignDetail.querySelector("[data-cycle-session-remaining]");
+    if (remaining) {
+      const expiresAt = Date.parse(remaining.dataset.cycleSessionExpires || "");
+      const refreshRemaining = () => {
+        const minutes = Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000));
+        remaining.textContent = minutes === 1 ? "1 minuto" : `${minutes} minutos`;
+      };
+      refreshRemaining();
+      window.setInterval(refreshRemaining, 60000);
+    }
+  }
+
+  document.querySelectorAll("[data-cycle-review-decision]").forEach((section) => {
+    const select = section.querySelector("[data-cycle-review-decision-select]");
+    if (!select) return;
+    const sync = () => {
+      const approving = select.value === "Approve";
+      section.querySelectorAll("[data-cycle-approval-field]").forEach((field) => {
+        field.hidden = !approving;
+        field.querySelectorAll("input, select, textarea").forEach((control) => { control.disabled = !approving; });
+      });
+    };
+    select.addEventListener("change", sync);
+    sync();
+  });
 
   const preferredCameraStorageKey = "warehouseEpi.preferredCameraDeviceId";
   const cameraVideoConstraints = {
@@ -19,7 +120,7 @@
   const savePreferredCameraDeviceId = (deviceId) => {
     if (!deviceId) return;
     try { window.localStorage.setItem(preferredCameraStorageKey, deviceId); }
-    catch { /* Storage can be unavailable in private or restricted browser modes. */ }
+    catch { /* El almacenamiento puede no estar disponible en modo privado. */ }
   };
 
   const openCameraStream = async (requestedDeviceId) => {
@@ -85,12 +186,12 @@
     };
 
     const describeCameraError = (error) => {
-      if (error?.name === "NotAllowedError") return "No se concedió permiso para usar la cámara. Puedes escribir o usar el lector físico.";
-      if (error?.name === "NotFoundError") return "No se encontró una cámara disponible. Puedes escribir o usar el lector físico.";
-      if (error?.name === "NotReadableError") return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
-      if (error?.name === "OverconstrainedError") return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
-      if (error === false) return "El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente.";
-      return "No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico.";
+      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") return text("No se concedió permiso para usar la cámara. Puedes tomar una foto, escribir o usar el lector físico.");
+      if (error?.name === "NotFoundError") return text("No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico.");
+      if (error?.name === "NotReadableError") return text("La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.");
+      if (error?.name === "OverconstrainedError") return text("La cámara no admite la configuración solicitada. Prueba con Tomar foto.");
+      if (error === false) return text("El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente.");
+      return text("No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico.");
     };
 
     const isCodeNotDetectedError = (error) => {
@@ -105,7 +206,7 @@
       try {
         const result = await activeScanHandler(code.trim());
         if (result === false) {
-          setScannerStatus("El código no corresponde a esta captura. Intenta nuevamente.");
+          setScannerStatus(text("El código no corresponde a esta captura. Intenta nuevamente."));
           resolvingCameraCode = false;
           return;
         }
@@ -113,7 +214,7 @@
         stopCamera();
         scannerModal.hide();
       } catch {
-        setScannerStatus("No fue posible procesar el código. Intenta nuevamente.");
+        setScannerStatus(text("No fue posible procesar el código. Intenta nuevamente."));
         resolvingCameraCode = false;
       }
     };
@@ -156,7 +257,7 @@
       const capabilities = track.getCapabilities();
       if (!capabilities.focusMode?.includes("continuous")) return;
       try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }
-      catch { /* Continuous focus is optional. */ }
+      catch { /* El enfoque continuo es opcional. */ }
     };
 
     const updateCameraSwitchButton = async (stream) => {
@@ -176,18 +277,18 @@
       const session = ++cameraSession;
       if (!window.isSecureContext) {
         scannerPreview.classList.add("d-none");
-        setScannerStatus("La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico.");
+        setScannerStatus(text("La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico."));
         return;
       }
       if (!navigator.mediaDevices?.getUserMedia
         || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
         scannerPreview.classList.add("d-none");
-        setScannerStatus("Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico.");
+        setScannerStatus(text("Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico."));
         return;
       }
 
       scannerPreview.classList.remove("d-none");
-      setScannerStatus("Solicitando la cámara trasera…");
+      setScannerStatus(text("Solicitando la cámara trasera…"));
       try {
         const stream = await openCameraStream(requestedDeviceId);
         if (session !== cameraSession) {
@@ -199,7 +300,7 @@
         await scannerVideo.play();
         if (session !== cameraSession) return;
         await updateCameraSwitchButton(stream);
-        setScannerStatus("Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar.");
+        setScannerStatus(text("Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar."));
         if (await startNativeBarcodeScanner(session)) return;
 
         const reader = new ZXingBrowser.BrowserMultiFormatReader();
@@ -237,17 +338,17 @@
       const [photo] = scannerPhoto.files;
       if (!photo || resolvingCameraCode) return;
       if (!window.ZXingBrowser) {
-        setScannerStatus("No fue posible leer la foto. Puedes escribir o usar el lector físico.");
+        setScannerStatus(text("No fue posible leer la foto. Puedes escribir o usar el lector físico."));
         return;
       }
       stopCamera();
-      setScannerStatus("Leyendo el código de la foto…");
+      setScannerStatus(text("Leyendo el código de la foto…"));
       const imageUrl = URL.createObjectURL(photo);
       try {
         const result = await new ZXingBrowser.BrowserMultiFormatReader().decodeFromImageUrl(imageUrl);
         await handleDetectedCode(result.getText());
       } catch {
-        setScannerStatus("No se detectó un código de barras en la foto. Intenta nuevamente.");
+        setScannerStatus(text("No se detectó un código de barras en la foto. Intenta nuevamente."));
       } finally {
         URL.revokeObjectURL(imageUrl);
         scannerPhoto.value = "";
@@ -256,7 +357,7 @@
 
     scannerSwitch?.addEventListener("click", async () => {
       scannerSwitch.disabled = true;
-      setScannerStatus("Cambiando cámara…");
+      setScannerStatus(text("Cambiando cámara…"));
       try {
         const deviceId = await nextCameraDeviceId(scannerVideo.srcObject);
         if (!deviceId) return;
@@ -275,7 +376,7 @@
       focusAfterScannerClose = undefined;
       resolvingCameraCode = false;
       scannerPreview.classList.remove("d-none");
-      setScannerStatus("Preparando cámara…");
+      setScannerStatus(text("Preparando cámara…"));
       scannerModal.show();
       void startCameraScanner();
       return true;
@@ -294,6 +395,270 @@
     window.addEventListener("pagehide", stopCamera, { once: true });
   }
 
+  // ---- Planes recurrentes: búsqueda seleccionable, HID y cámara ------------------------
+  document.querySelectorAll("[data-cycle-plan]").forEach((planForm, formIndex) => {
+    const lookupUrl = planForm.dataset.lookupUrl;
+    const fields = [];
+
+    const requestJson = async (url, signal) => {
+      const response = await fetch(url, { headers: { Accept: "application/json" }, signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+
+    const closeResults = (field) => {
+      field.results.replaceChildren();
+      field.highlighted = -1;
+      field.input.setAttribute("aria-expanded", "false");
+      field.input.removeAttribute("aria-activedescendant");
+    };
+
+    const announce = (field, message) => { field.feedback.textContent = message; };
+
+    const clearSelection = (field, clearInput = false) => {
+      field.id.value = "";
+      field.selected.classList.add("d-none");
+      field.selected.querySelector("[data-cycle-plan-selected-title]").textContent = "";
+      field.selected.querySelector("[data-cycle-plan-selected-detail]").textContent = "";
+      field.selected.querySelector("[data-cycle-plan-selected-meta]").textContent = "";
+      if (clearInput) field.input.value = "";
+      if (field.clear) field.clear.disabled = !field.input.value.trim();
+    };
+
+    const resultValues = (field, item) => field.type === "product"
+      ? { id: item.id, title: item.sku, detail: item.description || "Sin descripción", meta: item.unitCode }
+      : { id: item.id, title: item.code, detail: item.description || text("Sin descripción"), meta: text("Ubicación") };
+
+    const itemIsAllowed = (field, item) => !field.allowedIds
+      || field.allowedIds.has(String(item.id).toLowerCase());
+
+    const selectItem = (field, item, message) => {
+      const values = resultValues(field, item);
+      window.clearTimeout(field.timer);
+      field.controller?.abort();
+      field.id.value = values.id;
+      field.input.value = values.title;
+      field.input.setCustomValidity("");
+      field.selected.querySelector("[data-cycle-plan-selected-title]").textContent = values.title;
+      field.selected.querySelector("[data-cycle-plan-selected-detail]").textContent = values.detail;
+      field.selected.querySelector("[data-cycle-plan-selected-meta]").textContent = values.meta;
+      field.selected.classList.remove("d-none");
+      if (field.clear) field.clear.disabled = false;
+      closeResults(field);
+      announce(field, message || `${field.label} seleccionado.`);
+    };
+
+    const setHighlight = (field, index) => {
+      const options = [...field.results.querySelectorAll("[role='option']")];
+      if (options.length === 0) return;
+      field.highlighted = (index + options.length) % options.length;
+      options.forEach((option, optionIndex) => {
+        const active = optionIndex === field.highlighted;
+        option.classList.toggle("active", active);
+        option.setAttribute("aria-selected", String(active));
+      });
+      const active = options[field.highlighted];
+      field.input.setAttribute("aria-activedescendant", active.id);
+      active.scrollIntoView({ block: "nearest" });
+    };
+
+    const renderResults = (field, items) => {
+      closeResults(field);
+      items = items.filter(item => itemIsAllowed(field, item));
+      if (items.length === 0) {
+        announce(field, text("No se encontraron {0}.", (field.type === "product" ? text("Productos") : text("Ubicaciones")).toLocaleLowerCase(document.documentElement.lang)));
+        return;
+      }
+
+      items.forEach((item, index) => {
+        const values = resultValues(field, item);
+        const option = document.createElement("button");
+        option.type = "button";
+        option.id = `cycle-plan-${formIndex}-${field.key}-option-${index}`;
+        option.className = "list-group-item list-group-item-action";
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-selected", "false");
+
+        const title = document.createElement("strong");
+        title.className = "d-block";
+        title.textContent = values.title;
+        const detail = document.createElement("span");
+        detail.className = "small text-body-secondary";
+        detail.textContent = field.type === "product" && item.externalReference
+          ? `${values.detail} · Ref. ${item.externalReference}`
+          : values.detail;
+        option.append(title, detail);
+        option.addEventListener("mousedown", event => event.preventDefault());
+        option.addEventListener("click", () => {
+          selectItem(field, item);
+          field.input.focus();
+        });
+        field.results.append(option);
+      });
+
+      field.input.setAttribute("aria-expanded", "true");
+      announce(field, `${items.length} ${items.length === 1 ? "resultado disponible" : "resultados disponibles"}.`);
+    };
+
+    const search = async (field) => {
+      const query = field.input.value.trim();
+      field.controller?.abort();
+      if (!query) {
+        closeResults(field);
+        announce(field, text("Escribe para buscar o usa un lector HID."));
+        return;
+      }
+
+      field.controller = new AbortController();
+      try {
+        const handler = field.type === "product" ? "Products" : "Locations";
+        const items = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler, q: query })}`, field.controller.signal);
+        renderResults(field, items);
+      } catch (error) {
+        if (error?.name === "AbortError") return;
+        closeResults(field);
+        announce(field, text("No fue posible buscar en la red local. Intenta nuevamente."));
+      }
+    };
+
+    const resolveCode = async (sourceField, code) => {
+      if (!code.trim()) return false;
+      announce(sourceField, text("Validando código…"));
+      try {
+        const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
+        const expected = resolution?.[sourceField.type];
+        if (expected && itemIsAllowed(sourceField, expected)) {
+          selectItem(sourceField, expected, `${sourceField.label} seleccionado por código.`);
+          return sourceField.input;
+        }
+        if (expected) {
+          announce(sourceField, `${sourceField.label} no está disponible para esta operación.`);
+          return false;
+        }
+
+        const otherType = sourceField.type === "product" ? "location" : "product";
+        const other = resolution?.[otherType];
+        const target = fields.find(field => field.element.isConnected && field.type === otherType);
+        if (other && target) {
+          selectItem(target, other, `${target.label} seleccionado por código.`);
+          announce(sourceField, `El código corresponde a ${target.label.toLowerCase()}; se colocó en el campo correcto.`);
+          return target.input;
+        }
+
+        announce(sourceField, `El código no corresponde a ${sourceField.label.toLowerCase()} activo.`);
+        return false;
+      } catch {
+        announce(sourceField, text("No fue posible validar el código en la red local. Intenta nuevamente."));
+        return false;
+      }
+    };
+
+    let nextFieldIndex = 0;
+    const initializeField = (element) => {
+      if (element.dataset.cyclePlanInitialized === "true") return;
+      element.dataset.cyclePlanInitialized = "true";
+      const fieldIndex = nextFieldIndex++;
+      const type = element.dataset.cyclePlanField;
+      const field = {
+        type,
+        key: element.dataset.cyclePlanKey || `${type}-${fieldIndex}`,
+        label: element.dataset.cyclePlanLabel || (type === "product" ? "SKU" : "Ubicación"),
+        optional: element.hasAttribute("data-cycle-plan-optional"),
+        allowedIds: element.dataset.cyclePlanAllowedIds
+          ? new Set(element.dataset.cyclePlanAllowedIds.split(",").map(value => value.trim().toLowerCase()).filter(Boolean))
+          : undefined,
+        element,
+        input: element.querySelector("[data-cycle-plan-search]"),
+        id: element.querySelector("[data-cycle-plan-id]"),
+        results: element.querySelector("[data-cycle-plan-results]"),
+        selected: element.querySelector("[data-cycle-plan-selected]"),
+        feedback: element.querySelector("[data-cycle-plan-feedback]"),
+        camera: element.querySelector("[data-cycle-plan-camera]"),
+        clear: element.querySelector("[data-cycle-plan-clear]"),
+        highlighted: -1,
+        timer: 0,
+        controller: undefined
+      };
+      fields.push(field);
+
+      field.input.addEventListener("input", () => {
+        field.controller?.abort();
+        clearSelection(field);
+        field.input.setCustomValidity("");
+        if (field.clear) field.clear.disabled = !field.input.value.trim();
+        window.clearTimeout(field.timer);
+        field.timer = window.setTimeout(() => void search(field), 250);
+      });
+      field.input.addEventListener("focus", () => {
+        if (!field.id.value && field.input.value.trim() && field.results.childElementCount === 0)
+          void search(field);
+      });
+      field.input.addEventListener("keydown", (event) => {
+        const options = [...field.results.querySelectorAll("[role='option']")];
+        if (event.key === "ArrowDown" && options.length) {
+          event.preventDefault();
+          setHighlight(field, field.highlighted + 1);
+        } else if (event.key === "ArrowUp" && options.length) {
+          event.preventDefault();
+          setHighlight(field, field.highlighted - 1);
+        } else if (event.key === "Escape") {
+          closeResults(field);
+        } else if (event.key === "Enter") {
+          event.preventDefault();
+          if (field.highlighted >= 0) options[field.highlighted].click();
+          else void resolveCode(field, field.input.value);
+        }
+      });
+      field.input.addEventListener("blur", () => window.setTimeout(() => closeResults(field), 150));
+      field.camera?.addEventListener("click", () => {
+        if (!openCycleScanner(field.camera, value => resolveCode(field, value))) {
+          announce(field, text("No fue posible abrir el lector. Escribe el código o usa un lector HID."));
+          field.input.focus();
+        }
+      });
+      field.clear?.addEventListener("click", () => {
+        field.controller?.abort();
+        window.clearTimeout(field.timer);
+        clearSelection(field, true);
+        closeResults(field);
+        field.input.setCustomValidity("");
+        announce(field, `Sin ${field.label.toLowerCase()}.`);
+        field.input.focus();
+      });
+    };
+
+    planForm.querySelectorAll("[data-cycle-plan-field]").forEach(initializeField);
+    planForm.addEventListener("cycle-plan:refresh", (event) => {
+      for (let index = fields.length - 1; index >= 0; index -= 1) {
+        if (!fields[index].element.isConnected) {
+          fields[index].controller?.abort();
+          window.clearTimeout(fields[index].timer);
+          fields.splice(index, 1);
+        }
+      }
+      const scope = event.detail?.scope instanceof Element ? event.detail.scope : planForm;
+      if (scope.matches?.("[data-cycle-plan-field]")) initializeField(scope);
+      scope.querySelectorAll?.("[data-cycle-plan-field]").forEach(initializeField);
+    });
+
+    document.addEventListener("click", (event) => {
+      fields.filter(field => field.element.isConnected).forEach(field => {
+        if (!field.element.contains(event.target)) closeResults(field);
+      });
+    });
+
+    planForm.addEventListener("submit", (event) => {
+      const missing = fields.find(field => field.element.isConnected
+        && !field.id.value && (!field.optional || field.input.value.trim()));
+      if (!missing) return;
+      event.preventDefault();
+      missing.input.setCustomValidity(`Selecciona ${missing.label.toLowerCase()} de los resultados.`);
+      announce(missing, `Selecciona ${missing.label.toLowerCase()} de los resultados antes de guardar.`);
+      missing.input.reportValidity();
+      missing.input.focus();
+    });
+  });
+
   const locationButton = document.querySelector("[data-cycle-scan-location]");
   if (locationButton) {
     const form = locationButton.closest("form");
@@ -303,13 +668,15 @@
       form.requestSubmit();
       return true;
     }));
+    if (campaignDetail?.dataset.cycleScanNext === "true") code.focus();
   }
   const productButton = document.querySelector("[data-cycle-scan-product]");
   if (productButton) {
     const shell = productButton.closest("[data-cycle-count-capture]");
     productButton.addEventListener("click", () => openCycleScanner(productButton, value => {
       const row = [...shell.querySelectorAll("[data-cycle-product]")].find(item => item.dataset.cycleProduct.toUpperCase() === value.trim().toUpperCase());
-      const target = row?.querySelector("[data-cycle-quantity]") || shell.querySelector('input[name$=".Code"]:not([value])');
+      const target = row?.querySelector("[data-cycle-quantity]")
+        || [...shell.querySelectorAll('input[name$=".Code"]')].find(input => !input.value.trim());
       if (!target) return false;
       if (!row) target.value = value;
       target.dispatchEvent(new Event("input", { bubbles: true }));
@@ -383,23 +750,15 @@
   const scanButton = document.createElement("button");
   scanButton.type = "button";
   scanButton.className = "btn btn-outline-secondary d-inline-flex align-items-center gap-2";
+  scanButton.append(cameraIcon(), "Escanear producto inesperado");
   scanButton.setAttribute("aria-describedby", "cycle-count-camera-status");
-  const scanIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  scanIcon.setAttribute("class", "app-icon");
-  scanIcon.setAttribute("aria-hidden", "true");
-  const scanIconUse = document.createElementNS("http://www.w3.org/2000/svg", "use");
-  scanIconUse.setAttribute("href", "#icon-camera");
-  scanIcon.append(scanIconUse);
-  const scanLabel = document.createElement("span");
-  scanLabel.textContent = "Escanear producto inesperado";
-  scanButton.append(scanIcon, scanLabel);
 
   const status = document.createElement("span");
   status.id = "cycle-count-camera-status";
   status.className = "small text-body-secondary";
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
-  status.textContent = "También puedes usar un lector HID como teclado.";
+  status.textContent = text("También puedes usar un lector HID como teclado.");
 
   controls.append(addButton, scanButton, status);
   fieldset.insertBefore(controls, fieldset.querySelector(".row"));
@@ -421,7 +780,6 @@
   // sólo se restaura cuando el operador lo pide. El token de preparación tampoco se guarda:
   // el vigente es el que renderiza el servidor.
   const draftKey = `warehouseEpi.cycleCount.${capture.dataset.cycleCampaign}.${capture.dataset.cycleLocation}`;
-  const draftLifetimeMs = 12 * 60 * 60 * 1000;
   const isDraftField = (element) => element.name
     && element.type !== "password"
     && element.name !== "__RequestVerificationToken"
@@ -465,7 +823,6 @@
       if (element.type === "checkbox") element.checked = draft.fields[element.name];
       else element.value = draft.fields[element.name];
     });
-    // La restauración no dispara eventos de usuario: avisa para recalcular estados y progreso.
     form.dispatchEvent(new Event("change", { bubbles: true }));
   };
 
@@ -493,16 +850,16 @@
   }
 
   form.addEventListener("input", saveDraft);
-  form.addEventListener("submit", discardDraft);
+  // El borrador sólo se elimina al volver a la campaña después de un POST exitoso.
+  // Así sobrevive a errores de validación, red o concurrencia sin guardar el NIP.
 
-  // ---- Estación de captura: progreso, ubicación vacía y confirmación con NIP -------------
+  // ---- Estación guiada: progreso, ceros visibles, Enter y confirmación -----------------
   const steps = () => [...form.querySelectorAll("[data-cycle-product]")];
   const quantityInputs = () => [...form.querySelectorAll("[data-cycle-quantity]")];
   const emptyToggle = form.querySelector("[data-cycle-empty-location]");
   const progress = capture.querySelector("[data-cycle-progress]");
+  const reviewButton = form.querySelector("[data-cycle-review]");
 
-  // Marcar la ubicación como vacía rellena ceros visibles: el servidor ya fuerza 0 en esas
-  // líneas, así que esto sólo evita que el `required` del navegador bloquee el atajo.
   const applyEmptyLocation = () => {
     const empty = Boolean(emptyToggle?.checked);
     quantityInputs().forEach((input) => {
@@ -522,15 +879,14 @@
   };
 
   const countedTotal = () => quantityInputs().filter(input => input.value.trim() !== "").length;
-
   const refreshCaptureState = () => {
     const empty = Boolean(emptyToggle?.checked);
     steps().forEach((step) => {
       const input = step.querySelector("[data-cycle-quantity]");
       const filled = Boolean(input && input.value.trim() !== "");
       step.classList.toggle("is-counted", filled);
-      const status = step.querySelector("[data-cycle-step-status]");
-      if (status) status.textContent = empty ? "Vacío" : filled ? "Contado" : "Pendiente";
+      const stepStatus = step.querySelector("[data-cycle-step-status]");
+      if (stepStatus) stepStatus.textContent = empty ? "Vacío" : filled ? "Contado" : "Pendiente";
     });
     if (progress) progress.textContent = `${countedTotal()} de ${steps().length} contados`;
   };
@@ -539,29 +895,51 @@
   form.addEventListener("input", refreshCaptureState);
   form.addEventListener("change", () => { applyEmptyLocation(); refreshCaptureState(); });
 
-  const reviewButton = form.querySelector("[data-cycle-review]");
+  quantityInputs().forEach((input) => input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const quantities = quantityInputs();
+    const current = quantities.indexOf(input);
+    const next = quantities.slice(current + 1).find(candidate => !candidate.value.trim() && !candidate.readOnly)
+      || quantities.find(candidate => !candidate.value.trim() && !candidate.readOnly);
+    (next || reviewButton)?.focus();
+  }));
+
+  fieldset.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || !(event.target instanceof HTMLInputElement)) return;
+    const row = event.target.closest("[data-cycle-unexpected-row]");
+    if (!row) return;
+    const code = row.querySelector('input[name$=".Code"]');
+    const quantity = row.querySelector('input[name$=".Quantity"]');
+    if (event.target === code && code.value.trim()) {
+      event.preventDefault();
+      quantity?.focus();
+      return;
+    }
+    if (event.target === quantity) {
+      event.preventDefault();
+      const nextCode = rows().map(item => item.querySelector('input[name$=".Code"]')).find(candidate => candidate && !candidate.value.trim());
+      (nextCode || reviewButton)?.focus();
+    }
+  });
+
   const pinInput = form.querySelector("[data-cycle-pin]");
   const modalElement = document.getElementById("confirm-cycle-count");
-  if (reviewButton && pinInput && modalElement && window.bootstrap) {
+  if (reviewButton && modalElement && window.bootstrap) {
     const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
     reviewButton.addEventListener("click", () => {
-      // El NIP vive en un modal oculto: exigirlo antes de validar impediría enfocarlo.
-      pinInput.required = false;
-      if (!form.reportValidity()) return;
+      if (pinInput) pinInput.required = false;
+      if (!form.reportValidity()) { if (pinInput) pinInput.required = true; return; }
+      if (pinInput) pinInput.required = true;
       const summary = form.querySelector("[data-cycle-confirmation]");
       if (summary) {
-        summary.replaceChildren();
-        const heading = document.createElement("strong");
-        heading.textContent = emptyToggle?.checked
-          ? "Ubicación vacía"
-          : `${countedTotal()} de ${steps().length} productos contados`;
-        const detail = document.createElement("span");
         const unexpected = codeInputs().filter(input => input.value.trim() !== "").length;
-        detail.textContent = unexpected === 1 ? "1 producto inesperado" : `${unexpected} productos inesperados`;
-        summary.append(heading, detail);
+        summary.textContent = emptyToggle?.checked
+          ? `Ubicación vacía · ${unexpected} producto(s) inesperado(s)`
+          : `${countedTotal()} de ${steps().length} productos contados · ${unexpected} inesperado(s)`;
       }
-      pinInput.required = true;
-      modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
+      if (pinInput) modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
       modal.show();
     });
     form.addEventListener("submit", () => {

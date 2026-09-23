@@ -1,0 +1,229 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.EditModel
+@{
+    var configuration = Model.Production;
+    var recipe = configuration?.ActiveRecipe;
+}
+
+<section id="product-production" class="card product-editor-module" aria-labelledby="product-production-heading">
+    <div class="card-body p-3 p-md-4">
+        <div class="product-editor-module-header">
+            <div>
+                <span class="product-editor-step">@CatTexts["Producción"]</span>
+                <h2 id="product-production-heading" class="h4 mb-1">@CatTexts["Receta y materiales"]</h2>
+                <p class="text-body-secondary mb-0">@CatTexts["Guarda primero los materiales. La ruta y sus etapas pueden completarse después."]</p>
+            </div>
+            @if (recipe is not null)
+            {
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge text-bg-primary">Receta v@recipe.Version</span>
+                    <span class="badge @(recipe.IsComplete ? "text-bg-success" : "text-bg-warning")">@(recipe.IsComplete ? CatTexts["Lista lista para producción"].Value : CatTexts["Lista incompleta"].Value)</span>
+                </div>
+            }
+        </div>
+
+        <nav class="product-editor-subtabs" aria-label="@CatTexts["Configuración de producción"]" role="tablist">
+            <button type="button" class="btn" role="tab" data-product-subtab="materials" aria-controls="product-production-materials">@CatTexts["Materiales"]</button>
+            <button type="button" class="btn" role="tab" data-product-subtab="route" aria-controls="product-production-route">@CatTexts["Ruta de producción"]</button>
+        </nav>
+
+        @if (configuration is null)
+        {
+            <div class="alert alert-danger" role="alert">@CatTexts["No fue posible consultar la configuración de producción."]</div>
+        }
+        else if (!configuration.ProductIsActive)
+        {
+            <div class="alert alert-warning mb-0" role="status">@CatTexts["Activa el producto antes de crear una lista de materiales."]</div>
+        }
+        else
+        {
+            <div id="product-production-materials" data-product-subpanel="materials" data-product-errors="@ViewData.ModelState.Keys.Any(x => x.StartsWith("Recipe", StringComparison.Ordinal))">
+            <div class="product-editor-empty mb-3">
+                <strong class="d-block">@CatTexts["1. Lista de materiales"]</strong>
+                <span>@CatTexts["Define los materiales y cantidades del producto. La etapa es opcional mientras completas la configuración."]</span>
+            </div>
+            @if (recipe is not null)
+            {
+                <div class="alert alert-info" role="status">@CatTexts["Al guardar se conservará la versión {0} y se creará la versión {1}.", recipe.Version, recipe.Version + 1]</div>
+            }
+            else if (configuration.RouteId is null)
+            {
+                <div class="alert alert-warning" role="status">@CatTexts["Puedes guardar la lista ahora. Permanecerá incompleta hasta crear la ruta y asignar una etapa a cada material."]</div>
+            }
+
+            <form method="post" asp-page-handler="Recipe" asp-route-id="@Model.Input.Id"
+                  class="row g-3" data-cycle-plan data-production-recipe data-product-dirty-form="Materiales"
+                  data-lookup-url="@Url.Page("/Operations/Lookup")">
+                <div asp-validation-summary="ModelOnly" class="alert alert-danger col-12" role="alert" tabindex="-1"></div>
+                <div class="col-12 col-lg-4">
+                    <label asp-for="Recipe.BaseQuantity" class="form-label fw-semibold">@CatTexts["Cantidad base producida"]</label>
+                    <input asp-for="Recipe.BaseQuantity" class="form-control form-control-lg" inputmode="decimal" />
+                    <span asp-validation-for="Recipe.BaseQuantity" class="text-danger"></span>
+                </div>
+                <div class="col-12">
+                    <fieldset>
+                        <legend class="h6">@CatTexts["Materiales y cantidades"]</legend>
+                        <span asp-validation-for="Recipe.Lines" class="text-danger d-block mb-2"></span>
+                        <div class="table-responsive recipe-material-table">
+                            <table class="table align-middle mb-0">
+                                <thead><tr><th>Material</th><th>@CatTexts["Cantidad"]</th><th>@CatTexts["Etapa de incorporación"]</th><th><span class="visually-hidden">@CatTexts["Acciones"]</span></th></tr></thead>
+                                <tbody data-production-recipe-lines>
+                                @for (var i = 0; i < Model.Recipe.Lines.Count; i++)
+                                {
+                                    var selectedMaterial = Model.RecipeMaterials.FirstOrDefault(product => product.Id == Model.Recipe.Lines[i].MaterialProductId);
+                                    var resultsId = $"recipe-material-results-{i}";
+                                    var feedbackId = $"recipe-material-feedback-{i}";
+                                    <tr data-production-recipe-line>
+                                        <td class="recipe-material-cell" data-label="Material">
+                                            <div class="lookup-field" data-cycle-plan-field="product" data-cycle-plan-key="material-@i" data-cycle-plan-label="Material" data-cycle-plan-optional>
+                                                <input asp-for="Recipe.Lines[i].MaterialProductId" type="hidden" data-cycle-plan-id />
+                                                <div class="input-group input-group-lg">
+                                                    <input asp-for="Recipe.Lines[i].MaterialSearch" id="recipe-material-search-@i" class="form-control" type="search"
+                                                           autocomplete="off" autocapitalize="characters" placeholder="@CatTexts["SKU, descripción o código"]"
+                                                           aria-label="Material @(i + 1)" role="combobox" aria-autocomplete="list" aria-expanded="false"
+                                                           aria-controls="@resultsId" aria-describedby="@feedbackId" data-cycle-plan-search />
+                                                    <button type="button" class="btn btn-outline-secondary" data-cycle-plan-camera aria-label="Escanear material @(i + 1) con cámara">
+                                                        <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
+                                                    </button>
+                                                </div>
+                                                <div id="@resultsId" class="lookup-results list-group" role="listbox" data-cycle-plan-results></div>
+                                                <div class="selected-record @(selectedMaterial is null ? "d-none" : null)" data-cycle-plan-selected>
+                                                    <strong data-cycle-plan-selected-title>@selectedMaterial?.Sku</strong>
+                                                    <span data-cycle-plan-selected-detail>@selectedMaterial?.Description</span>
+                                                    <small data-cycle-plan-selected-meta>@selectedMaterial?.BaseUnit.Code</small>
+                                                </div>
+                                                @if (selectedMaterial?.IsActive == false)
+                                                {
+                                                    <div class="small text-danger" data-production-recipe-inactive>@CatTexts["Este material está inactivo; reemplázalo antes de guardar."]</div>
+                                                }
+                                                <p id="@feedbackId" class="form-text mb-0" role="status" aria-live="polite" data-cycle-plan-feedback>@CatTexts["Escribe para buscar o usa un lector HID."]</p>
+                                            </div>
+                                        </td>
+                                        <td data-label="@CatTexts["Cantidad"]"><input asp-for="Recipe.Lines[i].Quantity" class="form-control form-control-lg" inputmode="decimal" aria-label="Cantidad del material @(i + 1)" data-production-recipe-quantity /></td>
+                                        <td data-label="@CatTexts["Etapa de incorporación"]">
+                                            @if (configuration.RouteId is null)
+                                            {
+                                                <input asp-for="Recipe.Lines[i].StageId" type="hidden" value="" />
+                                                <span class="badge text-bg-warning">@CatTexts["Requiere etapa"]</span>
+                                                <small class="d-block text-body-secondary mt-1">@CatTexts["Pendiente hasta crear la ruta."]</small>
+                                            }
+                                            else
+                                            {
+                                                <select asp-for="Recipe.Lines[i].StageId" class="form-select form-select-lg" aria-label="Etapa del material @(i + 1)" data-production-recipe-stage>
+                                                    <option value="">@CatTexts["Pendiente de asignar"]</option>
+                                                    @foreach (var stage in configuration.Stages)
+                                                    {
+                                                        <option value="@stage.Id">@stage.Sequence. @stage.Name</option>
+                                                    }
+                                                </select>
+                                            }
+                                        </td>
+                                        <td class="text-end align-top">
+                                            <button type="button" class="btn btn-outline-danger btn-lg" data-production-recipe-remove aria-label="Quitar material @(i + 1)">@CatTexts["Quitar"]</button>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-primary btn-lg" data-production-recipe-add>@CatTexts["Agregar material"]</button>
+                            <span class="form-text m-0" role="status" aria-live="polite" data-production-recipe-status></span>
+                        </div>
+                    </fieldset>
+                </div>
+                <div class="col-12 col-lg-8">
+                    <label asp-for="Recipe.Reason" class="form-label fw-semibold">@CatTexts["Motivo de la nueva versión"]</label>
+                    <input asp-for="Recipe.Reason" class="form-control form-control-lg" autocomplete="off" />
+                    <span asp-validation-for="Recipe.Reason" class="text-danger"></span>
+                </div>
+                <div class="col-12 col-lg-4">
+                    <label asp-for="Recipe.Pin" class="form-label fw-semibold">@CatTexts["NIP ADMIN"]</label>
+                    <input asp-for="Recipe.Pin" value="" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" />
+                    <span asp-validation-for="Recipe.Pin" class="text-danger"></span>
+                </div>
+                <div class="col-12 product-editor-actions" data-product-actions>
+                    <button class="btn btn-primary btn-lg" type="submit">@(recipe is null ? CatTexts["Guardar lista de materiales"].Value : CatTexts["Guardar nueva versión"].Value)</button>
+                </div>
+            </form>
+            </div>
+
+            <div id="product-production-route" data-product-subpanel="route" data-product-errors="@ViewData.ModelState.Keys.Any(x => x.StartsWith("Route", StringComparison.Ordinal))">
+            <div class="product-editor-empty mb-3">
+                <strong class="d-block">@CatTexts["Ruta de producción"]</strong>
+                <span>@CatTexts["Ordena únicamente los procesos por los que avanzará este producto."]</span>
+            </div>
+            @if (configuration.RouteId is null)
+            {
+                <form method="post" asp-page-handler="Route" asp-route-id="@Model.Input.Id" class="row g-3" data-product-route-form data-product-dirty-form="Ruta de producción">
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger col-12" role="alert" tabindex="-1"></div>
+                    <input asp-for="Route.OperationId" type="hidden" />
+                    <div class="col-12 col-lg-7">
+                        <label asp-for="Route.Name" class="form-label fw-semibold">@CatTexts["Nombre de la ruta"]</label>
+                        <input asp-for="Route.Name" class="form-control form-control-lg" autocomplete="off" />
+                        <span asp-validation-for="Route.Name" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 product-editor-actions" data-product-actions>
+                        <fieldset>
+                            <legend class="h6 mb-1">@CatTexts["Procesos y orden"]</legend>
+                            <p class="form-text mt-0">@CatTexts["Deja el orden vacío para excluir un proceso. Los saltos se normalizan al guardar."]</p>
+                            <span asp-validation-for="Route.Stages" class="text-danger d-block mb-2"></span>
+                            @if (Model.AvailableProductionStages.Count == 0)
+                            {
+                                <div class="alert alert-warning mb-0" role="status">@CatTexts["No hay procesos activos. Puedes conservar la lista de materiales y crear la ruta cuando existan procesos."]</div>
+                            }
+                            else
+                            {
+                                <div class="table-responsive">
+                                    <table class="table align-middle product-route-stage-table mb-0">
+                                        <thead><tr><th scope="col">@CatTexts["Proceso"]</th><th scope="col" class="product-route-order-column">@CatTexts["Orden"]</th></tr></thead>
+                                        <tbody>
+                                        @for (var i = 0; i < Model.AvailableProductionStages.Count; i++)
+                                        {
+                                            var stage = Model.AvailableProductionStages[i];
+                                            <tr>
+                                                <td><strong>@stage.Code</strong><span class="d-block text-body-secondary">@stage.Name</span></td>
+                                                <td>
+                                                    <input asp-for="Route.Stages[i].StageId" type="hidden" />
+                                                    <label for="route-stage-order-@i" class="visually-hidden">@CatTexts["Orden de {0}", stage.Name]</label>
+                                                    <input asp-for="Route.Stages[i].Order" id="route-stage-order-@i" type="number" min="1" inputmode="numeric"
+                                                           class="form-control form-control-lg" aria-label="@CatTexts["Orden de {0}", stage.Name]" />
+                                                </td>
+                                            </tr>
+                                        }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            }
+                        </fieldset>
+                    </div>
+                    <div class="col-12 col-lg-5">
+                        <label asp-for="Route.Pin" class="form-label fw-semibold">@CatTexts["NIP ADMIN"]</label>
+                        <input asp-for="Route.Pin" value="" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" />
+                        <span asp-validation-for="Route.Pin" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <button class="btn btn-primary btn-lg" type="submit" disabled="@(Model.AvailableProductionStages.Count == 0)">@CatTexts["Crear ruta de producción"]</button>
+                    </div>
+                </form>
+            }
+            else
+            {
+                <div class="production-product-route">
+                    <div><small class="text-body-secondary d-block">@CatTexts["Ruta activa"]</small><strong>@configuration.RouteName</strong></div>
+                    <ol class="production-product-stages mb-0" aria-label="@CatTexts["Etapas de la ruta activa"]">
+                        @foreach (var stage in configuration.Stages)
+                        {
+                            <li><span>@stage.Sequence</span>@stage.Name</li>
+                        }
+                    </ol>
+                </div>
+                <div class="product-editor-empty mt-3">
+                    <strong class="d-block">@CatTexts["3. Asignación de etapas"]</strong>
+                    <span>@CatTexts["Usa los selectores de la lista y guarda una nueva versión. Los pendientes bloquean la liberación, no el guardado."]</span>
+                </div>
+            }
+            </div>
+        }
+    </div>
+</section>

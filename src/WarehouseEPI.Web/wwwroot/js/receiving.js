@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const shell = document.querySelector("[data-receiving-builder]");
   if (!shell) return;
   const lines = shell.querySelector("[data-receiving-lines]");

@@ -1,0 +1,30 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using WarehouseEPI.Core.Entities
+@using global::System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{ string Area(ProductionDailyArea a)=>T[a switch {ProductionDailyArea.Cutting=>"Corte",ProductionDailyArea.Sewing=>"Costura",_=>"Ready to Pack"}]; }
+@if(Model.Week is not null && Model.Week.Status!=ProductionScheduleWeekStatus.Closed){
+<details class="card mb-3" open="@(Context.Request.Method == "POST" && Context.Request.Query["handler"] == "Copy")"><summary class="card-header py-3">@T["Copiar productos de la semana anterior"]</summary><div class="card-body">
+@if(Model.CopySource is null){<p>@T["No hay una semana anterior para copiar."]</p>}else{
+<p>@T["Semana origen"]: @Model.CopySource.WeekStart.ToString("dd/MM/yyyy") · @T["Selecciona productos e indica cantidades nuevas. No se copian arrastres ni referencias."]</p>
+<p class="small text-body-secondary">@T["Selecciona hasta 100 líneas por copia."]</p>
+<form method="post" asp-page-handler="Copy" autocomplete="off"><input asp-for="Copy.OperationId" type="hidden"/><input asp-for="Copy.WeekId" type="hidden"/><input asp-for="Copy.ExpectedVersion" type="hidden"/><input asp-for="Copy.SourceWeekId" type="hidden"/><input asp-for="Copy.SourceVersion" type="hidden"/>
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>@T["Copiar"]</th><th>@T["Producto"]</th><th>@T["Día"]</th><th>@T["Cantidad"]</th></tr></thead><tbody>
+@for(var i=0;i<Model.Copy.Rows.Count;i++){var row=Model.Copy.Rows[i];var source=Model.CopySource.Lines.FirstOrDefault(x=>x.Id==row.SourceLineId);<tr><td><input asp-for="Copy.Rows[i].Selected" class="form-check-input" aria-label="@T["Copiar"] @row.Sku"/><input asp-for="Copy.Rows[i].SourceLineId" type="hidden"/><input asp-for="Copy.Rows[i].Sku" type="hidden"/></td><td>@(source?.Sku??row.Sku) @if(Model.Week.Lines.Any(x=>x.ProductId==source?.ProductId&&x.PlannedDate==row.Date)){<small class="d-block text-warning">@T["Ya hay una línea de este producto en ese día."]</small>}</td><td><label asp-for="Copy.Rows[i].Date" class="visually-hidden">@T["Día"] @row.Sku</label><input asp-for="Copy.Rows[i].Date" type="date" min="@Model.Week.WeekStart.ToString("yyyy-MM-dd")" max="@Model.Week.WeekEnd.ToString("yyyy-MM-dd")" class="form-control"/></td><td><label asp-for="Copy.Rows[i].Quantity" class="visually-hidden">@T["Cantidad"] @row.Sku</label><input asp-for="Copy.Rows[i].Quantity" inputmode="decimal" class="form-control"/><span asp-validation-for="Copy.Rows[i].Quantity" class="text-danger"></span></td></tr>}
+</tbody></table></div>
+@if(Model.Week.Status==ProductionScheduleWeekStatus.Open){<label asp-for="Copy.Pin" class="form-label">@T["NIP ADMIN de la sesión"]</label><input asp-for="Copy.Pin" type="password" inputmode="numeric" class="form-control mb-2"/>}
+<button class="btn btn-primary">@T["Agregar productos seleccionados"]</button></form>}
+</div></details>
+<details class="card mb-3" open="@(Model.Carryover.ProductId!=Guid.Empty)"><summary class="card-header py-3">@T["Programar arrastre (opcional)"]</summary><div class="card-body">
+<p>@T["Elige cuánto trabajar de las órdenes anteriores. No crea piezas ni modifica el pendiente real."]</p>
+<div class="table-responsive"><table class="table align-middle"><thead><tr><th>@T["Producto"]</th><th>@T["Área"]</th><th>@T["Pendiente disponible"]</th><th></th></tr></thead><tbody>
+@foreach(var row in Model.Suggestions){<tr><td>@row.Sku</td><td>@Area(row.Area)</td><td>@row.Available.ToString("0.####",CultureInfo.InvariantCulture)</td><td><a class="btn btn-outline-primary" asp-route-WeekId="@Model.Week.Id" asp-route-CarryProduct="@row.ProductId" asp-route-CarryArea="@row.Area">@T["Programar"]</a></td></tr>}
+</tbody></table></div>
+@if(Model.Suggestions.Count==0){<p>@T["No hay pendientes anteriores disponibles."]</p>}
+@if(Model.Carryover.ProductId!=Guid.Empty){
+<form method="post" asp-page-handler="Carryover" class="row g-3 border rounded p-3"><input asp-for="Carryover.OperationId" type="hidden"/><input asp-for="Carryover.WeekId" type="hidden"/><input asp-for="Carryover.WeekVersion" type="hidden"/><input asp-for="Carryover.Id" type="hidden"/><input asp-for="Carryover.Version" type="hidden"/><input asp-for="Carryover.ProductId" type="hidden"/><input asp-for="Carryover.Area" type="hidden"/><input asp-for="Carryover.ExpectedAvailable" type="hidden"/>
+<strong>@Model.CarryoverSkus.GetValueOrDefault(Model.Carryover.ProductId) · @Area(Model.Carryover.Area)</strong><span>@T["Pendiente disponible"]: @Model.Carryover.ExpectedAvailable.ToString("0.####",CultureInfo.InvariantCulture)</span>
+<div class="col-md-4"><label asp-for="Carryover.Date" class="form-label">@T["Día"]</label><input asp-for="Carryover.Date" type="date" class="form-control"/></div><div class="col-md-4"><label asp-for="Carryover.Quantity" class="form-label">@T["Arrastre programado"]</label><input asp-for="Carryover.Quantity" inputmode="decimal" class="form-control"/><span asp-validation-for="Carryover.Quantity" class="text-danger"></span></div><div class="col-md-4 d-grid align-items-end"><button class="btn btn-primary">@T["Guardar arrastre programado"]</button></div><small>@T["Escribe cero para dejar de programarlo; las piezas siguen pendientes."]</small></form>}
+<h3 class="h6 mt-3">@T["Arrastre programado"]</h3>
+@foreach(var row in Model.CarryoverPlans){<p>@row.PlannedDate.ToString("dd/MM") · @Model.CarryoverSkus.GetValueOrDefault(row.ProductId) · @Area(row.Area) · @row.Quantity.ToString("0.####",CultureInfo.InvariantCulture) <a class="btn btn-outline-secondary" asp-route-WeekId="@Model.Week.Id" asp-route-CarryPlanId="@row.Id">@T["Editar"]</a></p>}
+</div></details>}

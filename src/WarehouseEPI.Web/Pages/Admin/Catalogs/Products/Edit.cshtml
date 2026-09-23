@@ -1,85 +1,64 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.EditModel
 @{
-    ViewData["Title"] = "Editar producto";
-    var activeLocationCount = Model.LocationAssignments.Count(item => item.IsActive);
+    ViewData["Title"] = CatTexts["Editar producto"].Value;
+    var recipeCount = Model.Production?.ActiveRecipe?.Lines.Count ?? 0;
+    var wipCount = Model.Wip.Rules.Count;
+    bool HasErrors(string prefix) => ViewData.ModelState.Keys.Any(x => x.StartsWith(prefix, StringComparison.Ordinal));
 }
 
-<div class="product-editor-workspace">
-    @if (TempData["Success"] is string success)
-    {
-        <div class="alert alert-success" role="status">@success</div>
-    }
-    @if (TempData["Error"] is string error)
-    {
-        <div class="alert alert-danger" role="alert">@error</div>
-    }
+<div class="product-editor-workspace" data-product-editor data-product-default-panel="@Model.ActiveEditorSection" data-product-default-production-panel="@Model.ActiveProductionSection">
+    @if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
+    @if (TempData["Error"] is string error) { <div class="alert alert-danger" role="alert">@error</div> }
 
     <header class="product-editor-header">
-        <div>
-            <span class="product-editor-eyebrow">Catálogo de productos</span>
-            <div class="d-flex flex-wrap align-items-center gap-2">
-                <h1 class="h2 mb-0">Editar producto</h1>
-                <span class="badge @(Model.Input.IsActive ? "text-bg-success" : "text-bg-secondary")">@(Model.Input.IsActive ? "Activo" : "Inactivo")</span>
-            </div>
-            <p class="product-editor-product-code mb-0">@Model.Input.Sku</p>
-        </div>
-        <div class="d-flex flex-wrap gap-2">
-            <a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-primary">Ver ficha</a>
-            <a asp-page="Index" class="btn btn-outline-secondary">Volver a productos</a>
-        </div>
+        <div><span class="product-editor-eyebrow">@CatTexts["Catálogo de productos"]</span><div class="d-flex flex-wrap align-items-center gap-2"><h1 class="h2 mb-0">@CatTexts["Editar producto"]</h1><span class="badge @(Model.Input.IsActive ? "text-bg-success" : "text-bg-secondary")">@(Model.Input.IsActive ? CatTexts["Activo"].Value : CatTexts["Inactivo"].Value)</span></div><p class="product-editor-product-code mb-0">@Model.Input.Sku</p></div>
+        <div class="d-flex flex-wrap gap-2"><a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-primary">@CatTexts["Ver ficha"]</a><a asp-page="Index" class="btn btn-outline-secondary">@CatTexts["Volver a productos"]</a></div>
     </header>
 
-    <partial name="_ProductForm" model="Model" />
+    <nav class="product-editor-tabs" aria-label="@CatTexts["Secciones del producto"]" role="tablist">
+        <a href="#product-general" class="product-editor-tab" role="tab" data-product-tab="general" aria-controls="product-general"><span>@CatTexts["Datos generales"]</span><small data-product-dirty-indicator data-clean-label="Sin cambios">@CatTexts["Sin cambios"]</small></a>
+        <a href="#product-production" class="product-editor-tab" role="tab" data-product-tab="production" aria-controls="product-production-panel"><span>@CatTexts["Receta y procesos"]</span><small data-product-dirty-indicator data-clean-label="@recipeCount materiales">@recipeCount materiales</small></a>
+        <a href="#product-wip-defaults" class="product-editor-tab" role="tab" data-product-tab="wip" aria-controls="product-wip-panel"><span>@CatTexts["Destinos WIP"]</span><small data-product-dirty-indicator data-clean-label="@wipCount configurados">@wipCount configurados</small></a>
+        <a href="#product-locations" class="product-editor-tab" role="tab" data-product-tab="locations" aria-controls="product-locations"><span>@CatTexts["Ubicaciones"]</span><small>@Model.ActiveAssignmentCount activas</small></a>
+    </nav>
 
-    <section class="card product-editor-module" aria-labelledby="product-locations-heading">
+    <section id="product-general" data-product-panel="general" data-product-errors="@HasErrors("Input")"><partial name="_ProductForm" model="Model" /></section>
+
+    <section id="product-production-panel" data-product-panel="production" data-product-errors="@(HasErrors("Recipe") || HasErrors("Route"))">
+        <partial name="_ProductionRecipe" model="Model" />
+    </section>
+
+    <section id="product-wip-panel" data-product-panel="wip" data-product-errors="@HasErrors("Wip")">
+        <form id="product-wip-form" method="post" asp-page-handler="Wip" asp-route-id="@Model.Input.Id" data-product-dirty-form="Destinos WIP">
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert" tabindex="-1"></div>
+            <partial name="_ProductionWipDefaults" model="Model" />
+            <div class="product-editor-actions" data-product-actions><button type="submit" class="btn btn-primary btn-lg">@CatTexts["Guardar destinos WIP"]</button></div>
+        </form>
+    </section>
+
+    <section id="product-locations" data-product-panel="locations" class="card product-editor-module" aria-labelledby="product-locations-heading">
         <div class="card-body p-3 p-md-4">
-            <div class="product-editor-module-header">
-                <div>
-                    <span class="product-editor-step">Distribución</span>
-                    <h2 id="product-locations-heading" class="h4 mb-1">Ubicaciones asignadas</h2>
-                    <p class="text-body-secondary mb-0">Relaciones fijas para encontrar y operar este producto; no representan el saldo actual.</p>
-                </div>
-                <span class="product-editor-count">@activeLocationCount @(activeLocationCount == 1 ? "activa" : "activas")</span>
-            </div>
+            <div class="product-editor-module-header"><div><span class="product-editor-step">@CatTexts["Distribución"]</span><h2 id="product-locations-heading" class="h4 mb-1">@CatTexts["Ubicaciones asignadas"]</h2><p class="text-body-secondary mb-0">Relaciones fijas para encontrar y operar este producto; no representan el saldo actual.</p></div><span class="product-editor-count">@Model.ActiveAssignmentCount @(Model.ActiveAssignmentCount == 1 ? "activa" : CatTexts["activas.lower"].Value)</span></div>
 
-            <form method="get" asp-page="Edit" asp-route-id="@Model.Input.Id" class="product-editor-search">
-                <div class="flex-grow-1">
-                    <label for="locationSearch" class="form-label fw-semibold">Buscar otra ubicación</label>
-                    <input id="locationSearch" name="locationSearch" value="@Model.LocationSearch" class="form-control form-control-lg" placeholder="Código o descripción" autocomplete="off" />
-                </div>
-                <button type="submit" class="btn btn-outline-primary btn-lg">Buscar ubicación</button>
+            <form method="get" asp-page="Edit" asp-route-id="@Model.Input.Id" class="product-editor-search" data-product-navigation-form>
+                <input type="hidden" name="assignedLocationSearch" value="@Model.AssignedLocationSearch" /><input type="hidden" name="assignmentStatus" value="@Model.AssignmentStatus" /><input type="hidden" name="assignmentPage" value="@Model.AssignmentPage" />
+                <div class="flex-grow-1"><label for="locationSearch" class="form-label fw-semibold">@CatTexts["Buscar otra ubicación"]</label><input id="locationSearch" name="locationSearch" value="@Model.LocationSearch" class="form-control form-control-lg" placeholder="@CatTexts["Código o descripción"]" autocomplete="off" /></div>
+                <button type="submit" class="btn btn-outline-primary btn-lg">@CatTexts["Buscar ubicación"]</button>
             </form>
-
             @if (!string.IsNullOrWhiteSpace(Model.LocationSearch))
             {
-                <div class="product-editor-search-results" aria-live="polite">
-                    <h3 class="h6 mb-2">Resultados para “@Model.LocationSearch”</h3>
-                    @if (Model.LocationResults.Count == 0)
-                    {
-                        <div class="product-editor-empty">No se encontraron ubicaciones disponibles. Prueba con parte del código o descripción.</div>
-                    }
+                <div class="product-editor-search-results" aria-live="polite"><h3 class="h6 mb-2">Resultados para “@Model.LocationSearch”</h3>
+                    @if (Model.LocationResults.Count == 0) { <div class="product-editor-empty">@CatTexts["No se encontraron ubicaciones disponibles. Prueba con parte del código o descripción."]</div> }
                     else
                     {
-                        <ul class="product-editor-list" aria-label="Resultados de ubicaciones">
+                        <ul class="product-editor-list" aria-label="@CatTexts["Resultados de ubicaciones"]">
                             @foreach (var location in Model.LocationResults)
                             {
-                                <li class="product-editor-list-row">
-                                    <div class="product-editor-list-main">
-                                        <strong>@location.Code</strong>
-                                        <span class="text-body-secondary">@(location.Description ?? "Sin descripción")</span>
-                                    </div>
-                                    @if (location.IsAssigned)
-                                    {
-                                        <span class="badge text-bg-success">Ya asignada</span>
-                                    }
-                                    else
-                                    {
-                                        <form method="post" asp-page-handler="AssignLocation" asp-route-id="@Model.Input.Id">
-                                            <input type="hidden" name="locationId" value="@location.Id" />
-                                            <button type="submit" class="btn btn-primary" disabled="@(!Model.Input.IsActive)">Asignar</button>
-                                        </form>
-                                    }
+                                <li class="product-editor-list-row"><div class="product-editor-list-main"><strong>@location.Code</strong><span class="text-body-secondary">@(location.Description ?? CatTexts["Sin descripción"].Value)</span></div>
+                                    @if (location.IsAssigned) { <span class="badge text-bg-success">@CatTexts["Ya asignada"]</span> }
+                                    else { <form method="post" asp-page-handler="AssignLocation" asp-route-id="@Model.Input.Id" data-product-navigation-form><input type="hidden" name="locationId" value="@location.Id" /><partial name="_LocationQueryState" model="Model" /><button type="submit" class="btn btn-primary" disabled="@(!Model.Input.IsActive)">@CatTexts["Asignar"]</button></form> }
                                 </li>
                             }
                         </ul>
@@ -88,65 +67,44 @@
             }
 
             <div class="product-editor-subsection">
-                <h3 class="h6 mb-2">Asignaciones registradas</h3>
-                @if (Model.LocationAssignments.Count == 0)
-                {
-                    <div class="product-editor-empty">Este producto todavía no tiene ubicaciones asignadas.</div>
-                }
+                <form method="get" asp-page="Edit" asp-route-id="@Model.Input.Id" class="product-editor-assignment-filters" data-product-navigation-form>
+                    <input type="hidden" name="locationSearch" value="@Model.LocationSearch" />
+                    <div><label for="assignedLocationSearch" class="form-label fw-semibold">@CatTexts["Buscar en asignadas"]</label><input id="assignedLocationSearch" name="assignedLocationSearch" value="@Model.AssignedLocationSearch" class="form-control" placeholder="@CatTexts["Código o descripción"]" autocomplete="off" /></div>
+                    <div><label for="assignmentStatus" class="form-label fw-semibold">@CatTexts["Estado"]</label><select id="assignmentStatus" name="assignmentStatus" class="form-select"><option value="active" selected="@(Model.AssignmentStatus == "active")">@CatTexts["Activas"]</option><option value="inactive" selected="@(Model.AssignmentStatus == "inactive")">@CatTexts["Inactivas"]</option><option value="all" selected="@(Model.AssignmentStatus == "all")">@CatTexts["Todas"]</option></select></div>
+                    <button type="submit" class="btn btn-outline-primary">@CatTexts["Aplicar filtros"]</button>
+                </form>
+                <div class="d-flex justify-content-between align-items-center gap-2 mt-3 mb-2"><h3 class="h6 mb-0">@CatTexts["Asignaciones registradas"]</h3><small class="text-body-secondary">@Model.AssignmentTotalCount resultados</small></div>
+                @if (Model.LocationAssignments.Count == 0) { <div class="product-editor-empty">@CatTexts["No hay asignaciones con estos filtros."]</div> }
                 else
                 {
-                    <ul class="product-editor-list" aria-label="Ubicaciones asignadas">
+                    <ul class="product-editor-list" aria-label="@CatTexts["Ubicaciones asignadas"]">
                         @foreach (var item in Model.LocationAssignments)
                         {
-                            <li class="product-editor-list-row @(!item.IsActive ? "is-inactive" : null)">
-                                <div class="product-editor-list-main">
-                                    <a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@item.LocationId" class="fw-semibold">@item.Code</a>
-                                    <span class="text-body-secondary">@(item.Description ?? "Sin descripción")</span>
-                                </div>
-                                <div class="product-editor-list-status">
-                                    @if (!item.IsActive)
-                                    {
-                                        <span class="badge text-bg-secondary">Asignación inactiva</span>
-                                    }
-                                    else if (!item.LocationIsActive)
-                                    {
-                                        <span class="badge text-bg-secondary">Ubicación inactiva</span>
-                                    }
-                                    else if (item.LocationIsBlocked)
-                                    {
-                                        <span class="badge text-bg-warning">Ubicación bloqueada</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge text-bg-success">Asignada</span>
-                                    }
-                                </div>
-                                <div class="product-editor-list-actions">
-                                    @if (item.IsActive)
-                                    {
-                                        <form method="post" asp-page-handler="DeactivateLocation" asp-route-id="@Model.Input.Id">
-                                            <input type="hidden" name="locationId" value="@item.LocationId" />
-                                            <button type="submit" class="btn btn-outline-secondary">Desasignar</button>
-                                        </form>
-                                    }
-                                    else
-                                    {
-                                        <form method="post" asp-page-handler="AssignLocation" asp-route-id="@Model.Input.Id">
-                                            <input type="hidden" name="locationId" value="@item.LocationId" />
-                                            <button type="submit" class="btn btn-outline-primary" disabled="@(!item.LocationIsActive || item.LocationIsBlocked || !Model.Input.IsActive)">Reactivar</button>
-                                        </form>
-                                    }
-                                </div>
+                            <li class="product-editor-list-row @(!item.IsActive ? "is-inactive" : null)"><div class="product-editor-list-main"><a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@item.LocationId" class="fw-semibold">@item.Code</a><span class="text-body-secondary">@(item.Description ?? CatTexts["Sin descripción"].Value)</span></div>
+                                <div class="product-editor-list-status">@if (item.IsDefaultEntry) { <span class="badge text-bg-primary">@CatTexts["Principal de entrada"]</span> } @if (!item.IsActive) { <span class="badge text-bg-secondary">@CatTexts["Asignación inactiva"]</span> } else if (!item.LocationIsActive) { <span class="badge text-bg-secondary">@CatTexts["Ubicación inactiva"]</span> } else if (item.LocationIsBlocked) { <span class="badge text-bg-warning">@CatTexts["Ubicación bloqueada"]</span> } else { <span class="badge text-bg-success">@CatTexts["Asignada"]</span> }</div>
+                                <div class="product-editor-list-actions">@if (item.IsActive) { <form method="post" asp-page-handler="DeactivateLocation" asp-route-id="@Model.Input.Id" data-product-navigation-form><input type="hidden" name="locationId" value="@item.LocationId" /><partial name="_LocationQueryState" model="Model" /><button type="submit" class="btn btn-outline-secondary">@CatTexts["Desasignar"]</button></form> } else { <form method="post" asp-page-handler="AssignLocation" asp-route-id="@Model.Input.Id" data-product-navigation-form><input type="hidden" name="locationId" value="@item.LocationId" /><partial name="_LocationQueryState" model="Model" /><button type="submit" class="btn btn-outline-primary" disabled="@(!item.LocationIsActive || item.LocationIsBlocked || !Model.Input.IsActive)">@CatTexts["Reactivar"]</button></form> }</div>
                             </li>
                         }
                     </ul>
                 }
+                @if (Model.AssignmentTotalPages > 1)
+                {
+                    <nav class="product-editor-pagination" aria-label="@CatTexts["Páginas de ubicaciones asignadas"]">
+                        <a class="btn btn-outline-secondary @(Model.AssignmentPage <= 1 ? "disabled" : null)" asp-page="Edit" asp-route-id="@Model.Input.Id" asp-route-locationSearch="@Model.LocationSearch" asp-route-assignedLocationSearch="@Model.AssignedLocationSearch" asp-route-assignmentStatus="@Model.AssignmentStatus" asp-route-assignmentPage="@(Model.AssignmentPage - 1)">@CatTexts["Anterior"]</a>
+                        <span>@CatTexts["Página {0} de {1}", Model.AssignmentPage, Model.AssignmentTotalPages]</span>
+                        <a class="btn btn-outline-secondary @(Model.AssignmentPage >= Model.AssignmentTotalPages ? "disabled" : null)" asp-page="Edit" asp-route-id="@Model.Input.Id" asp-route-locationSearch="@Model.LocationSearch" asp-route-assignedLocationSearch="@Model.AssignedLocationSearch" asp-route-assignmentStatus="@Model.AssignmentStatus" asp-route-assignmentPage="@(Model.AssignmentPage + 1)">@CatTexts["Siguiente"]</a>
+                    </nav>
+                }
             </div>
         </div>
     </section>
-
 </div>
 
+<partial name="/Pages/Operations/CycleCounts/_CameraScanner.cshtml" />
+@section Styles {
+    <link rel="stylesheet" href="~/css/product-editor.css" asp-append-version="true" />
+}
+
 @section Scripts {
-    <partial name="_ValidationScriptsPartial" />
+    <partial name="_ValidationScriptsPartial" /><script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true" defer></script><script src="~/js/production-recipe.js" asp-append-version="true" defer></script><script src="~/js/production-wip-defaults.js" asp-append-version="true" defer></script><script src="~/js/product-editor.js" asp-append-version="true" defer></script>
 }

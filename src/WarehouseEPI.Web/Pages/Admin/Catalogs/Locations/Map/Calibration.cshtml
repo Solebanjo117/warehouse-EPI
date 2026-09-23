@@ -1,0 +1,69 @@
+@page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Map.CalibrationModel
+@{
+    ViewData["Title"] = CatTexts["Calibrar ubicación"].Value;
+}
+@section Styles { <link rel="stylesheet" href="~/css/warehouse-map-calibration.css" asp-append-version="true" /> }
+@section Scripts { <script src="~/js/warehouse-map-calibration.js" asp-append-version="true"></script> }
+
+<div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+    <div><p class="text-body-secondary mb-1">@CatTexts["Administración del croquis"]</p><h1 class="h2 mb-1">@CatTexts["Calibrar ubicación"]</h1><p class="text-body-secondary mb-0">@CatTexts["Relaciona puntos físicos del almacén con el dibujo. La ubicación será aproximada."]</p></div>
+    <div class="d-flex flex-wrap gap-2"><a asp-page="Edit" class="btn btn-outline-secondary">@CatTexts["Editar croquis"]</a><a asp-page="/Admin/Catalogs/Locations/Index" asp-route-viewMode="map" class="btn btn-outline-primary">@CatTexts["Ver croquis"]</a></div>
+</div>
+
+@if(!string.IsNullOrWhiteSpace(Model.Message)){<div class="alert alert-success" role="status">@Model.Message</div>}
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+@if(Model.Calibration.Exists && !Model.Calibration.IsCurrent){<div class="alert alert-warning"><strong>@CatTexts["Pendiente de revisión."]</strong> @CatTexts["El croquis cambió después de publicar esta calibración. Comprueba los puntos y vuelve a publicarla."]</div>}
+else if(Model.Calibration.Exists){<div class="alert alert-info"><strong>@CatTexts["Calibración activa."]</strong> @CatTexts["Revisión {0}, publicada {1}.", Model.Calibration.Revision, Model.Calibration.PublishedAt?.ToString("dd/MM/yyyy HH:mm") ?? string.Empty]</div>}
+
+<form method="post" data-calibration-form>
+    <input asp-for="Input.OperationId" type="hidden" />
+    <input asp-for="Input.ExpectedRevision" type="hidden" />
+    <input asp-for="Input.PointsJson" type="hidden" data-calibration-json />
+    <div class="warehouse-calibration" data-calibration-editor
+         data-user="@User.FindFirst(global::System.Security.Claims.ClaimTypes.NameIdentifier)?.Value"
+         data-layout-version="@Model.Map.Version" data-clear-draft="@Model.ClearDraft.ToString().ToLowerInvariant()"
+         data-canvas-width="@Model.Map.CanvasWidth.ToString(global::System.Globalization.CultureInfo.InvariantCulture)"
+         data-canvas-height="@Model.Map.CanvasHeight.ToString(global::System.Globalization.CultureInfo.InvariantCulture)">
+        <section class="card card-body calibration-map-panel">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <button type="button" class="btn btn-primary" data-add-calibration-point="REFERENCE">@CatTexts["Añadir referencia"]</button>
+                <button type="button" class="btn btn-outline-primary" data-add-calibration-point="CHECK">@CatTexts["Añadir comprobación"]</button>
+                <button type="button" class="btn btn-outline-danger ms-lg-auto" data-discard-calibration>@CatTexts["Descartar borrador"]</button>
+            </div>
+            <p class="small text-body-secondary" data-calibration-instruction>@CatTexts["Elige un tipo y toca su posición exacta en el croquis."]</p>
+            <div class="calibration-map-viewport">
+                <svg class="warehouse-map calibration-map" viewBox="0 0 @Model.Map.CanvasWidth.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @Model.Map.CanvasHeight.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" role="img" aria-label="@CatTexts["Croquis para calibrar ubicación"]" data-calibration-map>
+                    <partial name="/Pages/Admin/Catalogs/Locations/_WarehouseMapArchitecture.cshtml" model="Model.Map.Architecture" />
+                    @foreach(var element in Model.Map.Elements.Where(item=>item.IsVisible))
+                    {
+                        <g class="map-element" transform="translate(@element.X.ToString(global::System.Globalization.CultureInfo.InvariantCulture) @element.Y.ToString(global::System.Globalization.CultureInfo.InvariantCulture)) rotate(@element.Rotation)"><rect width="@element.Width.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" height="@element.Height.ToString(global::System.Globalization.CultureInfo.InvariantCulture)" rx="4"></rect><text x="6" y="18">@element.Label</text></g>
+                    }
+                    <g data-calibration-markers aria-hidden="true"></g>
+                </svg>
+            </div>
+        </section>
+        <aside class="card card-body calibration-points-panel">
+            <h2 class="h5">@CatTexts["Puntos de calibración"]</h2>
+            <p class="small text-body-secondary">@CatTexts["Necesitas cuatro referencias y una comprobación. Captura cada punto durante 20 segundos desde su posición física."]</p>
+            <div data-calibration-status role="status" aria-live="polite"></div>
+            <div class="calibration-point-list" data-calibration-points></div>
+        </aside>
+    </div>
+
+    @if(Model.Review is not null && Model.Review.Transform is not null)
+    {
+        <section class="card card-body mt-3" aria-labelledby="calibration-review-title">
+            <h2 class="h5" id="calibration-review-title">@CatTexts["Resultado de la revisión"]</h2>
+            <div class="calibration-metrics"><span><strong>@Model.Review.ReferenceCount</strong> @CatTexts["referencias"]</span><span><strong>@Model.Review.CheckCount</strong> @CatTexts["comprobaciones"]</span><span><strong>@Model.Review.Transform.FitErrorMeters.ToString("0.##") m</strong> @CatTexts["error de ajuste"]</span><span><strong>@Model.Review.Transform.CheckErrorMeters.ToString("0.##") m</strong> @CatTexts["error comprobado"]</span></div>
+            @foreach(var warning in Model.Review.Warnings){<p class="alert alert-warning py-2 mb-2">@warning</p>}
+        </section>
+    }
+
+    <section class="card card-body mt-3">
+        <h2 class="h5">@CatTexts["Revisar y publicar"]</h2>
+        <div class="row g-3"><div class="col-lg-8"><label asp-for="Input.Reason" class="form-label">@CatTexts["Motivo"]</label><textarea asp-for="Input.Reason" class="form-control" rows="2" maxlength="500"></textarea></div><div class="col-lg-4"><label asp-for="Input.Pin" class="form-label">@CatTexts["NIP ADMIN"]</label><input asp-for="Input.Pin" type="password" inputmode="numeric" autocomplete="off" class="form-control" /></div></div>
+        <div class="d-flex flex-wrap gap-2 mt-3"><button type="submit" asp-page-handler="Review" class="btn btn-outline-primary">@CatTexts["Revisar calibración"]</button><button type="submit" asp-page-handler="Publish" class="btn btn-primary">@CatTexts["Publicar calibración"]</button>@if(Model.Calibration.Exists){<button type="submit" asp-page-handler="Disable" class="btn btn-outline-danger ms-lg-auto">@CatTexts["Desactivar calibración"]</button>}</div>
+    </section>
+</form>

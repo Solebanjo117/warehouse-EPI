@@ -8,11 +8,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Account;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class IndexModel(WarehouseDbContext dbContext, UserPinService pins) : PageModel
+public sealed class IndexModel(WarehouseDbContext dbContext, UserPinService pins, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
 
@@ -30,10 +32,10 @@ public sealed class IndexModel(WarehouseDbContext dbContext, UserPinService pins
         if (changingPin)
         {
             if (!string.Equals(Input.NewPin, Input.ConfirmPin, StringComparison.Ordinal))
-                ModelState.AddModelError("Input.ConfirmPin", "Los NIP no coinciden.");
+                ModelState.AddModelError("Input.ConfirmPin", text["Los NIP no coinciden."].Value);
             var current = await pins.AuthenticateAsync(Input.CurrentPin ?? string.Empty, cancellationToken);
             if (current?.Id != user.Id)
-                ModelState.AddModelError("Input.CurrentPin", "El NIP actual no es válido.");
+                ModelState.AddModelError("Input.CurrentPin", text["El NIP actual no es válido."].Value);
         }
         if (!ModelState.IsValid) return Page();
         if (changingPin)
@@ -41,7 +43,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext, UserPinService pins
             var result = await pins.AssignAsync(user, Input.NewPin!, cancellationToken);
             if (result != PinAssignmentResult.Success)
             {
-                ModelState.AddModelError("Input.NewPin", result == PinAssignmentResult.Duplicate ? "El NIP ya pertenece a otro usuario." : "Use un NIP de 4 a 8 dígitos.");
+                ModelState.AddModelError("Input.NewPin", result == PinAssignmentResult.Duplicate ? text["El NIP ya pertenece a otro usuario."].Value : text["Use un NIP de 4 a 8 dígitos."].Value);
                 return Page();
             }
         }
@@ -49,7 +51,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext, UserPinService pins
         user.UpdatedAt = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
         await RenewSessionAsync(user.Id, user.FullName);
-        TempData["Success"] = "Tu cuenta fue actualizada.";
+        TempData["Success"] = text["Tu cuenta fue actualizada."].Value;
         return RedirectToPage();
     }
 
