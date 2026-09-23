@@ -1,0 +1,25 @@
+<div class="modal fade" id="cycle-count-camera-scanner" tabindex="-1"
+     aria-labelledby="cycle-count-camera-scanner-title" aria-hidden="true"
+     data-camera-scanner data-cycle-camera-scanner>
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="cycle-count-camera-scanner-title">Escanear código</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="camera-preview" data-camera-preview>
+                    <video class="w-100" autoplay muted playsinline data-camera-video></video>
+                </div>
+                <p class="mb-0 mt-3" role="status" aria-live="polite" data-camera-status>Preparando cámara…</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-lg d-none" data-camera-switch>Cambiar cámara</button>
+                <label class="btn btn-outline-primary btn-lg mb-0" for="cycle-count-camera-photo">Tomar foto</label>
+                <input id="cycle-count-camera-photo" class="visually-hidden" type="file" accept="image/*"
+                       capture="environment" data-camera-photo />
+                <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Cancelar</button>
+            </div>
+        </div>
+    </div>
+</div>

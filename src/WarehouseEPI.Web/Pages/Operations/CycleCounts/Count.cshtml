@@ -139,6 +139,6 @@
         <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg>
         <span>Escanear producto</span>
     </button>
-    <input class="visually-hidden" data-cycle-scan-photo type="file" accept="image/*" capture="environment" />
+    <partial name="_CameraScanner" />
 </div>
 @section Scripts { <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }

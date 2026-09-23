@@ -2,28 +2,318 @@
   // La CSP no permite handlers en atributos: la impresión de la hoja ciega se enlaza aquí.
   document.querySelector("[data-cycle-print]")?.addEventListener("click", () => window.print());
 
-  const decodePhoto = async (input, callback) => {
-    const [photo] = input.files;
-    if (!photo || !window.ZXingBrowser) return;
-    const url = URL.createObjectURL(photo);
-    try { const result = await new ZXingBrowser.BrowserMultiFormatReader().decodeFromImageUrl(url); callback(result.getText()); }
-    catch { /* Keep the operator on the page; manual/HID capture remains available. */ }
-    finally { URL.revokeObjectURL(url); input.value = ""; }
+  const preferredCameraStorageKey = "warehouseEpi.preferredCameraDeviceId";
+  const cameraVideoConstraints = {
+    width: { ideal: 1920 },
+    height: { ideal: 1080 },
+    frameRate: { ideal: 30 }
   };
+  const supportedNativeBarcodeFormats = ["code_128", "ean_13", "ean_8", "upc_a", "upc_e"];
+  const zxingTryHarderHint = 3;
+
+  const readPreferredCameraDeviceId = () => {
+    try { return window.localStorage.getItem(preferredCameraStorageKey); }
+    catch { return null; }
+  };
+
+  const savePreferredCameraDeviceId = (deviceId) => {
+    if (!deviceId) return;
+    try { window.localStorage.setItem(preferredCameraStorageKey, deviceId); }
+    catch { /* Storage can be unavailable in private or restricted browser modes. */ }
+  };
+
+  const openCameraStream = async (requestedDeviceId) => {
+    const preferredDeviceId = requestedDeviceId || readPreferredCameraDeviceId();
+    const candidates = [];
+    if (preferredDeviceId) candidates.push({ ...cameraVideoConstraints, deviceId: { exact: preferredDeviceId } });
+    candidates.push({ ...cameraVideoConstraints, facingMode: { exact: "environment" } });
+    candidates.push({ ...cameraVideoConstraints, facingMode: { ideal: "environment" } });
+
+    let lastError;
+    for (const video of candidates) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
+        savePreferredCameraDeviceId(stream.getVideoTracks?.()[0]?.getSettings?.().deviceId);
+        return stream;
+      } catch (error) {
+        lastError = error;
+        if (["NotAllowedError", "SecurityError", "NotReadableError"].includes(error?.name)) throw error;
+      }
+    }
+    throw lastError;
+  };
+
+  const availableVideoDevices = async () => {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(device => device.kind === "videoinput" && device.deviceId);
+  };
+
+  const nextCameraDeviceId = async (stream) => {
+    const devices = await availableVideoDevices();
+    if (devices.length < 2) return null;
+    const currentDeviceId = stream?.getVideoTracks?.()[0]?.getSettings?.().deviceId;
+    const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
+    return devices[(currentIndex + 1 + devices.length) % devices.length].deviceId;
+  };
+
+  const scannerElement = document.querySelector("[data-cycle-camera-scanner]");
+  let openCycleScanner = () => false;
+  if (scannerElement && window.bootstrap) {
+    const scannerModal = bootstrap.Modal.getOrCreateInstance(scannerElement);
+    const scannerVideo = scannerElement.querySelector("[data-camera-video]");
+    const scannerPreview = scannerElement.querySelector("[data-camera-preview]");
+    const scannerStatus = scannerElement.querySelector("[data-camera-status]");
+    const scannerPhoto = scannerElement.querySelector("[data-camera-photo]");
+    const scannerSwitch = scannerElement.querySelector("[data-camera-switch]");
+    let activeScanHandler;
+    let scannerControls;
+    let resolvingCameraCode = false;
+    let focusAfterScannerClose;
+    let triggerAfterScannerClose;
+    let cameraSession = 0;
+
+    const setScannerStatus = (message) => { scannerStatus.textContent = message; };
+
+    const stopCamera = () => {
+      cameraSession += 1;
+      scannerControls?.stop();
+      scannerControls = undefined;
+      const stream = scannerVideo.srcObject;
+      if (stream && typeof stream.getTracks === "function")
+        stream.getTracks().forEach(track => track.stop());
+      scannerVideo.srcObject = null;
+    };
+
+    const describeCameraError = (error) => {
+      if (error?.name === "NotAllowedError") return "No se concedió permiso para usar la cámara. Puedes escribir o usar el lector físico.";
+      if (error?.name === "NotFoundError") return "No se encontró una cámara disponible. Puedes escribir o usar el lector físico.";
+      if (error?.name === "NotReadableError") return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
+      if (error?.name === "OverconstrainedError") return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
+      if (error === false) return "El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente.";
+      return "No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico.";
+    };
+
+    const isCodeNotDetectedError = (error) => {
+      if (["NotFoundException", "ChecksumException", "FormatException"].includes(error?.name)) return true;
+      return /No MultiFormat Readers were able to detect the code/i.test(error?.message || "");
+    };
+
+    const handleDetectedCode = async (code) => {
+      if (resolvingCameraCode || !activeScanHandler) return;
+      resolvingCameraCode = true;
+      setScannerStatus("Código detectado. Validando…");
+      try {
+        const result = await activeScanHandler(code.trim());
+        if (result === false) {
+          setScannerStatus("El código no corresponde a esta captura. Intenta nuevamente.");
+          resolvingCameraCode = false;
+          return;
+        }
+        focusAfterScannerClose = result && typeof result.focus === "function" ? result : undefined;
+        stopCamera();
+        scannerModal.hide();
+      } catch {
+        setScannerStatus("No fue posible procesar el código. Intenta nuevamente.");
+        resolvingCameraCode = false;
+      }
+    };
+
+    const startNativeBarcodeScanner = async (session) => {
+      if (typeof window.BarcodeDetector !== "function") return false;
+      try {
+        const availableFormats = await window.BarcodeDetector.getSupportedFormats();
+        const formats = supportedNativeBarcodeFormats.filter(format => availableFormats.includes(format));
+        if (formats.length === 0 || session !== cameraSession) return false;
+        const detector = new window.BarcodeDetector({ formats });
+        let stopped = false;
+        scannerControls = { stop: () => { stopped = true; } };
+        const scanNextFrame = async () => {
+          if (stopped || resolvingCameraCode || session !== cameraSession) return;
+          try {
+            const [result] = await detector.detect(scannerVideo);
+            if (result?.rawValue) {
+              await handleDetectedCode(result.rawValue);
+              if (!stopped && !resolvingCameraCode && session === cameraSession)
+                window.setTimeout(() => void scanNextFrame(), 100);
+              return;
+            }
+          } catch {
+            // Una imagen puede no estar lista mientras la cámara enfoca; se prueba la siguiente.
+          }
+          if (!stopped && !resolvingCameraCode && session === cameraSession)
+            window.setTimeout(() => void scanNextFrame(), 100);
+        };
+        void scanNextFrame();
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const optimizeCameraForBarcodes = async (stream) => {
+      const track = stream.getVideoTracks?.()[0];
+      if (!track?.getCapabilities || !track.applyConstraints) return;
+      const capabilities = track.getCapabilities();
+      if (!capabilities.focusMode?.includes("continuous")) return;
+      try { await track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }); }
+      catch { /* Continuous focus is optional. */ }
+    };
+
+    const updateCameraSwitchButton = async (stream) => {
+      if (!scannerSwitch || !navigator.mediaDevices?.enumerateDevices) return;
+      try {
+        const devices = await availableVideoDevices();
+        scannerSwitch.classList.toggle("d-none", devices.length < 2);
+        const currentDeviceId = stream.getVideoTracks?.()[0]?.getSettings?.().deviceId;
+        const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
+        scannerSwitch.title = `Cambiar cámara (${(currentIndex >= 0 ? currentIndex : 0) + 1} de ${devices.length})`;
+      } catch {
+        scannerSwitch.classList.add("d-none");
+      }
+    };
+
+    const startCameraScanner = async (requestedDeviceId) => {
+      const session = ++cameraSession;
+      if (!window.isSecureContext) {
+        scannerPreview.classList.add("d-none");
+        setScannerStatus("La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico.");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia
+        || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
+        scannerPreview.classList.add("d-none");
+        setScannerStatus("Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico.");
+        return;
+      }
+
+      scannerPreview.classList.remove("d-none");
+      setScannerStatus("Solicitando la cámara trasera…");
+      try {
+        const stream = await openCameraStream(requestedDeviceId);
+        if (session !== cameraSession) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        await optimizeCameraForBarcodes(stream);
+        scannerVideo.srcObject = stream;
+        await scannerVideo.play();
+        if (session !== cameraSession) return;
+        await updateCameraSwitchButton(stream);
+        setScannerStatus("Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar.");
+        if (await startNativeBarcodeScanner(session)) return;
+
+        const reader = new ZXingBrowser.BrowserMultiFormatReader();
+        reader.possibleFormats = [
+          ZXingBrowser.BarcodeFormat.CODE_128,
+          ZXingBrowser.BarcodeFormat.EAN_13,
+          ZXingBrowser.BarcodeFormat.EAN_8,
+          ZXingBrowser.BarcodeFormat.UPC_A,
+          ZXingBrowser.BarcodeFormat.UPC_E
+        ];
+        reader.hints.set(zxingTryHarderHint, true);
+        reader.reader.setHints(reader.hints);
+        scannerControls = await reader.decodeFromStream(stream, scannerVideo, async (result, error, controls) => {
+          if (!scannerControls) scannerControls = controls;
+          if (session !== cameraSession) return;
+          if (result && !resolvingCameraCode) {
+            await handleDetectedCode(result.getText());
+            return;
+          }
+          if (error && !isCodeNotDetectedError(error)) {
+            stopCamera();
+            scannerPreview.classList.add("d-none");
+            setScannerStatus(describeCameraError(error));
+          }
+        });
+      } catch (error) {
+        if (session !== cameraSession) return;
+        stopCamera();
+        scannerPreview.classList.add("d-none");
+        setScannerStatus(describeCameraError(error));
+      }
+    };
+
+    scannerPhoto.addEventListener("change", async () => {
+      const [photo] = scannerPhoto.files;
+      if (!photo || resolvingCameraCode) return;
+      if (!window.ZXingBrowser) {
+        setScannerStatus("No fue posible leer la foto. Puedes escribir o usar el lector físico.");
+        return;
+      }
+      stopCamera();
+      setScannerStatus("Leyendo el código de la foto…");
+      const imageUrl = URL.createObjectURL(photo);
+      try {
+        const result = await new ZXingBrowser.BrowserMultiFormatReader().decodeFromImageUrl(imageUrl);
+        await handleDetectedCode(result.getText());
+      } catch {
+        setScannerStatus("No se detectó un código de barras en la foto. Intenta nuevamente.");
+      } finally {
+        URL.revokeObjectURL(imageUrl);
+        scannerPhoto.value = "";
+      }
+    });
+
+    scannerSwitch?.addEventListener("click", async () => {
+      scannerSwitch.disabled = true;
+      setScannerStatus("Cambiando cámara…");
+      try {
+        const deviceId = await nextCameraDeviceId(scannerVideo.srcObject);
+        if (!deviceId) return;
+        stopCamera();
+        await startCameraScanner(deviceId);
+      } catch (error) {
+        setScannerStatus(describeCameraError(error));
+      } finally {
+        scannerSwitch.disabled = false;
+      }
+    });
+
+    openCycleScanner = (trigger, handler) => {
+      activeScanHandler = handler;
+      triggerAfterScannerClose = trigger;
+      focusAfterScannerClose = undefined;
+      resolvingCameraCode = false;
+      scannerPreview.classList.remove("d-none");
+      setScannerStatus("Preparando cámara…");
+      scannerModal.show();
+      void startCameraScanner();
+      return true;
+    };
+
+    scannerElement.addEventListener("hidden.bs.modal", () => {
+      const focusTarget = focusAfterScannerClose || triggerAfterScannerClose;
+      stopCamera();
+      scannerPhoto.value = "";
+      activeScanHandler = undefined;
+      resolvingCameraCode = false;
+      focusAfterScannerClose = undefined;
+      triggerAfterScannerClose = undefined;
+      focusTarget?.focus();
+    });
+    window.addEventListener("pagehide", stopCamera, { once: true });
+  }
+
   const locationButton = document.querySelector("[data-cycle-scan-location]");
   if (locationButton) {
-    const form = locationButton.closest("form"); const code = form.querySelector("[data-cycle-location-code]"); const photo = form.querySelector("[data-cycle-location-photo]");
-    locationButton.addEventListener("click", () => photo.click());
-    photo.addEventListener("change", () => void decodePhoto(photo, value => { code.value = value; form.requestSubmit(); }));
+    const form = locationButton.closest("form");
+    const code = form.querySelector("[data-cycle-location-code]");
+    locationButton.addEventListener("click", () => openCycleScanner(locationButton, value => {
+      code.value = value;
+      form.requestSubmit();
+      return true;
+    }));
   }
   const productButton = document.querySelector("[data-cycle-scan-product]");
   if (productButton) {
-    const shell = productButton.closest("[data-cycle-count-capture]"); const photo = shell.querySelector("[data-cycle-scan-photo]");
-    productButton.addEventListener("click", () => photo.click());
-    photo.addEventListener("change", () => void decodePhoto(photo, value => {
+    const shell = productButton.closest("[data-cycle-count-capture]");
+    productButton.addEventListener("click", () => openCycleScanner(productButton, value => {
       const row = [...shell.querySelectorAll("[data-cycle-product]")].find(item => item.dataset.cycleProduct.toUpperCase() === value.trim().toUpperCase());
       const target = row?.querySelector("[data-cycle-quantity]") || shell.querySelector('input[name$=".Code"]:not([value])');
-      if (target) { if (!row) target.value = value; target.focus(); }
+      if (!target) return false;
+      if (!row) target.value = value;
+      target.dispatchEvent(new Event("input", { bubbles: true }));
+      return target;
     }));
   }
 
@@ -104,12 +394,6 @@
   scanLabel.textContent = "Escanear producto inesperado";
   scanButton.append(scanIcon, scanLabel);
 
-  const photoInput = document.createElement("input");
-  photoInput.type = "file";
-  photoInput.accept = "image/*";
-  photoInput.setAttribute("capture", "environment");
-  photoInput.className = "visually-hidden";
-
   const status = document.createElement("span");
   status.id = "cycle-count-camera-status";
   status.className = "small text-body-secondary";
@@ -117,37 +401,20 @@
   status.setAttribute("aria-live", "polite");
   status.textContent = "También puedes usar un lector HID como teclado.";
 
-  controls.append(addButton, scanButton, photoInput, status);
+  controls.append(addButton, scanButton, status);
   fieldset.insertBefore(controls, fieldset.querySelector(".row"));
   rows().forEach(addRemoveButton);
   renumber();
 
-  scanButton.addEventListener("click", () => photoInput.click());
-  photoInput.addEventListener("change", async () => {
-    const [photo] = photoInput.files;
-    if (!photo) return;
-    if (!window.ZXingBrowser) {
-      status.textContent = "La lectura por cámara no está disponible; escribe o usa el lector HID.";
-      return;
-    }
-
-    status.textContent = "Leyendo código…";
-    const imageUrl = URL.createObjectURL(photo);
-    try {
-      const reader = new ZXingBrowser.BrowserMultiFormatReader();
-      const result = await reader.decodeFromImageUrl(imageUrl);
-      const target = codeInputs().find(input => !input.value.trim()) || codeInputs().at(-1);
-      target.value = result.getText();
-      target.dispatchEvent(new Event("change", { bubbles: true }));
-      target.focus();
-      status.textContent = `Código ${target.value} capturado. Ingresa su cantidad física.`;
-    } catch {
-      status.textContent = "No se detectó un código. Intenta otra foto o usa el lector HID.";
-    } finally {
-      URL.revokeObjectURL(imageUrl);
-      photoInput.value = "";
-    }
-  });
+  scanButton.addEventListener("click", () => openCycleScanner(scanButton, value => {
+    const target = codeInputs().find(input => !input.value.trim()) || codeInputs().at(-1);
+    if (!target) return false;
+    target.value = value;
+    target.dispatchEvent(new Event("input", { bubbles: true }));
+    target.dispatchEvent(new Event("change", { bubbles: true }));
+    status.textContent = `Código ${target.value} capturado. Ingresa su cantidad física.`;
+    return target;
+  }));
 
   // ---- Borrador local -------------------------------------------------------------------
   // Las tablets son compartidas: el NIP nunca se guarda, el borrador caduca a las 12 horas y

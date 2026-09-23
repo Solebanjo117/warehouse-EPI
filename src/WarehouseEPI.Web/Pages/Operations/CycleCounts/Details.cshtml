@@ -101,7 +101,8 @@
 
     @if (canStart)
     {
-        <form method="post" asp-page-handler="ScanLocation" class="cycle-location-scan" data-cycle-location-scan><input type="hidden" name="id" value="@campaign.Id"/><label class="visually-hidden" for="cycle-location-code">Ubicación escaneada</label><input id="cycle-location-code" name="ScannedLocationCode" class="visually-hidden" data-cycle-location-code autocomplete="off"/><input class="visually-hidden" data-cycle-location-photo type="file" accept="image/*" capture="environment"/><button type="button" class="cycle-scan-fab" data-cycle-scan-location aria-label="Escanear ubicación">📷 <span>Escanear ubicación</span></button></form>
+        <form method="post" asp-page-handler="ScanLocation" class="cycle-location-scan" data-cycle-location-scan><input type="hidden" name="id" value="@campaign.Id"/><label class="visually-hidden" for="cycle-location-code">Ubicación escaneada</label><input id="cycle-location-code" name="ScannedLocationCode" class="visually-hidden" data-cycle-location-code autocomplete="off"/><button type="button" class="cycle-scan-fab" data-cycle-scan-location aria-label="Escanear ubicación"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg><span>Escanear ubicación</span></button></form>
+        <partial name="_CameraScanner" />
     }
     @if (campaign.Status is not (CycleCountCampaignStatus.Completed or CycleCountCampaignStatus.Cancelled))
     {
