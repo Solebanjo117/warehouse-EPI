@@ -8,10 +8,13 @@ Google Chrome para las operaciones diarias.
 
 ## Estado
 
-Las fases 1 a 9 y 10.1 a 10.7 estan terminadas: catalogos, usuarios por NIP,
-ubicaciones, movimientos, historial, correcciones, lotes internos automaticos,
-calidad reproducible, seguridad, observabilidad, recuperación local y
-publicación como servicio Windows antes del despliegue LAN.
+Las fases 1 a 9 están cerradas, salvo paquetes y conversiones (fase 8,
+descartada). La Release `0.10.7` está activa como servicio Windows. El código
+del repositorio incluye cambios posteriores de WIP, producción, placas,
+reportes e interfaz; sus migraciones y su despliegue tienen estados distintos.
+Consulta [el contexto del proyecto](docs/CONTEXT.md) antes de actualizar la
+instalación operativa. Implementado en código no significa migrado, publicado
+ni validado con tablets, lectores o impresoras.
 
 ## Capacidades actuales
 
@@ -24,6 +27,13 @@ publicación como servicio Windows antes del despliegue LAN.
 - Escaneo de producto y ubicación con cámara para códigos Code 128 en HTTPS,
   además del escáner físico HID y la captura manual.
 - Historial inmutable, correcciones auditables y consulta publica de inventario.
+- Conteos cíclicos, mapas y posiciones WIP, con sus permisos e historial.
+- Placas de pallet con identificación, seguimiento y consumo automático por
+  antigüedad; consulta [las reglas de placas](docs/PALLET_TRACKING.md).
+- Programa semanal, tandas y balance de producción, con conciliación de
+  capturas; consulta [el flujo de producción diaria](docs/PRODUCTION_DAILY_WORKFLOW.md).
+- Reportes operativos y una base de interfaz ES/EN por navegador. La
+  [guía de localización](docs/LOCALIZATION.md) delimita los textos traducidos.
 
 ## Tecnologia y estructura
 
@@ -69,9 +79,10 @@ en `PATH`, utiliza `C:\Program Files\dotnet\dotnet.exe`.
    pwsh ./scripts/quality.ps1
    ```
 
-   La verificacion crea y elimina datos solamente en `warehouse_epi_test` para
-   las pruebas de integracion. Configura `WAREHOUSE_EPI_TEST_CONNECTION` solo
-   si apunta exactamente a esa base; nunca apuntes ese valor a `warehouseEPI`.
+   La verificación recrea `warehouse_epi_test`; algunas pruebas PostgreSQL
+   crean y eliminan además bases temporales aisladas. Configura
+   `WAREHOUSE_EPI_TEST_CONNECTION` solo para una instancia de pruebas; nunca
+   la dirijas a la base operativa `warehouseEPI`.
 
 5. Inicia la aplicacion:
 
@@ -81,6 +92,22 @@ en `PATH`, utiliza `C:\Program Files\dotnet\dotnet.exe`.
 
 Durante el desarrollo, la aplicacion usa `http://localhost:5142` y
 `https://localhost:7254`.
+
+## Calidad y validación
+
+`scripts/quality.ps1` verifica formato, compilación Release, modelo y SQL de
+migraciones, pruebas y cobertura. Los mínimos globales son 85 % de líneas y
+45 % de ramas. El badge superior refleja el workflow de `main`, que usa
+PostgreSQL temporal; una prueba local no sustituye ese check.
+
+Estado al 23 de septiembre de 2026: `Quality` de `main` falló por formato.
+La rama `codex/fix-quality-format` corrige los diagnósticos de formato, pero
+todavía requiere integración y una ejecución satisfactoria del workflow. La
+suite completa local de esa rama terminó con 818 pruebas aprobadas y 79
+fallidas; la cobertura de ramas fue 42,25 %, por debajo del mínimo. Por ello,
+el cambio de formato no acredita todavía una verificación completa ni una
+Release nueva. Consulta [la guía de desarrollo](docs/DEVELOPMENT.md) para los
+artefactos y el procedimiento de diagnóstico.
 
 ## Preparacion de produccion LAN
 
@@ -154,6 +181,9 @@ pwsh ./scripts/release/Publish-WarehouseEpiRelease.ps1 -Version 0.10.7
 pwsh ./scripts/release/Install-WarehouseEpiService.ps1 `
   -PackagePath ./artifacts/releases/WarehouseEPI-0.10.7-win-x64.zip
 ```
+
+Estos comandos corresponden a la Release `0.10.7`; no publican las funciones
+posteriores descritas arriba.
 
 La publicación exige un worktree limpio. La instalación exige PowerShell
 elevado y un respaldo 10.6 válido. Las actualizaciones usan
