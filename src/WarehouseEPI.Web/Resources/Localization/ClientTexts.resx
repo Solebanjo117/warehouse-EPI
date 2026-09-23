@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0</value></resheader>
+  <data name="Buscando ubicación… Acepta el permiso del navegador."><value>Buscando ubicación… Acepta el permiso del navegador.</value></data>
+  <data name="Permiso de ubicación denegado. Habilítalo en el navegador y pulsa Mi ubicación."><value>Permiso de ubicación denegado. Habilítalo en el navegador y pulsa Mi ubicación.</value></data>
+  <data name="La ubicación tardó demasiado. Mantén la página abierta para reintentar."><value>La ubicación tardó demasiado. Mantén la página abierta para reintentar.</value></data>
+  <data name="No se pudo obtener la ubicación en este momento. El equipo seguirá intentando."><value>No se pudo obtener la ubicación en este momento. El equipo seguirá intentando.</value></data>
+  <data name="Abre Warehouse EPI por HTTPS para usar la ubicación."><value>Abre Warehouse EPI por HTTPS para usar la ubicación.</value></data>
+  <data name="Este equipo o navegador no ofrece geolocalización."><value>Este equipo o navegador no ofrece geolocalización.</value></data>
+  <data name="No se recibió ninguna lectura. Comprueba el permiso y repite la captura."><value>No se recibió ninguna lectura. Comprueba el permiso y repite la captura.</value></data>
+  <data name="Se generará una placa con toda la cantidad de entrada."><value>Se generará una placa con toda la cantidad de entrada.</value></data>
+  <data name="Quitar pallet"><value>Quitar pallet</value></data>
+  <data name="Selecciona primero producto y ubicación."><value>Selecciona primero producto y ubicación.</value></data>
+  <data name="Producto"><value>Producto</value></data>
+  <data name="Ubicación"><value>Ubicación</value></data>
+  <data name="Sin descripción"><value>Sin descripción</value></data>
+  <data name="Ubicación física"><value>Ubicación física</value></data>
+  <data name=" · Inactivo"><value> · Inactivo</value></data>
+  <data name=" · Bloqueada"><value> · Bloqueada</value></data>
+  <data name="No se encontraron productos ni ubicaciones."><value>No se encontraron productos ni ubicaciones.</value></data>
+  <data name="{0} resultados disponibles. Usa flechas y Enter para seleccionar."><value>{0} resultados disponibles. Usa flechas y Enter para seleccionar.</value></data>
+  <data name="Escribe para buscar y selecciona un producto o una ubicación."><value>Escribe para buscar y selecciona un producto o una ubicación.</value></data>
+  <data name="Buscando productos y ubicaciones…"><value>Buscando productos y ubicaciones…</value></data>
+  <data name="No fue posible buscar en la red local. Puedes escribir el filtro y usar Buscar."><value>No fue posible buscar en la red local. Puedes escribir el filtro y usar Buscar.</value></data>
+  <data name="No se encontraron productos. Puedes consultar el texto escrito para confirmar."><value>No se encontraron productos. Puedes consultar el texto escrito para confirmar.</value></data>
+  <data name=" · Ref. {0}"><value> · Ref. {0}</value></data>
+  <data name="{0} {1}. Usa flechas y Enter para elegir."><value>{0} {1}. Usa flechas y Enter para elegir.</value></data>
+  <data name="producto encontrado"><value>producto encontrado</value></data>
+  <data name="productos encontrados"><value>productos encontrados</value></data>
+  <data name="Buscando…"><value>Buscando…</value></data>
+  <data name="No fue posible buscar en la red local. Conservamos el texto para que puedas consultar o reintentar."><value>No fue posible buscar en la red local. Conservamos el texto para que puedas consultar o reintentar.</value></data>
+  <data name="Selecciona al menos una ubicación."><value>Selecciona al menos una ubicación.</value></data>
+  <data name="Selecciona al menos una ubicación antes de revisar."><value>Selecciona al menos una ubicación antes de revisar.</value></data>
+  <data name="Mostrando {0} ubicaciones seleccionadas."><value>Mostrando {0} ubicaciones seleccionadas.</value></data>
+  <data name="La ubicación estimada está fuera del croquis. Precisión reportada: {0} m."><value>La ubicación estimada está fuera del croquis. Precisión reportada: {0} m.</value></data>
+  <data name="Ubicación aproximada · precisión reportada {0} m · hace {1} s."><value>Ubicación aproximada · precisión reportada {0} m · hace {1} s.</value></data>
+  <data name="No se pudo consultar la calibración. Pulsa Mi ubicación para reintentar."><value>No se pudo consultar la calibración. Pulsa Mi ubicación para reintentar.</value></data>
+  <data name="Aún no hay una calibración publicada para este croquis."><value>Aún no hay una calibración publicada para este croquis.</value></data>
+  <data name="La calibración está pendiente de revisión porque cambió el croquis."><value>La calibración está pendiente de revisión porque cambió el croquis.</value></data>
+  <data name="La calibración cambió. Pulsa Mi ubicación para cargar la revisión actual."><value>La calibración cambió. Pulsa Mi ubicación para cargar la revisión actual.</value></data>
+  <data name="No se pudo comprobar la vigencia de la calibración. El marcador usa la última revisión conocida."><value>No se pudo comprobar la vigencia de la calibración. El marcador usa la última revisión conocida.</value></data>
+  <data name="No se pudo comprobar la calibración. Pulsa Detener ubicación o espera para reintentar."><value>No se pudo comprobar la calibración. Pulsa Detener ubicación o espera para reintentar.</value></data>
+  <data name="Última posición desactualizada: hace {0} s."><value>Última posición desactualizada: hace {0} s.</value></data>
+<data name="Ampliar croquis"><value>Ampliar croquis</value></data><data name="Salir de vista ampliada"><value>Salir de vista ampliada</value></data><data name="Sin actividad"><value>Sin actividad</value></data><data name="Sin ocupación"><value>Sin ocupación</value></data><data name="Descripción"><value>Descripción</value></data><data name="Unidad"><value>Unidad</value></data><data name="Referencia externa"><value>Referencia externa</value></data><data name="Cantidad"><value>Cantidad</value></data><data name="Fecha MFG"><value>Fecha MFG</value></data><data name="Campo"><value>Campo</value></data><data name="Nuevo texto"><value>Nuevo texto</value></data><data name="Personalizados"><value>Personalizados</value></data><data name="Campo {0}"><value>Campo {0}</value></data><data name="{0} negativas · {1} bloqueadas"><value>{0} negativas · {1} bloqueadas</value></data><data name="Borrador descartado."><value>Borrador descartado.</value></data><data name="Punto"><value>Punto</value></data><data name="referencia"><value>referencia</value></data><data name="comprobación"><value>comprobación</value></data><data name="este punto"><value>este punto</value></data><data name="No hay destinos compatibles con esa búsqueda."><value>No hay destinos compatibles con esa búsqueda.</value></data><data name="destino disponible"><value>destino disponible</value></data><data name="destinos disponibles"><value>destinos disponibles</value></data><data name="Buscando destinos WIP…"><value>Buscando destinos WIP…</value></data><data name="Escribe para buscar un área WIP, una fila completa o un rack WIP."><value>Escribe para buscar un área WIP, una fila completa o un rack WIP.</value></data><data name="Escribe para buscar un área, rack o posición WIP."><value>Escribe para buscar un área, rack o posición WIP.</value></data><data name="No se encontraron destinos WIP adicionales."><value>No se encontraron destinos WIP adicionales.</value></data><data name="El proceso no tendrá WIP predeterminado."><value>El proceso no tendrá WIP predeterminado.</value></data><data name="{0} destinos disponibles. Usa flechas y Enter para elegir."><value>{0} destinos disponibles. Usa flechas y Enter para elegir.</value></data><data name="Selecciona un destino de los resultados o limpia la búsqueda."><value>Selecciona un destino de los resultados o limpia la búsqueda.</value></data><data name="Selecciona un destino de los resultados antes de guardar."><value>Selecciona un destino de los resultados antes de guardar.</value></data><data name="{0}: {1} lecturas capturadas."><value>{0}: {1} lecturas capturadas.</value></data><data name="Buscando ubicación… Mantén el equipo en este punto."><value>Buscando ubicación… Mantén el equipo en este punto.</value></data><data name="Capturando {0}: {1} lecturas, {2} s restantes."><value>Capturando {0}: {1} lecturas, {2} s restantes.</value></data><data name="Elige un tipo y toca su posición exacta en el croquis."><value>Elige un tipo y toca su posición exacta en el croquis.</value></data><data name="Toca en el croquis dónde está la {0}."><value>Toca en el croquis dónde está la {0}.</value></data><data name="Toca la nueva posición de {0} en el croquis."><value>Toca la nueva posición de {0} en el croquis.</value></data>
+  <data name="Actualizando datos…"><value>Actualizando datos…</value></data>
+  <data name="Advertencia: la placa quedará con saldo negativo. Revisa la cantidad antes de confirmar."><value>Advertencia: la placa quedará con saldo negativo. Revisa la cantidad antes de confirmar.</value></data>
+  <data name="Cambiando cámara…"><value>Cambiando cámara…</value></data>
+  <data name="Cambiar cámara ({0} de {1})"><value>Cambiar cámara ({0} de {1})</value></data>
+  <data name="Captura las cantidades observadas."><value>Captura las cantidades observadas.</value></data>
+  <data name="Centra el código; para etiquetas largas, acércalo y espera a que enfoque."><value>Centra el código; para etiquetas largas, acércalo y espera a que enfoque.</value></data>
+  <data name="Código detectado. Validando…"><value>Código detectado. Validando…</value></data>
+  <data name="Datos generados: "><value>Datos generados: </value></data>
+  <data name="Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente."><value>Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente.</value></data>
+  <data name="Desglose de pallets"><value>Desglose de pallets</value></data>
+  <data name="error desconocido"><value>error desconocido</value></data>
+  <data name="Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico."><value>Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico.</value></data>
+  <data name="hora no disponible"><value>hora no disponible</value></data>
+  <data name="Hoy"><value>Hoy</value></data>
+  <data name="La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente."><value>La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.</value></data>
+  <data name="La cámara no admite la configuración solicitada. Prueba con Tomar foto."><value>La cámara no admite la configuración solicitada. Prueba con Tomar foto.</value></data>
+  <data name="La cámara requiere HTTPS. Puedes escribir o usar el escáner físico."><value>La cámara requiere HTTPS. Puedes escribir o usar el escáner físico.</value></data>
+  <data name="La placa no corresponde al producto y ubicación seleccionados."><value>La placa no corresponde al producto y ubicación seleccionados.</value></data>
+  <data name="Leyendo el código de la foto…"><value>Leyendo el código de la foto…</value></data>
+  <data name="Material sin placa: {0}"><value>Material sin placa: {0}</value></data>
+  <data name="No fue posible buscar en la red local. Intenta nuevamente."><value>No fue posible buscar en la red local. Intenta nuevamente.</value></data>
+  <data name="No fue posible iniciar la cámara ({0}).{1} Prueba con Tomar foto, escribe o usa el escáner físico."><value>No fue posible iniciar la cámara ({0}).{1} Prueba con Tomar foto, escribe o usa el escáner físico.</value></data>
+  <data name="No fue posible leer la foto. Puedes escribir o usar el escáner físico."><value>No fue posible leer la foto. Puedes escribir o usar el escáner físico.</value></data>
+  <data name="No fue posible validar el código. La cámara seguirá activa para reintentar."><value>No fue posible validar el código. La cámara seguirá activa para reintentar.</value></data>
+  <data name="No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico."><value>No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.</value></data>
+  <data name="No se detectó un código de barras en la foto. Reanudando la cámara…"><value>No se detectó un código de barras en la foto. Reanudando la cámara…</value></data>
+  <data name="No se encontró un producto con ese código. Intenta nuevamente."><value>No se encontró un producto con ese código. Intenta nuevamente.</value></data>
+  <data name="No se encontró una cámara disponible. Puedes escribir o usar el escáner físico."><value>No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.</value></data>
+  <data name="No se pudo consultar las placas."><value>No se pudo consultar las placas.</value></data>
+  <data name="No se pudo leer la placa. Acerca la cámara o escribe su folio."><value>No se pudo leer la placa. Acerca la cámara o escribe su folio.</value></data>
+  <data name="Permiso de ubicación denegado. Habilítalo en el navegador y vuelve a intentar."><value>Permiso de ubicación denegado. Habilítalo en el navegador y vuelve a intentar.</value></data>
+  <data name="Preparando cámara…"><value>Preparando cámara…</value></data>
+  <data name="Respuesta del tablero incompleta."><value>Respuesta del tablero incompleta.</value></data>
+  <data name="Saldo sin placa: {0}. Revisa las cantidades seleccionadas antes de confirmar."><value>Saldo sin placa: {0}. Revisa las cantidades seleccionadas antes de confirmar.</value></data>
+  <data name="Sin actividad en el período"><value>Sin actividad en el período</value></data>
+  <data name="Sin actividad en el período."><value>Sin actividad en el período.</value></data>
+  <data name="Sin actividad registrada"><value>Sin actividad registrada</value></data>
+  <data name="SKUs distintos: {0}"><value>SKUs distintos: {0}</value></data>
+  <data name="Solicitando la cámara trasera…"><value>Solicitando la cámara trasera…</value></data>
+  <data name="Total identificado: {0}"><value>Total identificado: {0}</value></data>
+  <data name="Total: {0} operaciones"><value>Total: {0} operaciones</value></data>
+  <data name="Ubicación operativa"><value>Ubicación operativa</value></data>
+  <data name="Últimos {0} días"><value>Últimos {0} días</value></data>
+  <data name="Un pallet con la cantidad total."><value>Un pallet con la cantidad total.</value></data>
+  <data name="Confirma el pallet compartido"><value>Confirma el pallet compartido</value></data>
+  <data name="El destino es informativo y no cambia el producto de la transferencia."><value>El destino es informativo y no cambia el producto de la transferencia.</value></data>
+  <data name="El producto seleccionado se asociará aquí al confirmar con NIP."><value>El producto seleccionado se asociará aquí al confirmar con NIP.</value></data>
+  <data name="Esta pareja se asociará al confirmar con NIP."><value>Esta pareja se asociará al confirmar con NIP.</value></data>
+  <data name="Producto relacionado"><value>Producto relacionado</value></data>
+  <data name="Productos relacionados; elige uno"><value>Productos relacionados; elige uno</value></data>
+  <data name="Salida general"><value>Salida general</value></data>
+  <data name="Selecciona producto y ubicación"><value>Selecciona producto y ubicación</value></data>
+  <data name="Selecciona una ubicación WIP."><value>Selecciona una ubicación WIP.</value></data>
+  <data name="Surtir WIP"><value>Surtir WIP</value></data>
+  <data name="Tipo de salida"><value>Tipo de salida</value></data>
+  <data name="Tipo pendiente"><value>Tipo pendiente</value></data>
+  <data name="Ubicación destino"><value>Ubicación destino</value></data>
+  <data name="Ubicación origen"><value>Ubicación origen</value></data>
+  <data name="Ubicación relacionada"><value>Ubicación relacionada</value></data>
+  <data name="Ubicaciones relacionadas; elige una"><value>Ubicaciones relacionadas; elige una</value></data>
+  <data name="Código de producto detectado. Se aplicó en Producto."><value>Código de producto detectado. Se aplicó en Producto.</value></data>
+  <data name="El código coincide con un producto y una ubicación. Escanéalo en el campo correcto."><value>El código coincide con un producto y una ubicación. Escanéalo en el campo correcto.</value></data>
+  <data name="No fue posible validar el código. Intenta nuevamente."><value>No fue posible validar el código. Intenta nuevamente.</value></data>
+  <data name="No se encontró un registro operativo con ese código."><value>No se encontró un registro operativo con ese código.</value></data>
+  <data name="No se encontró un registro operativo con ese código. Intenta nuevamente."><value>No se encontró un registro operativo con ese código. Intenta nuevamente.</value></data>
+  <data name="Selecciona el tipo de salida."><value>Selecciona el tipo de salida.</value></data>
+  <data name="Selecciona un registro de la lista o escanea un código válido."><value>Selecciona un registro de la lista o escanea un código válido.</value></data>
+  <data name="El código coincide con un producto y una ubicación. Elige qué deseas consultar."><value>El código coincide con un producto y una ubicación. Elige qué deseas consultar.</value></data>
+  <data name="No se encontró un producto ni una ubicación con ese código."><value>No se encontró un producto ni una ubicación con ese código.</value></data>
+  <data name="Solicitando cámara trasera…"><value>Solicitando cámara trasera…</value></data>
+  <data name="Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar." xml:space="preserve"><value>Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar.</value></data>
+  <data name="El código no corresponde a esta captura. Intenta nuevamente." xml:space="preserve"><value>El código no corresponde a esta captura. Intenta nuevamente.</value></data>
+  <data name="El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente." xml:space="preserve"><value>El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente.</value></data>
+  <data name="Escribe para buscar o usa un lector HID." xml:space="preserve"><value>Escribe para buscar o usa un lector HID.</value></data>
+  <data name="Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico." xml:space="preserve"><value>Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico.</value></data>
+  <data name="La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico.</value></data>
+  <data name="No fue posible abrir el lector. Escribe el código o usa un lector HID." xml:space="preserve"><value>No fue posible abrir el lector. Escribe el código o usa un lector HID.</value></data>
+  <data name="No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico." xml:space="preserve"><value>No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico.</value></data>
+  <data name="No fue posible leer la foto. Puedes escribir o usar el lector físico." xml:space="preserve"><value>No fue posible leer la foto. Puedes escribir o usar el lector físico.</value></data>
+  <data name="No fue posible procesar el código. Intenta nuevamente." xml:space="preserve"><value>No fue posible procesar el código. Intenta nuevamente.</value></data>
+  <data name="No fue posible validar el código en la red local. Intenta nuevamente." xml:space="preserve"><value>No fue posible validar el código en la red local. Intenta nuevamente.</value></data>
+  <data name="No se concedió permiso para usar la cámara. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>No se concedió permiso para usar la cámara. Puedes tomar una foto, escribir o usar el lector físico.</value></data>
+  <data name="No se detectó un código de barras en la foto. Intenta nuevamente." xml:space="preserve"><value>No se detectó un código de barras en la foto. Intenta nuevamente.</value></data>
+  <data name="No se encontraron {0}." xml:space="preserve"><value>No se encontraron {0}.</value></data>
+  <data name="No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico.</value></data>
+  <data name="También puedes usar un lector HID como teclado." xml:space="preserve"><value>También puedes usar un lector HID como teclado.</value></data>
+  <data name="Validando código…" xml:space="preserve"><value>Validando código…</value></data>
+</root>

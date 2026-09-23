@@ -31,7 +31,7 @@ public sealed class LocationDetailsContractTests
         Assert.Contains("Model.Location.Kind == WarehouseEPI.Core.Entities.LocationKind.Rack", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"Rack/Edit\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"Area\" asp-route-locationId=\"@Model.Location.Id\"", page, StringComparison.Ordinal);
-        Assert.Contains(">Editar área</a>", page, StringComparison.Ordinal);
+        Assert.Contains(">@CatTexts[\"Editar área\"]</a>", page, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -65,7 +65,8 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
     {
         var user=await AdminAsync(command.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);
         var fp=Fingerprint(command with{Pin=""});
-        await using var transaction=db.Database.IsRelational()?await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,token):null;
+        var ownsTransaction=db.Database.IsRelational()&&db.Database.CurrentTransaction is null;
+        await using var transaction=ownsTransaction?await db.Database.BeginTransactionAsync(IsolationLevel.Serializable,token):null;
         var result=await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>
         {
             if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);
@@ -159,7 +160,7 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
             }
             else available=BuildProgress(order).Single(x=>x.Id==final.Id).AvailableToDeliver;
             if(command.Quantity>available)return await AbortAsync(tx,Invalid("La cantidad excede el producto terminado disponible."),token);
-            var movement=await movements.ConfirmAuthorizedAsync(new InventoryMovementCommand(command.OperationId,InventoryMovementType.Entry,command.Pin,[new(order.ProductId,command.Quantity,DestinationLocationId:command.DestinationLocationId,DestinationLotId:batch?.FinishedProductLotId)],order.Number,"Recepción de producción",command.ApprovedSharedAssignments,InventoryMovementPurpose.ProductionReceipt),user,cancellationToken:token);
+            var movement=await movements.ConfirmAuthorizedAsync(new InventoryMovementCommand(command.OperationId,InventoryMovementType.Entry,command.Pin,[new(order.ProductId,command.Quantity,DestinationLocationId:command.DestinationLocationId,DestinationLotId:batch?.FinishedProductLotId,PalletQuantities:command.PalletQuantities)],order.Number,"Recepción de producción",command.ApprovedSharedAssignments,InventoryMovementPurpose.ProductionReceipt),user,cancellationToken:token);
             if(movement.Status!=InventoryMovementStatus.Success)return await AbortAsync(tx,MapMovement(movement,order.Id),token);
             if(order.Status!=ProductionWorkOrderStatus.PrincipalClosed)order.Status=ProductionWorkOrderStatus.InProgress; var receiptEvent=Event(command.OperationId,fp,order,user,ProductionEventType.WarehouseReceived,final.Id,quantity:command.Quantity,movementId:movement.MovementId,batchId:batch?.Id); order.Events.Add(receiptEvent); db.Entry(receiptEvent).State=EntityState.Added; order.Version++; await db.SaveChangesAsync(token); if(tx is not null)await tx.CommitAsync(token); return new(ProductionCommandStatus.Success,order.Id,movement.MovementId);
         }catch(DbUpdateConcurrencyException){return await AbortAsync(tx,new(ProductionCommandStatus.ConcurrencyConflict),token);}catch{if(tx is not null)await tx.RollbackAsync(token);throw;}
@@ -187,15 +188,16 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
                 {
                     var good=await db.ProductionBatchResults.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&
                         !db.ProductionEvents.Any(e=>e.Type==ProductionEventType.ResultReversed&&e.RelatedEvent!.OperationId==x.OperationId)).SumAsync(x=>x.GoodQuantity,token);
-                    var delivered=order.Events.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&x.Type==ProductionEventType.Delivered).Sum(x=>x.Quantity);
-                    available=good-delivered+order.Events.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&x.Type==ProductionEventType.DifferenceReturned).Sum(x=>x.Quantity);
+                    var effectiveEvents = order.Events.Where(x => !order.Events.Any(r => r.Type == ProductionEventType.ResultReversed && r.RelatedEventId == x.Id)).ToArray();
+                    var delivered=effectiveEvents.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&x.Type==ProductionEventType.Delivered).Sum(x=>x.Quantity);
+                    available=good-delivered+effectiveEvents.Where(x=>x.BatchId==batchId&&x.WorkOrderStageId==source.Id&&x.Type==ProductionEventType.DifferenceReturned).Sum(x=>x.Quantity);
                 }
                 else
                 {
                     if(command.DeliveryEventId is not Guid deliveryId)return Invalid("Selecciona la entrega que se recibe o concilia.");
-                    var delivery=order.Events.SingleOrDefault(x=>x.Id==deliveryId&&x.BatchId==batchId&&x.Type==ProductionEventType.Delivered&&x.WorkOrderStageId==source.Id&&x.RelatedStageId==target.Id);
+                    var delivery=order.Events.SingleOrDefault(x=>x.Id==deliveryId&&x.BatchId==batchId&&x.Type==ProductionEventType.Delivered&&x.WorkOrderStageId==source.Id&&x.RelatedStageId==target.Id && !order.Events.Any(r => r.Type == ProductionEventType.ResultReversed && r.RelatedEventId == x.Id));
                     if(delivery is null)return Invalid("La entrega no pertenece al lote y procesos seleccionados.");
-                    available=delivery.Quantity-order.Events.Where(x=>x.RelatedEventId==delivery.Id&&x.Type is ProductionEventType.Received or ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost).Sum(x=>x.Quantity);
+                    available=delivery.Quantity-order.Events.Where(x=>x.RelatedEventId==delivery.Id && (x.Type is ProductionEventType.Received or ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost) && !order.Events.Any(r => r.Type == ProductionEventType.ResultReversed && r.RelatedEventId == x.Id)).Sum(x=>x.Quantity);
                     relatedEventId=delivery.Id;
                 }
             }

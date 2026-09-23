@@ -39,6 +39,10 @@ public static class ProductionCapture
     {
         foreach (var key in page.ModelState.Keys.Where(key => key != prefix && !key.StartsWith(prefix + ".", StringComparison.Ordinal)).ToArray())
             page.ModelState.Remove(key);
+        foreach (var item in page.ModelState.Where(x => x.Key.Contains(".Pallets.", StringComparison.Ordinal) &&
+            (x.Key.EndsWith(".Quantity", StringComparison.Ordinal) || x.Key.Contains(".PalletQuantities[", StringComparison.Ordinal))).ToArray())
+            if (item.Value?.AttemptedValue is string text && !ProductionQuantityBinder.TryParse(text, out _))
+                page.ModelState.TryAddModelError(item.Key, ProductionQuantityBinder.Error);
         return page.ModelState.IsValid;
     }
     public static void ClearPins(PageModel page)

@@ -1,59 +1,59 @@
 @page
 @model WarehouseEPI.Web.Pages.Operations.Production.ExecutionModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
 @using WarehouseEPI.Core.Entities
 @using System.Globalization
 @{
-    ViewData["Title"] = "Cierre y retrabajo";
+    ViewData["Title"] = ProdTexts["Cierre y retrabajo"].Value;
     var order = Model.Order;
     var received = order.Events.Where(x => x.Type == ProductionEventType.WarehouseReceived).Sum(x => x.Quantity);
     var pending = Model.Rework.Where(x => x.NeedsAttention).ToArray();
 }
 <div class="container py-3 production-page">
 <div data-production-capture data-failed-handler="@(ViewData.ModelState.IsValid?null:"Execution")" data-current-version="@order.Version"></div>
-    <a asp-page="Work" asp-route-id="@order.Id">← Registrar avance en @order.Number</a>
-    @if(User.IsInRole("ADMIN")){<a asp-page="/Admin/Production/Reasons" class="btn btn-outline-secondary ms-2">Administrar motivos</a>}
-    <h1 class="h3 mt-3">Cierre y retrabajo · @order.Number</h1>
-    <p>@order.Product.Sku · @(order.Status == ProductionWorkOrderStatus.PrincipalClosed ? "Fabricación principal cerrada" : order.Status == ProductionWorkOrderStatus.Closed ? "Cierre definitivo" : "Fabricación abierta")</p>
+    <a asp-page="Work" asp-route-id="@order.Id">@ProdTexts["← Registrar avance en {0}", order.Number]</a>
+    @if(User.IsInRole("ADMIN")){<a asp-page="/Admin/Production/Reasons" class="btn btn-outline-secondary ms-2">@ProdTexts["Administrar motivos"]</a>}
+    <h1 class="h3 mt-3">@ProdTexts["Cierre y retrabajo · {0}", order.Number]</h1>
+    <p>@order.Product.Sku · @(order.Status == ProductionWorkOrderStatus.PrincipalClosed ? ProdTexts["Fabricación principal cerrada"].Value : order.Status == ProductionWorkOrderStatus.Closed ? ProdTexts["Cierre definitivo"].Value : ProdTexts["Fabricación abierta"].Value)</p>
     @if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
     <div asp-validation-summary="All" class="text-danger" role="alert"></div>
     <section class="card mb-3"><div class="card-body row g-3">
-        <div class="col-6 col-lg-3">Meta original<strong class="d-block">@order.OriginalTargetQuantity.ToString("0.####") @order.Unit.Code</strong></div>
-        <div class="col-6 col-lg-3">Meta vigente<strong class="d-block">@order.TargetQuantity.ToString("0.####") @order.Unit.Code</strong></div>
-        <div class="col-6 col-lg-3">Recibido<strong class="d-block">@received.ToString("0.####") @order.Unit.Code</strong></div>
-        <div class="col-6 col-lg-3">Diferencia<strong class="d-block">@((received-order.TargetQuantity).ToString("0.####")) @order.Unit.Code</strong></div>
+        <div class="col-6 col-lg-3">@ProdTexts["Meta original"]<strong class="d-block">@order.OriginalTargetQuantity.ToString("0.####") @order.Unit.Code</strong></div>
+        <div class="col-6 col-lg-3">@ProdTexts["Meta vigente"]<strong class="d-block">@order.TargetQuantity.ToString("0.####") @order.Unit.Code</strong></div>
+        <div class="col-6 col-lg-3">@ProdTexts["Recibido"]<strong class="d-block">@received.ToString("0.####") @order.Unit.Code</strong></div>
+        <div class="col-6 col-lg-3">@ProdTexts["Diferencia"]<strong class="d-block">@((received-order.TargetQuantity).ToString("0.####")) @order.Unit.Code</strong></div>
     </div></section>
-    @if (order.Batches.Count > 1) { <p class="alert alert-info">Orden histórica con varios lotes. Se conserva su trazabilidad y no se admiten lotes adicionales.</p> }
-    <section class="mb-4"><h2 class="h5">Retrabajos</h2>
-        @if (!Model.Rework.Any()) { <p class="text-body-secondary">Sin retrabajos registrados.</p> }
+    @if (order.Batches.Count > 1) { <p class="alert alert-info">@ProdTexts["Orden histórica con varios lotes. Se conserva su trazabilidad y no se admiten lotes adicionales."]</p> }
+    <section class="mb-4"><h2 class="h5">@ProdTexts["Retrabajos"]</h2>
+        @if (!Model.Rework.Any()) { <p class="text-body-secondary">@ProdTexts["Sin retrabajos registrados."]</p> }
         @foreach (var item in Model.Rework) {
-            <article class="card mb-2"><div class="card-body"><strong>@item.Stage</strong> · Pendiente @item.Pending.ToString("0.####") @order.Unit.Code
-                <p class="mb-1">Inicial @item.Initial.ToString("0.####") · Recuperado @item.Recovered.ToString("0.####") · Descartado @item.Discarded.ToString("0.####") · @item.Attempts intentos</p>
-                <small>Origen @Model.ReworkDates[item.Id] · @Model.ReworkAge[item.Id] días</small>
-                @if(item.Pending > 0) { <a asp-page="Work" asp-route-id="@order.Id" asp-route-BatchId="@item.BatchId" asp-route-ReworkCaseId="@item.Id" class="btn btn-outline-primary ms-2">Atender retrabajo</a> }
+            <article class="card mb-2"><div class="card-body"><strong>@item.Stage</strong> @ProdTexts["· Pendiente {0} {1}", item.Pending.ToString("0.####"), order.Unit.Code]
+                <p class="mb-1">@ProdTexts["Inicial {0} · Recuperado {1} · Descartado {2} · {3} intentos", item.Initial.ToString("0.####"), item.Recovered.ToString("0.####"), item.Discarded.ToString("0.####"), item.Attempts]</p>
+                <small>@ProdTexts["Origen {0} · {1} días", Model.ReworkDates[item.Id], Model.ReworkAge[item.Id]]</small>
+                @if(item.Pending > 0) { <a asp-page="Work" asp-route-id="@order.Id" asp-route-BatchId="@item.BatchId" asp-route-ReworkCaseId="@item.Id" class="btn btn-outline-primary ms-2">@ProdTexts["Atender retrabajo"]</a> }
             </div></article>
         }
     </section>
     @if(WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.ExecutionActions(order.Status).Count>0||!ViewData.ModelState.IsValid){
     <form method="post" data-execution-form>
         <input asp-for="Input.OperationId" type="hidden"/><input asp-for="Input.Version" type="hidden"/>
-        <label asp-for="Input.Action" class="form-label">Acción</label>
+        <label asp-for="Input.Action" class="form-label">@ProdTexts["Acción"]</label>
         <select asp-for="Input.Action" class="form-select form-select-lg mb-3" data-execution-action>
-            @if(!ViewData.ModelState.IsValid&&!WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.Allows(order.Status,Model.Input.Action)){<option value="@Model.Input.Action">Captura conservada · acción no disponible en el estado actual</option>}
-            @foreach(var action in WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.ExecutionActions(order.Status)){<option value="@action.Code">@action.Label · @(action.RequiresAdmin?"NIP ADMIN":"NIP del operador")</option>}
+            @if(!ViewData.ModelState.IsValid&&!WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.Allows(order.Status,Model.Input.Action)){<option value="@Model.Input.Action">@ProdTexts["Captura conservada · acción no disponible en el estado actual"]</option>}
+            @foreach(var action in WarehouseEPI.Infrastructure.Production.ProductionActionPolicy.ExecutionActions(order.Status)){<option value="@action.Code">@ProdTexts[action.Label] · @(action.RequiresAdmin?ProdTexts["NIP ADMIN"].Value:ProdTexts["NIP del operador"].Value)</option>}
         </select>
         <section data-execution-panel="principal definitive" class="alert alert-info">
             @if(Model.ClosureWarnings.Count > 0) {
-                <strong>Pendientes antes de cerrar</strong><ul>@foreach(var warning in Model.ClosureWarnings) { <li>@warning.Message @if(warning.Url is not null){<a href="@warning.Url">Resolver pendiente</a>}else{<a asp-page="Work" asp-route-id="@order.Id" asp-route-Task="@warning.Task" asp-route-StageId="@warning.StageId">Resolver pendiente</a>}</li> }</ul>
+                <strong>@ProdTexts["Pendientes antes de cerrar"]</strong><ul>@foreach(var warning in Model.ClosureWarnings) { <li>@warning.Message @if(warning.Url is not null){<a href="@warning.Url">@ProdTexts["Resolver pendiente"]</a>}else{<a asp-page="Work" asp-route-id="@order.Id" asp-route-Task="@warning.Task" asp-route-StageId="@warning.StageId">@ProdTexts["Resolver pendiente"]</a>}</li> }</ul>
             }
-            Concilia entregas, producto bueno y surtimientos. Devuelve sobrantes o retén las reservas para retrabajo antes del cierre principal.
-            Si queda cantidad que ya no se fabricará, ADMIN debe ajustar la meta antes de cerrar.
-            <a asp-page="Work" asp-route-id="@order.Id">Ver materiales y procesos</a> · <a asp-page="/Operations/ProductionSupply/Index" asp-route-search="@order.Number">Ver surtimientos</a>
+            @ProdTexts["Concilia entregas, producto bueno y surtimientos. Devuelve sobrantes o retén las reservas para retrabajo antes del cierre principal. Si queda cantidad que ya no se fabricará, ADMIN debe ajustar la meta antes de cerrar."]
+            <a asp-page="Work" asp-route-id="@order.Id">@ProdTexts["Ver materiales y procesos"]</a> · <a asp-page="/Operations/ProductionSupply/Index" asp-route-search="@order.Number">@ProdTexts["Ver surtimientos"]</a>
         </section>
         <section data-execution-panel="adjust" class="card mb-3"><div class="card-body row g-3">
-            <div class="col-md-4"><label asp-for="Input.Target" class="form-label">Meta vigente</label><input asp-for="Input.Target" class="form-control" inputmode="decimal"/></div>
-            <div class="col-md-4"><label asp-for="Input.Authorized" class="form-label">Cantidad autorizada</label><input asp-for="Input.Authorized" class="form-control" inputmode="decimal" data-execution-authorized/></div>
-            <div class="col-md-4"><label asp-for="Input.DueDate" class="form-label">Fecha requerida</label><input asp-for="Input.DueDate" type="date" class="form-control"/></div>
-            <div class="col-12"><button type="button" class="btn btn-outline-secondary" data-execution-scale>Proponer materiales según receta</button><p class="small mt-2">Revisa las cantidades antes de confirmar. Los sobrantes físicos se devuelven desde la orden.</p></div>
+            <div class="col-md-4"><label asp-for="Input.Target" class="form-label">@ProdTexts["Meta vigente"]</label><input asp-for="Input.Target" class="form-control" inputmode="decimal"/></div>
+            <div class="col-md-4"><label asp-for="Input.Authorized" class="form-label">@ProdTexts["Cantidad autorizada"]</label><input asp-for="Input.Authorized" class="form-control" inputmode="decimal" data-execution-authorized/></div>
+            <div class="col-md-4"><label asp-for="Input.DueDate" class="form-label">@ProdTexts["Fecha requerida"]</label><input asp-for="Input.DueDate" type="date" class="form-control"/></div>
+            <div class="col-12"><button type="button" class="btn btn-outline-secondary" data-execution-scale>@ProdTexts["Proponer materiales según receta"]</button><p class="small mt-2">@ProdTexts["Revisa las cantidades antes de confirmar. Los sobrantes físicos se devuelven desde la orden."]</p></div>
             @for (var i = 0; i < Model.Input.Materials.Count; i++) {
                 var material = order.MaterialPlan.SingleOrDefault(x => x.Id == Model.Input.Materials[i].PlanId);
                 if (material is null) { continue; }
@@ -65,26 +65,26 @@
         </div></section>
         <partial name="_Retentions" model="Model"/>
         <section data-execution-panel="request" class="card mb-3"><div class="card-body row g-3">
-            <div class="col-md-4"><label asp-for="Input.CaseId" class="form-label">Retrabajo</label><select asp-for="Input.CaseId" class="form-select"><option value="">Selecciona…</option>@foreach(var item in pending) { <option value="@item.Id">@item.Stage · @item.Pending.ToString("0.####")</option> }</select></div>
-            <div class="col-md-5"><label asp-for="Input.PlanId" class="form-label">Material del proceso</label><select asp-for="Input.PlanId" class="form-select"><option value="">Selecciona…</option>@foreach(var material in order.MaterialPlan) { <option value="@material.Id">@material.MaterialProduct.Sku</option> }</select></div>
-            <div class="col-md-3"><label asp-for="Input.Quantity" class="form-label">Cantidad adicional</label><input asp-for="Input.Quantity" class="form-control" inputmode="decimal"/></div>
+            <div class="col-md-4"><label asp-for="Input.CaseId" class="form-label">@ProdTexts["Retrabajo"]</label><select asp-for="Input.CaseId" class="form-select"><option value="">@ProdTexts["Selecciona…"]</option>@foreach(var item in pending) { <option value="@item.Id">@item.Stage · @item.Pending.ToString("0.####")</option> }</select></div>
+            <div class="col-md-5"><label asp-for="Input.PlanId" class="form-label">@ProdTexts["Material del proceso"]</label><select asp-for="Input.PlanId" class="form-select"><option value="">@ProdTexts["Selecciona…"]</option>@foreach(var material in order.MaterialPlan) { <option value="@material.Id">@material.MaterialProduct.Sku</option> }</select></div>
+            <div class="col-md-3"><label asp-for="Input.Quantity" class="form-label">@ProdTexts["Cantidad adicional"]</label><input asp-for="Input.Quantity" class="form-control" inputmode="decimal"/></div>
         </div></section>
         <div class="row g-3">
-            <div class="col-md-6"><label asp-for="Input.ReasonId" class="form-label">Motivo</label><select asp-for="Input.ReasonId" class="form-select" required><option value="">Selecciona…</option>@foreach(var reason in Model.Reasons.Where(x => x.Category is ProductionReasonCategory.Difference or ProductionReasonCategory.Adjustment)) { <option value="@reason.Id" data-reason-category="@reason.Category">@(reason.Category == ProductionReasonCategory.Adjustment ? "Ajuste" : "Diferencia") · @reason.Description</option> }</select></div>
-            <div class="col-md-6"><label asp-for="Input.Comment" class="form-label">Comentario (obligatorio para Otro)</label><input asp-for="Input.Comment" class="form-control" maxlength="300"/></div>
-            <div class="col-md-6"><label asp-for="Input.Pin" class="form-label">NIP de quien confirma</label><input asp-for="Input.Pin" value="" type="password" autocomplete="off" inputmode="numeric" class="form-control form-control-lg"/></div>
-            <div class="col-md-6" data-execution-panel="principal"><label asp-for="Input.AdminPin" class="form-label">NIP ADMIN si hay diferencia</label><input asp-for="Input.AdminPin" value="" type="password" autocomplete="off" inputmode="numeric" class="form-control form-control-lg"/></div>
-            <div class="col-12"><button type="submit" class="btn btn-primary btn-lg">Confirmar acción seleccionada</button></div>
+            <div class="col-md-6"><label asp-for="Input.ReasonId" class="form-label">@ProdTexts["Motivo"]</label><select asp-for="Input.ReasonId" class="form-select" required><option value="">@ProdTexts["Selecciona…"]</option>@foreach(var reason in Model.Reasons.Where(x => x.Category is ProductionReasonCategory.Difference or ProductionReasonCategory.Adjustment)) { <option value="@reason.Id" data-reason-category="@reason.Category">@(reason.Category == ProductionReasonCategory.Adjustment ? ProdTexts["Ajuste"].Value : ProdTexts["Diferencia"].Value) · @reason.Description</option> }</select></div>
+            <div class="col-md-6"><label asp-for="Input.Comment" class="form-label">@ProdTexts["Comentario (obligatorio para Otro)"]</label><input asp-for="Input.Comment" class="form-control" maxlength="300"/></div>
+            <div class="col-md-6"><label asp-for="Input.Pin" class="form-label">@ProdTexts["NIP de quien confirma"]</label><input asp-for="Input.Pin" value="" type="password" autocomplete="off" inputmode="numeric" class="form-control form-control-lg"/></div>
+            <div class="col-md-6" data-execution-panel="principal"><label asp-for="Input.AdminPin" class="form-label">@ProdTexts["NIP ADMIN si hay diferencia"]</label><input asp-for="Input.AdminPin" value="" type="password" autocomplete="off" inputmode="numeric" class="form-control form-control-lg"/></div>
+            <div class="col-12"><button type="submit" class="btn btn-primary btn-lg">@ProdTexts["Confirmar acción seleccionada"]</button></div>
         </div>
     </form>
     }
-    <section class="mt-4"><h2 class="h5">Historial de ejecución</h2>
+    <section class="mt-4"><h2 class="h5">@ProdTexts["Historial de ejecución"]</h2>
         @foreach(var audit in Model.AuditRows) {
             <details class="border rounded p-3 mb-2"><summary>@audit.Date · @audit.Action · @audit.User</summary>
                 <p class="mt-2">@audit.Reason</p>
-                @if(audit.Administrator is not null) { <p>Autorizó: @audit.Administrator</p> }
-                <div class="row"><div class="col-md-6"><strong>Antes</strong><ul>@foreach(var value in audit.Before) { <li>@value</li> }</ul></div><div class="col-md-6"><strong>Después</strong><ul>@foreach(var value in audit.After) { <li>@value</li> }</ul></div></div>
-                <small>Confirmación @audit.OperationId</small>
+                @if(audit.Administrator is not null) { <p>@ProdTexts["Autorizó: {0}", audit.Administrator]</p> }
+                <div class="row"><div class="col-md-6"><strong>@ProdTexts["Antes"]</strong><ul>@foreach(var value in audit.Before) { <li>@value</li> }</ul></div><div class="col-md-6"><strong>@ProdTexts["Después"]</strong><ul>@foreach(var value in audit.After) { <li>@value</li> }</ul></div></div>
+                <small>@ProdTexts["Confirmación {0}", audit.OperationId]</small>
             </details>
         }
     </section>

@@ -252,19 +252,37 @@ public sealed class WarehouseMapEditorContractTests
         var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
         var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "warehouse-map-query.js"));
 
-        Assert.Contains(".warehouse-map-shell .warehouse-map-viewport{height:34rem;min-height:0;overflow:auto", styles, StringComparison.Ordinal);
-        Assert.Contains(".warehouse-map-shell .warehouse-map{width:var(--warehouse-map-query-zoom,100%);height:auto;min-height:0;max-width:none}", styles, StringComparison.Ordinal);
-        Assert.DoesNotContain("height:var(--warehouse-map-query-zoom,100%)", styles, StringComparison.Ordinal);
+        Assert.Contains("height:clamp(34rem,70svh,46rem);min-height:320px;overflow:auto", styles, StringComparison.Ordinal);
+        Assert.Contains("height:var(--map-expanded-viewport-height,calc(100svh - 2rem))", styles, StringComparison.Ordinal);
+        Assert.Contains(".warehouse-map-frame .warehouse-map{position:absolute;min-height:0;max-width:none", styles, StringComparison.Ordinal);
         Assert.Contains("touch-action:pan-x pan-y", styles, StringComparison.Ordinal);
         Assert.Contains("const MAX_ZOOM = 4", script, StringComparison.Ordinal);
-        Assert.Contains("svg.style.setProperty(\"--warehouse-map-query-zoom\"", script, StringComparison.Ordinal);
-        Assert.Contains("viewport.scrollLeft = 0", script, StringComparison.Ordinal);
+        Assert.Contains("svg.style.width", script, StringComparison.Ordinal);
+        Assert.Contains("viewport.scrollLeft = clamp", script, StringComparison.Ordinal);
         Assert.Contains("addEventListener(\"touchstart\"", script, StringComparison.Ordinal);
         Assert.Contains("addEventListener(\"touchmove\"", script, StringComparison.Ordinal);
         Assert.Contains("{ passive: false }", script, StringComparison.Ordinal);
-        Assert.Contains("pinchGesture.contentX * zoom - viewportX", script, StringComparison.Ordinal);
+        Assert.Contains("pinchGesture.point", script, StringComparison.Ordinal);
         Assert.Contains("suppressClicksUntil", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("window.addEventListener(\"scroll\"", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("visualViewport?.addEventListener(\"resize\"", script, StringComparison.Ordinal);
         Assert.DoesNotContain("setAttribute(\"viewBox\"", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Query_map_keeps_adaptive_controls_and_detail_inside_the_expandable_frame()
+    {
+        var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
+        var styles = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css"));
+
+        Assert.Contains("data-map-frame", page, StringComparison.Ordinal);
+        Assert.Contains("data-map-focus disabled", page, StringComparison.Ordinal);
+        Assert.Contains("data-map-expand aria-expanded=\"false\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-map-stage", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@CatTexts[\"Detalle de la selección\"]\" hidden", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("map-detail-placeholder", page, StringComparison.Ordinal);
+        Assert.Contains(".warehouse-map-shell.has-selection{grid-template-columns:minmax(0,1fr) 22rem}", styles, StringComparison.Ordinal);
+        Assert.Contains("max-height:48dvh", styles, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -290,7 +308,7 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("warehouse-map:canvas-changed", editorScript, StringComparison.Ordinal);
         Assert.Contains("ARCHITECTURE_STYLE_TOKENS", editorScript, StringComparison.Ordinal);
         Assert.Contains("normalizeArchitectureStyle", editorScript, StringComparison.Ordinal);
-        Assert.Contains("value=\"\" disabled>Varios", editorPage, StringComparison.Ordinal);
+        Assert.Contains("value=\"\" disabled>@CatTexts[\"Varios\"]", editorPage, StringComparison.Ordinal);
         Assert.Contains("summary.previousCanvasWidth", editorScript, StringComparison.Ordinal);
         Assert.Contains("summary.previousCanvasHeight", editorScript, StringComparison.Ordinal);
         Assert.Contains("warehouse-map:canvas-changed", referenceScript, StringComparison.Ordinal);
@@ -346,7 +364,8 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("Where(product => product.Quantity != 0)", page, StringComparison.Ordinal);
         Assert.Contains("PositionCode = position.Code", page, StringComparison.Ordinal);
         Assert.Contains("GetValueOrDefault(element.Id)", page, StringComparison.Ordinal);
-        Assert.Contains("Resumen del rack WIP", page, StringComparison.Ordinal);
+        Assert.Contains("Resumen de posiciones WIP", page, StringComparison.Ordinal);
+        Assert.Contains("position.OperationalRole == WarehouseEPI.Core.Entities.LocationOperationalRole.Wip", page, StringComparison.Ordinal);
         Assert.Contains("Este WIP no tiene existencias actualmente.", page, StringComparison.Ordinal);
         Assert.Contains("@product.Quantity.ToString(\"0.####\") @product.Unit", page, StringComparison.Ordinal);
         Assert.Contains("Últimos surtimientos", page, StringComparison.Ordinal);

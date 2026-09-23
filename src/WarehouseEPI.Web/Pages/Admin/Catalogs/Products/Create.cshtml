@@ -1,20 +1,21 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.CreateModel
 @{
-    ViewData["Title"] = "Crear producto";
+    ViewData["Title"] = CatTexts["Crear producto"].Value;
 }
 
 <div class="product-editor-workspace" data-product-editor>
     <header class="product-editor-header">
         <div>
-            <span class="product-editor-eyebrow">Catálogo de productos</span>
+            <span class="product-editor-eyebrow">@CatTexts["Catálogo de productos"]</span>
             <div class="d-flex flex-wrap align-items-center gap-2">
-                <h1 class="h2 mb-0">Crear producto</h1>
-                <span class="badge text-bg-primary">Nuevo</span>
+                <h1 class="h2 mb-0">@CatTexts["Crear producto"]</h1>
+                <span class="badge text-bg-primary">@CatTexts["Nuevo"]</span>
             </div>
-            <p class="text-body-secondary mb-0">Registra la identificación y configuración base del producto.</p>
+            <p class="text-body-secondary mb-0">@CatTexts["Registra la identificación y configuración base del producto."]</p>
         </div>
-        <a asp-page="Index" class="btn btn-outline-secondary">Volver a productos</a>
+        <a asp-page="Index" class="btn btn-outline-secondary">@CatTexts["Volver a productos"]</a>
     </header>
 
     <partial name="_ProductForm" model="Model" />

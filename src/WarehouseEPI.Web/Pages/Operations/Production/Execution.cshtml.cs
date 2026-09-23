@@ -7,10 +7,12 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Infrastructure.Settings;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.Production;
 
-public sealed class ExecutionModel(WarehouseDbContext db, ProductionExecutionService execution, ProductionMaterialService materials, ProductionQueryService query, WarehouseClock clock, TimeProvider timeProvider) : PageModel
+public sealed class ExecutionModel(WarehouseDbContext db, ProductionExecutionService execution, ProductionMaterialService materials, ProductionQueryService query, WarehouseClock clock, TimeProvider timeProvider, IStringLocalizer<ProductionTexts> text) : PageModel
 {
     public ProductionWorkOrder Order { get; private set; } = null!;
     public IReadOnlyList<ReworkView> Rework { get; private set; } = [];
@@ -48,8 +50,8 @@ public sealed class ExecutionModel(WarehouseDbContext db, ProductionExecutionSer
                 Input.Materials.Select(x => new ExecutionMaterial(x.PlanId, x.Quantity)).ToArray(),
                 Input.Retentions.Where(x => x.Selected).Select(x => new ExecutionRetention(x.CaseId, x.IssueLinkId, x.ReservationId, x.Quantity)).ToArray(),
                 Input.CaseId, Input.PlanId, Input.Quantity), token);
-            if (result.Status == ProductionCommandStatus.Success) { TempData["Success"] = "Operación confirmada y registrada en el historial."; return RedirectToPage(new { id }); }
-            ModelState.AddModelError("", result.ValidationErrors.FirstOrDefault() ?? (result.Status == ProductionCommandStatus.InvalidPin ? "NIP inválido o sin permiso para esta acción." : "La orden cambió o la operación ya se utilizó. Consulta el historial y recarga antes de repetir."));
+            if (result.Status == ProductionCommandStatus.Success) { TempData["Success"] = text["Operación confirmada y registrada en el historial."].Value; return RedirectToPage(new { id }); }
+            ModelState.AddModelError("", result.ValidationErrors.FirstOrDefault() ?? (result.Status == ProductionCommandStatus.InvalidPin ? text["NIP inválido o sin permiso para esta acción."].Value : text["La orden cambió o la operación ya se utilizó. Consulta el historial y recarga antes de repetir."].Value));
         }
         Input.Pin = Input.AdminPin = ""; ModelState.Remove("Input.Pin"); ModelState.Remove("Input.AdminPin");
         if (!await LoadAsync(id, token)) return NotFound();

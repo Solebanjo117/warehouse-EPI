@@ -18,7 +18,7 @@ public sealed class UnifiedMovementRouteTests
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Index.cshtml");
         var model = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Inventory", "Movements", "Index.cshtml.cs");
 
-        Assert.Contains("<h1 class=\"h2 mb-1\">Movimientos</h1>", page, StringComparison.Ordinal);
+        Assert.Contains("<h1 class=\"h2 mb-1\">@CatTexts[\"Movimientos\"]</h1>", page, StringComparison.Ordinal);
         Assert.Contains("RouteValues", page, StringComparison.Ordinal);
         Assert.Contains("asp-all-route-data", page, StringComparison.Ordinal);
         Assert.Contains("name=\"movementType\"", page, StringComparison.Ordinal);

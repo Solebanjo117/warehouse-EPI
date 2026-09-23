@@ -56,6 +56,26 @@ public sealed class CycleCountServiceTests
     }
 
     [Fact]
+    public async Task Approved_zero_count_deactivates_assignment_and_clears_default_location()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("COUNT-ZERO");
+        var location = await fixture.AddLocationAsync("A-1-9");
+        await fixture.EnterAsync(product.Id, location.Id, 2m);
+        product.DefaultEntryLocationId = location.Id;
+        await fixture.Db.SaveChangesAsync();
+        var (_, countLocationId, attemptId) = await fixture.CreateReleasedAttemptAsync(location.Id);
+        await fixture.CycleCounts.SubmitAsync(new(attemptId, Guid.NewGuid(), fixture.Pin, [new(product.Id, 0m)]));
+
+        var approved = await fixture.CycleCounts.ApproveAsync(new(
+            countLocationId, Guid.NewGuid(), fixture.Pin, "Pallet confirmado vacío"));
+
+        Assert.Equal(CycleCountStatus.Success, approved.Status);
+        Assert.False((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, location.Id))!.IsActive);
+        Assert.Null((await fixture.Db.Products.FindAsync(product.Id))!.DefaultEntryLocationId);
+    }
+
+    [Fact]
     public async Task Inventory_change_after_start_marks_attempt_stale_and_does_not_adjust()
     {
         await using var fixture = await Fixture.CreateAsync();

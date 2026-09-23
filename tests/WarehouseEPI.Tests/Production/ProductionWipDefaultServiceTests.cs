@@ -76,6 +76,21 @@ public sealed class ProductionWipDefaultServiceTests
     }
 
     [Fact]
+    public async Task Mixed_rack_default_uses_only_operational_wip_positions()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var storage = await fixture.Db.Locations.SingleAsync(x => x.Code == "M-2-2");
+        storage.OperationalRole = LocationOperationalRole.Storage;
+        await fixture.Db.SaveChangesAsync();
+
+        Assert.Contains(await fixture.Service.SearchAsync(fixture.Stage.Id, "M-2"), x => x.Key == "R:M:2");
+        Assert.True((await fixture.Service.DescribeAsync(fixture.Stage.Id, "R:M:2")).IsAvailable);
+        fixture.Position.IsBlocked = true;
+        await fixture.Db.SaveChangesAsync();
+        Assert.False((await fixture.Service.DescribeAsync(fixture.Stage.Id, "R:M:2")).IsAvailable);
+    }
+
+    [Fact]
     public async Task Preserves_an_existing_rule_and_reports_when_destination_becomes_blocked()
     {
         await using var fixture = await Fixture.CreateAsync();

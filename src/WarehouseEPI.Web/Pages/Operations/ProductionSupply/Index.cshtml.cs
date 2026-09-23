@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.ProductionSupply;
 
-public sealed class IndexModel(ProductionSupplyService supplies) : PageModel
+public sealed class IndexModel(ProductionSupplyService supplies, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     public IReadOnlyList<ProductionSupplyQueueRow> Rows { get; private set; } = [];
     [BindProperty(SupportsGet=true)]public int PageNumber {get;set;}=1;
@@ -39,14 +41,14 @@ public sealed class IndexModel(ProductionSupplyService supplies) : PageModel
 
     private IActionResult Handle(ProductionSupplyCommandResult result)
     {
-        if (result.Status == ProductionSupplyCommandStatus.Success) TempData["SuccessMessage"] = "La solicitud se actualizó correctamente.";
+        if (result.Status == ProductionSupplyCommandStatus.Success) TempData["SuccessMessage"] = texts["La solicitud se actualizó correctamente."];
         else TempData["ErrorMessage"] = result.Status switch
         {
-            ProductionSupplyCommandStatus.InvalidPin => "No fue posible validar el NIP o el usuario.",
-            ProductionSupplyCommandStatus.ConcurrencyConflict => "La solicitud cambió. Revisa sus cantidades e intenta nuevamente.",
-            ProductionSupplyCommandStatus.IdempotencyConflict => "La operación ya se utilizó con otro contenido.",
-            ProductionSupplyCommandStatus.NotFound => "La solicitud ya no está disponible.",
-            _ => string.Join(" ", result.ValidationErrors)
+            ProductionSupplyCommandStatus.InvalidPin => texts["No fue posible validar el NIP o el usuario."],
+            ProductionSupplyCommandStatus.ConcurrencyConflict => texts["La solicitud cambió. Revisa sus cantidades e intenta nuevamente."],
+            ProductionSupplyCommandStatus.IdempotencyConflict => texts["La operación ya se utilizó con otro contenido."],
+            ProductionSupplyCommandStatus.NotFound => texts["La solicitud ya no está disponible."],
+            _ => string.Join(" ", result.ValidationErrors.Select(error => texts[error].Value))
         };
         return RedirectToPage(new { Search, Condition, PageNumber });
     }

@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const draftLifetimeMs = 12 * 60 * 60 * 1000;
 
   // Icono del sprite de _Layout: los botones creados desde JS usan el mismo trazo que el marcado.
@@ -185,12 +186,12 @@
     };
 
     const describeCameraError = (error) => {
-      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") return "No se concedió permiso para usar la cámara. Puedes tomar una foto, escribir o usar el lector físico.";
-      if (error?.name === "NotFoundError") return "No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico.";
-      if (error?.name === "NotReadableError") return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
-      if (error?.name === "OverconstrainedError") return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
-      if (error === false) return "El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente.";
-      return "No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico.";
+      if (error?.name === "NotAllowedError" || error?.name === "SecurityError") return text("No se concedió permiso para usar la cámara. Puedes tomar una foto, escribir o usar el lector físico.");
+      if (error?.name === "NotFoundError") return text("No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico.");
+      if (error?.name === "NotReadableError") return text("La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.");
+      if (error?.name === "OverconstrainedError") return text("La cámara no admite la configuración solicitada. Prueba con Tomar foto.");
+      if (error === false) return text("El navegador no pudo reproducir la vista previa. Cierra el lector e inténtalo nuevamente.");
+      return text("No fue posible iniciar la cámara. Prueba con Tomar foto, escribe o usa el lector físico.");
     };
 
     const isCodeNotDetectedError = (error) => {
@@ -205,7 +206,7 @@
       try {
         const result = await activeScanHandler(code.trim());
         if (result === false) {
-          setScannerStatus("El código no corresponde a esta captura. Intenta nuevamente.");
+          setScannerStatus(text("El código no corresponde a esta captura. Intenta nuevamente."));
           resolvingCameraCode = false;
           return;
         }
@@ -213,7 +214,7 @@
         stopCamera();
         scannerModal.hide();
       } catch {
-        setScannerStatus("No fue posible procesar el código. Intenta nuevamente.");
+        setScannerStatus(text("No fue posible procesar el código. Intenta nuevamente."));
         resolvingCameraCode = false;
       }
     };
@@ -276,18 +277,18 @@
       const session = ++cameraSession;
       if (!window.isSecureContext) {
         scannerPreview.classList.add("d-none");
-        setScannerStatus("La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico.");
+        setScannerStatus(text("La cámara requiere HTTPS. Puedes tomar una foto, escribir o usar el lector físico."));
         return;
       }
       if (!navigator.mediaDevices?.getUserMedia
         || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
         scannerPreview.classList.add("d-none");
-        setScannerStatus("Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico.");
+        setScannerStatus(text("Este navegador no permite el lector en vivo. Puedes usar Tomar foto, escribir o usar el lector físico."));
         return;
       }
 
       scannerPreview.classList.remove("d-none");
-      setScannerStatus("Solicitando la cámara trasera…");
+      setScannerStatus(text("Solicitando la cámara trasera…"));
       try {
         const stream = await openCameraStream(requestedDeviceId);
         if (session !== cameraSession) {
@@ -299,7 +300,7 @@
         await scannerVideo.play();
         if (session !== cameraSession) return;
         await updateCameraSwitchButton(stream);
-        setScannerStatus("Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar.");
+        setScannerStatus(text("Centra el código; la cámara permanecerá abierta hasta detectarlo o cancelar."));
         if (await startNativeBarcodeScanner(session)) return;
 
         const reader = new ZXingBrowser.BrowserMultiFormatReader();
@@ -337,17 +338,17 @@
       const [photo] = scannerPhoto.files;
       if (!photo || resolvingCameraCode) return;
       if (!window.ZXingBrowser) {
-        setScannerStatus("No fue posible leer la foto. Puedes escribir o usar el lector físico.");
+        setScannerStatus(text("No fue posible leer la foto. Puedes escribir o usar el lector físico."));
         return;
       }
       stopCamera();
-      setScannerStatus("Leyendo el código de la foto…");
+      setScannerStatus(text("Leyendo el código de la foto…"));
       const imageUrl = URL.createObjectURL(photo);
       try {
         const result = await new ZXingBrowser.BrowserMultiFormatReader().decodeFromImageUrl(imageUrl);
         await handleDetectedCode(result.getText());
       } catch {
-        setScannerStatus("No se detectó un código de barras en la foto. Intenta nuevamente.");
+        setScannerStatus(text("No se detectó un código de barras en la foto. Intenta nuevamente."));
       } finally {
         URL.revokeObjectURL(imageUrl);
         scannerPhoto.value = "";
@@ -356,7 +357,7 @@
 
     scannerSwitch?.addEventListener("click", async () => {
       scannerSwitch.disabled = true;
-      setScannerStatus("Cambiando cámara…");
+      setScannerStatus(text("Cambiando cámara…"));
       try {
         const deviceId = await nextCameraDeviceId(scannerVideo.srcObject);
         if (!deviceId) return;
@@ -375,7 +376,7 @@
       focusAfterScannerClose = undefined;
       resolvingCameraCode = false;
       scannerPreview.classList.remove("d-none");
-      setScannerStatus("Preparando cámara…");
+      setScannerStatus(text("Preparando cámara…"));
       scannerModal.show();
       void startCameraScanner();
       return true;
@@ -426,7 +427,7 @@
 
     const resultValues = (field, item) => field.type === "product"
       ? { id: item.id, title: item.sku, detail: item.description || "Sin descripción", meta: item.unitCode }
-      : { id: item.id, title: item.code, detail: item.description || "Sin descripción", meta: "Ubicación" };
+      : { id: item.id, title: item.code, detail: item.description || text("Sin descripción"), meta: text("Ubicación") };
 
     const itemIsAllowed = (field, item) => !field.allowedIds
       || field.allowedIds.has(String(item.id).toLowerCase());
@@ -465,7 +466,7 @@
       closeResults(field);
       items = items.filter(item => itemIsAllowed(field, item));
       if (items.length === 0) {
-        announce(field, `No se encontraron ${field.type === "product" ? "productos" : "ubicaciones"}.`);
+        announce(field, text("No se encontraron {0}.", (field.type === "product" ? text("Productos") : text("Ubicaciones")).toLocaleLowerCase(document.documentElement.lang)));
         return;
       }
 
@@ -504,7 +505,7 @@
       field.controller?.abort();
       if (!query) {
         closeResults(field);
-        announce(field, "Escribe para buscar o usa un lector HID.");
+        announce(field, text("Escribe para buscar o usa un lector HID."));
         return;
       }
 
@@ -516,13 +517,13 @@
       } catch (error) {
         if (error?.name === "AbortError") return;
         closeResults(field);
-        announce(field, "No fue posible buscar en la red local. Intenta nuevamente.");
+        announce(field, text("No fue posible buscar en la red local. Intenta nuevamente."));
       }
     };
 
     const resolveCode = async (sourceField, code) => {
       if (!code.trim()) return false;
-      announce(sourceField, "Validando código…");
+      announce(sourceField, text("Validando código…"));
       try {
         const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
         const expected = resolution?.[sourceField.type];
@@ -547,7 +548,7 @@
         announce(sourceField, `El código no corresponde a ${sourceField.label.toLowerCase()} activo.`);
         return false;
       } catch {
-        announce(sourceField, "No fue posible validar el código en la red local. Intenta nuevamente.");
+        announce(sourceField, text("No fue posible validar el código en la red local. Intenta nuevamente."));
         return false;
       }
     };
@@ -611,7 +612,7 @@
       field.input.addEventListener("blur", () => window.setTimeout(() => closeResults(field), 150));
       field.camera?.addEventListener("click", () => {
         if (!openCycleScanner(field.camera, value => resolveCode(field, value))) {
-          announce(field, "No fue posible abrir el lector. Escribe el código o usa un lector HID.");
+          announce(field, text("No fue posible abrir el lector. Escribe el código o usa un lector HID."));
           field.input.focus();
         }
       });
@@ -757,7 +758,7 @@
   status.className = "small text-body-secondary";
   status.setAttribute("role", "status");
   status.setAttribute("aria-live", "polite");
-  status.textContent = "También puedes usar un lector HID como teclado.";
+  status.textContent = text("También puedes usar un lector HID como teclado.");
 
   controls.append(addButton, scanButton, status);
   fieldset.insertBefore(controls, fieldset.querySelector(".row"));

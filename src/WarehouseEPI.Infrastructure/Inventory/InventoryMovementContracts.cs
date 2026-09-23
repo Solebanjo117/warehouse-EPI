@@ -21,7 +21,17 @@ public sealed record InventoryMovementLineCommand(
     Guid? LocationId = null,
     uint? ExpectedBalanceVersion = null,
     IReadOnlyList<InventoryLotSelection>? Lots = null,
-    Guid? DestinationLotId = null);
+    Guid? DestinationLotId = null,
+    IReadOnlyList<PalletSelection>? Plates = null,
+    Guid? DestinationPlateId = null,
+    long? ExpectedDestinationPlateVersion = null,
+    IReadOnlyList<decimal>? PalletQuantities = null,
+    IReadOnlyList<PalletSelection>? PlateCounts = null,
+    Guid? MaterialIssueLinkId = null,
+    bool AutomaticPalletHandling = false);
+
+public sealed record PalletSelection(Guid PlateId, decimal Quantity, long ExpectedVersion);
+public sealed record PalletMovementResult(Guid PlateId, string Identifier, Guid LocationId, decimal Quantity, long Version, string Status);
 
 public sealed record InventoryLotSelection(Guid LotId, decimal Quantity);
 
@@ -59,10 +69,11 @@ public sealed record InventoryMovementResult(
     string? ResponsibleName = null,
     IReadOnlyList<InventoryBalanceResult>? Balances = null,
     IReadOnlyList<SharedLocationConflict>? SharingConflicts = null,
-    IReadOnlyList<string>? Errors = null)
+    IReadOnlyList<string>? Errors = null,
+    IReadOnlyList<PalletMovementResult>? Plates = null)
 {
     public IReadOnlyList<InventoryBalanceResult> ResultingBalances => Balances ?? [];
     public IReadOnlyList<SharedLocationConflict> Conflicts => SharingConflicts ?? [];
     public IReadOnlyList<string> ValidationErrors => Errors ?? [];
-    public bool HasNegativeBalance => ResultingBalances.Any(balance => balance.IsNegative);
+    public bool HasNegativeBalance => ResultingBalances.Any(balance => balance.IsNegative) || Plates?.Any(x => x.Quantity < 0) == true;
 }

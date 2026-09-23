@@ -139,7 +139,7 @@ public sealed class ProductionProcessConfigurationServiceTests
     }
 
     [Fact]
-    public async Task Target_search_returns_available_wip_areas_and_each_complete_rack_once()
+    public async Task Target_search_returns_available_wip_areas_and_mixed_racks_once()
     {
         await using var fixture = await Fixture.CreateAsync();
         fixture.Db.Locations.AddRange(
@@ -162,7 +162,7 @@ public sealed class ProductionProcessConfigurationServiceTests
         Assert.Equal("rack", rack.Type);
         Assert.Equal("M-2", rack.Label);
         Assert.Equal("A:" + fixture.Area.Id, Assert.Single(areaResults).Key);
-        Assert.Empty(mixedResults);
+        Assert.Equal("R:X:1", Assert.Single(mixedResults).Key);
         var mixedRow = Assert.Single(mixedRowResults);
         Assert.Equal("F:X", mixedRow.Key);
         Assert.Equal("row", mixedRow.Type);

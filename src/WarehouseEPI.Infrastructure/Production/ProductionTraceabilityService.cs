@@ -1,3 +1,4 @@
+using WarehouseEPI.Infrastructure.Inventory;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -13,7 +14,7 @@ public sealed record SaveProductionRecipeCommand(Guid ProductId, decimal BaseQua
     IReadOnlyList<RecipeLineInput> Lines, string Reason, string Pin);
 public sealed record CreateProductionBatchCommand(Guid OperationId, Guid WorkOrderId,
     decimal AssignedQuantity, uint ExpectedOrderVersion, string Pin);
-public sealed record BatchMaterialInput(Guid IssueLinkId, decimal Quantity);
+public sealed record BatchMaterialInput(Guid IssueLinkId, decimal Quantity, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PalletSelection>? Plates = null);
 public sealed record RecordBatchResultCommand(Guid OperationId, Guid WorkOrderId, Guid BatchId,
     Guid StageId, Guid ShiftId, bool IsRework, decimal InputQuantity, decimal GoodQuantity,
     decimal ReworkQuantity, decimal ScrapQuantity, IReadOnlyList<BatchMaterialInput> Materials,
@@ -176,7 +177,8 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         if (command.InputQuantity <= 0 || command.GoodQuantity < 0 || command.ReworkQuantity < 0 || command.ScrapQuantity < 0 ||
             command.GoodQuantity + command.ReworkQuantity + command.ScrapQuantity != command.InputQuantity)
             return Invalid("Bueno, retrabajo y merma deben sumar la cantidad procesada.");
-        await using var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(token) : null;
+        var ownsTransaction = db.Database.IsRelational() && db.Database.CurrentTransaction is null;
+        await using var tx = ownsTransaction ? await db.Database.BeginTransactionAsync(token) : null;
         try
         {
             var order = await db.ProductionWorkOrders.Include(x => x.Unit).Include(x => x.Stages).Include(x => x.Events)
@@ -233,7 +235,7 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
             if (command.InputQuantity > available) return await Abort(tx, Invalid("La cantidad excede lo disponible en el lote para este proceso."), token);
             var planned = order.MaterialPlan.Where(x => x.WorkOrderStageId == stage.Id).ToArray();
             var requested = command.Materials.Where(x => x.Quantity > 0).GroupBy(x => x.IssueLinkId)
-                .Select(x => new ProductionMaterialSelection(x.Key, x.Sum(y => y.Quantity))).ToArray();
+                .Select(x => new ProductionMaterialSelection(x.Key, x.Sum(y => y.Quantity), x.SelectMany(y => y.Plates ?? []).ToArray())).ToArray();
             var issued = requested.Length == 0 ? [] : await db.ProductionMaterialIssueLinks
                 .Where(x => requested.Select(y => y.IssueLinkId).Contains(x.Id)).ToArrayAsync(token);
             var actualByProduct = issued.GroupBy(x => x.ProductId)
@@ -363,22 +365,22 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
             var result = await db.ProductionBatchResults.Include(x => x.Batch).ThenInclude(x => x.WorkOrder).ThenInclude(x => x.Events)
                 .Include(x => x.Batch).ThenInclude(x => x.WorkOrder).ThenInclude(x => x.Stages)
                 .SingleOrDefaultAsync(x => x.Id == resultId, token);
-            if (result is null) return await Abort(activeTransaction, Invalid("El resultado no existe."), token);
+            if (result is null) return await Abort(transaction, Invalid("El resultado no existe."), token);
             var order = result.Batch.WorkOrder;
-            if (order.Status is ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.PrincipalClosed) return await Abort(activeTransaction, Invalid("Reabre la orden antes de corregir resultados."), token);
-            if (order.Version != expectedVersion) return await Abort(activeTransaction, new(false, Errors: ["La orden cambió."], Conflict: true), token);
+            if (order.Status is ProductionWorkOrderStatus.Closed or ProductionWorkOrderStatus.PrincipalClosed) return await Abort(transaction, Invalid("Reabre la orden antes de corregir resultados."), token);
+            if (order.Version != expectedVersion) return await Abort(transaction, new(false, Errors: ["La orden cambió."], Conflict: true), token);
             var originalEvent = order.Events.SingleOrDefault(x => x.OperationId == result.OperationId && x.Type is ProductionEventType.Processed or ProductionEventType.Reworked);
             if (originalEvent is null || order.Events.Any(x => x.Type == ProductionEventType.ResultReversed && x.RelatedEventId == originalEvent.Id))
-                return await Abort(activeTransaction, Invalid("El resultado no existe o ya fue revertido."), token);
+                return await Abort(transaction, Invalid("El resultado no existe o ya fue revertido."), token);
             if (order.Events.Any(x => x.BatchId == result.BatchId && x.OperationId != result.OperationId &&
                                       x.RecordedAt >= result.RecordedAt && x.Type != ProductionEventType.ResultReversed && !order.Events.Any(r => r.Type == ProductionEventType.ResultReversed && r.RelatedEventId == x.Id)))
-                return await Abort(activeTransaction, Invalid("Resuelve primero los resultados, entregas o recepciones posteriores de este lote."), token);
+                return await Abort(transaction, Invalid("Resuelve primero los resultados, entregas o recepciones posteriores de este lote."), token);
             var materialOperation = await db.ProductionMaterialOperations.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == result.OperationId, token);
             if (materialOperation is not null)
             {
                 var materialReversal = await materialService.ReverseAsync(operationId, materialOperation.Id, order.Version, pin, reason, token);
                 if (materialReversal.Status != ProductionMaterialStatus.Success)
-                    return await Abort(activeTransaction, Invalid(materialReversal.Errors?.FirstOrDefault() ?? "No fue posible revertir el consumo de material."), token);
+                    return await Abort(transaction, Invalid(materialReversal.Errors?.FirstOrDefault() ?? "No fue posible revertir el consumo de material."), token);
                 await db.Entry(order).ReloadAsync(token);
             }
             var reversal = new ProductionEvent { OperationId = operationId, RequestFingerprint = fingerprint,
@@ -394,7 +396,7 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         }
         catch (DbUpdateConcurrencyException)
         {
-            return await Abort(activeTransaction, new(false, Errors: ["La orden cambió durante el reverso."], Conflict: true), token);
+            return await Abort(transaction, new(false, Errors: ["La orden cambió durante el reverso."], Conflict: true), token);
         }
     }
 

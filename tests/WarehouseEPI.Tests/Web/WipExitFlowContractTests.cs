@@ -36,7 +36,7 @@ public sealed class WipExitFlowContractTests
     [InlineData("WIP", ExitMode.Wip)]
     public async Task Exit_only_prefills_an_explicit_valid_mode(string? mode, ExitMode? expected)
     {
-        var pageModel = new ExitModel(null!, null!, null!, null!);
+        var pageModel = new ExitModel(null!, null!, null!, null!, new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts>());
 
         await pageModel.OnGetAsync(null, null, null, null, mode, CancellationToken.None);
 

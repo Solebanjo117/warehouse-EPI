@@ -7,13 +7,15 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Users;
 
 [Authorize(Policy = "AdminOnly")]
 public sealed class EditModel(
     WarehouseDbContext dbContext,
-    UserPinService userPinService) : PageModel
+    UserPinService userPinService, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -49,14 +51,14 @@ public sealed class EditModel(
 
         if (pinWasProvided && !string.Equals(Input.NewPin, Input.ConfirmPin, StringComparison.Ordinal))
         {
-            ModelState.AddModelError("Input.ConfirmPin", "Los NIP no coinciden.");
+            ModelState.AddModelError("Input.ConfirmPin", text["Los NIP no coinciden."].Value);
         }
 
         var selectedRole = await dbContext.Roles
             .SingleOrDefaultAsync(role => role.Id == Input.RoleId, cancellationToken);
         if (selectedRole is null)
         {
-            ModelState.AddModelError("Input.RoleId", "Seleccione un rol válido.");
+            ModelState.AddModelError("Input.RoleId", text["Seleccione un rol válido."].Value);
         }
 
         var user = await dbContext.Users
@@ -71,7 +73,7 @@ public sealed class EditModel(
         var removesAdminAccess = selectedRole?.Code != "ADMIN" || !Input.IsActive;
         if (user.Id == currentUserId && removesAdminAccess)
         {
-            ModelState.AddModelError(string.Empty, "No puede quitarse su propio acceso administrativo.");
+            ModelState.AddModelError(string.Empty, text["No puede quitarse su propio acceso administrativo."].Value);
         }
 
         if (user.Role.Code == "ADMIN" && user.IsActive && removesAdminAccess)
@@ -81,7 +83,7 @@ public sealed class EditModel(
                 cancellationToken);
             if (activeAdminCount <= 1)
             {
-                ModelState.AddModelError(string.Empty, "Debe permanecer al menos un administrador activo.");
+                ModelState.AddModelError(string.Empty, text["Debe permanecer al menos un administrador activo."].Value);
             }
         }
 
@@ -102,8 +104,8 @@ public sealed class EditModel(
                 ModelState.AddModelError(
                     "Input.NewPin",
                     assignment == PinAssignmentResult.Duplicate
-                        ? "El NIP ya está asignado a otro usuario."
-                        : "Use un NIP de 4 a 8 dígitos.");
+                        ? text["El NIP ya está asignado a otro usuario."].Value
+                        : text["Use un NIP de 4 a 8 dígitos."].Value);
                 await LoadRolesAsync(cancellationToken);
                 return Page();
             }
@@ -120,7 +122,7 @@ public sealed class EditModel(
         }
         catch (DbUpdateException)
         {
-            ModelState.AddModelError("Input.NewPin", "El NIP ya está asignado a otro usuario.");
+            ModelState.AddModelError("Input.NewPin", text["El NIP ya está asignado a otro usuario."].Value);
             await LoadRolesAsync(cancellationToken);
             return Page();
         }

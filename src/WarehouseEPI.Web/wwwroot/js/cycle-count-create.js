@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const root = document.querySelector("[data-cycle-count-create]");
   if (!root) return;
 
@@ -69,7 +70,7 @@
 
     if (selected.length === 0) {
       const empty = document.createElement("li");
-      empty.textContent = "Selecciona al menos una ubicación.";
+      empty.textContent = text("Selecciona al menos una ubicación.");
       empty.dataset.cycleEmptySummary = "";
       summary.append(empty);
       return;
@@ -136,7 +137,7 @@
   reviewButton.addEventListener("click", () => {
     const selected = locations.filter(item => item.checked);
     if (selected.length === 0) {
-      status.textContent = "Selecciona al menos una ubicación antes de revisar.";
+      status.textContent = text("Selecciona al menos una ubicación antes de revisar.");
       return;
     }
     selectedOnly.checked = true;
@@ -152,7 +153,7 @@
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "center"
     });
-    status.textContent = `Mostrando ${selected.length} ubicaciones seleccionadas.`;
+    status.textContent = text("Mostrando {0} ubicaciones seleccionadas.", selected.length);
   });
   root.querySelector("[data-cycle-go-confirm]").addEventListener("click", () => {
     root.querySelector(".cycle-create-summary").scrollIntoView({

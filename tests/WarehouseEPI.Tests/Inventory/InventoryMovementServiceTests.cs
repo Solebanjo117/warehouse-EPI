@@ -113,6 +113,52 @@ public sealed class InventoryMovementServiceTests
         Assert.Contains(result.ResultingBalances, balance => balance.LocationId == source.Id && balance.Quantity == 6m);
         Assert.Contains(result.ResultingBalances, balance => balance.LocationId == destination.Id && balance.Quantity == 4m);
         Assert.Equal(10m, await new InventoryQueryService(fixture.Db).GetProductTotalAsync(product.Id));
+        Assert.True((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, source.Id))!.IsActive);
+        Assert.True((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, destination.Id))!.IsActive);
+    }
+
+    [Fact]
+    public async Task Full_transfer_moves_assignment_and_default_entry_location()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("TRANSFER-ALL");
+        var source = await fixture.AddLocationAsync("A-2-1");
+        var destination = await fixture.AddLocationAsync("A-2-2");
+        await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 10m, DestinationLocationId: source.Id)]));
+        product.DefaultEntryLocationId = source.Id;
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Transfer, fixture.OperatorPin,
+            [new(product.Id, 10m, SourceLocationId: source.Id, DestinationLocationId: destination.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        Assert.False((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, source.Id))!.IsActive);
+        Assert.True((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, destination.Id))!.IsActive);
+        Assert.Equal(destination.Id, (await fixture.Db.Products.FindAsync(product.Id))!.DefaultEntryLocationId);
+    }
+
+    [Fact]
+    public async Task Exit_to_zero_deactivates_assignment_and_clears_default_entry_location()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("EXIT-ALL");
+        var location = await fixture.AddLocationAsync("EXIT-ALL-AREA");
+        await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 3m, DestinationLocationId: location.Id)]));
+        product.DefaultEntryLocationId = location.Id;
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Exit, fixture.OperatorPin,
+            [new(product.Id, 3m, SourceLocationId: location.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        Assert.False((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, location.Id))!.IsActive);
+        Assert.Null((await fixture.Db.Products.FindAsync(product.Id))!.DefaultEntryLocationId);
     }
 
     [Fact]
@@ -188,12 +234,10 @@ public sealed class InventoryMovementServiceTests
         var existing = await fixture.AddProductAsync("EXISTING");
         var added = await fixture.AddProductAsync("ADDED");
         var location = await fixture.AddLocationAsync("MIXED");
-        fixture.Db.ProductLocationAssignments.Add(new()
-        {
-            ProductId = existing.Id,
-            LocationId = location.Id
-        });
-        await fixture.Db.SaveChangesAsync();
+        await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(existing.Id, 1m, DestinationLocationId: location.Id)]));
+        var movementCountBeforeConflict = await fixture.Db.InventoryMovements.CountAsync();
         var operationId = Guid.NewGuid();
 
         var conflict = await fixture.Service.ConfirmAsync(new(
@@ -201,7 +245,7 @@ public sealed class InventoryMovementServiceTests
             [new(added.Id, 1m, DestinationLocationId: location.Id)]));
         Assert.Equal(InventoryMovementStatus.RequiresLocationSharingConfirmation, conflict.Status);
         Assert.Contains("EXISTING", Assert.Single(conflict.Conflicts).ExistingProductSkus);
-        Assert.False(await fixture.Db.InventoryMovements.AnyAsync());
+        Assert.Equal(movementCountBeforeConflict, await fixture.Db.InventoryMovements.CountAsync());
 
         var confirmed = await fixture.Service.ConfirmAsync(new(
             operationId, InventoryMovementType.Entry, fixture.OperatorPin,
@@ -209,6 +253,48 @@ public sealed class InventoryMovementServiceTests
             ApprovedSharedAssignments: [new(added.Id, location.Id)]));
         Assert.Equal(InventoryMovementStatus.Success, confirmed.Status);
         Assert.Equal(2, await fixture.Db.ProductLocationAssignments.CountAsync());
+    }
+
+    [Fact]
+    public async Task Zero_balance_assignment_does_not_require_shared_location_approval()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var exhausted = await fixture.AddProductAsync("EXHAUSTED");
+        var added = await fixture.AddProductAsync("ZERO-ADDED");
+        var location = await fixture.AddLocationAsync("ZERO-MIXED");
+        fixture.Db.ProductLocationAssignments.Add(new()
+        {
+            ProductId = exhausted.Id,
+            LocationId = location.Id
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(added.Id, 1m, DestinationLocationId: location.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        Assert.Empty(result.Conflicts);
+    }
+
+    [Fact]
+    public async Task Net_zero_balance_across_rows_does_not_require_shared_location_approval()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var exhausted = await fixture.AddProductAsync("NET-ZERO");
+        var added = await fixture.AddProductAsync("NET-ZERO-ADDED");
+        var location = await fixture.AddLocationAsync("NET-ZERO-MIXED");
+        fixture.Db.InventoryBalances.AddRange(
+            new InventoryBalance { ProductId = exhausted.Id, LocationId = location.Id, Quantity = 5m },
+            new InventoryBalance { ProductId = exhausted.Id, LocationId = location.Id, Quantity = -5m });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ConfirmAsync(new(
+            Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(added.Id, 1m, DestinationLocationId: location.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        Assert.Empty(result.Conflicts);
     }
 
     [Fact]
@@ -331,6 +417,31 @@ public sealed class InventoryMovementServiceTests
         Assert.Equal(original.MovementId, correction.OriginalMovementId);
         Assert.Equal(admin.Id, correction.RequestedByUserId);
         Assert.Equal(admin.Id, correction.AuthorizedByUserId);
+        Assert.False((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, location.Id))!.IsActive);
+    }
+
+    [Fact]
+    public async Task Reversing_full_transfer_restores_assignment_and_default_location()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("REVERSE-TRANSFER");
+        var source = await fixture.AddLocationAsync("REVERSE-SOURCE");
+        var destination = await fixture.AddLocationAsync("REVERSE-DESTINATION");
+        await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(product.Id, 5m, DestinationLocationId: source.Id)]));
+        product.DefaultEntryLocationId = source.Id;
+        await fixture.Db.SaveChangesAsync();
+        var transfer = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Transfer, fixture.OperatorPin,
+            [new(product.Id, 5m, SourceLocationId: source.Id, DestinationLocationId: destination.Id)]));
+        var admin = await fixture.AddUserAsync("Administrador de reverso", 1, "1357");
+
+        var result = await fixture.CorrectionService.ConfirmAsync(new(
+            Guid.NewGuid(), transfer.MovementId!.Value, admin.Id, "1357", "Transferencia capturada por error"));
+
+        Assert.Equal(InventoryCorrectionStatus.Success, result.Status);
+        Assert.True((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, source.Id))!.IsActive);
+        Assert.False((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, destination.Id))!.IsActive);
+        Assert.Equal(source.Id, (await fixture.Db.Products.FindAsync(product.Id))!.DefaultEntryLocationId);
     }
 
     [Fact]
@@ -361,7 +472,7 @@ public sealed class InventoryMovementServiceTests
             [new(product.Id, 3m, DestinationLocationId: source.Id)]));
 
         var result = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Transfer, fixture.OperatorPin,
-            [new(product.Id, 4m, SourceLocationId: source.Id, DestinationLocationId: destination.Id)]));
+            [new(product.Id, 5m, SourceLocationId: source.Id, DestinationLocationId: destination.Id)]));
 
         Assert.Equal(InventoryMovementStatus.Success, result.Status);
         var transfer = await fixture.Db.InventoryMovements.Include(item => item.Lines)
@@ -371,8 +482,9 @@ public sealed class InventoryMovementServiceTests
         Assert.Contains(changes, item => item.LotId == oldest.Id && item.DeltaQuantity == -2m);
         Assert.Contains(changes, item => item.LotId == oldest.Id && item.DeltaQuantity == 2m);
         Assert.All(changes, item => Assert.NotNull(item.LotId));
-        Assert.Equal(4m, (await fixture.Db.InventoryBalances.Where(item =>
+        Assert.Equal(5m, (await fixture.Db.InventoryBalances.Where(item =>
             item.ProductId == product.Id && item.LocationId == destination.Id).SumAsync(item => item.Quantity)));
+        Assert.False((await fixture.Db.ProductLocationAssignments.FindAsync(product.Id, source.Id))!.IsActive);
     }
 
     [Fact]

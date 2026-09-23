@@ -1,7 +1,8 @@
 @model WarehouseEPI.Web.Pages.Operations.Production.WorkModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
 @using WarehouseEPI.Core.Entities
 @{var o=Model.Order;}
-    <section class="card card-body mb-3" aria-labelledby="work-task-title"><h2 id="work-task-title" class="h5">Tarea de la orden</h2>
-    @if(Model.Tasks.Count>0||Model.FailedHandler is not null){@if(Model.Tasks.Count>0){<p>Recomendación: <strong>@Model.Tasks[0].Label</strong>. Puedes elegir otra tarea disponible.</p>}<label for="work-task">Selecciona una tarea</label><select id="work-task" class="form-select form-select-lg" data-work-task><option value="">Selecciona…</option>@foreach(var task in Model.Tasks){<option value="@task.Key" data-handler="@task.Handler" data-stage="@task.StageId" data-batch="@task.BatchId" data-delivery="@task.DeliveryId" data-case="@task.CaseId" data-mode="@task.Mode" data-url="@task.Url">@task.Label@(task.RequiresAdmin?" · NIP ADMIN":"")</option>}</select><p class="mt-2" data-task-message role="status"></p>}
-    else{<p>Esta orden está disponible para consulta.</p>}
+    <section class="card card-body mb-3" aria-labelledby="work-task-title"><h2 id="work-task-title" class="h5">@ProdTexts["Tarea de la orden"]</h2>
+    @if(Model.Tasks.Count>0||Model.FailedHandler is not null){@if(Model.Tasks.Count>0){<p>@ProdTexts["Recomendación:"] <strong>@Model.Tasks[0].Label</strong>@ProdTexts[". Puedes elegir otra tarea disponible."]</p>}<label for="work-task">@ProdTexts["Selecciona una tarea"]</label><select id="work-task" class="form-select form-select-lg" data-work-task><option value="">@ProdTexts["Selecciona…"]</option>@foreach(var task in Model.Tasks){<option value="@task.Key" data-handler="@task.Handler" data-stage="@task.StageId" data-batch="@task.BatchId" data-delivery="@task.DeliveryId" data-case="@task.CaseId" data-mode="@task.Mode" data-url="@task.Url">@task.Label@(task.RequiresAdmin?ProdTexts[" · NIP ADMIN"].Value:"")</option>}</select><p class="mt-2" data-task-message role="status"></p>}
+    else{<p>@ProdTexts["Esta orden está disponible para consulta."]</p>}
     <div data-work-capture class="mt-3"></div></section>

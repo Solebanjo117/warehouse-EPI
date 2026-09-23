@@ -8,6 +8,45 @@ namespace WarehouseEPI.Tests.Inventory;
 public sealed class InventoryHistoryServiceTests
 {
     [Fact]
+    public async Task Global_recent_history_is_visible_without_filters_and_limits_to_ten_newest_movements()
+    {
+        await using var db = CreateDbContext();
+        var user = new User { FullName = "Operador global", PinLookup = "global", PinHash = "hash", RoleId = 2 };
+        var product = new Product { Sku = "SKU-GLOBAL", BaseUnitId = 1 };
+        var firstLocation = new Location { Code = "GLOBAL-A", Kind = LocationKind.Area };
+        var secondLocation = new Location { Code = "GLOBAL-B", Kind = LocationKind.Area };
+        db.AddRange(user, product, firstLocation, secondLocation);
+        await db.SaveChangesAsync();
+        var service = new InventoryHistoryService(db);
+
+        Assert.Empty((await service.SearchAsync(new(null, null, null, null, null, null, null), 1, 10)).Items);
+
+        var start = new DateTimeOffset(2026, 9, 18, 12, 0, 0, TimeSpan.Zero);
+        var first = Movement("global-0", InventoryMovementType.Entry, user, product, firstLocation);
+        first.OccurredAt = start;
+        db.Add(first);
+        await db.SaveChangesAsync();
+        Assert.Single((await service.SearchAsync(new(null, null, null, null, null, null, null), 1, 10)).Items);
+
+        for (var index = 1; index < 11; index++)
+        {
+            var movement = Movement($"global-{index}", InventoryMovementType.Entry, user, product,
+                index % 2 == 0 ? firstLocation : secondLocation);
+            movement.OccurredAt = start.AddMinutes(index);
+            db.Add(movement);
+        }
+        await db.SaveChangesAsync();
+
+        var page = await service.SearchAsync(new(null, null, null, null, null, null, null), 1, 10);
+        Assert.Equal(11, page.TotalCount);
+        Assert.Equal(10, page.Items.Count);
+        Assert.Equal(start.AddMinutes(10), page.Items[0].OccurredAt);
+        Assert.DoesNotContain(page.Items, row => row.OccurredAt == start);
+        Assert.Contains(page.Items, row => row.Route.Contains(firstLocation.Code, StringComparison.Ordinal));
+        Assert.Contains(page.Items, row => row.Route.Contains(secondLocation.Code, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Audit_filters_keep_the_full_correction_chain_and_combine_partial_terms()
     {
         await using var db = CreateDbContext();

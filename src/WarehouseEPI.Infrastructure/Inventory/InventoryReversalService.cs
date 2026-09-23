@@ -18,6 +18,10 @@ internal sealed class InventoryReversalService(
         CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
+        if (dbContext.Database.CurrentTransaction is { } plateTransaction)
+            await InventoryMovementStore.LockLocationsAsync(original.Lines.SelectMany(x => x.BalanceChanges).Select(x => x.LocationId).Distinct().Order().ToArray(), plateTransaction, cancellationToken);
+        var plateError = await new PalletPlateEngine(dbContext).ReversalErrorAsync(original.Id, cancellationToken);
+        if (plateError is not null) throw new PalletPlateException(plateError);
         var legacyProducts = original.Lines
             .Where(line => line.BalanceChanges.Any(change => change.LotId is null))
             .Select(line => line.ProductId)
@@ -146,6 +150,22 @@ internal sealed class InventoryReversalService(
             reversal.Lines.Add(line);
         }
 
+        var locations = await dbContext.Locations.AsNoTracking()
+            .Where(location => locationIds.Contains(location.Id))
+            .ToDictionaryAsync(location => location.Id, cancellationToken);
+        var assignablePairs = keys
+            .Select(key => new InventoryAssignmentKey(key.ProductId, key.LocationId))
+            .Where(pair => locations[pair.LocationId].OperationalRole != LocationOperationalRole.Wip)
+            .Distinct()
+            .ToArray();
+        var transfers = reversal.Type == InventoryMovementType.Transfer
+            ? reversal.Lines.Select(line => new InventoryAssignmentTransfer(
+                line.ProductId, line.SourceLocationId!.Value, line.DestinationLocationId!.Value)).ToArray()
+            : [];
+        await new InventoryMovementStore(dbContext, timeProvider).ReconcileAssignmentsAsync(
+            assignablePairs, balances.Values.ToArray(), transfers, cancellationToken);
+
+        await new PalletPlateEngine(dbContext).ReverseAsync(original, reversal, cancellationToken);
         dbContext.InventoryMovements.Add(reversal);
         return reversal;
     }

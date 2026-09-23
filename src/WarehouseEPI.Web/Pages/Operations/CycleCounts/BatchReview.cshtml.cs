@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
-public sealed class BatchReviewModel(CycleCountService cycleCounts) : PageModel
+public sealed class BatchReviewModel(CycleCountService cycleCounts, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     public CycleCountCampaignDetail? Campaign { get; private set; }
     public List<ReviewInput> Decisions { get; private set; } = [];
@@ -40,8 +42,8 @@ public sealed class BatchReviewModel(CycleCountService cycleCounts) : PageModel
         if (Campaign is null) return NotFound();
         ItemResults = result.Items.ToDictionary(item => item.LocationId);
         Error = result.Status == CycleCountStatus.Success
-            ? $"Se aplicaron {result.Items.Count(item => item.Status == CycleCountStatus.Success)} de {result.Items.Count} decisiones. Revisa las ubicaciones pendientes."
-            : CycleCountPresentation.StatusMessage(result);
+            ? string.Format(texts["Se aplicaron {0} de {1} decisiones. Revisa las ubicaciones pendientes."].Value, result.Items.Count(item => item.Status == CycleCountStatus.Success), result.Items.Count)
+            : CycleCountPresentation.StatusMessage(result, texts);
         if (result.Status == CycleCountStatus.Success) Input.OperationId = Guid.NewGuid();
         await LoadAsync(token);
         return Page();
@@ -50,7 +52,7 @@ public sealed class BatchReviewModel(CycleCountService cycleCounts) : PageModel
     public string? ItemMessage(Guid locationId)
     {
         if (!ItemResults.TryGetValue(locationId, out var item) || item.Status == CycleCountStatus.Success) return null;
-        return CycleCountPresentation.StatusMessage(new CycleCountResult(item.Status, Errors: item.Errors, SharingConflicts: item.SharingConflicts));
+        return CycleCountPresentation.StatusMessage(new CycleCountResult(item.Status, Errors: item.Errors, SharingConflicts: item.SharingConflicts), texts);
     }
 
     private async Task LoadAsync(CancellationToken token)

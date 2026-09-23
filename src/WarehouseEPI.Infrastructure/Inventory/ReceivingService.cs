@@ -113,7 +113,7 @@ public sealed class ReceivingService(
                 normalized.OperationId,
                 InventoryMovementType.Entry,
                 normalized.Pin,
-                normalized.Lines.Select(item => new InventoryMovementLineCommand(item.ProductId, item.Quantity, DestinationLocationId: item.DestinationLocationId)).ToArray(),
+                normalized.Lines.Select(item => new InventoryMovementLineCommand(item.ProductId, item.Quantity, DestinationLocationId: item.DestinationLocationId, PalletQuantities: item.PalletQuantities)).ToArray(),
                 Reference: document.Number,
                 Notes: normalized.DifferenceNotes,
                 ApprovedSharedAssignments: normalized.ApprovedSharedAssignments,
@@ -281,7 +281,11 @@ public sealed class ReceivingService(
     {
         DifferenceNotes = string.IsNullOrWhiteSpace(command.DifferenceNotes) ? null : command.DifferenceNotes.Trim(),
         Lines = command.Lines.Where(item => item.ProductId != Guid.Empty || item.Quantity != 0 || item.DestinationLocationId != Guid.Empty)
-            .Select(item => item with { ExternalLotReference = string.IsNullOrWhiteSpace(item.ExternalLotReference) ? null : item.ExternalLotReference.Trim() }).ToArray(),
+            .Select(item => item with
+            {
+                ExternalLotReference = string.IsNullOrWhiteSpace(item.ExternalLotReference) ? null : item.ExternalLotReference.Trim(),
+                PalletQuantities = item.PalletQuantities
+            }).ToArray(),
         ApprovedSharedAssignments = (command.ApprovedSharedAssignments ?? []).Distinct().OrderBy(item => item.ProductId).ThenBy(item => item.LocationId).ToArray()
     };
 
@@ -324,7 +328,7 @@ public sealed class ReceivingService(
     private static string Fingerprint(ConfirmReceivingCommand command)
     {
         var value = new StringBuilder().Append(command.DocumentId.ToString("N")).Append('|').Append(command.DifferenceAcknowledged).Append('|').Append(command.DifferenceNotes);
-        foreach (var line in command.Lines) value.Append('|').Append(line.ProductId.ToString("N")).Append(':').Append(line.Quantity.ToString("G29", CultureInfo.InvariantCulture)).Append(':').Append(line.DestinationLocationId.ToString("N")).Append(':').Append(line.ExternalLotReference);
+        foreach (var line in command.Lines) value.Append('|').Append(line.ProductId.ToString("N")).Append(':').Append(line.Quantity.ToString("G29", CultureInfo.InvariantCulture)).Append(':').Append(line.DestinationLocationId.ToString("N")).Append(':').Append(line.ExternalLotReference).Append(line.PalletQuantities is null ? string.Empty : System.Text.Json.JsonSerializer.Serialize(line.PalletQuantities));
         foreach (var approval in command.ApprovedSharedAssignments ?? []) value.Append("|A:").Append(approval.ProductId.ToString("N")).Append(':').Append(approval.LocationId.ToString("N"));
         return Hash(value.ToString());
     }

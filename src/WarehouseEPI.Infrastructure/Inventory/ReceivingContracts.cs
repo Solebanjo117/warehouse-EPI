@@ -27,7 +27,7 @@ public sealed record ConfirmReceivingLineCommand(
     Guid ProductId,
     decimal Quantity,
     Guid DestinationLocationId,
-    string? ExternalLotReference = null);
+    string? ExternalLotReference = null, IReadOnlyList<decimal>? PalletQuantities = null);
 
 public sealed record CompleteReceivingDocumentCommand(Guid OperationId, Guid DocumentId, string Pin, string Reason);
 

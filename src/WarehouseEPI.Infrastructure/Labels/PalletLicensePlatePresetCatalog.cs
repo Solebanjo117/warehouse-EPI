@@ -7,6 +7,18 @@ internal sealed record PalletLicensePlatePreset(Guid TemplateId, Guid VersionId,
 
 internal static class PalletLicensePlatePresetCatalog
 {
+    internal static PalletLicensePlatePreset Operational
+    {
+        get
+        {
+            var initial = Initial;
+            var design = initial.Design;
+            design.Elements.Add(Barcode(30, 500, 6970, 9700, 650, "plate.identifier"));
+            design.Elements.Add(Text(31, 250, 7720, 7000, 180, "Cantidad y ubicación actuales · recepción original en Received", 10));
+            return new(Guid.Parse("73000000-0000-0000-0000-000000000001"), Guid.Parse("73000000-0000-0000-0000-000000000002"),
+                Guid.Parse("73000000-0000-0000-0000-000000000003"), "PLT-TRACKED-PALLET", "Pallet con seguimiento", initial.Size, design);
+        }
+    }
     internal static PalletLicensePlatePreset Initial => new(
         Guid.Parse("71000000-0000-0000-0000-000000000001"),
         Guid.Parse("71000000-0000-0000-0000-000000000002"),

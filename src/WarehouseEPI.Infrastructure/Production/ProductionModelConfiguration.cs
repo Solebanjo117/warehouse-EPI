@@ -9,6 +9,9 @@ public static partial class ProductionModelConfiguration
     {
         ConfigureTraceability(modelBuilder);
         ConfigureExecution(modelBuilder);
+        ConfigureDailyProduction(modelBuilder);
+        ConfigureBalanceEdits(modelBuilder);
+        ConfigureDailyWorkflow(modelBuilder);
         var stage = modelBuilder.Entity<ProductionStage>();
         stage.ToTable("production_stages"); stage.HasKey(x => x.Id);
         stage.Property(x => x.Id).HasColumnName("id"); stage.Property(x => x.Code).HasColumnName("code").HasMaxLength(40).IsRequired();

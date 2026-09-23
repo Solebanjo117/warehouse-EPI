@@ -1,5 +1,7 @@
 (() => {
   "use strict";
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
+  const presentationLocale = document.documentElement.lang === "en" ? "en-US" : "es-MX";
   const root = document.querySelector("[data-notifications]");
   if (!root) return;
   const list = root.querySelector("[data-notification-list]");
@@ -16,7 +18,7 @@
     badge.textContent = count > 99 ? "99+" : String(count);
     badge.hidden = count === 0;
   });
-  const severityName = (severity) => severity === 0 ? "Crítica" : severity === 1 ? "Advertencia" : "Información";
+  const severityName = (severity) => severity === 0 ? text("Crítica") : severity === 1 ? text("Advertencia") : text("Información");
   const severityClass = (severity) => severity === 0 ? "is-critical" : severity === 1 ? "is-warning" : "is-information";
   const appendText = (parent, tag, text, className) => { const element = document.createElement(tag); element.textContent = text; if (className) element.className = className; parent.append(element); return element; };
 
@@ -30,19 +32,19 @@
       appendText(heading, "span", severityName(item.severity), "notification-severity");
       appendText(heading, "strong", String(item.count), "notification-item-count"); article.append(heading);
       appendText(article, "h3", item.title, "h6"); appendText(article, "p", item.description);
-      const link = appendText(article, "a", "Revisar alerta", "stretched-link"); link.href = item.targetUrl;
+      const link = appendText(article, "a", text("Revisar alerta"), "stretched-link"); link.href = item.targetUrl;
       list.append(article);
     });
     if (previousCounts) {
       const increases = snapshot.items.filter((item) => item.count > (previousCounts.get(String(item.category)) || 0));
-      if (increases.length) live.textContent = `${increases.length} categoría(s) de alerta aumentaron.`;
+      if (increases.length) live.textContent = text("{0} categoría(s) de alerta aumentaron.", increases.length);
     }
     previousCounts = currentCounts;
     setBadges(snapshot.totalVisible);
     empty.hidden = snapshot.totalVisible !== 0;
     list.hidden = snapshot.totalVisible === 0;
     const generated = new Date(snapshot.generatedAtLocal);
-    summary.textContent = `Actualizado ${generated.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" })} · ${snapshot.totalVisible} condición(es)`;
+    summary.textContent = text("Actualizado {0} · {1} condición(es)", generated.toLocaleString(presentationLocale, { dateStyle: "short", timeStyle: "short" }), snapshot.totalVisible);
     summary.classList.remove("is-stale");
   };
   const schedule = () => { window.clearTimeout(timerId); if (!document.hidden) timerId = window.setTimeout(() => refresh(false), intervalMilliseconds); };
@@ -55,7 +57,7 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       render(await response.json());
     } catch {
-      summary.textContent = "Datos desactualizados · vuelve a intentar"; summary.classList.add("is-stale");
+      summary.textContent = text("Datos desactualizados · vuelve a intentar"); summary.classList.add("is-stale");
     } finally { requestInProgress = false; refreshButton.disabled = false; root.removeAttribute("aria-busy"); schedule(); }
   };
   refreshButton.addEventListener("click", () => refresh(true));
@@ -67,6 +69,7 @@
 
 (() => {
   "use strict";
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const roots = Array.from(document.querySelectorAll("[data-supply-count-root]"));
   if (!roots.length) return;
   let requestInProgress = false;
@@ -83,8 +86,8 @@
           badge.textContent = count > 99 ? "99+" : String(count);
           badge.hidden = count === 0;
         }
-        const label = root.dataset.supplyLabel || "Surtimientos a producción";
-        root.setAttribute("aria-label", count === 0 ? label : `${label}, ${count} órdenes pendientes de surtimiento`);
+        const label = root.dataset.supplyLabel || text("Surtimientos a producción");
+        root.setAttribute("aria-label", count === 0 ? label : text("{0}, {1} órdenes pendientes de surtimiento", label, count));
       });
     } catch { /* El siguiente intervalo vuelve a consultar. */ }
     finally { requestInProgress = false; }

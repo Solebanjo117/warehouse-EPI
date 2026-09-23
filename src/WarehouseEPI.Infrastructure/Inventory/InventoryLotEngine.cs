@@ -143,7 +143,7 @@ internal sealed class InventoryLotEngine(WarehouseDbContext dbContext)
         return existing;
     }
 
-    private static void ApplyChange(
+    internal static void ApplyChange(
         InventoryMovementLine line,
         InventoryBalance balance,
         decimal delta,

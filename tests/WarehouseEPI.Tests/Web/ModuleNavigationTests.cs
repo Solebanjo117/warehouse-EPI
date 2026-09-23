@@ -37,7 +37,9 @@ public sealed class ModuleNavigationTests
         string[] expected = [
             "/Operations/Entry", "/Operations/Exit", "/Operations/Transfer", "/Operations/Adjustment",
             "/Operations/CycleCounts/Index", "/Operations/ProductionSupply/Index", "/Operations/Production/Index",
-            "/Operations/WipProcess", "/Admin/Production/Orders", "/Admin/Production/Processes",
+            "/Operations/Production/Index", "/Operations/Production/Advanced",
+            "/Admin/Production/Processes",
+            "/Admin/Production/Routes", "/Admin/Production/Schedule",
             "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",
             "/Admin/Inventory/Lots/Index", "/Admin/Inventory/Alerts", "/Operations/Labels/Index",
             "/Operations/PalletLabels/Index", "/Admin/Labels/Templates/Index", "/Reports/Dashboard/Index",
@@ -51,6 +53,7 @@ public sealed class ModuleNavigationTests
         Assert.Empty(Assert.Single(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Workload/Index").RouteValues);
         Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Locations/Index");
         Assert.Single(actions, action => action.SupplyCount);
+        Assert.DoesNotContain(actions, action => action.Page == "/Admin/Production/Orders");
         Assert.DoesNotContain(actions, action => action.Page.Contains("/Receiving/", StringComparison.Ordinal) ||
             action.Page.Contains("/Trace/", StringComparison.Ordinal));
     }

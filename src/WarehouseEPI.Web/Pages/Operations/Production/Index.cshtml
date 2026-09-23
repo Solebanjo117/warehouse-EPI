@@ -1,10 +1,52 @@
 @page
 @model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
-@{ViewData["Title"]="Producción";}
-<div class="container-fluid py-3 production-page" data-supply-queue data-signature="@Model.Snapshot.Signature" data-checked-at="@Model.Snapshot.CheckedAt.ToString("O")" data-snapshot-url="@Url.Page(null,"Snapshot",new{Model.Search,Model.Status,Model.ActiveStageId,Model.From,Model.To,Model.AlertsOnly,Model.View})"><header class="d-flex flex-wrap justify-content-between gap-3 mb-4"><div><span class="eyebrow">Operación</span><h1 class="h2 mb-1">Producción</h1><p class="text-muted mb-0">Escanea o busca una orden, lote de producción o lote terminado.</p></div><a asp-page="Trace" class="btn btn-outline-primary align-self-start">Consultar procedencia</a></header>
-<button class="btn btn-outline-primary" type="button" data-queue-refresh>Actualizar</button><p data-supply-live role="status" aria-live="polite"></p><nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Órdenes por estado">@foreach(var tab in new[]{("active","Activas"),("drafts","Borradores"),("closed","Cerradas"),("cancelled","Canceladas")}){<a class="btn btn-outline-primary" asp-route-View="@tab.Item1" aria-current="@(Model.View==tab.Item1?"page":null)">@tab.Item2</a>}</nav><form method="get" class="row g-2 mb-4"><input type="hidden" asp-for="View"/><div class="col-12 col-lg-4"><label for="production-search" class="form-label">Folio, lote, referencia o SKU</label><input id="production-search" name="Search" value="@Model.Search" class="form-control form-control-lg" type="search" autocomplete="off" autocapitalize="characters" autofocus/></div><div class="col-6 col-lg-2"><label asp-for="Status" class="form-label">Estado</label><select asp-for="Status" class="form-select form-select-lg"><option value="">Todos</option>@foreach(var s in Enum.GetValues<WarehouseEPI.Core.Entities.ProductionWorkOrderStatus>()){<option value="@s">@WarehouseEPI.Infrastructure.Production.ProductionStateLabels.Label(s)</option>}</select></div><div class="col-6 col-lg-2"><label asp-for="ActiveStageId" class="form-label">Proceso con pendientes</label><select asp-for="ActiveStageId" class="form-select form-select-lg"><option value="">Todos</option>@foreach(var s in Model.Stages.Where(x=>x.IsActive)){<option value="@s.Id">@s.Name</option>}</select></div><div class="col-6 col-lg-2"><label asp-for="From" class="form-label">Desde</label><input asp-for="From" class="form-control" type="date"/></div><div class="col-6 col-lg-2"><label asp-for="To" class="form-label">Hasta</label><input asp-for="To" class="form-control" type="date"/></div><div class="col-8 col-lg-3 d-flex align-items-center"><div class="form-check"><input asp-for="AlertsOnly" class="form-check-input"/><label asp-for="AlertsOnly" class="form-check-label">Solo con alertas</label></div></div><div class="col-4 col-lg-2"><button class="btn btn-primary btn-lg w-100">Buscar</button></div></form>
-@if(Model.Result.Items.Count==0){<div class="alert alert-info">No hay órdenes con esos filtros. Revisa el folio o solicita que ADMIN libere la orden.</div>}else{<div class="row g-3">@foreach(var x in Model.Result.Items){var pct=x.Target>0?Math.Min(100,x.Received*100/x.Target):0;<div class="col-12 col-lg-6"><article class="card h-100"><div class="card-body d-flex justify-content-between gap-3"><div class="flex-grow-1"><span class="badge text-bg-secondary">@WarehouseEPI.Infrastructure.Production.ProductionStateLabels.Label(x.Status)</span><span class="badge text-bg-secondary ms-1">@(x.Priority==WarehouseEPI.Core.Entities.ProductionSupplyPriority.Urgent?"Urgente":"Normal")</span>@if(x.AlertCount>0){<span class="badge text-bg-warning">@x.AlertCount alertas</span>}<p class="small mt-2 mb-0">Fecha requerida @(x.DueDate?.ToString("dd/MM/yyyy")??"Sin fecha")</p><p class="small">@x.Attention</p><h2 class="h5 mt-2 mb-1">@x.Number</h2><strong>@x.Sku</strong> <span>@x.Description</span>@if(x.UsesBatchTraceability){<small class="d-block text-body-secondary">Seguimiento por lote · @(x.ActiveProcess??"Sin iniciar")</small>}<div class="progress mt-3" role="progressbar" aria-label="Recibido en bodega"><div class="progress-bar" style="width:@pct%"></div></div><p class="mb-0 mt-1">Recibido: <strong>@x.Received.ToString("0.####") de @x.Target.ToString("0.####") @x.Unit</strong></p></div><div><a asp-page="Work" asp-route-id="@x.Id" class="btn btn-primary">@x.NextAction</a></div></div></article></div>}</div><nav class="d-flex justify-content-between align-items-center mt-4" aria-label="Paginación"><a class="btn btn-outline-primary @(Model.Result.Page<=1?"disabled":null)" asp-route-View="@Model.View" asp-route-Search="@Model.Search" asp-route-Status="@Model.Status" asp-route-ActiveStageId="@Model.ActiveStageId" asp-route-From="@Model.From" asp-route-To="@Model.To" asp-route-AlertsOnly="@Model.AlertsOnly" asp-route-PageNumber="@(Model.Result.Page-1)">Anterior</a><span>Página @Model.Result.Page de @Model.Result.TotalPages · @Model.Result.TotalCount órdenes</span><a class="btn btn-outline-primary @(Model.Result.Page>=Model.Result.TotalPages?"disabled":null)" asp-route-View="@Model.View" asp-route-Search="@Model.Search" asp-route-Status="@Model.Status" asp-route-ActiveStageId="@Model.ActiveStageId" asp-route-From="@Model.From" asp-route-To="@Model.To" asp-route-AlertsOnly="@Model.AlertsOnly" asp-route-PageNumber="@(Model.Result.Page+1)">Siguiente</a></nav>}</div>
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@using System.Globalization
+@using WarehouseEPI.Web.Production
+@{
+    ViewData["Title"] = ProdTexts["Producción diaria"];
+    string Qty(decimal value) => value.ToString("0.####");
+    string AreaLabel(ProductionDailyArea area) => area switch { ProductionDailyArea.Cutting => ProdTexts["Corte"], ProductionDailyArea.Sewing => ProdTexts["Costura"], _ => ProdTexts["Ready to Pack"] };
+}
+<div class="container-fluid py-3 production-daily" data-production-daily data-no-description="@ProdTexts["Sin descripción"]" data-product-url="@Url.Page("/Operations/Lookup", "Products")">
+    <header class="production-daily__header mb-3">
+        <div>
+            <h1 class="h2 mb-1">@ProdTexts["Producción diaria"]</h1>
+            <p class="text-body-secondary mb-0">@ProdTexts["Registra la producción por fecha, área y turno."]</p>
+        </div>
+        <nav class="d-flex flex-wrap gap-2" aria-label="@ProdTexts["Acciones de producción"]">
+            @if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Production/Schedule" asp-route-WeekId="@Model.WeekId" class="btn btn-outline-primary" data-capture-context-link>@ProdTexts["Programa semanal"]</a> }
 
-@section Scripts { <script src="~/js/production-supply-queue.js" asp-append-version="true"></script> }
+            <a asp-page="Advanced" class="btn btn-outline-secondary" data-capture-context-link>@ProdTexts["Producción avanzada"]</a>
+        </nav>
+    </header>
 
-@section Styles { <link rel="stylesheet" href="~/css/production-workspace.css" asp-append-version="true"/> }
+    @if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert" tabindex="-1" data-production-errors></div>
+
+    <nav class="nav nav-pills gap-2 mb-4" aria-label="@ProdTexts["Vistas de producción"]">
+        <a data-capture-context-link class="nav-link @(Model.Tab=="capture"?"active":"")" aria-current="@(Model.Tab=="capture"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="capture" asp-route-Day="@Model.Day" asp-route-Area="@Model.Area" asp-route-ShiftId="@Model.ShiftId">@ProdTexts["Capturar"]</a>
+        <a data-capture-context-link class="nav-link @(Model.Tab=="balance"?"active":"")" aria-current="@(Model.Tab=="balance"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="balance">@ProdTexts["Balance"]</a>
+        <a data-capture-context-link class="nav-link @(Model.Tab=="history"?"active":"")" aria-current="@(Model.Tab=="history"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="history">@ProdTexts["Historial"]</a>
+    </nav>
+    @if(Model.Tab=="capture"){<partial name="_CaptureGroup" model="Model"/>}
+    @if(Model.Tab=="balance"){<partial name="_WeeklyBalance" model="Model"/>}
+    @if(Model.Tab=="history") {
+        <form method="get" class="d-flex flex-wrap gap-2 mb-3 align-items-end"><input type="hidden" name="Tab" value="history"/><div><label asp-for="WeekId" class="form-label">@ProdTexts["Semana"]</label><select asp-for="WeekId" class="form-select form-select-lg">@foreach(var week in Model.Weeks){<option value="@week.Id">@week.WeekStart.ToString("dd/MM/yyyy") · @ProductionDailyText.WeekStatus(ProdTexts,week.Status)</option>}</select></div><button class="btn btn-outline-primary btn-lg">@ProdTexts["Ver"]</button></form>
+        @if(Model.Details.Count==0){<p class="alert alert-info">@ProdTexts["No hay capturas para esta semana."]</p>}
+    }
+    @if (Model.Tab=="history" && Model.Details.Count > 0)
+    {
+        <section class="mt-4" aria-labelledby="capture-detail-heading"><h2 id="capture-detail-heading" class="h4">@ProdTexts["Capturas que forman el balance"]</h2>
+            <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>@ProdTexts["Fecha"]</th><th>@ProdTexts["Área / turno"]</th><th>SKU</th><th class="text-end">@ProdTexts["Piezas"]</th><th>@ProdTexts["Responsable"]</th><th>@ProdTexts["Órdenes"]</th><th>@ProdTexts["Estado"]</th></tr></thead><tbody>
+            @foreach (var item in Model.Details) { <tr><td>@item.EffectiveDate.ToString("dd/MM/yyyy")</td><td>@AreaLabel(item.Area) · @item.Shift</td><td>@item.Sku</td><td class="text-end">@Qty(item.Quantity)</td><td>@item.Responsible</td><td>@string.Join(", ", item.Orders)</td><td>@(item.Status == ProductionDailyCaptureStatus.Active ? ProdTexts["Activa"] : ProdTexts["Revertida"])
+            @if(User.IsInRole("ADMIN") && item.Status == ProductionDailyCaptureStatus.Active){<details><summary class="link-danger">@ProdTexts["Revertir"]</summary><form method="post" asp-page-handler="Reverse" class="d-grid gap-2 mt-2"><input asp-for="WeekId" type="hidden"/><input name="Reverse.OperationId" value="@Guid.NewGuid()" type="hidden"/><input name="Reverse.CaptureId" value="@item.Id" type="hidden"/><input name="Reverse.Reason" class="form-control" placeholder="@ProdTexts["Motivo obligatorio"]"/><input name="Reverse.Pin" class="form-control" type="password" inputmode="numeric" placeholder="@ProdTexts["NIP ADMIN"]"/><button class="btn btn-sm btn-danger">@ProdTexts["Confirmar reverso"]</button></form></details>}</td></tr> }
+            </tbody></table></div>
+        </section>
+    }
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /><script src="~/js/production-daily.js" asp-append-version="true"></script><script src="~/js/production-balance-editor.js" asp-append-version="true"></script><script src="~/js/production-daily-products.js" asp-append-version="true"></script> }
+@section Styles { <link rel="stylesheet" href="~/css/production-daily.css" asp-append-version="true" /> }

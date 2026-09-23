@@ -125,7 +125,7 @@ public sealed class DashboardRouteTests
         Assert.Contains("maxBarThickness: 36", script, StringComparison.Ordinal);
         Assert.Contains("getValueForPixel", script, StringComparison.Ordinal);
         Assert.Contains("Sin actividad en el período", script, StringComparison.Ordinal);
-        Assert.Contains("[text(point.dayLabel), \"Hoy\"]", script, StringComparison.Ordinal);
+        Assert.Contains("[text(point.dayLabel), translate(\"Hoy\")]", script, StringComparison.Ordinal);
         Assert.Contains("chart.tooltip.setActiveElements([]", script, StringComparison.Ordinal);
         Assert.DoesNotContain("context.fillRect", script, StringComparison.Ordinal);
         Assert.Contains("cornerRadius: 10", script, StringComparison.Ordinal);
@@ -159,10 +159,10 @@ public sealed class DashboardRouteTests
         Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Pendientes" && action.RouteValues["view"] == "pending");
         Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Tablero diario");
         Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Carga de trabajo");
-        Assert.Contains("asp-page=\"/Reports/Dashboard/Index\">Hoy</a>", summaryNavigation, StringComparison.Ordinal);
-        Assert.Contains("asp-page=\"/Reports/Executive/Index\">Gestión</a>", summaryNavigation, StringComparison.Ordinal);
-        Assert.Contains("asp-route-view=\"activity\">Equipo</a>", summaryNavigation, StringComparison.Ordinal);
-        Assert.Equal(3, summaryNavigation.Split("aria-current=", StringSplitOptions.None).Length - 1);
+        Assert.Contains("asp-page=\"/Reports/Dashboard/Index\">@CatTexts[\"Hoy\"]</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Reports/Executive/Index\">@CatTexts[\"Gestión\"]</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains("asp-route-view=\"activity\">@CatTexts[\"Equipo\"]</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Equal(4, summaryNavigation.Split("aria-current=", StringSplitOptions.None).Length - 1);
 
         Assert.Contains("_AdminSummaryNavigation.cshtml\", \"today\"", dashboard, StringComparison.Ordinal);
         Assert.Contains("_AdminSummaryNavigation.cshtml\", \"management\"", executive, StringComparison.Ordinal);

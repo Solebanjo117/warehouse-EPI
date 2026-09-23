@@ -10,7 +10,7 @@ public sealed class LabelEditorContractTests
         var program = Read("src", "WarehouseEPI.Web", "Program.cs");
 
         Assert.Contains("AuthorizeFolder(\"/Admin/Labels\", \"AdminOnly\")", program, StringComparison.Ordinal);
-        Assert.Contains("aria-label=\"Lienzo de etiqueta", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@CatTexts[\"Lienzo de etiqueta", page, StringComparison.Ordinal);
         Assert.Contains("data-command=\"align-left\"", page, StringComparison.Ordinal);
         Assert.Contains("data-command=\"distribute-x\"", page, StringComparison.Ordinal);
         Assert.Contains("data-command=\"undo\"", page, StringComparison.Ordinal);
@@ -58,31 +58,49 @@ public sealed class LabelEditorContractTests
         var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "label-4x6.js");
 
         Assert.Contains("data-label-print", palletPage, StringComparison.Ordinal);
-        Assert.Contains("data-label-barcode-dialog", palletPage, StringComparison.Ordinal);
-        Assert.Contains("data-label-barcode-zoom", palletPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("pallet-identification.js", palletPage, StringComparison.Ordinal);
         Assert.DoesNotContain("data-label-workspace", palletPage, StringComparison.Ordinal);
         Assert.Contains("document.querySelectorAll(\"[data-label-print]\")", script, StringComparison.Ordinal);
         Assert.True(script.IndexOf("document.querySelectorAll(\"[data-label-print]\")", StringComparison.Ordinal) <
             script.IndexOf("if (!workspace) return", StringComparison.Ordinal));
-        Assert.Contains("barcodeDialog.showModal", script, StringComparison.Ordinal);
-        Assert.Contains("modules * 3", script, StringComparison.Ordinal);
+        Assert.Contains("window.print", script, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void Pallet_label_page_offers_recent_entries_and_the_full_entry_detail_without_printing_them()
+    public void Pallet_label_page_centralizes_identification_without_pin_and_shows_global_history()
     {
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Operations", "PalletLabels", "Index.cshtml");
         var model = Read("src", "WarehouseEPI.Web", "Pages", "Operations", "PalletLabels", "Index.cshtml.cs");
-        var style = Read("src", "WarehouseEPI.Web", "wwwroot", "css", "site.css");
+        var style = Read("src", "WarehouseEPI.Web", "wwwroot", "css", "labels-workspace.css");
 
-        Assert.Contains("pallet-recent-list", page, StringComparison.Ordinal);
-        Assert.Contains("asp-route-id=\"@row.Candidate.MovementId\"", page, StringComparison.Ordinal);
-        Assert.Contains("Model.Recent.Count == 0", page, StringComparison.Ordinal);
+        Assert.Contains("data-pallet-products", page, StringComparison.Ordinal);
+        Assert.Contains("Identify.Quantity", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Identify.Pin", page, StringComparison.Ordinal);
+        Assert.Contains("Stock total", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("En placas", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sin placa", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Libre para identificar", page, StringComparison.Ordinal);
+        Assert.Contains("Últimos 10 movimientos", page, StringComparison.Ordinal);
+        Assert.Contains("Imprimir placa", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Crear placa", page, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Reimprimir placa", page, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=\"label-preview\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Operations/Receipt", page, StringComparison.Ordinal);
         Assert.Contains("Model.EntryLocalTime", page, StringComparison.Ordinal);
         Assert.Contains("Model.Entry.Responsible", page, StringComparison.Ordinal);
-        Assert.Contains("Model.Entry.ExternalReference", page, StringComparison.Ordinal);
-        Assert.Contains("plates.RecentAsync", model, StringComparison.Ordinal);
-        Assert.Contains(".pallet-recent-item", style, StringComparison.Ordinal);
+        Assert.Contains("tracking.IdentificationProductsAsync", model, StringComparison.Ordinal);
+        Assert.Contains("tracking.IdentifyAsync", model, StringComparison.Ordinal);
+        Assert.Contains("tracking.ConsolidateAsync", model, StringComparison.Ordinal);
+        Assert.Contains("OnGetProductOptionsAsync", model, StringComparison.Ordinal);
+        Assert.Contains("OnGetLocationOptionsAsync", model, StringComparison.Ordinal);
+        Assert.Contains("data-pallet-lookup=\"product\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-pallet-lookup=\"location\"", page, StringComparison.Ordinal);
+        Assert.Contains("pallet-labels.js", page, StringComparison.Ordinal);
+        Assert.Contains("fragment: \"label-preview\"", model, StringComparison.Ordinal);
+        Assert.Contains("inventoryHistory.SearchAsync", model, StringComparison.Ordinal);
+        Assert.Contains("PLT-LICENSE-PLATE", model, StringComparison.Ordinal);
+        Assert.DoesNotContain("PLT-TRACKED-PALLET", model, StringComparison.Ordinal);
+        Assert.Contains(".pallet-print-product", style, StringComparison.Ordinal);
         Assert.DoesNotContain("onclick=", page, StringComparison.Ordinal);
     }
 

@@ -10,7 +10,7 @@ public enum PalletLicensePlateStatus { Success, InvalidFolio, NotFound, NotEligi
 
 public sealed record PalletLicensePlateEntry(Guid MovementId, string Sku, string? Description, string? ExternalReference,
     string UnitCode, bool AllowsDecimals, decimal Quantity, string? Destination, string? Reference,
-    string Responsible, DateTimeOffset OccurredAt)
+    string Responsible, DateTimeOffset OccurredAt, bool IsTracked = false, Guid? OriginMovementId = null)
 {
     public string Identifier => $"PLT-{MovementId:N}".ToUpperInvariant();
 }
@@ -45,6 +45,30 @@ public sealed class PalletLicensePlateService(WarehouseDbContext db)
 
     public async Task<PalletLicensePlateLoad> LoadAsync(Guid movementId, CancellationToken token = default)
     {
+        var plate = await db.PalletPlates.AsNoTracking().Include(x => x.Product).ThenInclude(x => x.BaseUnit).Include(x => x.Location)
+            .SingleOrDefaultAsync(x => x.Id == movementId, token);
+        if (plate is not null)
+        {
+            if (plate.IsVoided) return new(PalletLicensePlateStatus.NotEligible, Error: "La placa fue anulada. Consulta su historial.");
+            var origin = plate.OriginMovementId.HasValue
+                ? await db.InventoryMovements.AsNoTracking().Include(x => x.ResponsibleUser).SingleOrDefaultAsync(x => x.Id == plate.OriginMovementId, token)
+                : null;
+            var identification = origin is null
+                ? await db.PalletPlateEvents.AsNoTracking().Where(x => x.PlateId == plate.Id && x.Kind == "Identification")
+                    .OrderBy(x => x.RecordedAt).Select(x => new
+                    {
+                        x.RecordedAt,
+                        FullName = x.ResponsibleUserId == null
+                            ? "Sin identificación de operador"
+                            : db.Users.Where(user => user.Id == x.ResponsibleUserId).Select(user => user.FullName).FirstOrDefault() ?? "—"
+                    }).FirstOrDefaultAsync(token)
+                : null;
+            if (origin is null && identification is null)
+                return new(PalletLicensePlateStatus.NotEligible, Error: "La placa no tiene un origen documental o de identificación válido.");
+            return new(PalletLicensePlateStatus.Success, new(plate.Id, plate.Product.Sku, plate.Product.Description, plate.Product.ExternalReference,
+                plate.Product.BaseUnit.Code, plate.Product.BaseUnit.AllowsDecimals, plate.Quantity, plate.Location.Code, origin?.Reference,
+                origin?.ResponsibleUser.FullName ?? identification!.FullName, origin?.OccurredAt ?? identification!.RecordedAt, true, origin?.Id));
+        }
         var movement = await db.InventoryMovements.AsNoTracking()
             .Include(item => item.ResponsibleUser)
             .Include(item => item.Lines).ThenInclude(item => item.Product).ThenInclude(item => item.BaseUnit)
@@ -71,10 +95,11 @@ public sealed class PalletLicensePlateService(WarehouseDbContext db)
     public async Task<IReadOnlyList<PalletLicensePlateCandidate>> RecentAsync(int take = 8, CancellationToken token = default)
     {
         var limit = Math.Clamp(take, 1, MaxRecentCandidates);
-        return await db.InventoryMovements.AsNoTracking()
+        var legacy = await db.InventoryMovements.AsNoTracking()
             .Where(item => item.Type == InventoryMovementType.Entry &&
                 item.Purpose == InventoryMovementPurpose.Standard &&
                 item.Lines.Count == 1 &&
+                !db.PalletPlates.Any(p => p.OriginMovementId == item.Id) &&
                 !db.InventoryMovementCorrections.Any(correction =>
                     correction.OriginalMovementId == item.Id || correction.ReversalMovementId == item.Id))
             .OrderByDescending(item => item.OccurredAt)
@@ -90,6 +115,10 @@ public sealed class PalletLicensePlateService(WarehouseDbContext db)
                 item.ResponsibleUser.FullName,
                 item.OccurredAt))
             .ToListAsync(token);
+        var current = await db.PalletPlates.AsNoTracking().Include(x => x.Product).ThenInclude(x => x.BaseUnit).Include(x => x.Location)
+            .Where(x => !x.IsVoided).OrderByDescending(x => x.CreatedAt).Take(limit).ToListAsync(token);
+        var active = current.Select(x => new PalletLicensePlateCandidate(x.Id, x.Product.Sku, x.Product.Description, x.Product.BaseUnit.Code, x.Quantity, x.Location.Code, null, "Seguimiento activo", x.CreatedAt));
+        return active.Concat(legacy).OrderByDescending(x => x.OccurredAt).Take(limit).ToArray();
     }
 
     public static OperationalProductResult Product(PalletLicensePlateEntry entry) => new(Guid.Empty, entry.Sku,

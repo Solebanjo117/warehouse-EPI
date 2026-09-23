@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Labels;
 using WarehouseEPI.Infrastructure.Settings;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.Labels;
 
 public sealed class IndexModel(LabelTemplateService templates, LabelDocumentService documents,
-    OperationalInventoryQueryService products, WarehouseClock warehouseClock, TimeProvider timeProvider) : PageModel
+    OperationalInventoryQueryService products, WarehouseClock warehouseClock, TimeProvider timeProvider, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     [BindProperty(SupportsGet = true)] public Guid? Template { get; set; }
@@ -38,11 +40,11 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
     {
         await LoadTemplatesAsync(token);
         SelectedTemplate = Templates.SingleOrDefault(item => item.VersionId == Input.TemplateVersionId);
-        if (SelectedTemplate is null) ModelState.AddModelError("Input.TemplateVersionId", "La plantilla ya no está publicada.");
+        if (SelectedTemplate is null) ModelState.AddModelError("Input.TemplateVersionId", texts["La plantilla ya no está publicada."]);
         var entity = SelectedTemplate is null ? null : await templates.GetPublishedEntityAsync(SelectedTemplate.VersionId, token);
         Design = entity is null ? null : LabelDesignSerializer.Deserialize(entity.DesignJson);
-        if (Input.ProductId == Guid.Empty) ModelState.AddModelError("Input.ProductId", "Selecciona un producto activo.");
-        else { SelectedProduct = await products.GetProductAsync(Input.ProductId, cancellationToken: token); if (SelectedProduct is null) ModelState.AddModelError("Input.ProductId", "El producto no existe o está inactivo."); }
+        if (Input.ProductId == Guid.Empty) ModelState.AddModelError("Input.ProductId", texts["Selecciona un producto activo."]);
+        else { SelectedProduct = await products.GetProductAsync(Input.ProductId, cancellationToken: token); if (SelectedProduct is null) ModelState.AddModelError("Input.ProductId", texts["El producto no existe o está inactivo."]); }
         if (!ModelState.IsValid || entity is null || SelectedProduct is null) return Page();
         var rendered = documents.Render(entity, SelectedProduct, Input.Values, Input.Copies);
         foreach (var error in rendered.Errors) ModelState.AddModelError(string.Empty, error);

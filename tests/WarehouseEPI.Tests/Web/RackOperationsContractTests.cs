@@ -10,6 +10,10 @@ public sealed class RackOperationsContractTests
         Assert.Contains("asp-route-sourceLocationId", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-destinationLocationId", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-productId", page, StringComparison.Ordinal);
+        Assert.Contains("asp-page=\"/Operations/PalletLabels/Index\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-location=\"@position.Code\"", page, StringComparison.Ordinal);
+        Assert.Contains("@CatTexts[\"Imprimir placa\"]", page, StringComparison.Ordinal);
+        Assert.Contains("@if(product.Quantity>0)", page, StringComparison.Ordinal);
         Assert.Contains("Surtir a este WIP", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Rack/Edit\"", page, StringComparison.Ordinal);
     }

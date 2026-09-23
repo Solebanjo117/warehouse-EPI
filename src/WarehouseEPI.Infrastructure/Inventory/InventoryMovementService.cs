@@ -107,7 +107,8 @@ public sealed class InventoryMovementService(
                 var freeErrors = await ValidateFreeWipAsync(command, cancellationToken);
                 if (freeErrors.Count != 0)
                     return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed, Errors: freeErrors), cancellationToken);
-                command = await AllocateFreeWipLotsAsync(command, cancellationToken);
+                if (command.Lines.All(x => !x.AutomaticPalletHandling) && !command.Lines.Any(x => x.Plates is { Count: > 0 }))
+                    command = await AllocateFreeWipLotsAsync(command, cancellationToken);
             }
 
             if (command.OperationalAreaId is Guid operationalAreaId)
@@ -173,7 +174,6 @@ public sealed class InventoryMovementService(
             var assignablePairs = pairs
                 .Where(pair => locations[pair.LocationId].OperationalRole != LocationOperationalRole.Wip)
                 .ToArray();
-            await movementStore.UpsertAssignmentsAsync(assignablePairs, cancellationToken);
             var movement = new InventoryMovement
             {
                 OperationId = command.OperationId,
@@ -204,9 +204,16 @@ public sealed class InventoryMovementService(
                 };
                 var productLots = lots[product.Id];
                 var daily = productLots.Single(item => item.NormalizedNumber == InventoryLotEngine.DailyLotNumber(lotDate));
-                InventoryLotEngine.ApplyTrackedLine(command.Type, commandLine, line, balances, productLots, daily, now);
+                await new PalletPlateEngine(dbContext).ApplyAsync(movement, line, commandLine, balances, productLots, daily, product.BaseUnit.AllowsDecimals, allowReservedWip, productionSupplyLineId, cancellationToken);
                 movement.Lines.Add(line);
             }
+
+            var transfers = command.Type == InventoryMovementType.Transfer
+                ? command.Lines.Select(line => new InventoryAssignmentTransfer(
+                    line.ProductId, line.SourceLocationId!.Value, line.DestinationLocationId!.Value)).ToArray()
+                : [];
+            await movementStore.ReconcileAssignmentsAsync(
+                assignablePairs, balances.Values.ToArray(), transfers, cancellationToken);
 
             dbContext.InventoryMovements.Add(movement);
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -221,7 +228,13 @@ public sealed class InventoryMovementService(
                     InventoryLotEngine.AggregateVersion(group),
                     group.Any(item => item.Quantity < 0)))
                 .ToArray();
-            return new(InventoryMovementStatus.Success, movement.Id, user.Id, user.FullName, resulting);
+            var plateIds = await dbContext.PalletPlateEvents.Where(x => x.MovementId == movement.Id).Select(x => x.PlateId).Distinct().ToListAsync(cancellationToken);
+            var plateResults = await dbContext.PalletPlates.Where(x => plateIds.Contains(x.Id)).ToListAsync(cancellationToken);
+            return new(InventoryMovementStatus.Success, movement.Id, user.Id, user.FullName, resulting, Plates: plateResults.Select(PalletPlateEngine.Result).ToArray());
+        }
+        catch (PalletPlateException exception)
+        {
+            return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed, Errors: [exception.Message]), cancellationToken);
         }
         catch (DbUpdateConcurrencyException)
         {

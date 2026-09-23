@@ -5,10 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
-public sealed class CreateModel(WarehouseDbContext dbContext, CycleCountService cycleCountService) : PageModel
+public sealed class CreateModel(WarehouseDbContext dbContext, CycleCountService cycleCountService, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public IReadOnlyList<LocationOption> Locations { get; private set; } = [];
@@ -29,7 +31,7 @@ public sealed class CreateModel(WarehouseDbContext dbContext, CycleCountService 
         if (!ModelState.IsValid) { await LoadAsync(cancellationToken); return Page(); }
         var result = await cycleCountService.CreateAsync(new(pin, Input.Title, Input.Notes, Input.LocationIds, Input.RowCodes, Input.RackNumbers, Input.OperationId), cancellationToken);
         if (result.Status == CycleCountStatus.Success && result.CampaignId is Guid id) return RedirectToPage("Details", new { id });
-        Error = result.Status == CycleCountStatus.InvalidPin ? "No fue posible validar el NIP." : string.Join(' ', result.ValidationErrors);
+        Error = result.Status == CycleCountStatus.InvalidPin ? texts["No fue posible validar el NIP."] : string.Join(' ', result.ValidationErrors.Select(error => texts[error].Value));
         await LoadAsync(cancellationToken);
         return Page();
     }

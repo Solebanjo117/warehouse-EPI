@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Settings;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
-public sealed class CalendarModel(CycleCountService cycleCounts, WarehouseClock clock, TimeProvider timeProvider) : PageModel
+public sealed class CalendarModel(CycleCountService cycleCounts, WarehouseClock clock, TimeProvider timeProvider, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     public PagedResult<CycleCountCalendarItem> Result { get; private set; } = new([], 0, 1, 25);
     public IReadOnlyList<CycleCountCalendarItem> Plans => Result.Items;
@@ -34,7 +36,7 @@ public sealed class CalendarModel(CycleCountService cycleCounts, WarehouseClock 
         if (result.Status == CycleCountStatus.Success && result.CampaignId is Guid campaignId)
             return RedirectToPage("Details", new { id = campaignId });
         await LoadAsync(month, view, pageNumber, cancellationToken);
-        Error = CycleCountPresentation.StatusMessage(result);
+        Error = CycleCountPresentation.StatusMessage(result, texts);
         return Page();
     }
 
@@ -46,7 +48,7 @@ public sealed class CalendarModel(CycleCountService cycleCounts, WarehouseClock 
         if (!string.IsNullOrWhiteSpace(month) &&
             !DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out selected))
         {
-            Error = "El mes indicado no es válido. Selecciona un mes con el formato año-mes.";
+            Error = texts["El mes indicado no es válido. Selecciona un mes con el formato año-mes."];
             selected = new DateOnly(Today.Year, Today.Month, 1);
         }
         From = new DateOnly(selected.Year, selected.Month, 1);

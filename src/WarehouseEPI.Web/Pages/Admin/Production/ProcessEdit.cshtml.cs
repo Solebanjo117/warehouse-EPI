@@ -3,11 +3,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Production;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Production;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class ProcessEditModel(ProductionProcessConfigurationService processes, ProductionWipDefaultService wipDefaults) : PageModel
+public sealed class ProcessEditModel(ProductionProcessConfigurationService processes, ProductionWipDefaultService wipDefaults, IStringLocalizer<ProductionTexts> text) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public ProcessEditView Process { get; private set; } = null!;
@@ -57,15 +59,15 @@ public sealed class ProcessEditModel(ProductionProcessConfigurationService proce
             if (key.StartsWith("A:", StringComparison.Ordinal) && Guid.TryParse(key[2..], out var area)) areas.Add(area);
             else if (key.StartsWith("F:", StringComparison.Ordinal) && key.Length > 2) rows.Add(key[2..]);
             else if (key.StartsWith("R:", StringComparison.Ordinal) && key.Split(':') is [_, var row, var number] && short.TryParse(number, out var rack)) racks.Add(new(row, rack));
-            else ModelState.AddModelError(nameof(Input.Targets), "Una asociación seleccionada no es válida.");
+            else ModelState.AddModelError(nameof(Input.Targets), text["Una asociación seleccionada no es válida."].Value);
         }
         if (!ModelState.IsValid) { await Reload(token); return Page(); }
         var result = await processes.SaveProcessAsync(new(Input.OperationId, Input.Id, Input.Code, Input.Name, Input.IsActive, Input.ExpectedVersion, areas, rows, racks, Input.Reason, Input.Pin, Input.DefaultWipTargetKey, Input.InactivityAlertHours, Input.ReworkAlertHours), token);
         Input.Pin = "";
-        if (result.Status == ProcessConfigurationStatus.Success) { TempData["Success"] = "Proceso guardado."; return RedirectToPage("Processes"); }
+        if (result.Status == ProcessConfigurationStatus.Success) { TempData["Success"] = text["Proceso guardado."].Value; return RedirectToPage("Processes"); }
         ModelState.AddModelError(string.Empty, result.Status switch
         {
-            ProcessConfigurationStatus.InvalidPin => "NIP ADMIN inválido.",
+            ProcessConfigurationStatus.InvalidPin => text["NIP ADMIN inválido."].Value,
             ProcessConfigurationStatus.NotFound => "El proceso ya no existe. Regresa al catálogo y vuelve a seleccionarlo.",
             ProcessConfigurationStatus.ConcurrencyConflict => "La configuración cambió mientras editabas. Recarga y vuelve a revisar.",
             ProcessConfigurationStatus.IdempotencyConflict => "La operación ya se utilizó con datos distintos.",

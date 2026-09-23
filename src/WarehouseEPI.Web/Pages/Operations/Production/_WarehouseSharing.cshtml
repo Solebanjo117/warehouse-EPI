@@ -1,18 +1,19 @@
 @model WarehouseEPI.Web.Pages.Operations.Production.WorkModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
 @if (Model.SharingConflicts.Count > 0)
 {
     <div class="col-12 alert alert-warning" data-sharing-review>
-        <h3 class="h6">Revisar ubicación compartida</h3>
+        <h3 class="h6">@ProdTexts["Revisar ubicación compartida"]</h3>
         @for (var i = 0; i < Model.SharingConflicts.Count; i++)
         {
             var conflict = Model.SharingConflicts[i];
             <input type="hidden" name="Warehouse.Approvals[@i].ProductId" value="@conflict.ProductId"/>
             <input type="hidden" name="Warehouse.Approvals[@i].LocationId" value="@conflict.LocationId"/>
             <label class="d-block mb-3"><input type="checkbox" name="Warehouse.Approvals[@i].Selected" value="true" required/>
-                Autorizo recibir @conflict.ProductSku en @conflict.LocationCode junto a @string.Join(", ", conflict.ExistingProductSkus).
+                @ProdTexts["Autorizo recibir {0} en {1} junto a {2}.", conflict.ProductSku, conflict.LocationCode, string.Join(", ", conflict.ExistingProductSkus)]
             </label>
         }
-        <p>Revisa cantidad y destino; vuelve a introducir tu NIP para confirmar.</p>
-        <a asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@Model.BatchId" class="btn btn-outline-secondary">Cancelar recepción</a>
+        <p>@ProdTexts["Revisa cantidad y destino; vuelve a introducir tu NIP para confirmar."]</p>
+        <a asp-page="Work" asp-route-id="@Model.Order.Id" asp-route-BatchId="@Model.BatchId" class="btn btn-outline-secondary">@ProdTexts["Cancelar recepción"]</a>
     </div>
 }

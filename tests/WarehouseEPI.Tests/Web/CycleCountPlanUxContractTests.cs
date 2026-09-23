@@ -66,8 +66,8 @@ public sealed class CycleCountPlanUxContractTests
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts", "Calendar.cshtml");
         var model = Read("src", "WarehouseEPI.Web", "Pages", "Operations", "CycleCounts", "Calendar.cshtml.cs");
 
-        Assert.Contains(">Mes</a>", page, StringComparison.Ordinal);
-        Assert.Contains(">Vencidos</a>", page, StringComparison.Ordinal);
+        Assert.Contains("@OpTexts[\"Mes\"]</a>", page, StringComparison.Ordinal);
+        Assert.Contains("@OpTexts[\"Vencidos\"]</a>", page, StringComparison.Ordinal);
         Assert.Contains("item.ScheduledFor", page, StringComparison.Ordinal);
         Assert.Contains("item.CompletedQuantity", page, StringComparison.Ordinal);
         Assert.DoesNotContain("ExpectedQuantity", page, StringComparison.Ordinal);

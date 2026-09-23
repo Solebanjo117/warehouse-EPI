@@ -66,9 +66,19 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
         return snapshot.Length <= 500 ? snapshot : null;
     }
 
-    public async Task<ProductionCommandResult> ApplyAsync(ProductionExecutionCommand command, CancellationToken token = default)
+    public Task<ProductionCommandResult> ApplyAsync(ProductionExecutionCommand command, CancellationToken token = default) =>
+        ApplyCoreAsync(command, null, token);
+
+    internal Task<ProductionCommandResult> ApplyAuthorizedAsync(ProductionExecutionCommand command,
+        Guid authenticatedAdminUserId, CancellationToken token = default) =>
+        ApplyCoreAsync(command, authenticatedAdminUserId, token);
+
+    private async Task<ProductionCommandResult> ApplyCoreAsync(ProductionExecutionCommand command,
+        Guid? authenticatedAdminUserId, CancellationToken token)
     {
-        var user = await pins.AuthenticateAsync(command.Pin, token);
+        var user = authenticatedAdminUserId.HasValue
+            ? await db.Users.Include(x => x.Role).SingleOrDefaultAsync(x => x.Id == authenticatedAdminUserId && x.IsActive, token)
+            : await pins.AuthenticateAsync(command.Pin, token);
         if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return new(ProductionCommandStatus.InvalidPin);
         var administrator = user.Role.Code == "ADMIN" ? user : string.IsNullOrEmpty(command.AdminPin) ? null : await pins.AuthenticateAsync(command.AdminPin, token);
         if (administrator?.Role.Code != "ADMIN") administrator = null;
@@ -78,7 +88,8 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
         var prior = await db.ProductionExecutionAudits.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
         if (prior is not null) return prior.WorkOrderId == command.WorkOrderId && prior.Fingerprint == fingerprint
             ? new(ProductionCommandStatus.Success, command.WorkOrderId) : new(ProductionCommandStatus.IdempotencyConflict);
-        await using var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(token) : null;
+        await using var tx = db.Database.IsRelational() && db.Database.CurrentTransaction is null
+            ? await db.Database.BeginTransactionAsync(token) : null;
         try
         {
             var order = await db.ProductionWorkOrders.Include(x => x.Unit).Include(x => x.Stages).Include(x => x.Events)

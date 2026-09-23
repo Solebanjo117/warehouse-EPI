@@ -5,10 +5,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.Globalization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.ProductionSupply;
 
-public sealed class PrepareModel(ProductionSupplyPreparationService preparations) : PageModel
+public sealed class PrepareModel(ProductionSupplyPreparationService preparations, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     [BindProperty(SupportsGet=true)]public string? QueueSearch{get;set;}
     [BindProperty(SupportsGet=true)]public string? QueueCondition{get;set;}
@@ -19,7 +21,7 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
         if (HttpMethods.IsPost(Request.Method)) {
             FailedHandler = Request.Query["handler"].ToString();
             if (!ProductionCapture.ValidateOnly(this, nameof(Input))) {
-                context.Result = await HandleAsync(new(ProductionSupplyCommandStatus.ValidationFailed, Errors: ["Corrige las cantidades antes de confirmar."]), token: HttpContext.RequestAborted);
+                context.Result = await HandleAsync(new(ProductionSupplyCommandStatus.ValidationFailed, Errors: [texts["Corrige las cantidades antes de confirmar."]]), token: HttpContext.RequestAborted);
                 return;
             }
         }
@@ -75,7 +77,7 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
                 TempData["ConfirmationAssignments"] = proof.WipAssignmentCount.ToString(CultureInfo.InvariantCulture);
             }
         }
-        return await HandleAsync(result, "Surtimiento confirmado.", token);
+        return await HandleAsync(result, texts["Surtimiento confirmado."], token);
     }
 
     public async Task<IActionResult> OnGetResultAsync(Guid operationId, CancellationToken token)
@@ -85,14 +87,14 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
     }
 
     public async Task<IActionResult> OnPostDiscardAsync(CancellationToken token) => await HandleAsync(await preparations.DiscardAsync(
-        new(Input.OperationId, Input.PreparationId ?? Guid.Empty, Input.ExpectedPreparationVersion, Input.Pin, Input.Reason), token), "Preparación descartada.", token);
+        new(Input.OperationId, Input.PreparationId ?? Guid.Empty, Input.ExpectedPreparationVersion, Input.Pin, Input.Reason), token), texts["Preparación descartada."], token);
 
     public async Task<IActionResult> OnPostDestinationAsync(CancellationToken token) => await HandleAsync(await preparations.ChangeDestinationAsync(
-        new(Input.OperationId, Input.LineId, Input.ExpectedRequestVersion, Input.DestinationLocationId, Input.Pin, Input.Reason), token), "Destino WIP actualizado.", token);
+        new(Input.OperationId, Input.LineId, Input.ExpectedRequestVersion, Input.DestinationLocationId, Input.Pin, Input.Reason), token), texts["Destino WIP actualizado."], token);
 
     public async Task<IActionResult> OnPostCancelAssignmentAsync(CancellationToken token) => await HandleAsync(await preparations.CancelWipAssignmentAsync(
         new(Input.OperationId, Input.LineId, Input.IssueLinkId, Input.ExpectedRequestVersion, Input.CancelQuantity, Input.Pin, Input.Reason), token),
-        "Asignación WIP anulada; la cantidad volvió al pendiente.", token);
+        texts["Asignación WIP anulada; la cantidad volvió al pendiente."], token);
 
     private IReadOnlyList<ProductionSupplySourceSelection> Selections() => Input.Sources
         .Select(x => new ProductionSupplySourceSelection(x.Kind, x.LocationId, x.Quantity)).ToArray();
@@ -107,11 +109,11 @@ public sealed class PrepareModel(ProductionSupplyPreparationService preparations
         }
         var message = result.Status switch
         {
-            ProductionSupplyCommandStatus.InvalidPin => "No fue posible validar el NIP o el usuario.",
-            ProductionSupplyCommandStatus.ConcurrencyConflict => "La solicitud o la preparación cambió. Revisa las cantidades antes de continuar.",
-            ProductionSupplyCommandStatus.IdempotencyConflict => "La operación ya se utilizó con otro contenido.",
-            ProductionSupplyCommandStatus.NotFound => "La preparación ya no está disponible.",
-            _ => string.Join(" ", result.ValidationErrors)
+            ProductionSupplyCommandStatus.InvalidPin => texts["No fue posible validar el NIP o el usuario."],
+            ProductionSupplyCommandStatus.ConcurrencyConflict => texts["La solicitud o la preparación cambió. Revisa las cantidades antes de continuar."],
+            ProductionSupplyCommandStatus.IdempotencyConflict => texts["La operación ya se utilizó con otro contenido."],
+            ProductionSupplyCommandStatus.NotFound => texts["La preparación ya no está disponible."],
+            _ => string.Join(" ", result.ValidationErrors.Select(error => texts[error].Value))
         };
         Input.Pin = string.Empty; ProductionCapture.ClearPins(this);
         var captured = Input.Sources.ToArray();

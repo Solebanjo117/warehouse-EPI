@@ -2,6 +2,8 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Production;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
@@ -10,8 +12,9 @@ public sealed class ExitModel : OperationPageModel
     private readonly ProductionSupplyPreparationService preparations;
 
     public ExitModel(InventoryMovementService movementService, InventoryQueryService inventoryQuery,
-        OperationalInventoryQueryService operationalQuery, ProductionSupplyPreparationService preparations)
-        : base(movementService, inventoryQuery, operationalQuery) => this.preparations = preparations;
+        OperationalInventoryQueryService operationalQuery, ProductionSupplyPreparationService preparations,
+        IStringLocalizer<OperationsTexts> texts)
+        : base(movementService, inventoryQuery, operationalQuery, texts) => this.preparations = preparations;
     public override InventoryMovementType MovementType => InventoryMovementType.Exit;
     protected override InventoryMovementType CommandMovementType => Input.ExitMode == ExitMode.Wip
         ? InventoryMovementType.Transfer
@@ -19,8 +22,8 @@ public sealed class ExitModel : OperationPageModel
     public override InventoryMovementPurpose MovementPurpose => Input.ExitMode == ExitMode.Wip
         ? InventoryMovementPurpose.ProductionIssue
         : InventoryMovementPurpose.GeneralExit;
-    public override string PageTitle => "Salida";
-    public override string PageHelp => "Elige salida general o surtimiento WIP general antes de capturar.";
+    public override string PageTitle => T("Salida");
+    public override string PageHelp => T("Elige salida general o surtimiento WIP general antes de capturar.");
 
     public override async Task<IActionResult> OnGetAsync(Guid? productId, Guid? sourceLocationId,
         Guid? destinationLocationId, Guid? locationId, string? mode,

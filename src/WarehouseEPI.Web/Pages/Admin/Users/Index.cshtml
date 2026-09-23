@@ -1,7 +1,8 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Users.IndexModel
 @{
-    ViewData["Title"] = "Usuarios";
+    ViewData["Title"] = CatTexts["Usuarios"].Value;
     var activeCount = Model.Users.Count(user => user.IsActive);
 }
 
@@ -12,60 +13,60 @@
 <div class="users-page">
     <header class="users-header">
         <div>
-            <span class="eyebrow">Control de acceso</span>
-            <h1 class="h2 mb-1">Usuarios</h1>
-            <p>Quién puede operar el almacén y con qué rol. Cada alta y cada cambio se hace desde aquí.</p>
+            <span class="eyebrow">@CatTexts["Control de acceso"]</span>
+            <h1 class="h2 mb-1">@CatTexts["Usuarios"]</h1>
+            <p>@CatTexts["Quién puede operar el almacén y con qué rol. Cada alta y cada cambio se hace desde aquí."]</p>
         </div>
         <div class="users-actions">
             @if (Model.Users.Count > 0)
             {
                 <p class="users-tally mb-0">
-                    <strong>@activeCount de @Model.Users.Count</strong>
-                    <span>Activos</span>
+                    <strong>@CatTexts["{0} de {1}", activeCount, Model.Users.Count]</strong>
+                    <span>@CatTexts["Activos"]</span>
                 </p>
             }
-            <a asp-page="Create" class="btn btn-primary btn-lg">Crear usuario</a>
+            <a asp-page="Create" class="btn btn-primary btn-lg">@CatTexts["Crear usuario"]</a>
         </div>
     </header>
 
     @if (Model.Users.Count == 0)
     {
         <div class="users-empty">
-            <strong>Aún no hay usuarios registrados.</strong>
-            <p>Crea el primero para asignarle un rol y habilitarlo en las operaciones del almacén.</p>
-            <a asp-page="Create" class="btn btn-primary btn-lg">Crear usuario</a>
+            <strong>@CatTexts["Aún no hay usuarios registrados."]</strong>
+            <p>@CatTexts["Crea el primero para asignarle un rol y habilitarlo en las operaciones del almacén."]</p>
+            <a asp-page="Create" class="btn btn-primary btn-lg">@CatTexts["Crear usuario"]</a>
         </div>
     }
     else
     {
         <table class="table users-table align-middle">
-            <caption class="visually-hidden">Usuarios registrados con su rol y su estado.</caption>
+            <caption class="visually-hidden">@CatTexts["Usuarios registrados con su rol y su estado."]</caption>
             <thead>
                 <tr>
-                    <th scope="col">Nombre</th>
-                    <th scope="col">Rol</th>
-                    <th scope="col">Estado</th>
-                    <th scope="col" class="text-end">Acción</th>
+                    <th scope="col">@CatTexts["Nombre"]</th>
+                    <th scope="col">@CatTexts["Rol"]</th>
+                    <th scope="col">@CatTexts["Estado"]</th>
+                    <th scope="col" class="text-end">@CatTexts["Acción"]</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (var user in Model.Users)
                 {
                     <tr class="@(user.IsActive ? null : "is-inactive")">
-                        <td data-label="Nombre" class="users-cell-name">
+                        <td data-label="@CatTexts["Nombre"]" class="users-cell-name">
                             <span class="users-name">@user.FullName</span>
                         </td>
-                        <td data-label="Rol" class="users-cell-role">
+                        <td data-label="@CatTexts["Rol"]" class="users-cell-role">
                             <span class="users-role">
                                 <span class="role-chip @(string.Equals(user.RoleCode, "ADMIN", StringComparison.OrdinalIgnoreCase) ? "is-admin" : null)">@user.RoleCode</span>
                                 <span class="role-name">@user.RoleName</span>
                             </span>
                         </td>
-                        <td data-label="Estado" class="users-cell-state">
-                            <span class="users-state @(user.IsActive ? "is-active" : "is-inactive")">@(user.IsActive ? "Activo" : "Inactivo")</span>
+                        <td data-label="@CatTexts["Estado"]" class="users-cell-state">
+                            <span class="users-state @(user.IsActive ? "is-active" : "is-inactive")">@(user.IsActive ? CatTexts["Activo"].Value : CatTexts["Inactivo"].Value)</span>
                         </td>
-                        <td data-label="Acción" class="users-cell-action text-end">
-                            <a asp-page="Edit" asp-route-id="@user.Id" class="btn btn-outline-primary" aria-label="Editar a @user.FullName">Editar</a>
+                        <td data-label="@CatTexts["Acción"]" class="users-cell-action text-end">
+                            <a asp-page="Edit" asp-route-id="@user.Id" class="btn btn-outline-primary" aria-label="Editar a @user.FullName">@CatTexts["Editar"]</a>
                         </td>
                     </tr>
                 }

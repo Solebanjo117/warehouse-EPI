@@ -1,11 +1,12 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Locations.Rack.RackPrintPageModel
 @{
-    ViewData["Title"] = $"Hoja del rack {Model.RackCode}";
+    ViewData["Title"] = CatTexts["Hoja del rack {0}", Model.RackCode].Value;
 }
 
 <div class="rack-sheet-actions no-print">
-    <button type="button" class="btn btn-primary btn-lg" data-print-page>Imprimir hoja</button>
-    <a asp-page="@(Model.IsAdministrativeView ? "/Admin/Catalogs/Locations/Index" : "/Locations/Index")" asp-route-viewMode="map" class="btn btn-outline-secondary btn-lg">Volver al croquis</a>
+    <button type="button" class="btn btn-primary btn-lg" data-print-page>@CatTexts["Imprimir hoja"]</button>
+    <a asp-page="@(Model.IsAdministrativeView ? "/Admin/Catalogs/Locations/Index" : "/Locations/Index")" asp-route-viewMode="map" class="btn btn-outline-secondary btn-lg">@CatTexts["Volver al croquis"]</a>
 </div>
 
 <div class="rack-sheet-desk">
@@ -13,15 +14,15 @@
         <header class="rack-sheet-header">
             <div class="rack-sheet-identity">
                 <span class="rack-sheet-brand">Warehouse EPI</span>
-                <span class="rack-sheet-eyebrow">Hoja de verificación de rack</span>
+                <span class="rack-sheet-eyebrow">@CatTexts["Hoja de verificación de rack"]</span>
             </div>
             <h1 class="rack-sheet-code"><span>Rack</span>@Model.RackCode</h1>
-            <p class="rack-sheet-meta">@Model.PositionCount posiciones · @Model.OccupiedCount con saldo · @Model.ProductCount productos · generada el <time datetime="@Model.GeneratedAt.ToString("O")">@Model.GeneratedAt.ToString("dd/MM/yyyy HH:mm")</time></p>
+            <p class="rack-sheet-meta">@CatTexts["{0} posiciones · {1} con saldo · {2} productos · generada el", Model.PositionCount, Model.OccupiedCount, Model.ProductCount] <time datetime="@Model.GeneratedAt.ToString("O")">@Model.GeneratedAt.ToString("dd/MM/yyyy HH:mm")</time></p>
         </header>
 
         @* El bastidor repite el alzado del rack visto desde el pasillo: 7-8-9 arriba,
            1-2-3 al ras del suelo. Papel, pantalla y acero se leen igual. *@
-        <section class="rack-sheet-frame" aria-label="Posiciones del rack @Model.RackCode">
+        <section class="rack-sheet-frame" aria-label="@CatTexts["Posiciones del rack {0}", Model.RackCode]">
             @foreach (var palletNumber in RackPrintPageModel.KeypadOrder)
             {
                 var position = Model.Positions.FirstOrDefault(item => item.PalletNumber == palletNumber);
@@ -29,7 +30,7 @@
                 {
                     <article class="sheet-cell is-missing" aria-label="Pallet @palletNumber, posición inexistente">
                         <span class="sheet-pallet">@palletNumber</span>
-                        <span class="sheet-cell-note">Sin posición</span>
+                        <span class="sheet-cell-note">@CatTexts["Sin posición"]</span>
                     </article>
                 }
                 else
@@ -49,7 +50,7 @@
                         }
                         @if (position.Products.Count == 0)
                         {
-                            <p class="sheet-cell-note">Sin productos ni saldo.</p>
+                            <p class="sheet-cell-note">@CatTexts["Sin productos ni saldo."]</p>
                         }
                         else
                         {
@@ -66,16 +67,16 @@
                                         }
                                         else
                                         {
-                                            <span class="sheet-qty is-none">Sin saldo</span>
+                                            <span class="sheet-qty is-none">@CatTexts["Sin saldo"]</span>
                                         }
-                                        <span class="sheet-product-desc">@(string.IsNullOrWhiteSpace(product.Description) ? "Sin descripción" : product.Description)</span>
+                                        <span class="sheet-product-desc">@(string.IsNullOrWhiteSpace(product.Description) ? CatTexts["Sin descripción"].Value : product.Description)</span>
                                         <span class="sheet-product-rel">@product.RelationshipState</span>
                                     </li>
                                 }
                             </ul>
                             @if (additionalProducts > 0)
                             {
-                                <p class="sheet-cell-more">+@additionalProducts producto(s) más en esta posición. Imprime la ficha para verlos.</p>
+                                <p class="sheet-cell-more">@CatTexts["+{0} producto(s) más en esta posición. Imprime la ficha para verlos.", additionalProducts]</p>
                             }
                         }
                     </article>
@@ -84,9 +85,9 @@
         </section>
 
         <footer class="rack-sheet-footer">
-            <p class="rack-sheet-sign"><span>Verificado por</span><span class="rack-sheet-blank"></span></p>
-            <p class="rack-sheet-sign"><span>Fecha</span><span class="rack-sheet-blank"></span></p>
-            <p class="rack-sheet-fineprint">Rack @Model.RackCode · Warehouse EPI · El saldo corresponde al momento de generación. Una asignación sin saldo no confirma existencia física.</p>
+            <p class="rack-sheet-sign"><span>@CatTexts["Verificado por"]</span><span class="rack-sheet-blank"></span></p>
+            <p class="rack-sheet-sign"><span>@CatTexts["Fecha"]</span><span class="rack-sheet-blank"></span></p>
+            <p class="rack-sheet-fineprint">@CatTexts["Rack {0} · Warehouse EPI · El saldo corresponde al momento de generación. Una asignación sin saldo no confirma existencia física.", Model.RackCode]</p>
         </footer>
     </main>
 </div>

@@ -3,6 +3,9 @@
 
 // Write your JavaScript code.
 (() => {
+  const uiTexts = JSON.parse(document.body.dataset.uiTexts || "{}");
+  window.warehouseText = (key, ...args) => (uiTexts[key] || key).replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match);
+  const text = window.warehouseText;
   const themeKey = "warehouseEpi.theme";
   const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
   const applyTheme = () => {
@@ -36,9 +39,9 @@
   const setCollapsed = (isCollapsed, persist = true) => {
     body.classList.toggle("nav-collapsed", isCollapsed);
     collapseButton?.setAttribute("aria-expanded", String(!isCollapsed));
-    collapseButton?.setAttribute("title", isCollapsed ? "Expandir menú" : "Contraer menú");
+    collapseButton?.setAttribute("title", isCollapsed ? (collapseButton?.dataset.expandLabel || "Expandir menú") : (collapseButton?.dataset.collapseLabel || "Contraer menú"));
     const accessibleLabel = collapseButton?.querySelector(".visually-hidden");
-    if (accessibleLabel) accessibleLabel.textContent = isCollapsed ? "Expandir menú" : "Contraer menú";
+    if (accessibleLabel) accessibleLabel.textContent = isCollapsed ? (collapseButton?.dataset.expandLabel || "Expandir menú") : (collapseButton?.dataset.collapseLabel || "Contraer menú");
     if (persist && desktopMedia.matches) localStorage.setItem("warehouseEpi.navCollapsed", String(isCollapsed));
   };
 
@@ -80,7 +83,7 @@
     button.addEventListener("click", () => {
       if (!blockLocationId || !blockLocationText || !blockReason) return;
       blockLocationId.value = button.dataset.locationId || "";
-      blockLocationText.textContent = `Ubicación ${button.dataset.locationCode || ""}`;
+      blockLocationText.textContent = text("Ubicación {0}", button.dataset.locationCode || "");
       blockReason.value = "";
     });
   });
@@ -90,7 +93,7 @@
     const button = event.currentTarget.querySelector("button[type='submit']");
     if (!button) return;
     button.disabled = true;
-    button.textContent = "Confirmando…";
+    button.textContent = text("Confirmando…");
   });
 
   const copyStatus = document.querySelector("[data-copy-status]");
@@ -113,13 +116,13 @@
     const button = event.target.closest("[data-copy-value]");
     if (!button) return;
     const value = button.dataset.copyValue || "";
-    if (!value) { announceCopy("No hay valor para copiar."); return; }
+    if (!value) { announceCopy(text("No hay valor para copiar.")); return; }
     try {
       if (navigator.clipboard?.writeText && window.isSecureContext) await navigator.clipboard.writeText(value);
       else if (!fallbackCopy(value)) throw new Error("copy-failed");
-      announceCopy("Identificador completo copiado.");
+      announceCopy(text("Identificador completo copiado."));
     } catch {
-      announceCopy("No fue posible copiar el identificador.");
+      announceCopy(text("No fue posible copiar el identificador."));
     }
   });
 })();

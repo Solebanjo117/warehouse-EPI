@@ -88,7 +88,7 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             .OrderBy(x => x.Label).ToArray();
         var rackRows = await db.Locations.AsNoTracking().Where(x => x.Kind == LocationKind.Rack && x.RowCode != null && x.RackNumber != null)
             .GroupBy(x => new { x.RowCode, x.RackNumber }).Select(g => new { g.Key.RowCode, g.Key.RackNumber,
-                IsWip = g.All(x => x.OperationalRole == LocationOperationalRole.Wip), Active = g.Any(x => x.IsActive && x.IsPhysicallyPresent) }).ToListAsync(token);
+                IsWip = g.Any(x => x.OperationalRole == LocationOperationalRole.Wip), Active = g.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsActive && x.IsPhysicallyPresent && !x.IsBlocked) }).ToListAsync(token);
         var racks = rackRows.Where(x => x.IsWip || selectedRacks.Contains($"{x.RowCode}|{x.RackNumber}"))
             .OrderBy(x => x.RowCode).ThenBy(x => x.RackNumber)
             .Select(x => new WipTargetOption($"R:{x.RowCode}:{x.RackNumber}", $"{x.RowCode}-{x.RackNumber}",
@@ -120,8 +120,8 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             {
                 group.Key.RowCode,
                 group.Key.RackNumber,
-                IsWip = group.All(x => x.OperationalRole == LocationOperationalRole.Wip),
-                IsAvailable = group.Any(x => x.IsActive && x.IsPhysicallyPresent)
+                IsWip = group.Any(x => x.OperationalRole == LocationOperationalRole.Wip),
+                IsAvailable = group.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsActive && x.IsPhysicallyPresent && !x.IsBlocked)
             })
             .ToListAsync(token);
         var rows = rackRows.Where(x => x.IsAvailable).Select(x => x.RowCode!).Distinct()
@@ -134,7 +134,7 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             .Concat(rackRows
                 .Where(x => x.IsWip && x.IsAvailable)
                 .Select(x => new WipTargetSuggestion($"R:{x.RowCode}:{x.RackNumber}",
-                    $"{x.RowCode}-{x.RackNumber}", "rack", "Rack WIP · aplica a todas las posiciones")))
+                    $"{x.RowCode}-{x.RackNumber}", "rack", "Rack con posiciones WIP")))
             .Where(x => x.Label.Contains(term, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)
             .Take(10)
@@ -318,7 +318,7 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             var row = rack.RowCode.Trim().ToUpperInvariant();
             var states = await db.Locations.Where(x => x.Kind == LocationKind.Rack && x.RowCode == row && x.RackNumber == rack.RackNumber).Select(x => new { x.OperationalRole, x.IsActive, x.IsPhysicallyPresent }).ToListAsync(token);
             var existed = await db.ProductionProcessWipTargets.AnyAsync(x => x.ProductionStageId == stageId && x.RowCode == row && x.RackNumber == rack.RackNumber, token);
-            if (states.Count == 0 || states.Any(x => x.OperationalRole != LocationOperationalRole.Wip) || (!existed && !states.Any(x => x.IsActive && x.IsPhysicallyPresent))) errors.Add($"El rack {row}-{rack.RackNumber} no es un rack WIP disponible.");
+            if (states.Count == 0 || (!existed && !states.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsActive && x.IsPhysicallyPresent))) errors.Add($"El rack {row}-{rack.RackNumber} no tiene posiciones WIP disponibles.");
         }
         return errors;
     }
@@ -350,9 +350,8 @@ public sealed class ProductionProcessConfigurationService(WarehouseDbContext db,
             racks.Contains(new WipRackKey(parsed.RowCode, parsed.RackNumber.Value));
         var positions = await db.Locations.AsNoTracking().Where(x => x.Kind == LocationKind.Rack &&
             x.RowCode == parsed.RowCode && x.RackNumber == parsed.RackNumber).ToListAsync(token);
-        return permitted && positions.Count > 0 && positions.All(x => x.OperationalRole == LocationOperationalRole.Wip) &&
-               positions.Any(x => x.IsOperational)
-            ? [] : ["El rack predeterminado debe ser WIP completo, estar disponible y pertenecer al proceso."];
+        return permitted && positions.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsOperational)
+            ? [] : ["El rack predeterminado debe tener una posición WIP disponible y pertenecer al proceso."];
     }
     private static ProcessConfigurationResult Invalid(string error) => new(ProcessConfigurationStatus.ValidationFailed, Errors: [error]);
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();

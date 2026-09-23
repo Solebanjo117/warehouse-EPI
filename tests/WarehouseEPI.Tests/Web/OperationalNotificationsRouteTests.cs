@@ -72,7 +72,7 @@ public sealed class OperationalNotificationsRouteTests
         var identity = new ClaimsIdentity(isAdmin
             ? [new Claim(ClaimTypes.Name, "Admin"), new Claim(ClaimTypes.Role, "ADMIN")]
             : [], "Test");
-        return new IndexModel(service, cache)
+        return new IndexModel(service, cache, new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts>())
         {
             PageContext = new PageContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) } }
         };

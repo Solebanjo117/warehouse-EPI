@@ -309,10 +309,14 @@ public sealed class ProductProductionConfigurationPageTests
             return new(db, product, first, second, production, traceability, wip);
         }
 
-        public CreateModel CreatePage() => Attach(new CreateModel(Db, wipDefaults));
+        public CreateModel CreatePage() => Attach(new CreateModel(
+            Db,
+            wipDefaults,
+            new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts>()));
 
         public EditModel EditPage() => Attach(new EditModel(Db, new ProductLocationAssignmentService(Db),
-            traceability, wipDefaults, production));
+            traceability, wipDefaults, production,
+            new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts>()));
 
         private static T Attach<T>(T page) where T : PageModel
         {

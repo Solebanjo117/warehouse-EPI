@@ -1,16 +1,20 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations;
 
 public abstract class OperationPageModel(
     InventoryMovementService movementService,
     InventoryQueryService inventoryQuery,
-    OperationalInventoryQueryService operationalQuery) : PageModel
+    OperationalInventoryQueryService operationalQuery,
+    IStringLocalizer<OperationsTexts> texts) : PageModel
 {
+    protected string T(string key) => texts[key];
     [BindProperty]
     public OperationInput Input { get; set; } = new();
 
@@ -71,7 +75,7 @@ public abstract class OperationPageModel(
             if (field.EndsWith(nameof(Input.LocationId), StringComparison.Ordinal)) Input.LocationId = null;
         }
         ModelState.Clear();
-        PrefillWarning = "Parte de la precarga ya no está disponible o no es compatible; vuelve a seleccionarla.";
+        PrefillWarning = T("Parte de la precarga ya no está disponible o no es compatible; vuelve a seleccionarla.");
         return Page();
     }
 
@@ -89,7 +93,7 @@ public abstract class OperationPageModel(
             Input.OperationId,
             CommandMovementType,
             Input.Pin,
-            [BuildLine()],
+            [BuildLine() with { AutomaticPalletHandling = CommandMovementType != InventoryMovementType.Entry }],
             Input.Reference,
             Input.Notes,
             Input.ApprovedSharedLocationIds
@@ -108,11 +112,11 @@ public abstract class OperationPageModel(
         switch (result.Status)
         {
             case InventoryMovementStatus.InvalidPin:
-                ModelState.AddModelError(string.Empty, "No fue posible validar el NIP o el usuario.");
+                ModelState.AddModelError(string.Empty, T("No fue posible validar el NIP o el usuario."));
                 break;
             case InventoryMovementStatus.ValidationFailed:
                 foreach (var error in result.ValidationErrors)
-                    ModelState.AddModelError(string.Empty, error);
+                    ModelState.AddModelError(string.Empty, T(error));
                 break;
             case InventoryMovementStatus.RequiresLocationSharingConfirmation:
                 SharingConflicts = result.Conflicts;
@@ -122,14 +126,14 @@ public abstract class OperationPageModel(
             case InventoryMovementStatus.BalanceChanged:
                 await RefreshAdjustmentBalanceAsync(cancellationToken);
                 ModelState.AddModelError(string.Empty,
-                    "El saldo cambió. Se recargó el conteo actual; revísalo y vuelve a introducir tu NIP.");
+                    T("El saldo cambió. Se recargó el conteo actual; revísalo y vuelve a introducir tu NIP."));
                 break;
             case InventoryMovementStatus.IdempotencyConflict:
                 ModelState.AddModelError(string.Empty,
-                    "La operación ya fue utilizada con otro contenido o responsable. Inicia una operación nueva.");
+                    T("La operación ya fue utilizada con otro contenido o responsable. Inicia una operación nueva."));
                 break;
             default:
-                ModelState.AddModelError(string.Empty, "No fue posible confirmar la operación.");
+                ModelState.AddModelError(string.Empty, T("No fue posible confirmar la operación."));
                 break;
         }
 
@@ -139,61 +143,61 @@ public abstract class OperationPageModel(
     private void ValidateInput()
     {
         if (Input.OperationId == Guid.Empty)
-            ModelState.AddModelError("Input.OperationId", "La operación no es válida.");
+            ModelState.AddModelError("Input.OperationId", T("La operación no es válida."));
         if (Input.ProductId is null || Input.ProductId == Guid.Empty)
-            ModelState.AddModelError("Input.ProductId", "Selecciona un producto.");
+            ModelState.AddModelError("Input.ProductId", T("Selecciona un producto."));
         if (string.IsNullOrWhiteSpace(Input.Pin))
-            ModelState.AddModelError(string.Empty, "Introduce el NIP para confirmar.");
+            ModelState.AddModelError(string.Empty, T("Introduce el NIP para confirmar."));
 
         if (Input.Quantity is not decimal quantity)
         {
             ModelState.AddModelError("Input.Quantity", MovementType == InventoryMovementType.Adjustment
-                ? "Captura el conteo final."
-                : "Captura la cantidad.");
+                ? T("Captura el conteo final.")
+                : T("Captura la cantidad."));
         }
         else
         {
             if (MovementType != InventoryMovementType.Adjustment && quantity <= 0)
-                ModelState.AddModelError("Input.Quantity", "La cantidad debe ser mayor que cero.");
+                ModelState.AddModelError("Input.Quantity", T("La cantidad debe ser mayor que cero."));
             if (decimal.Round(quantity, 4) != quantity)
-                ModelState.AddModelError("Input.Quantity", "La cantidad admite como máximo cuatro decimales.");
+                ModelState.AddModelError("Input.Quantity", T("La cantidad admite como máximo cuatro decimales."));
         }
 
         if (this is ExitModel)
         {
             if (Input.ExitMode is null)
-                ModelState.AddModelError("Input.ExitMode", "Selecciona el tipo de salida.");
+                ModelState.AddModelError("Input.ExitMode", T("Selecciona el tipo de salida."));
             else if (Input.ExitMode == ExitMode.General && Input.DestinationLocationId is not null)
-                ModelState.AddModelError("Input.DestinationLocationId", "La salida general no utiliza una ubicación WIP destino.");
+                ModelState.AddModelError("Input.DestinationLocationId", T("La salida general no utiliza una ubicación WIP destino."));
         }
 
         switch (CommandMovementType)
         {
             case InventoryMovementType.Entry when Input.DestinationLocationId is null:
-                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona la ubicación destino.");
+                ModelState.AddModelError("Input.DestinationLocationId", T("Selecciona la ubicación destino."));
                 break;
             case InventoryMovementType.Exit when Input.SourceLocationId is null:
-                ModelState.AddModelError("Input.SourceLocationId", "Selecciona la ubicación origen.");
+                ModelState.AddModelError("Input.SourceLocationId", T("Selecciona la ubicación origen."));
                 break;
             case InventoryMovementType.Transfer:
                 if (Input.SourceLocationId is null)
-                    ModelState.AddModelError("Input.SourceLocationId", "Selecciona la ubicación origen.");
+                    ModelState.AddModelError("Input.SourceLocationId", T("Selecciona la ubicación origen."));
                 if (Input.DestinationLocationId is null)
-                    ModelState.AddModelError("Input.DestinationLocationId", "Selecciona la ubicación destino.");
+                    ModelState.AddModelError("Input.DestinationLocationId", T("Selecciona la ubicación destino."));
                 if (Input.SourceLocationId is not null && Input.SourceLocationId == Input.DestinationLocationId)
-                    ModelState.AddModelError("Input.DestinationLocationId", "Origen y destino deben ser distintos.");
+                    ModelState.AddModelError("Input.DestinationLocationId", T("Origen y destino deben ser distintos."));
                 break;
             case InventoryMovementType.Adjustment:
                 if (Input.LocationId is null)
-                    ModelState.AddModelError("Input.LocationId", "Selecciona la ubicación.");
+                    ModelState.AddModelError("Input.LocationId", T("Selecciona la ubicación."));
                 if (Input.ExpectedBalanceVersion is null)
-                    ModelState.AddModelError("Input.ExpectedBalanceVersion", "Consulta nuevamente el saldo.");
+                    ModelState.AddModelError("Input.ExpectedBalanceVersion", T("Consulta nuevamente el saldo."));
                 if (string.IsNullOrWhiteSpace(Input.Notes))
-                    ModelState.AddModelError("Input.Notes", "El motivo del ajuste es obligatorio.");
+                    ModelState.AddModelError("Input.Notes", T("El motivo del ajuste es obligatorio."));
                 break;
         }
         if (MovementPurpose == InventoryMovementPurpose.ProductionIssue && Input.DestinationLocationId is null)
-            ModelState.AddModelError("Input.DestinationLocationId", "Selecciona la ubicación WIP destino.");
+            ModelState.AddModelError("Input.DestinationLocationId", T("Selecciona la ubicación WIP destino."));
     }
 
     private async Task LoadSelectionAsync(CancellationToken cancellationToken)
@@ -202,32 +206,32 @@ public abstract class OperationPageModel(
         {
             SelectedProduct = await operationalQuery.GetProductAsync(productId, cancellationToken: cancellationToken);
             if (SelectedProduct is null)
-                ModelState.AddModelError("Input.ProductId", "El producto no existe o está inactivo.");
+                ModelState.AddModelError("Input.ProductId", T("El producto no existe o está inactivo."));
         }
 
         if (Input.SourceLocationId is Guid sourceId)
         {
             SelectedSource = await operationalQuery.GetLocationAsync(sourceId, cancellationToken: cancellationToken);
             if (SelectedSource is null)
-                ModelState.AddModelError("Input.SourceLocationId", "La ubicación origen no está disponible.");
+                ModelState.AddModelError("Input.SourceLocationId", T("La ubicación origen no está disponible."));
             else if (MovementPurpose == InventoryMovementPurpose.ProductionIssue &&
                 (SelectedSource.Kind != LocationKind.Rack || SelectedSource.IsWip))
-                ModelState.AddModelError("Input.SourceLocationId", "Selecciona un rack de inventario como origen.");
+                ModelState.AddModelError("Input.SourceLocationId", T("Selecciona un rack de inventario como origen."));
         }
         if (Input.DestinationLocationId is Guid destinationId)
         {
             SelectedDestination = await operationalQuery.GetLocationAsync(destinationId, cancellationToken: cancellationToken);
             if (SelectedDestination is null)
-                ModelState.AddModelError("Input.DestinationLocationId", "La ubicación destino no está disponible.");
+                ModelState.AddModelError("Input.DestinationLocationId", T("La ubicación destino no está disponible."));
             else if (MovementPurpose == InventoryMovementPurpose.ProductionIssue &&
                 SelectedDestination.OperationalRole != LocationOperationalRole.Wip)
-                ModelState.AddModelError("Input.DestinationLocationId", "Selecciona una ubicación WIP.");
+                ModelState.AddModelError("Input.DestinationLocationId", T("Selecciona una ubicación WIP."));
         }
         if (Input.LocationId is Guid locationId)
         {
             SelectedLocation = await operationalQuery.GetLocationAsync(locationId, cancellationToken: cancellationToken);
             if (SelectedLocation is null)
-                ModelState.AddModelError("Input.LocationId", "La ubicación no está disponible.");
+                ModelState.AddModelError("Input.LocationId", T("La ubicación no está disponible."));
         }
 
         if (Input.ProductId is not Guid selectedProductId)

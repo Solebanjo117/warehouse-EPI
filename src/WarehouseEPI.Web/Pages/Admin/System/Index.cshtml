@@ -1,7 +1,8 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.System.IndexModel
 @{
-    ViewData["Title"] = "Estado del sistema";
+    ViewData["Title"] = CatTexts["Estado del sistema"].Value;
     var maxActivity = Model.Status.Activity.Count == 0 ? 0 : Model.Status.Activity.Max(item => item.Count);
     var totalActivity = Model.Status.Activity.Sum(item => item.Count);
     var buildSeparator = Model.Status.Version.IndexOf('+');
@@ -16,22 +17,22 @@
 <div class="sys-board">
     <header class="sys-header">
         <div>
-            <span class="eyebrow">Diagnóstico local</span>
-            <h1 class="h2 mb-1">Estado del sistema</h1>
-            <p>Resumen local de salud y actividad. No contiene datos operativos ni credenciales.</p>
+            <span class="eyebrow">@CatTexts["Diagnóstico local"]</span>
+            <h1 class="h2 mb-1">@CatTexts["Estado del sistema"]</h1>
+            <p>@CatTexts["Resumen local de salud y actividad. No contiene datos operativos ni credenciales."]</p>
         </div>
         <p class="sys-checked mb-0">
-            <span>Última comprobación</span>
+            <span>@CatTexts["Última comprobación"]</span>
             <time datetime="@Model.Status.CheckedAt.ToString("o")">@Model.Status.CheckedAt.LocalDateTime.ToString("g")</time>
         </p>
     </header>
 
-    <ul class="sys-vitals" aria-label="Signos vitales del servidor">
+    <ul class="sys-vitals" aria-label="@CatTexts["Signos vitales del servidor"]">
         <li class="sys-vital @(Model.Status.DatabaseHealthy ? "is-up" : "is-down")">
-            <span class="sys-vital-label">Base de datos</span>
+            <span class="sys-vital-label">@CatTexts["Base de datos"]</span>
             <span class="sys-readout">
                 <span class="sys-dot" aria-hidden="true"></span>
-                @(Model.Status.DatabaseHealthy ? "Disponible" : "No disponible")
+                @(Model.Status.DatabaseHealthy ? CatTexts["Disponible"].Value : CatTexts["No disponible"].Value)
             </span>
             <span class="sys-vital-note">
                 @if (Model.Status.DatabaseLatencyMilliseconds is long latency)
@@ -49,16 +50,16 @@
             </span>
         </li>
         <li class="sys-vital is-steady">
-            <span class="sys-vital-label">Aplicación</span>
+            <span class="sys-vital-label">@CatTexts["Aplicación"]</span>
             <span class="sys-readout">
                 <time datetime="@Model.Status.StartedAt.ToString("o")">@Model.Status.StartedAt.LocalDateTime.ToString("g")</time>
             </span>
-            <span class="sys-vital-note">Activa sin reinicios desde esa hora</span>
+            <span class="sys-vital-note">@CatTexts["Activa sin reinicios desde esa hora"]</span>
         </li>
         <li class="sys-vital is-steady">
-            <span class="sys-vital-label">Versión</span>
+            <span class="sys-vital-label">@CatTexts["Versión"]</span>
             <span class="sys-readout">@versionNumber</span>
-            <span class="sys-vital-note">Compilación en ejecución</span>
+            <span class="sys-vital-note">@CatTexts["Compilación en ejecución"]</span>
             @if (buildIdentifier is not null)
             {
                 <span class="sys-build">@buildIdentifier</span>
@@ -68,7 +69,7 @@
 
     <section aria-labelledby="sys-activity-title">
         <div class="sys-section-head">
-            <h2 class="h4" id="sys-activity-title">Movimientos de las últimas 24 horas</h2>
+            <h2 class="h4" id="sys-activity-title">@CatTexts["Movimientos de las últimas 24 horas"]</h2>
             @if (Model.Status.Activity.Count > 0)
             {
                 <span class="sys-tally">@totalActivity en total</span>
@@ -77,8 +78,8 @@
         @if (Model.Status.Activity.Count == 0)
         {
             <div class="sys-empty">
-                <strong>Sin movimientos en las últimas 24 horas.</strong>
-                <span>Cuando se registre actividad, aparecerá aquí.</span>
+                <strong>@CatTexts["Sin movimientos en las últimas 24 horas."]</strong>
+                <span>@CatTexts["Cuando se registre actividad, aparecerá aquí."]</span>
             </div>
         }
         else
@@ -99,7 +100,7 @@
 
     <section aria-labelledby="sys-failures-title">
         <div class="sys-section-head">
-            <h2 class="h4" id="sys-failures-title">Fallos recientes sanitizados</h2>
+            <h2 class="h4" id="sys-failures-title">@CatTexts["Fallos recientes sanitizados"]</h2>
             @if (Model.Status.RecentFailures.Count > 0)
             {
                 <span class="sys-tally">@Model.Status.RecentFailures.Count registrados</span>
@@ -108,8 +109,8 @@
         @if (Model.Status.RecentFailures.Count == 0)
         {
             <div class="sys-empty">
-                <strong>Sin fallos de servidor recientes.</strong>
-                <span>Aquí aparecerá la fecha, la categoría y la correlación de cada fallo, nunca su contenido.</span>
+                <strong>@CatTexts["Sin fallos de servidor recientes."]</strong>
+                <span>@CatTexts["Aquí aparecerá la fecha, la categoría y la correlación de cada fallo, nunca su contenido."]</span>
             </div>
         }
         else
@@ -118,20 +119,20 @@
                 <table class="table table-sm sys-table">
                     <thead>
                         <tr>
-                            <th scope="col">Fecha</th>
-                            <th scope="col">Categoría</th>
+                            <th scope="col">@CatTexts["Fecha"]</th>
+                            <th scope="col">@CatTexts["Categoría"]</th>
                             <th scope="col">HTTP</th>
-                            <th scope="col">Correlación</th>
+                            <th scope="col">@CatTexts["Correlación"]</th>
                         </tr>
                     </thead>
                     <tbody>
                         @foreach (var failure in Model.Status.RecentFailures)
                         {
                             <tr>
-                                <td data-label="Fecha"><time datetime="@failure.OccurredAt.ToString("o")">@failure.OccurredAt.LocalDateTime.ToString("g")</time></td>
-                                <td data-label="Categoría">@failure.Category</td>
+                                <td data-label="@CatTexts["Fecha"]"><time datetime="@failure.OccurredAt.ToString("o")">@failure.OccurredAt.LocalDateTime.ToString("g")</time></td>
+                                <td data-label="@CatTexts["Categoría"]">@failure.Category</td>
                                 <td data-label="HTTP"><span class="sys-status-code">@failure.StatusCode</span></td>
-                                <td data-label="Correlación"><code>@failure.CorrelationId</code></td>
+                                <td data-label="@CatTexts["Correlación"]"><code>@failure.CorrelationId</code></td>
                             </tr>
                         }
                     </tbody>

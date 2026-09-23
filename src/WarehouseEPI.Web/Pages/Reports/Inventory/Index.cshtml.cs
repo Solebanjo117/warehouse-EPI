@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Reports.Inventory;
 
@@ -18,7 +20,7 @@ public sealed class IndexModel(
     WarehouseClock clock,
     WarehouseSettingsService settingsService,
     IMemoryCache memoryCache,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider, IStringLocalizer<OperationsTexts>? localizer = null) : PageModel
 {
     private const int PageSize = 25;
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(60);
@@ -176,7 +178,7 @@ public sealed class IndexModel(
 
         Normalize(view, exception, period, status, search, unitId, stagnantCategory, ageBucket, coverageClass);
         if (format is not ("csv" or "xlsx"))
-            return BadRequest("El formato debe ser csv o xlsx.");
+            return BadRequest((localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<OperationsTexts>>())["El formato debe ser csv o xlsx."]);
 
         var nowUtc = timeProvider.GetUtcNow();
         var localNow = await clock.ConvertAsync(nowUtc, cancellationToken);

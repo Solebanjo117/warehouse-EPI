@@ -219,9 +219,13 @@ el conteo final, conservando saldo anterior y diferencia.
 
 Cada confirmación valida directamente el NIP de un usuario activo `ADMIN` u
 `OPERATOR`, sin crear sesión y sin almacenar el NIP en el movimiento. Las
-asignaciones producto-ubicación se crean o reactivan dentro de la misma
-transacción; si el pallet ya contiene otros productos se devuelve una solicitud
-de confirmación específica antes de escribir.
+asignaciones producto-ubicación se reconcilian dentro de la misma transacción
+con el saldo agregado de todos los lotes: se crean o reactivan con saldo distinto
+de cero y se desactivan cuando el saldo queda exactamente en cero. Una
+transferencia total mueve también la ubicación principal de entrada al único
+destino resultante; una salida, ajuste o conteo sin destino la limpia. La
+confirmación de pallet compartido considera únicamente otros productos con
+saldo neto distinto de cero, no asignaciones administrativas agotadas.
 
 Los movimientos resuelven internamente un lote diario `AUTO-YYYYMMDD` por
 producto usando la fecha local `America/Matamoros`. Entrada y aumentos de
@@ -1155,6 +1159,30 @@ estructural, rutas automáticas de evacuación y reglas legales no confirmadas.
 Importar PDF o intercambiar formatos técnicos se evaluará después de validar el
 editor SVG y demostrar una necesidad operativa concreta.
 
+##### Ubicación aproximada y calibración geográfica — implementada en código; migración y validación física pendientes
+
+- El croquis público y ADMIN ofrece **Mi ubicación**. Tras una acción explícita del
+  usuario solicita permiso al navegador, usa `watchPosition` y dibuja un marcador
+  con un círculo conservador de incertidumbre. Las coordenadas se transforman y se
+  conservan únicamente en el navegador; el servidor solo entrega la calibración
+  publicada y su revisión.
+- `/Admin/Catalogs/Locations/Map/Calibration` permite marcar cuatro o más
+  referencias y al menos una comprobación, capturar cada punto durante 20 segundos,
+  revisar errores y publicar con motivo y NIP ADMIN. El borrador vive en
+  `sessionStorage` sin incluir el NIP.
+- El servidor resume las muestras por mediana, proyecta latitud/longitud a metros
+  locales y obtiene una transformación afín por mínimos cuadrados. Las comprobaciones
+  miden el error sin participar en el ajuste. Referencias inválidas, fuera del lienzo
+  o degeneradas bloquean; la baja precisión produce advertencias porque la función
+  se presenta siempre como aproximada.
+- La calibración guarda puntos, coeficientes, error, versión del croquis y revisiones
+  independientes con idempotencia. Una nueva publicación del croquis la deja
+  pendiente de revisión automáticamente. `Permissions-Policy` habilita geolocalización
+  solo en las consultas del croquis y en la pantalla de calibración; el uso en LAN
+  requiere HTTPS válido.
+- `20260917174125_AddWarehouseMapGeolocationCalibration` crea únicamente las tablas
+  de calibraciones, puntos y revisiones. No se aplicó a ninguna base de datos.
+
 ##### Acciones operativas desde el croquis y corrección reversible de racks — implementada; migración sin aplicar y validación visual/física pendiente
 
 - El croquis ADMIN ofrece **Nueva operación** para Entrada, Salida general,
@@ -1636,6 +1664,34 @@ pendientes.
   HID y comprobación en DevTools de que las páginas sin captura ya no descargan las
   bibliotecas pesadas.
 
+#### Croquis adaptable de consulta — 17 de septiembre de 2026
+
+- Consulta pública y ADMIN: mapa a todo el ancho sin selección; al abrir un rack o
+  área, columna de detalle de 22 rem desde 1200 px y panel inferior de hasta 48dvh
+  en pantallas menores. La vista normal mantiene una altura estable entre 34 y
+  46 rem (`70svh`); sólo la vista ampliada calcula el espacio visible. El encabezado
+  del detalle mantiene accesible su cierre.
+- `Ver todo` ajusta ancho y alto del lienzo; `Acercar selección` centra el elemento
+  y busca una escala legible. La búsqueda abre y acerca la coincidencia sin quitar
+  otros elementos. Botones, pellizco y desplazamiento comparten la misma cámara;
+  al redimensionar se conserva el ajuste completo o la escala y centro de consulta,
+  dentro de los límites del lienzo. El panel inferior se descuenta del área visible.
+- El scroll de la página no recalcula la cámara: conserva altura, escala, tamaño
+  renderizado y centro en vista general, zoom, selección, búsqueda y `Mi ubicación`.
+  Los recálculos quedan limitados a resize/orientación, cambios del panel y vista ampliada.
+- `Ampliar croquis` ocupa la ventana sin Fullscreen API. El fondo queda inerte para
+  teclado; Escape cierra primero el detalle y luego la vista ampliada, restaurando
+  foco y desplazamiento. El estado no persiste tras recargar.
+- Sin cambios al editor, geometría guardada, APIs, inventario ni migraciones.
+  Implementado en `_LocationIndex.cshtml`, `warehouse-map-query.js` y CSS acotado
+  a la consulta. No se inició ni se publicó el servicio.
+- Verificación de la corrección de scroll: 12/12 pruebas de cámara y 2/2 de
+  geolocalización JavaScript; compilación .NET correcta y 20/20 contratos focales.
+- Chrome con HTML generado por WebApplicationFactory y datos en memoria: revisados
+  1366×768, 1024×768 y 768×1024, claro/oscuro, ajuste, selección, vista ampliada,
+  teclado/Escape, búsqueda, WIP y mapa de calor. Es validación de navegador con
+  datos de prueba, no aceptación de la Release ni de tablet física; ambas pendientes.
+
 #### Fase 13.9: consolidación de reportes y mapa de calor integrado — implementada en código; validación visual y física pendiente
 
 - **Mapa de calor** es un modo del croquis compartido de Ubicaciones pública y ADMIN.
@@ -2021,7 +2077,8 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
 ## 13.9 Procesos asociados a WIP (implementado en código, pendiente de despliegue)
 
 - El catálogo ADMIN `/Admin/Production/Processes` reutiliza `ProductionStage` como proceso y permite mantener código, nombre, estado y asociaciones WIP. Las rutas de producción consumen el mismo catálogo; los turnos continúan configurándose en la pantalla de rutas.
-- Un proceso puede asociarse a varias áreas WIP, filas completas y racks WIP. Las áreas se identifican por `Location.Id`; una fila se identifica sólo por `RowCode` y aplica a todos sus racks, incluidos los de almacenamiento y los creados posteriormente; los racks directos se configuran una sola vez por fila y número y aplican a todas sus posiciones.
+- Un proceso puede asociarse a varias áreas WIP, filas completas y racks con posiciones WIP. Las áreas se identifican por `Location.Id`; una fila se identifica sólo por `RowCode` y aplica a todos sus racks, incluidos los de almacenamiento y los creados posteriormente. Los racks directos se configuran una sola vez por fila y número; sólo sus posiciones WIP presentes son destinos de producción.
+- El editor ADMIN de racks permite mezclar posiciones WIP y de almacenamiento. Cada posición conserva su identidad, saldo, placas, asignaciones e historial al reclasificarse; al retirarla físicamente se conserva su función. Si se retira la última posición WIP, se quitan las asociaciones directas del rack y permanecen las heredadas de fila. El croquis y la vista Racks señalan cada función y los racks mixtos.
 - El editor del proceso reúne áreas, filas y racks en un buscador con sugerencias y selección múltiple. Elegir una fila retira asociaciones directas redundantes de sus racks y no admite excepciones individuales. Los vínculos no disponibles siguen visibles para poder retirarlos.
 - La misma relación se edita desde el proceso, desde `Editar área` y desde `Editar rack`. Un contador de versión compartido rechaza ediciones obsoletas; los cambios del rack conservan revisión, motivo, NIP ADMIN e idempotencia.
 - `Editar rack` separa las asociaciones directas editables de los procesos heredados por fila, que son de sólo lectura y enlazan al proceso de origen. Eliminar o reclasificar un rack retira únicamente sus asociaciones directas; la fila permanece configurada para otros racks y para futuras altas.
@@ -2058,7 +2115,7 @@ y confirmación de que editar o imprimir no cambia saldos ni movimientos.
 - La especificación funcional y técnica está en `docs/PRODUCTION_ORDER_TRACKING.md`. Define el recorrido desde la creación y liberación de una orden hasta el surtimiento Rack → WIP, consumo por lote, avance entre procesos, recepción del terminado, alertas para bodega y analítica.
 - Cada material conservará su ubicación principal de almacén y podrá tener un WIP predeterminado por proceso. Esta regla se configura una vez en el material; no se repite en cada receta. La receta define cantidad y proceso de incorporación, y la orden copia el destino WIP resuelto para conservar su fotografía histórica.
 - Liberar una orden generará solicitudes identificables de surtimiento. La cola **Surtimientos a producción** mostrará a bodega material, pendiente, prioridad, ubicaciones y lotes sugeridos y WIP de destino. La solicitud no mueve inventario; el traslado real se crea únicamente después de escanear o seleccionar y confirmar con NIP.
-- P1 ya está implementada en código. Crear, Editar y Detalles del producto permiten configurar y auditar una regla por material/proceso; el editor y listado de procesos admiten un WIP predeterminado general. Los destinos válidos son área WIP, rack WIP completo o posición exacta y se validan con las asociaciones actuales o propuestas del proceso. Una referencia que luego queda bloqueada, inactiva, ausente, reclasificada o incompatible se conserva y muestra la causa, sin mover inventario ni elegir otra ubicación.
+- P1 ya está implementada en código. Crear, Editar y Detalles del producto permiten configurar y auditar una regla por material/proceso; el editor y listado de procesos admiten un WIP predeterminado general. Los destinos válidos son área WIP, rack con al menos una posición WIP operativa o posición exacta; sólo las posiciones WIP pueden resolver un destino de rack. Se validan con las asociaciones actuales o propuestas del proceso. Una referencia que luego queda bloqueada, inactiva, ausente, reclasificada o incompatible se conserva y muestra la causa, sin mover inventario ni elegir otra ubicación.
 - Los cambios P1 exigen NIP ADMIN, motivo, versión esperada e identificador idempotente. Producto y reglas se crean en una transacción; en Editar las reglas tienen formulario independiente. La migración `20260911184026_MaterialWipDefaults`, su SQL revisable y una prueba PostgreSQL aislada acompañan el cambio. La migración P1 no se aplicó a la base configurada y la validación visual/física continúa pendiente.
 - P2 fotografía en cada línea del plan el destino WIP y su origen de resolución. La precedencia es material/proceso, predeterminado general del proceso, único destino concreto y selección manual ADMIN. No sustituye silenciosamente configuraciones inválidas; bloquea la liberación hasta resolver receta, ruta, material, cantidad, proceso y destino. La disponibilidad actual de almacén y WIP es sólo informativa y un faltante no bloquea ni reserva inventario.
 - La revisión de un borrador completa únicamente información ausente: incorpora la primera ruta disponible, después la primera receta completa compatible y finalmente resuelve destinos WIP. También permite una excepción de destino válida con NIP ADMIN, motivo, versión esperada e idempotencia, sin alterar P1. Las órdenes ya liberadas sin fotografía permanecen intactas. La migración `20260914122652_Phase132ProductionPlanningSnapshot`, su SQL revisable y pruebas de resolución, historial, liberación y PostgreSQL acompañan el cambio; no se aplicó a la base configurada y falta validación visual/física.
@@ -2183,7 +2240,9 @@ QuickBooks y paneles LED. No agregues QuickBooks ni LED antes de sus fases.
 - Ruta nueva /Modules/{module}. Claves, orden y contenido:
   - operations: Entrada, Salida, Transferencia, Ajuste y Conteos cíclicos.
   - production: Surtimientos a producción, Seguimiento de producción y Procesar
-    WIP; ADMIN también dispone de Órdenes de trabajo y Procesos.
+    WIP; ADMIN dispone de Procesos. Órdenes de trabajo permanece disponible por
+    URL para soporte, pero se oculta de la navegación habitual porque el Programa
+    semanal crea sus órdenes y Producción avanzada permite atenderlas.
   - inventory: Existencias y Ubicaciones (ruta pública o ADMIN según sesión);
     ADMIN también dispone de Movimientos, Lotes y Centro de excepciones.
   - labels: Generar etiquetas y Placas de pallet; Diseñar formatos solo ADMIN.
@@ -2644,3 +2703,340 @@ QuickBooks y paneles LED. No agregues QuickBooks ni LED antes de sus fases.
   Pruebas de seguridad NIP, zona horaria y sanitización aprobadas; queda pendiente
   la comprobación interactiva completa de altas/ediciones, protecciones ADMIN,
   logo válido/inválido/eliminación y estados del diagnóstico en instancia real.
+
+## 2026-09-17 — Seguimiento operativo de license plates
+
+Se añadieron placas persistentes, composición por lote, eventos y reversos y activación documental con NIP. Los formularios operativos no capturan ni crean pallets: entradas y recepciones dejan saldo sin placa. `/Operations/PalletLabels` centraliza la identificación por ubicación, producto y cantidad libre sin solicitar NIP; el evento conserva responsable nulo y se presenta como `Sin identificación de operador`. La pantalla muestra desde su carga inicial los 10 movimientos auditables más recientes de todo el almacén y usa exclusivamente la plantilla publicada `PLT-LICENSE-PLATE` para creación, previsualización y reimpresión. La identificación excluye reservas, preparaciones abiertas y material WIP perteneciente a órdenes, y permite anulación ADMIN con NIP de una identificación sin dependencias. Salidas, transferencias, producción y WIP toman placas por antigüedad antes del saldo sin placa; en transferencias solamente la porción identificada puede conservarse, dividirse o unirse, mientras la porción sin placa permanece sin placa. Conteos y ajustes conservan las placas y llevan la diferencia al saldo sin placa. Consulta, historial, activación histórica e impresión permanecen visibles. Migraciones existentes: `20260917162528_OperationalPalletTracking` y la aditiva no aplicada `20260918173248_AllowAnonymousPalletIdentification`; no se aplicaron a la base operativa ni se desplegó el servicio. Guía y límites de aceptación: [PALLET_TRACKING.md](PALLET_TRACKING.md). Las pruebas usan bases temporales; navegador y dispositivos requieren aceptación separada.
+
+## 2026-09-21 — Cantidad íntegra y búsqueda bidireccional de placas
+
+- El ajuste automático trabaja sobre la placa positiva vigente: el total físico contado reemplaza su cantidad y queda enlazado al movimiento para reverso, historial e impresión. Un ajuste de 46 a 50 imprime 50 y no identifica solamente la diferencia de 4.
+- La identificación reutiliza la placa positiva del producto y ubicación. Los duplicados históricos sin reservas se consolidan de forma idempotente sobre la placa más antigua, agotando las secundarias con eventos antes/después; los casos con reservas o preparaciones se bloquean.
+- **Imprimir placa** desde una entrada, ajuste o salida resuelve la placa actual. Los movimientos antiguos sin vínculo usan producto y cambios de saldo; cualquier normalización se ejecuta por POST con antiforgery, nunca durante un GET.
+- La búsqueda de `/Operations/PalletLabels` puede comenzar por producto o ubicación y reutiliza el patrón operativo de resultados seleccionables. El segundo lado se limita a combinaciones con stock positivo y conserva fallback GET, Enter/HID y controles táctiles.
+- No se agregó migración. El servicio no se desplegó y la validación física en navegador, tablet, HID e impresora permanece pendiente.
+
+## 2026-09-18 — Base bilingüe y conversión de textos de pantallas
+
+- Trabajo orquestado con tres agentes por áreas, conservando el árbol de trabajo
+  previo. Se conectaron 114 vistas/parciales Razor a `IStringLocalizer<T>` y cuatro
+  catálogos: Shared 171, Operations 565, Production 462 y Catalog 1,595 entradas;
+  total 2,793 pares de texto español/inglés (hay términos compartidos entre módulos).
+- Selector ES/EN en el menú, persistido por navegador mediante cookie propia.
+  POST protegido por antiforgery, idiomas admitidos explícitos y retorno local.
+  Español inicial; la cultura operativa existente se conserva y solo cambia la
+  cultura de interfaz. No modifica valores POST, claves de dominio ni datos humanos.
+- Inicio, navegación, controles comunes y mensajes de scripts compartidos convertidos.
+  Los scripts reciben un diccionario pequeño en un atributo HTML codificado;
+  no se agrega JavaScript inline ni dependencias externas.
+- Se adaptaron las expectativas estáticas de pruebas para los textos que ahora
+  proceden de recursos, manteniendo comprobaciones de rutas, atributos y acceso.
+- Compilación final correcta. Comando de validación:
+
+  `dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --no-restore -p:UseAppHost=false --filter 'FullyQualifiedName~Localization|FullyQualifiedName~ContractTests|FullyQualifiedName~ModuleNavigationTests' --logger 'trx;LogFileName=localization-final.trx' --results-directory artifacts/localization-tests --verbosity minimal`
+
+- Resultado final: Passed: 204, Failed: 1, Skipped: 0. Las 28 pruebas de localización
+  pasaron: recursos/argumentos, claves duplicadas, cookies, idiomas inválidos,
+  redirecciones locales, antiforgery, render ES/EN, persistencia del selector y
+  conservación de cultura numérica (es-MX, fr-FR e invariante).
+- Fallo ajeno a esta conversión: `RackOperationsContractTests.Operation_get_validates_prefill_without_changing_post_contract`
+  aún busca `Task OnGetAsync(Guid? productId`; el `OperationPageModel` previamente
+  modificado declara `Task<IActionResult> OnGetAsync`. No se cambió ese método ni
+  se relajó esa prueba en esta tarea. Resultado detallado en
+  `artifacts/localization-tests/localization-final.trx`.
+- El host de las nuevas pruebas fija `AllowedHosts=localhost`, evitando el rechazo
+  HTTP 400 observado al heredar configuración local. No cambia AllowedHosts de la
+  instalación ni el factory compartido de las pruebas anteriores.
+- `node --check` correcto para site.js y operational-notifications.js. Catálogos
+  sin colisiones de claves y `git diff --check` correcto.
+- Alcance pendiente de la versión inglesa integral: mensajes generados por
+  PageModels/servicios y respuestas JSON, textos de scripts específicos, listas
+  generadas en backend y encabezados de exportaciones/documentos. Se conservan
+  los datos humanos/históricos. Guía: [LOCALIZATION.md](LOCALIZATION.md).
+- Implementado en código; revisión visual en navegador y validación física
+  tablet/HID/cámara/impresión pendientes. No se inició la aplicación operativa,
+  no se aplicaron migraciones ni se desplegó una Release.
+
+### 2026-09-21 — Corrección de configuración, semanas e idioma en producción diaria
+
+- `ProductionDailySetup` propone sólo coincidencias únicas entre procesos/turnos
+  activos. Las asociaciones se guardan exclusivamente por acción ADMIN, con la
+  versión esperada existente. Captura muestra T1/T2 en ese orden y bloquea UI y
+  POST si la configuración está incompleta o contiene asociaciones inactivas.
+- Programa inicializa el lunes mediante `WarehouseClock`, conserva el valor de
+  creación después de errores y prioriza semana actual, última abierta y última
+  disponible. Hay estados vacíos descriptivos, selector más ancho y mensajes
+  para identificadores inexistentes. Ningún GET crea semanas ni catálogos.
+- Captura, Balance, Programa, Importación y título de Producción avanzada usan
+  `ProductionTexts`; las nuevas tarjetas usan `SharedTexts`. Mensajes variables
+  se adaptan en `ProductionDailyText` mediante plantillas y argumentos. SKU,
+  catálogos, notas, referencias, historial y formato Excel permanecen intactos.
+- Días de semana siguen el idioma de interfaz; fechas enviadas, punto decimal,
+  selección `ProductId` y Enter conservan sus contratos. JavaScript recibe el
+  texto sin descripción por atributo de datos codificado por Razor.
+- Verificación: compilación aislada y 61 pruebas focales de producción diaria y
+  localización; 2 pruebas JavaScript del buscador ES/EN. Incluye renderizado HTTP
+  ES/EN, domingo en la zona del almacén, fecha conservada, creación explícita,
+  configuración guardada, turno inactivo, importación inválida y paridad de recursos.
+- Implementado en código. Sin migración nueva/aplicada, importación operativa ni
+  despliegue. Anchuras revisadas en CSS; revisión visual de navegador, temas y
+  tablet física pendiente. No se reinició la aplicación ni el servicio.
+
+### 2026-09-21 — Resolver bloqueos desde el importador del programa diario
+
+- `/Admin/Production/Routes`: el alta de turno ya no se invalida por los campos
+  del formulario de ruta (fallback de prefijo vacío del model binding) y la
+  página lista los turnos registrados.
+- `/Admin/Production/ScheduleImport` ofrece la tarjeta **Resolver bloqueos**
+  sobre el mismo archivo (token de 30 min, sin volver a subirlo):
+  configuración diaria (Corte/Costura/Ready to Pack/T1/T2, con las sugerencias
+  de `ProductionDailySetup`, guardada con `ConfigureAsync` como en Programa);
+  vínculo por texto para áreas, turnos y SKU sin resolver; corrección de
+  cantidad o fecha, u **Omitir fila**, en filas con datos inválidos (máximo 100
+  por validación). **Aplicar y volver a validar** y **Descartar soluciones**.
+- Los vínculos y correcciones valen solo para esa importación: no crean alias
+  de catálogo ni modifican el Excel. `ProductionScheduleImportService` los
+  recibe como `ProductionScheduleImportResolutions`, resuelve `ProductId` en la
+  previsualización y registra lo aplicado en
+  `production_schedule_import_batches.resolution_summary` (huella de la
+  operación incluye el resumen).
+- Un turno reconocido (Shift 1/2, T1/T2, Turno 1/2) sin configuración diaria ya
+  no genera un bloqueo por fila; lo cubre el bloqueo único de configuración.
+- `production-daily.js` admite varios buscadores de SKU en la misma página.
+- Migración aditiva `20260921172707_ScheduleImportResolutions` (columna
+  `resolution_summary text NULL`), **no aplicada** a `warehouseEPI`.
+- Verificación: pruebas nuevas de servicio (vínculos, corrección, omisión,
+  corrección inválida, resumen de auditoría), HTTP de extremo a extremo
+  (configurar → vincular/corregir → descartar → confirmar → token expirado),
+  alta de turno en Rutas y 33 pruebas JavaScript. `has-pending-model-changes`
+  limpio; formato de los archivos tocados limpio. Suite completa Release: 751 de
+  830; las 79 fallas son previas o de entorno (HTTP 400 por `AllowedHosts`
+  heredado, base PostgreSQL de prueba en esquema antiguo según el orden de
+  ejecución —pasan aisladas—, `ProductionBlockAPostTests`, reporte ejecutivo y
+  contrato de racks). `quality.ps1` se detiene en `dotnet format whitespace`
+  por archivos del trabajo en curso ajenos a este cambio.
+- Implementado en código; revisión visual en navegador pendiente. Sin migración
+  aplicada, importación operativa ni despliegue.
+
+### Corrección de bloqueos de apertura del importador (22 de septiembre de 2026)
+
+- `/Admin/Production/ScheduleImport` muestra las causas de conciliación junto a
+  cada bloqueo y enlaza al producto conservando el borrador y ajustando búsqueda
+  y paginación. Los mensajes están disponibles en ES/EN.
+- Si el producto no aparece en el cierre, la incidencia usa fila nula y explica
+  la ausencia; no atribuye valores inválidos a celdas inexistentes. La vista
+  tampoco muestra filas cero o negativas de revisiones guardadas anteriormente.
+- Un producto sin líneas ni capturas en la semana histórica de origen y sin
+  arrastre en destino puede resolverse sin paquetes cuando su cierre es único y
+  contiene tres ceros numéricos válidos. En ese caso, la apertura inicial vacía
+  por sí sola no bloquea. Se conservan las validaciones de ruta, SKU, anotaciones
+  y evidencia contradictoria (incluidos valores no cero, errores y fórmulas sin
+  resultado verificable). Los productos con actividad siguen requiriendo la
+  conciliación existente. No se convierten datos vacíos en cero.
+- Los borradores editables recalculan su previsualización y deben volver a
+  validarse si cambia la huella, conservando las resoluciones. Las importaciones
+  confirmadas mantienen su revisión histórica. Sin cambios de esquema ni POST.
+- Verificación automática: **64 aprobadas, 0 fallidas, 0 omitidas**; incluye
+  servicio, borradores antiguos, HTTP con navegación fuera de la página actual,
+  ES/EN y contratos de UI. Resultado: `artifacts/schedule-import-findings/results/`
+  `focused-final.trx`; binlogs en `artifacts/schedule-import-findings/`.
+- Comando ejecutado (salida aislada del servicio):
+
+```powershell
+dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --no-restore --filter "FullyQualifiedName~ProductionOpeningImportTests|FullyQualifiedName~ProductionScheduleImportRouteTests|FullyQualifiedName~ProductionDailyModuleTests|FullyQualifiedName~ProductionDailyUxContractTests|FullyQualifiedName~LocalizationTests" -p:UseAppHost=false -p:OutputPath=C:/Users/JUANANTONIOCASTILLAO/Documents/warehouse-EPI/artifacts/schedule-import-findings/bin/ '-bl:artifacts/schedule-import-findings/test-{}.binlog' --logger 'trx;LogFileName=focused-final.trx' --results-directory artifacts/schedule-import-findings/results
+```
+
+- Implementado en código. Validación visual en navegador/operador pendiente;
+  no se modificó el Excel ni la base operativa, no se publicó ni reinició el servicio.
+
+### Eliminar borradores de importación (22 de septiembre de 2026)
+
+- `/Admin/Production/ScheduleImport` muestra `Eliminar` junto a cada borrador
+  guardado no confirmado (en revisión, listo o descartado), con fecha de última
+  modificación y confirmación del navegador (`form[data-confirm]` en
+  `production-daily.js`, sin JS inline). Si se elimina otro borrador, la revisión
+  abierta se conserva; si se elimina el abierto, vuelve a la lista.
+- `ProductionImportDraftService.DeleteAsync` borra el borrador y todas sus
+  revisiones (por clave, sin cargar las previsualizaciones) en un solo
+  `SaveChanges`. Solo el propietario ADMIN puede eliminar; el token `version`
+  hace que una confirmación o revisión concurrente gane y el borrado responda
+  con conflicto.
+- La guarda de inmutabilidad de `WarehouseDbContext` sigue rechazando modificar
+  el archivo o el propietario y borrar revisiones sueltas o borradores
+  confirmados. Solo admite borrar un borrador no confirmado junto con sus
+  revisiones. Sin cambios de esquema ni migración.
+- Verificación automática: servicio (InMemory), HTTP con lista, redirección y
+  rechazo de confirmados, PostgreSQL (borrado real y dos borrados concurrentes con
+  un único éxito), prueba JS de la confirmación y localización ES/EN.
+
+### Apertura en cero desde el cierre del Excel (22 de septiembre de 2026)
+
+- Decisión del usuario, que sustituye la regla anterior del mismo día: la tabla
+  «Pendiente próxima semana» es el arrastre del propio Excel. Si un producto
+  tiene en ella una fila única con 0/0/0 numéricos (valor en caché de fórmula
+  incluido), o no aparece en un cierre válido, la semana destino abre en 0 sin
+  conciliación y sin paquetes, aunque haya programa, capturas, anotaciones
+  `Column1`/`Column2`, líneas sin `Tipo`, negativos diarios o no tenga una ruta
+  compatible.
+- Siguen bloqueando: celdas del cierre vacías, con texto, error, fórmula sin
+  resultado o negativas; filas duplicadas; cierre inexistente, sin columnas o
+  ambiguo; arrastre ya incluido en la semana destino y pendientes mayores que 0.
+  Una resolución manual guardada sigue teniendo prioridad. Se retiró el mensaje
+  «El cierre en cero contradice…» (código y ES/EN).
+- Con `Production_Schedule_Report_2026_1.xlsx`, sin rutas compatibles: 39
+  productos revisados, 29 abren en 0 y quedan 10 con pendiente > 0 (T7-E-50CF-12M-CFX08-US,
+  M6-S-50UP-8M-NOHDL-US, T6-E-70CF-12M-CFX06-US, G4-P-50SK-10M-NOHDL-US-CUST,
+  W6-P-75MH-20M-SDX10-US, B6-E-97CF-24M-CFX06-US, G6-E-50SK-10M-NOHDL-US,
+  T6-E-50CF-12M-NOHDL-US, K6-E-60SP-18M-SHX08-US, M6-E-50UP-8M-NOHDL-CN). Esos
+  requieren ruta compatible o apertura manual.
+- Verificación automática: 69 aprobadas, 0 fallidas (`ProductionOpeningImportTests`,
+  `ProductionScheduleImportRouteTests`, `ProductionDailyModuleTests`,
+  `ProductionDailyUxContractTests`, `LocalizationTests`), con salida en
+  `artifacts/validation/opening-zero`. El archivo real se comprobó con una prueba
+  temporal InMemory ya eliminada.
+- Implementado en código. Sin cambios de esquema ni migración; los borradores
+  abiertos deben volver a validarse. No se modificó el Excel ni la base
+  operativa, no se publicó ni reinició el servicio.
+
+### Módulo diario sin ruta ni receta obligatorias (22 de septiembre de 2026)
+
+- Decisiones del usuario, que sustituyen lo dicho en las dos secciones anteriores
+  de este día sobre rutas y conciliación de apertura:
+  1. Los datos históricos del Excel no se cuadran. Si los operadores capturaron o
+     cerraron mal, se importa lo que hay; solo detiene lo que no se puede leer.
+  2. El cierre «Pendiente próxima semana» manda. Ausente ⇒ 0; negativo ⇒ 0.
+     Cuando no es monótono manda Ready to Pack: `S' = min(S, R)`,
+     `C' = min(C, S')`; paquetes Corte `C'`, Costura `S'−C'`, RTP `R−S'`.
+  3. Importador y Programa ya no exigen ruta ni receta. La ruta es opcional: si
+     el producto tiene una con procesos diarios en orden, la orden los usa (puede
+     saltar Costura); si no, Corte → Costura → Ready to Pack.
+  4. El Programa nunca usa receta: sus órdenes no llevan plan de materiales y
+     capturar no pide surtimiento.
+- Importador (`ProductionOpeningReconciliation.cs`): sin consulta de rutas ni
+  validaciones de Tipo, Column1/Column2, avances negativos, arrastre del lunes,
+  simulación de saldos o SKU repetidos. Bloquean solo tabla de cierre ausente,
+  ambigua o sin columnas, fila duplicada y celda vacía/texto/error/fórmula sin
+  resultado («El cierre contiene pendientes vacíos o no numéricos.»). El arrastre
+  escrito en la semana destino se sustituye sin bloquear. La conciliación manual
+  sigue con prioridad («La resolución requiere motivo y cantidades válidas.»).
+  Las rutas salen de la huella de dependencias. `_ImportOpening.cshtml` ya no
+  enlaza a Rutas.
+- Programa (`ProductionDailyScheduleService.cs`): `BuildDailyOrderAsync` crea las
+  órdenes de publicación y de sustitución de SKU con etapas de la configuración
+  diaria (o de la ruta opcional) desde `StartArea`, `UsesBatchTraceability`, sin
+  receta ni plan; `ReleaseDailyOrderAsync` libera sin la validación avanzada. Se
+  retiraron los recortes y la siembra de arrastre. La publicación exige solo la
+  configuración completa, procesos y turnos configurados activos y SKU activos.
+  `EffectiveGoodAsync` toma el máximo por etapa (antes sumaba etapas y una línea
+  de 10 capturada en Corte y Costura contaba 20). Producción avanzada
+  (`ProductionService`, `ProductionPlanningService`) no cambió.
+- Balance: sin ruta con procesos diarios aplican las tres áreas.
+- Captura (`ProductionDailyCaptureService.cs`): corrección de un error previo. La
+  asignación se agregaba a una captura ya guardada con `Id` preasignado y EF la
+  trataba como modificada, por lo que la guarda de inmutabilidad rechazaba toda
+  confirmación de captura. Ahora se marca como nueva.
+- Textos ES/EN: tres claves nuevas y 15 retiradas en `ProductionTexts*.resx`
+  (795/795); `ProductionDailyText.cs` sin «El arrastre no conserva…».
+- Verificación automática: 238 de 239 pruebas de producción y localización
+  aprobadas; la falla es `ProductionBlockAPostTests.Real_form_preserves_bad_decimal…`
+  (Producción avanzada, previa). Nuevas pruebas: reparto RTP, cierre ilegible,
+  publicación sin ruta/receta (3 formas de etapas, lote, balance, capturas Corte →
+  Costura y edición de línea) y procesos inactivos. Con el archivo real y una
+  prueba temporal InMemory ya eliminada: 39/39 aperturas resueltas, importación
+  confirmada y 09-21 publicada con 30 órdenes liberadas y con lote.
+- `dotnet format` sigue marcando construcciones previas en estos archivos
+  (`foreach` anidados sin llaves, inicializadores en varias líneas); el código
+  nuevo sigue el estilo existente. Sin migración, sin cambios en la base
+  operativa, sin despliegue ni reinicio del servicio.
+
+### Balance diario por recorrido de orden (22 de septiembre de 2026)
+
+- Las líneas publicadas calculan el balance con las etapas guardadas en su orden;
+  editar o desactivar la ruta del producto no cambia ese recorrido. Los borradores
+  comparten con publicación la selección de procesos y el inicio del arrastre.
+- Las asignaciones de capturas activas se acumulan por línea, etapa y fecha efectiva.
+  Cada resultado alimenta únicamente la siguiente etapa de esa orden; después se
+  suman los pendientes por producto. Un SKU puede combinar Corte → RTP con un
+  arrastre Costura → RTP sin ocultar Costura ni inventar pendientes en ella.
+- Las órdenes anteriores aportan su pendiente al inicio de la semana; las capturas
+  posteriores al día consultado y las reversadas no se descuentan. El avance de
+  la semana usa los resultados finales de cada recorrido y su apertura pendiente.
+- Las líneas y capturas históricas sin asignación conservan su cálculo agregado,
+  separado de las órdenes publicadas. El histórico importado anterior no vuelve
+  a alimentar los paquetes de apertura ya confirmados.
+- Pantalla y Excel mantienen los mismos DTO y el mismo servicio de balance. No se
+  cambia la importación, la confirmación/reintento de reversos ni Producción avanzada.
+- Sin migración de aplicación, cambios en la base operativa ni despliegue.
+- Verificación focal: 68/68 pruebas aprobadas de balance, módulo diario, apertura,
+  importación y rutas web. Incluye el recorrido completo con exportación y reverso
+  en PostgreSQL temporal aislado, creado y eliminado por la prueba; también
+  capturas parciales/FIFO, separación del histórico, cierre por fecha efectiva y
+  conservación del recorrido al editar/desactivar la ruta. Navegador y tablet
+  quedan pendientes; la prueba relacional usa el modelo actual con EnsureCreated.
+
+### Programa semanal y captura por tandas (22 de septiembre de 2026)
+
+- Flujo semanal agrupado de lunes a sábado, conservando el día al agregar productos
+  con el buscador existente. Referencias/notas y configuración quedan en secciones
+  secundarias. La apertura se presenta como «Abrir semana para capturar» con NIP ADMIN.
+- Copia editable de productos/días de la última semana anterior, sin cantidades,
+  arrastres ni referencias. Se conservan líneas repetidas y se controla el doble envío.
+- Arrastre programado opcional, separado del balance físico y de la apertura del
+  importador: programar 15 de 20 mantiene 20 disponibles. Tiene versión y auditoría;
+  no crea órdenes, lotes ni resultados, ni limita las capturas reales.
+- Agregar productos a una semana abierta crea línea, orden liberada y lote en una
+  transacción, con NIP ADMIN. Se permite abrir sin líneas nuevas si hay pendientes anteriores.
+- Captura por fecha/área/turno, revisión sin NIP y confirmación de toda la tanda con
+  un NIP. Se mantienen capturas individuales, FIFO, reversos y trazabilidad. Se revalida
+  la revisión y se conservan las entradas ante errores. Operación/huella sin NIP y
+  transacción serializable protegen reintentos, concurrencia y rollback de toda la tanda.
+- Capturar, Balance e Historial tienen vistas separadas conservando la semana;
+  el balance por orden y la exportación siguen usando el servicio existente.
+- Migración `20260922153940_DailyProductionWorkflow` generada para cabeceras/items de
+  tanda y arrastres programados; modelo sin cambios pendientes. Aplicada únicamente
+  por pruebas en PostgreSQL temporal, nunca en la base operativa.
+- Verificación: 103 pruebas .NET de módulo diario, importación, balance/exportación,
+  rutas y localización; 5 JavaScript. Incluye POST con antiforgery y errores conservados,
+  arrastre opcional, copia, incorporación abierta, rollback, concurrencia y reintentos.
+- Sin despliegue, reinicio ni validación visual de la versión nueva. Ver
+  `docs/PRODUCTION_DAILY_WORKFLOW.md` para contratos y la limitación detectada al
+  volver a capturar sobre ciertas órdenes con reverso previo, fuera de este alcance.
+
+
+### Captura diaria flexible (22 de septiembre de 2026)
+
+- Nuevas órdenes diarias con las tres etapas, desde `StartArea`; las publicadas conservan su snapshot. Semana vacía permitida con NIP ADMIN.
+- Capturas reales sin tope por programa/disponible, cualquier SKU activo, un NIP por tanda. Extras de Corte generan orden/lote internos separados del programa (`IsExtra`); Costura/RTP pueden quedar por conciliar (`IsFlexible`).
+- Conciliación FIFO automática y auditable, por área/fecha, sin modificar la captura original ni duplicar cantidades. Balance firmado por fecha efectiva y por orden, partes sin asignación separadas del importado, pendientes/diferencias entre semanas. Excel comparte el servicio y muestra extras y por conciliar por área.
+- Buscador de catálogo para agregar productos, filtros que conservan cantidades/notas y revisión con pendiente/extras/diferencia. Reverso idempotente para capturas sin asignación; se mantienen restricciones por operaciones posteriores y el fallo previo de recaptura fuera de alcance.
+- Migración generada `20260922171239_FlexibleDailyProduction`; no aplicada a la base operativa. Sin despliegue ni reinicio. Contratos y detalle en `docs/PRODUCTION_DAILY_WORKFLOW.md`.
+
+- Verificación de esta entrega: regresión 127/127; cierres focales 13/13 (incluido PostgreSQL aislado) y 11/11; JavaScript 6/6. Modelo sin cambios pendientes frente a la migración. Navegador/tablet pendientes; no se inició una instancia operativa.
+
+
+### Selector y Balance semanal (22 de septiembre de 2026)
+
+- Captura con selector único agrupado: programados de la semana/intenciones, pendientes anteriores del área, catálogo activo. Paginación independiente, selección sin duplicar filas ni perder cantidades/notas. Lookup específico `DailyProducts`; el general no cambia.
+- Balance semanal por SKU: plan completo, arrastre inicial firmado por área, realizado y pendiente al corte; detalle de días/turnos y arrastre programado separado. `GetWeeklyAsync` agrega capturas sin truncar a 500 y alimenta la nueva hoja `Weekly summary` con los filtros del resumen.
+- Sin migración, despliegue, reinicio o base operativa. Pruebas SQL en PostgreSQL temporal, regresión y cierre web documentados en `docs/PRODUCTION_DAILY_WORKFLOW.md`; validación visual pendiente por falta de instancia abierta.
+
+- Corrección posterior del POST de revisión: `Group.Fingerprint` hidden vacío activaba Required implícito y ocultaba el paso NIP. Binding nullable de huella/NIP, errores de campos visibles y foco en revisión/error. Prueba HTTP envía el hidden real y confirma 2 piezas: 18 pendientes en Corte de un plan de 20 y 2 en Costura. Cierre web 7/7 y JS 14/14; sin tocar datos operativos ni desplegar.
+
+### Balance diario por fecha (22 de septiembre de 2026)
+
+- Pendiente entre turnos: la tabla sigue inicial → T1 → pendiente para T2 → T2 → final. El corte intermedio reutiliza el motor con capturas T1 de esa fecha, sin anticipar entradas de T2; el pendiente final conserva signo. Excel también incluye el saldo intermedio. Sin cambios en persistencia ni operaciones.
+
+- Ajuste posterior: tabla más alta (88vh), SKU ancho sin salto de línea, cantidades centradas y columnas T1/T2 por proceso, además del total diario. Excel comparte el desglose por los dos turnos configurados; no se cambia la captura ni la persistencia.
+
+- Sustituye la tabla semanal y sus desplegables por una tabla del día elegido en `Through`, con actualización automática. SKU sin descripción; programación del día y, por proceso, pendiente inicial firmado, realizado de ambos turnos y pendiente al cierre. Conserva población semanal, filtros de producto/área/referencia, extras y conciliación; intención de arrastre separada.
+- `GetDailySummaryAsync` comparte cantidades con la nueva hoja Excel `Balance diario`, conservando las hojas existentes. Aperturas importadas se incorporan una vez en su fecha. El saldo anterior conserva diferencias incluso si una captura antigua se concilia con una orden de la semana nueva. No cambia captura, órdenes ni conciliación operativa.
+- Verificación: 33/33 iniciales; cierre de motor/resumen 15/15 tras los últimos ajustes, con PostgreSQL aislado; JavaScript 15/15. Incluye más de 500 capturas, turnos, reversos, programación futura y diferencias entre semanas. Evidencia en `docs/PRODUCTION_DAILY_WORKFLOW.md`. Sin migración, base real, despliegue ni reinicio; validación visual pendiente por ausencia de instancia compatible abierta.
+
+
+### Editor T1/T2 del balance (23 de septiembre de 2026)
+
+- Edición de totales por celda con previsualización conjunta, teclado/deshacer y confirmación atómica. Aumentos ADMIN/OPERATOR; reducciones ADMIN con motivo, reverso/sustitución y bloqueo por dependencias. Programa y pendientes no se editan.
+- Auditoría de operación/celdas/capturas, huellas para concurrencia e idempotencia. No guarda NIP. La simulación es de solo lectura y el balance guardado se compara con el revisado antes del commit.
+- Corrige entregas/recepciones que seguían contando traspasos reversados e impedían recapturar. Migración generada `20260922192755_DailyBalanceCellEditing`; base real, despliegue y servicio intactos. Detalles y evidencia en `docs/PRODUCTION_DAILY_WORKFLOW.md`.
+
+- Verificación del editor: cierre 24/24 y JavaScript 19/19, modelo alineado con migración; PostgreSQL aislado comprueba reversos/sustituciones, concurrencia y rollback de toda la edición. Regresión inicial 115/116 con comparación decimal corregida en el cierre. Visual pendiente por ausencia de instancia compatible.

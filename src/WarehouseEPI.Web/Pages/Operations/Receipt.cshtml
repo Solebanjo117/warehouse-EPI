@@ -1,23 +1,25 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @using WarehouseEPI.Core.Entities
 @model WarehouseEPI.Web.Pages.Operations.ReceiptModel
+<a asp-page="/Operations/PalletLabels/Tracking" asp-route-OriginId="@Model.Receipt.MovementId" class="btn btn-outline-primary btn-lg">@OpTexts["Ver placas de esta operación"]</a>
 @{
-    ViewData["Title"] = "Operación confirmada";
+    ViewData["Title"] = OpTexts["Operación confirmada"].Value;
     var typeName = Model.Receipt.Purpose switch
     {
-        InventoryMovementPurpose.ProductionReceipt => "Recepción de producción",
-        InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
-        InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP a bodega",
-        InventoryMovementPurpose.WipConsumption => "Consumo WIP",
-        InventoryMovementPurpose.WipSupplierReturn => "Devolución WIP a proveedor",
-        InventoryMovementPurpose.DocumentReceipt => "Recepción documental",
+        InventoryMovementPurpose.ProductionReceipt => OpTexts["Recepción de producción"].Value,
+        InventoryMovementPurpose.ProductionIssue => OpTexts["Surtimiento WIP"].Value,
+        InventoryMovementPurpose.WipWarehouseReturn => OpTexts["Devolución WIP a bodega"].Value,
+        InventoryMovementPurpose.WipConsumption => OpTexts["Consumo WIP"].Value,
+        InventoryMovementPurpose.WipSupplierReturn => OpTexts["Devolución WIP a proveedor"].Value,
+        InventoryMovementPurpose.DocumentReceipt => OpTexts["Recepción documental"].Value,
         _ => Model.Receipt.Type switch
     {
-        InventoryMovementType.Entry => "Entrada",
-        InventoryMovementType.Exit => "Salida",
-        InventoryMovementType.Transfer => "Transferencia",
-        InventoryMovementType.Adjustment => "Ajuste",
-        _ => "Movimiento"
+        InventoryMovementType.Entry => OpTexts["Entrada"].Value,
+        InventoryMovementType.Exit => OpTexts["Salida"].Value,
+        InventoryMovementType.Transfer => OpTexts["Transferencia"].Value,
+        InventoryMovementType.Adjustment => OpTexts["Ajuste"].Value,
+        _ => OpTexts["Movimiento"].Value
     }};
     var newPage = Model.Receipt.Purpose switch
     {
@@ -45,16 +47,16 @@
     <div class="receipt-status @(Model.Receipt.HasNegativeBalance ? "receipt-warning" : "receipt-success")">
         <span class="receipt-icon" aria-hidden="true">@(Model.Receipt.HasNegativeBalance ? "!" : "✓")</span>
         <div>
-            <h1 class="h3 mb-1">@typeName @(superseded ? "corregida · antecedente" : "confirmada")</h1>
+            <h1 class="h3 mb-1">@typeName @(superseded ? OpTexts["corregida · antecedente"].Value : OpTexts["confirmada"].Value)</h1>
             <p class="mb-0">
-                @if (superseded) { <text>Este movimiento no representa una recepción vigente. Consulta la corrección.</text> }
+                @if (superseded) { <text>@OpTexts["Este movimiento no representa una recepción vigente. Consulta la corrección."]</text> }
                 else if (Model.Receipt.HasNegativeBalance)
                 {
-                    <text>La operación se guardó, pero existe un saldo negativo.</text>
+                    <text>@OpTexts["La operación se guardó, pero existe un saldo negativo."]</text>
                 }
                 else
                 {
-                    <text>El inventario se actualizó correctamente.</text>
+                    <text>@OpTexts["El inventario se actualizó correctamente."]</text>
                 }
             </p>
         </div>
@@ -62,12 +64,12 @@
 
     <section class="operation-card mt-4">
         <div class="receipt-meta">
-            <div><span>Responsable</span><strong>@Model.Receipt.ResponsibleName</strong></div>
-            <div><span>Fecha</span><strong>@Model.OccurredAtWarehouseTime.ToString("dd/MM/yyyy HH:mm")</strong></div>
-            <div><span>Folio</span><strong class="receipt-id">@Model.Receipt.MovementId</strong></div>
+            <div><span>@OpTexts["Responsable"]</span><strong>@Model.Receipt.ResponsibleName</strong></div>
+            <div><span>@OpTexts["Fecha"]</span><strong>@Model.OccurredAtWarehouseTime.ToString("dd/MM/yyyy HH:mm")</strong></div>
+            <div><span>@OpTexts["Folio"]</span><strong class="receipt-id">@Model.Receipt.MovementId</strong></div>
             @if (Model.Receipt.Reference is not null)
             {
-                <div><span>Referencia</span><strong>@Model.Receipt.Reference</strong></div>
+                <div><span>@OpTexts["Referencia"]</span><strong>@Model.Receipt.Reference</strong></div>
             }
         </div>
     </section>
@@ -75,43 +77,43 @@
         <section class="operation-card border-primary" data-production-receipt>
         @if(Model.Production is { } production) {
             var productionUnit=Model.Receipt.Lines.FirstOrDefault()?.UnitCode;
-            <h2 class="h5">@production.OrderNumber · @(production.BatchNumber ?? "Seguimiento histórico sin lote")</h2>
-            <p>Cantidad de esta recepción: @production.Quantity.ToString("0.####") @productionUnit</p>
-            <p>Acumulado actual: @production.Received.ToString("0.####") @productionUnit · Disponible para otra recepción: @production.Pending.ToString("0.####") @productionUnit</p>
-            <p class="small text-body-secondary">Acumulado y pendiente consultados al abrir este comprobante.</p>
+            <h2 class="h5">@production.OrderNumber · @(production.BatchNumber ?? OpTexts["Seguimiento histórico sin lote"].Value)</h2>
+            <p>@OpTexts["Cantidad de esta recepción: {0} {1}", production.Quantity.ToString("0.####"), productionUnit ?? ""]</p>
+            <p>@OpTexts["Acumulado actual: {0} {1} · Disponible para otra recepción: {2} {1}", production.Received.ToString("0.####"), productionUnit ?? "", production.Pending.ToString("0.####")]</p>
+            <p class="small text-body-secondary">@OpTexts["Acumulado y pendiente consultados al abrir este comprobante."]</p>
             <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-outline-primary btn-lg" asp-page="/Operations/Production/Work" asp-route-id="@production.OrderId" asp-route-BatchId="@production.BatchId">Volver a la orden</a>
-            @if(!superseded && production.CanReceive && production.Pending>0) { <a class="btn btn-primary btn-lg" asp-page="/Operations/Production/Work" asp-route-id="@production.OrderId" asp-route-BatchId="@production.BatchId" asp-route-Task="warehouse">Recibir otra parcialidad</a> }
-            @if(production.BatchId.HasValue) { <a class="btn btn-outline-secondary btn-lg" asp-page="/Operations/Production/BatchLabel" asp-route-id="@production.BatchId">Etiqueta del lote</a> }
+            <a class="btn btn-outline-primary btn-lg" asp-page="/Operations/Production/Work" asp-route-id="@production.OrderId" asp-route-BatchId="@production.BatchId">@OpTexts["Volver a la orden"]</a>
+            @if(!superseded && production.CanReceive && production.Pending>0) { <a class="btn btn-primary btn-lg" asp-page="/Operations/Production/Work" asp-route-id="@production.OrderId" asp-route-BatchId="@production.BatchId" asp-route-Task="warehouse">@OpTexts["Recibir otra parcialidad"]</a> }
+            @if(production.BatchId.HasValue) { <a class="btn btn-outline-secondary btn-lg" asp-page="/Operations/Production/BatchLabel" asp-route-id="@production.BatchId">@OpTexts["Etiqueta del lote"]</a> }
             </div>
-        } else { <p>Este antecedente no conserva un vínculo completo con la orden y el lote.</p><a class="btn btn-primary btn-lg" asp-page="/Operations/Production/Index" asp-route-View="all">Buscar en producción</a> }
+        } else { <p>@OpTexts["Este antecedente no conserva un vínculo completo con la orden y el lote."]</p><a class="btn btn-primary btn-lg" asp-page="/Operations/Production/Index" asp-route-View="all">@OpTexts["Buscar en producción"]</a> }
         </section>
     }
     @if (Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue)
     {
-        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">El surtimiento transfirió existencias al WIP y conservó los lotes del origen.</p></section>
+        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">@OpTexts["El surtimiento transfirió existencias al WIP y conservó los lotes del origen."]</p></section>
     }
     @if (Model.ReceivingDocument is not null)
     {
         <section class="operation-card border-primary">
-            <h2 class="h5">Documento relacionado</h2>
+            <h2 class="h5">@OpTexts["Documento relacionado"]</h2>
             <p class="mb-2"><strong>@Model.ReceivingDocument.DocumentLabel</strong> · @Model.ReceivingDocument.Status</p>
-            @if (Model.ReceivingDocument.ExternalLotReferences.Count > 0) { <p class="small mb-2">Lote/rollo externo: @string.Join(", ", Model.ReceivingDocument.ExternalLotReferences)</p> }
+            @if (Model.ReceivingDocument.ExternalLotReferences.Count > 0) { <p class="small mb-2">@OpTexts["Lote/rollo externo: {0}", string.Join(", ", Model.ReceivingDocument.ExternalLotReferences)]</p> }
             @if (Model.ReceivingDocument.DifferenceNotes is not null) { <p class="small text-warning">@Model.ReceivingDocument.DifferenceNotes</p> }
-            <a class="btn btn-outline-primary" asp-page="/Operations/Receiving/Details" asp-route-id="@Model.ReceivingDocument.DocumentId">Ver recepción</a>
+            <a class="btn btn-outline-primary" asp-page="/Operations/Receiving/Details" asp-route-id="@Model.ReceivingDocument.DocumentId">@OpTexts["Ver recepción"]</a>
         </section>
     }
 
     @if (Model.Receipt.Correction is not null)
     {
         <section class="operation-card border-warning">
-            <h2 class="h5">Comprobante relacionado con una corrección</h2>
+            <h2 class="h5">@OpTexts["Comprobante relacionado con una corrección"]</h2>
             <p class="mb-2">@Model.Receipt.Correction.Reason</p>
             <div class="d-flex flex-wrap gap-2">
-                <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@Model.Receipt.Correction.OriginalMovementId">Original</a>
-                <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@Model.Receipt.Correction.ReversalMovementId">Reverso</a>
+                <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@Model.Receipt.Correction.OriginalMovementId">@OpTexts["Original"]</a>
+                <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@Model.Receipt.Correction.ReversalMovementId">@OpTexts["Reverso"]</a>
                 @if (Model.Receipt.Correction.ReplacementMovementId is Guid replacement)
-                { <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@replacement">Reemplazo</a> }
+                { <a class="btn btn-outline-secondary" asp-page="/Operations/Receipt" asp-route-id="@replacement">@OpTexts["Reemplazo"]</a> }
             </div>
         </section>
     }
@@ -131,7 +133,7 @@
             }
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
-                    <thead><tr><th>Ubicación</th><th>Anterior</th><th>Cambio</th><th>Final</th></tr></thead>
+                    <thead><tr><th>@OpTexts["Ubicación"]</th><th>@OpTexts["Anterior"]</th><th>@OpTexts["Cambio"]</th><th>@OpTexts["Final"]</th></tr></thead>
                     <tbody>
                     @foreach (var change in line.Changes)
                     {
@@ -150,15 +152,15 @@
 
     @if (Model.Receipt.Notes is not null)
     {
-        <section class="operation-card"><strong>Observaciones / motivo</strong><p class="mb-0 mt-1">@Model.Receipt.Notes</p></section>
+        <section class="operation-card"><strong>@OpTexts["Observaciones / motivo"]</strong><p class="mb-0 mt-1">@Model.Receipt.Notes</p></section>
     }
     @if (canGeneratePalletPlate)
     {
-        <div class="operation-actions"><a class="btn btn-outline-primary btn-lg" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Receipt.MovementId">Generar placa de pallet</a></div>
+        <div class="operation-actions"><a class="btn btn-outline-primary btn-lg" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Receipt.MovementId">@OpTexts["Identificar pallet"]</a></div>
     }
 
     <div class="operation-actions">
-        <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">Menú</a>
-        @if(Model.Receipt.Purpose != InventoryMovementPurpose.ProductionReceipt) { <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">Nueva operación</a> }
+        <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">@OpTexts["Menú"]</a>
+        @if(Model.Receipt.Purpose != InventoryMovementPurpose.ProductionReceipt) { <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">@OpTexts["Nueva operación"]</a> }
     </div>
 </div>

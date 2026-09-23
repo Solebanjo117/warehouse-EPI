@@ -47,7 +47,7 @@ public sealed record SubmitCycleCountForUserCommand(
     IReadOnlyList<CycleCountQuantityCommand> Entries,
     bool IsLocationEmpty = false);
 
-public sealed record CycleCountQuantityCommand(Guid ProductId, decimal Quantity);
+public sealed record CycleCountQuantityCommand(Guid ProductId, decimal Quantity, IReadOnlyList<PalletSelection>? PlateCounts = null);
 
 public sealed record CycleCountActionCommand(Guid LocationId, Guid OperationId, string Pin, string? Notes = null,
     IReadOnlyCollection<SharedAssignmentApproval>? ApprovedSharedAssignments = null, Guid? ReviewBatchId = null);
@@ -111,7 +111,7 @@ public sealed record CycleCountLocationItem(
 
 public sealed record CycleCountEntryItem(
     Guid ProductId, string Sku, string? Description, string UnitCode, bool AllowsDecimals,
-    decimal? CountedQuantity, decimal? ExpectedQuantity, decimal? Difference, bool IsUnexpectedProduct);
+    decimal? CountedQuantity, decimal? ExpectedQuantity, decimal? Difference, bool IsUnexpectedProduct, IReadOnlyList<PalletSelection>? PlateCounts = null, bool HasPlateDifference = false);
 
 public sealed record CycleCountAttemptView(
     Guid Id, int AttemptNumber, CycleCountAttemptStatus Status, DateTimeOffset StartedAt,

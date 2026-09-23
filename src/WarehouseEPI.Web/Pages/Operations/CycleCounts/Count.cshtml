@@ -1,7 +1,8 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.CycleCounts.CountModel
 @{
-    ViewData["Title"] = "Conteo ciego";
+    ViewData["Title"] = OpTexts["Conteo ciego"].Value;
     var attempt = Model.Attempt;
     var unexpectedRows = Math.Max(3, Model.Input.UnexpectedEntries.Count);
     var productCount = attempt?.Entries.Count ?? 0;
@@ -9,13 +10,13 @@
 <div class="operation-shell cycle-count-workspace cycle-count-station" data-cycle-count-capture data-cycle-campaign="@Model.CampaignId" data-cycle-location="@Model.LocationId">
     <header class="entry-header">
         <div>
-            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="small text-decoration-none">← Campaña</a>
-            <h1 class="h2 mt-2 mb-1">Conteo ciego</h1>
-            <p class="text-muted mb-0">Escanea producto, captura cantidad y continúa.</p>
+            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="small text-decoration-none">@OpTexts["← Campaña"]</a>
+            <h1 class="h2 mt-2 mb-1">@OpTexts["Conteo ciego"]</h1>
+            <p class="text-muted mb-0">@OpTexts["Escanea producto, captura cantidad y continúa."]</p>
         </div>
         <div class="entry-progress" role="status" aria-live="polite">
-            <span data-cycle-progress>0 de @productCount contados</span>
-            <small>1 ubicación por captura</small>
+            <span data-cycle-progress>@OpTexts["0 de {0} contados", productCount]</span>
+            <small>@OpTexts["1 ubicación por captura"]</small>
         </div>
     </header>
 
@@ -27,8 +28,8 @@
     @if (attempt is null)
     {
         <div class="alert alert-warning" role="alert">
-            Vuelve a abrir la ubicación desde la campaña para iniciar la captura.
-            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="alert-link">Ir a la campaña</a>
+            @OpTexts["Vuelve a abrir la ubicación desde la campaña para iniciar la captura."]
+            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="alert-link">@OpTexts["Ir a la campaña"]</a>
         </div>
         return;
     }
@@ -37,18 +38,18 @@
         @if (Model.OperatorSession is not null)
         {
             <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg>
-            <span><strong>Contando como @Model.OperatorSession.UserName</strong><small>La sesión se renueva mientras continúes capturando.</small></span>
+            <span><strong>@OpTexts["Contando como {0}", Model.OperatorSession.UserName]</strong><small>@OpTexts["La sesión se renueva mientras continúes capturando."]</small></span>
         }
         else
         {
             <svg class="app-icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-            <span><strong>Identificación pendiente</strong><small>Ingresa tu NIP al registrar; la captura no se perderá.</small></span>
+            <span><strong>@OpTexts["Identificación pendiente"]</strong><small>@OpTexts["Ingresa tu NIP al registrar; la captura no se perderá."]</small></span>
         }
     </div>
 
     <p class="cycle-blind-note">
         <svg class="app-icon" aria-hidden="true"><use href="#icon-lock" /></svg>
-        <span>Existencia esperada oculta. Captura lo que cuentes físicamente, incluso si es cero.</span>
+        <span>@OpTexts["Existencia esperada oculta. Captura lo que cuentes físicamente, incluso si es cero."]</span>
     </p>
 
     <form method="post">
@@ -66,22 +67,22 @@
                 <section class="entry-step cycle-count-step @(missing ? "is-missing" : null)" data-cycle-product="@entry.Sku">
                     <header class="entry-step-header">
                         <span class="entry-step-number" aria-hidden="true">@(index + 1)</span>
-                        <div><h2 class="h5 mb-0">@entry.Sku</h2><span class="entry-step-status" data-cycle-step-status>Pendiente</span></div>
+                        <div><h2 class="h5 mb-0">@entry.Sku</h2><span class="entry-step-status" data-cycle-step-status>@OpTexts["Pendiente"]</span></div>
                     </header>
                     <div class="entry-step-body">
-                        <p class="cycle-count-description">@(entry.Description ?? "Sin descripción")</p>
+                        <p class="cycle-count-description">@(entry.Description ?? OpTexts["Sin descripción"].Value)</p>
                         <input name="Input.Entries[@index].ProductId" type="hidden" value="@entry.ProductId" />
-                        <label class="form-label" for="quantity-@index">Conteo físico</label>
+                        <label class="form-label" for="quantity-@index">@OpTexts["Conteo físico"]</label>
                         <div class="input-group input-group-lg entry-capture-input">
                             <input id="quantity-@index" name="Input.Entries[@index].Quantity" value="@Model.CapturedQuantity(entry.ProductId)"
                                    class="form-control @(missing ? "is-invalid" : null)" data-cycle-quantity
                                    inputmode="@(entry.AllowsDecimals ? "decimal" : "numeric")" required autocomplete="off"
-                                   placeholder="Cantidad física" aria-describedby="@(missing ? $"quantity-error-{index}" : null)" />
+                                   placeholder="@OpTexts["Cantidad física"]" aria-describedby="@(missing ? $"quantity-error-{index}" : null)" />
                             <span class="input-group-text">@entry.UnitCode</span>
                         </div>
                         @if (missing)
                         {
-                            <div id="quantity-error-@index" class="invalid-feedback d-block">Captura la cantidad física, incluso si es cero.</div>
+                            <div id="quantity-error-@index" class="invalid-feedback d-block">@OpTexts["Captura la cantidad física, incluso si es cero."]</div>
                         }
                     </div>
                 </section>
@@ -89,19 +90,19 @@
         </div>
 
         <fieldset class="operation-card" data-cycle-unexpected>
-            <legend class="h5">Productos inesperados</legend>
-            <p class="text-body-secondary">Escanea o escribe un SKU/código de barras y su cantidad.</p>
+            <legend class="h5">@OpTexts["Productos inesperados"]</legend>
+            <p class="text-body-secondary">@OpTexts["Escanea o escribe un SKU/código de barras y su cantidad."]</p>
             @for (var index = 0; index < unexpectedRows; index++)
             {
                 var unexpected = Model.UnexpectedEntry(index);
                 <div class="row g-2 mb-2" data-cycle-unexpected-row>
                     <div class="col-sm-7">
-                        <label class="visually-hidden" for="unexpected-code-@index">SKU o código inesperado @(index + 1)</label>
-                        <input id="unexpected-code-@index" name="Input.UnexpectedEntries[@index].Code" value="@unexpected.Code" class="form-control" autocomplete="off" autocapitalize="characters" placeholder="SKU o código de barras inesperado" />
+                        <label class="visually-hidden" for="unexpected-code-@index">@OpTexts["SKU o código inesperado {0}", index + 1]</label>
+                        <input id="unexpected-code-@index" name="Input.UnexpectedEntries[@index].Code" value="@unexpected.Code" class="form-control" autocomplete="off" autocapitalize="characters" placeholder="@OpTexts["SKU o código de barras inesperado"]" />
                     </div>
                     <div class="col-sm-3">
-                        <label class="visually-hidden" for="unexpected-quantity-@index">Cantidad inesperada @(index + 1)</label>
-                        <input id="unexpected-quantity-@index" name="Input.UnexpectedEntries[@index].Quantity" value="@unexpected.Quantity" class="form-control" inputmode="decimal" placeholder="Cantidad" />
+                        <label class="visually-hidden" for="unexpected-quantity-@index">@OpTexts["Cantidad inesperada {0}", index + 1]</label>
+                        <input id="unexpected-quantity-@index" name="Input.UnexpectedEntries[@index].Quantity" value="@unexpected.Quantity" class="form-control" inputmode="decimal" placeholder="@OpTexts["Cantidad"]" />
                     </div>
                 </div>
             }
@@ -110,51 +111,51 @@
         <section class="operation-card cycle-empty-location">
             <div class="form-check">
                 <input asp-for="Input.IsLocationEmpty" class="form-check-input" data-cycle-empty-location />
-                <label asp-for="Input.IsLocationEmpty" class="form-check-label">La ubicación está vacía</label>
+                <label asp-for="Input.IsLocationEmpty" class="form-check-label">@OpTexts["La ubicación está vacía"]</label>
             </div>
-            <p class="text-body-secondary mb-0">Se registrará 0 en @(productCount == 1 ? "la línea" : $"las {productCount} líneas"). Puedes desmarcarlo antes de confirmar.</p>
+            <p class="text-body-secondary mb-0">@(productCount == 1 ? OpTexts["Se registrará 0 en la línea. Puedes desmarcarlo antes de confirmar."] : OpTexts["Se registrará 0 en las {0} líneas. Puedes desmarcarlo antes de confirmar.", productCount])</p>
         </section>
 
         <div class="operation-actions">
-            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="btn btn-outline-secondary btn-lg">Volver a campaña</a>
-            <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-cycle-review>Registrar y escanear siguiente</button>
+            <a asp-page="Details" asp-route-id="@Model.CampaignId" class="btn btn-outline-secondary btn-lg">@OpTexts["Volver a campaña"]</a>
+            <button type="button" class="btn btn-primary btn-lg flex-grow-1" data-cycle-review>@OpTexts["Registrar y escanear siguiente"]</button>
         </div>
 
         <div class="modal fade" id="confirm-cycle-count" tabindex="-1" aria-labelledby="confirm-cycle-count-title" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h2 class="modal-title h5" id="confirm-cycle-count-title">Confirmar conteo</h2>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                        <h2 class="modal-title h5" id="confirm-cycle-count-title">@OpTexts["Confirmar conteo"]</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@OpTexts["Cerrar"]"></button>
                     </div>
                     <div class="modal-body">
                         <div class="confirmation-summary mb-3" data-cycle-confirmation></div>
                         @if (Model.RequireOperatorPin)
                         {
-                            <label asp-for="Input.Pin" class="form-label fw-semibold">NIP del responsable</label>
+                            <label asp-for="Input.Pin" class="form-label fw-semibold">@OpTexts["NIP del responsable"]</label>
                             <input asp-for="Input.Pin" value="" class="form-control form-control-lg pin-input"
                                    type="password" inputmode="numeric" pattern="[0-9]{4,8}" minlength="4" maxlength="8"
                                    autocomplete="off" data-cycle-pin required />
-                            <p class="small text-muted mt-2 mb-0">Se iniciará una sesión para esta campaña. El NIP no se conservará.</p>
+                            <p class="small text-muted mt-2 mb-0">@OpTexts["Se iniciará una sesión para esta campaña. El NIP no se conservará."]</p>
                         }
                         else
                         {
-                            <p class="mb-0"><strong>Responsable:</strong> @Model.OperatorSession!.UserName</p>
-                            <p class="small text-muted mt-2 mb-0">No necesitas capturar nuevamente el NIP.</p>
+                            <p class="mb-0"><strong>@OpTexts["Responsable:"]</strong> @Model.OperatorSession!.UserName</p>
+                            <p class="small text-muted mt-2 mb-0">@OpTexts["No necesitas capturar nuevamente el NIP."]</p>
                         }
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Volver</button>
-                        <button type="submit" class="btn btn-primary btn-lg" data-cycle-submit>Registrar y continuar</button>
+                        <button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">@OpTexts["Volver"]</button>
+                        <button type="submit" class="btn btn-primary btn-lg" data-cycle-submit>@OpTexts["Registrar y continuar"]</button>
                     </div>
                 </div>
             </div>
         </div>
     </form>
 
-    <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="Escanear producto">
-        <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg><span>Escanear producto</span>
+    <button type="button" class="cycle-scan-fab" data-cycle-scan-product aria-label="@OpTexts["Escanear producto"]">
+        <svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg><span>@OpTexts["Escanear producto"]</span>
     </button>
     <partial name="_CameraScanner" />
 </div>
-@section Scripts { <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }
+@section Scripts {<script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/cycle-count.js" asp-append-version="true"></script> }

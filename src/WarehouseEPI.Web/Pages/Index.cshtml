@@ -1,7 +1,7 @@
 @page
 @model IndexModel
 @{
-    ViewData["Title"] = "Inicio";
+    ViewData["Title"] = SharedTexts["Inicio"].Value;
 }
 
 @section Styles {
@@ -10,66 +10,66 @@
 
 <div class="home-page">
     <header class="home-header">
-        <span class="eyebrow">Operación de almacén</span>
-        <h1 class="home-title">¿Qué necesitas hacer?</h1>
-        <p>Selecciona una operación o abre una consulta del almacén.</p>
+        <span class="eyebrow">@SharedTexts["Operación de almacén"]</span>
+        <h1 class="home-title">@SharedTexts["¿Qué necesitas hacer?"]</h1>
+        <p>@SharedTexts["Selecciona una operación o abre una consulta del almacén."]</p>
     </header>
 
     <section aria-labelledby="home-operate-title">
-        <h2 class="home-group-title" id="home-operate-title">Registrar operación</h2>
+        <h2 class="home-group-title" id="home-operate-title">@SharedTexts["Registrar operación"]</h2>
         <div class="home-actions home-actions-operate">
             <a asp-page="/Operations/Entry" class="home-action home-action-operate is-entry">
                 <svg class="home-action-icon" aria-hidden="true">
                     <use href="#icon-entry" />
                 </svg>
-                <strong class="home-action-title">Entrada</strong>
-                <span class="home-action-hint">Recibir material</span>
+                <strong class="home-action-title">@SharedTexts["Entrada"]</strong>
+                <span class="home-action-hint">@SharedTexts["Recibir material"]</span>
             </a>
             <a asp-page="/Operations/Exit" class="home-action home-action-operate is-exit">
                 <svg class="home-action-icon" aria-hidden="true">
                     <use href="#icon-exit" />
                 </svg>
-                <strong class="home-action-title">Salida</strong>
-                <span class="home-action-hint">General o surtir WIP</span>
+                <strong class="home-action-title">@SharedTexts["Salida"]</strong>
+                <span class="home-action-hint">@SharedTexts["General o surtir WIP"]</span>
             </a>
             <a asp-page="/Operations/WipProcess" class="home-action home-action-operate is-transfer">
                 <svg class="home-action-icon" aria-hidden="true">
                     <use href="#icon-movements" />
                 </svg>
-                <strong class="home-action-title">Procesar WIP</strong>
-                <span class="home-action-hint">Consumo, bodega o proveedor</span>
+                <strong class="home-action-title">@SharedTexts["Procesar WIP"]</strong>
+                <span class="home-action-hint">@SharedTexts["Consumo, bodega o proveedor"]</span>
             </a>
             <a asp-page="/Operations/Transfer" class="home-action home-action-operate is-transfer">
                 <svg class="home-action-icon" aria-hidden="true">
                     <use href="#icon-transfer" />
                 </svg>
-                <strong class="home-action-title">Transferencia</strong>
-                <span class="home-action-hint">Mover entre ubicaciones</span>
+                <strong class="home-action-title">@SharedTexts["Transferencia"]</strong>
+                <span class="home-action-hint">@SharedTexts["Mover entre ubicaciones"]</span>
             </a>
             <a asp-page="/Operations/Adjustment" class="home-action home-action-operate is-adjust">
                 <svg class="home-action-icon" aria-hidden="true">
                     <use href="#icon-adjust" />
                 </svg>
-                <strong class="home-action-title">Ajuste</strong>
-                <span class="home-action-hint">Registrar conteo físico</span>
+                <strong class="home-action-title">@SharedTexts["Ajuste"]</strong>
+                <span class="home-action-hint">@SharedTexts["Registrar conteo físico"]</span>
             </a>
         </div>
         <div class="home-nip">
-            <span class="home-nip-mark">NIP</span>
-            <p>El NIP se solicitará únicamente al confirmar.</p>
+            <span class="home-nip-mark">@SharedTexts["NIP"]</span>
+            <p>@SharedTexts["El NIP se solicitará únicamente al confirmar."]</p>
         </div>
     </section>
 
     <section aria-labelledby="home-consult-title">
-        <h2 class="home-group-title" id="home-consult-title">Consultar y controlar</h2>
+        <h2 class="home-group-title" id="home-consult-title">@SharedTexts["Consultar y controlar"]</h2>
         <div class="home-actions home-actions-consult">
             <a asp-page="/Operations/CycleCounts/Index" class="home-action home-action-consult">
                 <svg class="home-action-icon" aria-hidden="true">
                     <use href="#icon-product-classes" />
                 </svg>
                 <span class="home-action-text">
-                    <strong class="home-action-title">Conteos cíclicos</strong>
-                    <span class="home-action-hint">Conteo ciego por ubicación</span>
+                    <strong class="home-action-title">@SharedTexts["Conteos cíclicos"]</strong>
+                    <span class="home-action-hint">@SharedTexts["Conteo ciego por ubicación"]</span>
                 </span>
             </a>
             <a asp-page="/Inventory/Index" class="home-action home-action-consult">
@@ -77,8 +77,8 @@
                     <use href="#icon-inventory" />
                 </svg>
                 <span class="home-action-text">
-                    <strong class="home-action-title">Consultar</strong>
-                    <span class="home-action-hint">Ver existencias</span>
+                    <strong class="home-action-title">@SharedTexts["Consultar"]</strong>
+                    <span class="home-action-hint">@SharedTexts["Ver existencias"]</span>
                 </span>
             </a>
             <a asp-page="/Reports/Wip/Index" class="home-action home-action-consult">
@@ -86,8 +86,8 @@
                     <use href="#icon-movements" />
                 </svg>
                 <span class="home-action-text">
-                    <strong class="home-action-title">Reporte WIP</strong>
-                    <span class="home-action-hint">Existencias y actividad</span>
+                    <strong class="home-action-title">@SharedTexts["Reporte WIP"]</strong>
+                    <span class="home-action-hint">@SharedTexts["Existencias y actividad"]</span>
                 </span>
             </a>
             <a asp-page="/Reports/Dashboard/Index" class="home-action home-action-consult">
@@ -95,8 +95,8 @@
                     <use href="#icon-dashboard" />
                 </svg>
                 <span class="home-action-text">
-                    <strong class="home-action-title">Tablero diario</strong>
-                    <span class="home-action-hint">Actividad y alertas del día</span>
+                    <strong class="home-action-title">@SharedTexts["Tablero diario"]</strong>
+                    <span class="home-action-hint">@SharedTexts["Actividad y alertas del día"]</span>
                 </span>
             </a>
         </div>

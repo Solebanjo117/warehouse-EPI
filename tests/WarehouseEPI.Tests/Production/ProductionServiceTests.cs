@@ -48,6 +48,7 @@ public sealed class ProductionServiceTests
         var movement=await f.Db.InventoryMovements.SingleAsync();Assert.Equal(InventoryMovementPurpose.ProductionReceipt,movement.Purpose);
         Assert.Equal(movement.Id,await f.Db.ProductionEvents.Where(x=>x.Type==ProductionEventType.WarehouseReceived).Select(x=>x.InventoryMovementId).SingleAsync());
         Assert.Equal(5,await f.Db.InventoryBalances.SumAsync(x=>x.Quantity));
+        Assert.Empty(await f.Db.PalletPlates.ToListAsync());
     }
 
     [Fact]

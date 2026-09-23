@@ -1,24 +1,25 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.CycleCounts.CreateModel
 @{
-    ViewData["Title"] = "Nueva campaña";
+    ViewData["Title"] = OpTexts["Nueva campaña"].Value;
     var selectedIds = Model.Input.LocationIds.ToHashSet();
 }
 
 <div class="inventory-analytics cycle-count-workspace">
     <header class="inventory-page-header">
-        <a asp-page="Index" class="small text-decoration-none">← Conteos cíclicos</a>
+        <a asp-page="Index" class="small text-decoration-none">@OpTexts["← Conteos cíclicos"]</a>
         <div class="mt-2">
-            <span class="eyebrow">Preparar el trabajo</span>
-            <h1 class="h2 mb-1">Nueva campaña de conteo</h1>
-            <p class="text-muted mb-0">Define qué posiciones se contarán. Varios operadores pueden trabajar la misma campaña en ubicaciones diferentes.</p>
+            <span class="eyebrow">@OpTexts["Preparar el trabajo"]</span>
+            <h1 class="h2 mb-1">@OpTexts["Nueva campaña de conteo"]</h1>
+            <p class="text-muted mb-0">@OpTexts["Define qué posiciones se contarán. Varios operadores pueden trabajar la misma campaña en ubicaciones diferentes."]</p>
         </div>
     </header>
 
-    <ol class="cycle-stepper" aria-label="Pasos para crear la campaña">
-        <li><span>1</span><strong>Datos</strong></li>
-        <li><span>2</span><strong>Ubicaciones</strong></li>
-        <li><span>3</span><strong>Confirmar</strong></li>
+    <ol class="cycle-stepper" aria-label="@OpTexts["Pasos para crear la campaña"]">
+        <li><span>1</span><strong>@OpTexts["Datos"]</strong></li>
+        <li><span>2</span><strong>@OpTexts["Ubicaciones"]</strong></li>
+        <li><span>3</span><strong>@OpTexts["Confirmar"]</strong></li>
     </ol>
 
     <form method="post" data-cycle-count-create>
@@ -34,17 +35,17 @@
                 <section class="analytics-filter-card cycle-create-section" aria-labelledby="cycle-step-data">
                     <div class="cycle-section-heading">
                         <span class="cycle-step-number" aria-hidden="true">1</span>
-                        <div><h2 id="cycle-step-data" class="h5 mb-1">Identifica la campaña</h2><p class="text-muted small mb-0">Usa un nombre que ayude al siguiente turno a reconocer el trabajo.</p></div>
+                        <div><h2 id="cycle-step-data" class="h5 mb-1">@OpTexts["Identifica la campaña"]</h2><p class="text-muted small mb-0">@OpTexts["Usa un nombre que ayude al siguiente turno a reconocer el trabajo."]</p></div>
                     </div>
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label asp-for="Input.Title" class="form-label">Título</label>
-                            <input asp-for="Input.Title" class="form-control" placeholder="Ej. Fila A · turno matutino" />
+                            <label asp-for="Input.Title" class="form-label">@OpTexts["Título"]</label>
+                            <input asp-for="Input.Title" class="form-control" placeholder="@OpTexts["Ej. Fila A · turno matutino"]" />
                             <span asp-validation-for="Input.Title" class="text-danger"></span>
                         </div>
                         <div class="col-md-6">
-                            <label asp-for="Input.Notes" class="form-label">Indicaciones opcionales</label>
-                            <textarea asp-for="Input.Notes" class="form-control" rows="2" placeholder="Ej. Dividir A-1 a A-5 y A-6 a A-10"></textarea>
+                            <label asp-for="Input.Notes" class="form-label">@OpTexts["Indicaciones opcionales"]</label>
+                            <textarea asp-for="Input.Notes" class="form-control" rows="2" placeholder="@OpTexts["Ej. Dividir A-1 a A-5 y A-6 a A-10"]"></textarea>
                             <span asp-validation-for="Input.Notes" class="text-danger"></span>
                         </div>
                     </div>
@@ -53,19 +54,19 @@
                 <section class="analytics-filter-card cycle-create-section" aria-labelledby="cycle-step-locations">
                     <div class="cycle-section-heading">
                         <span class="cycle-step-number" aria-hidden="true">2</span>
-                        <div><h2 id="cycle-step-locations" class="h5 mb-1">Selecciona el alcance físico</h2><p class="text-muted small mb-0">Abre una fila, selecciona racks completos y ajusta posiciones individuales solo cuando sea necesario.</p></div>
+                        <div><h2 id="cycle-step-locations" class="h5 mb-1">@OpTexts["Selecciona el alcance físico"]</h2><p class="text-muted small mb-0">@OpTexts["Abre una fila, selecciona racks completos y ajusta posiciones individuales solo cuando sea necesario."]</p></div>
                     </div>
 
-                    <div class="cycle-selector-tools cycle-js-action" aria-label="Herramientas de selección">
+                    <div class="cycle-selector-tools cycle-js-action" aria-label="@OpTexts["Herramientas de selección"]">
                         <div class="cycle-location-search">
-                            <label for="cycle-location-search" class="form-label">Buscar ubicación</label>
-                            <input id="cycle-location-search" type="search" class="form-control" placeholder="Ej. A-3-8" autocomplete="off" data-cycle-search />
+                            <label for="cycle-location-search" class="form-label">@OpTexts["Buscar ubicación"]</label>
+                            <input id="cycle-location-search" type="search" class="form-control" placeholder="@OpTexts["Ej. A-3-8"]" autocomplete="off" data-cycle-search />
                         </div>
                         <label class="form-check cycle-selected-filter">
                             <input class="form-check-input" type="checkbox" data-cycle-selected-only />
-                            <span class="form-check-label">Solo seleccionadas</span>
+                            <span class="form-check-label">@OpTexts["Solo seleccionadas"]</span>
                         </label>
-                        <button type="button" class="btn btn-outline-secondary" data-cycle-clear>Limpiar selección</button>
+                        <button type="button" class="btn btn-outline-secondary" data-cycle-clear>@OpTexts["Limpiar selección"]</button>
                     </div>
 
                     <p class="visually-hidden" role="status" aria-live="polite" data-cycle-status></p>
@@ -74,11 +75,11 @@
                         @foreach (var row in Model.RowGroups)
                         {
                             <details class="cycle-row-group" data-cycle-row-group data-row="@row.RowCode">
-                                <summary><span><strong>Fila @row.RowCode</strong><small>@row.Racks.Count racks · @row.LocationCount ubicaciones</small></span><span class="cycle-group-count" data-cycle-row-count>0 seleccionadas</span></summary>
+                                <summary><span><strong>@OpTexts["Fila {0}", row.RowCode]</strong><small>@row.Racks.Count racks · @row.LocationCount ubicaciones</small></span><span class="cycle-group-count" data-cycle-row-count>@OpTexts["0 seleccionadas"]</span></summary>
                                 <div class="cycle-row-body">
                                     <label class="form-check cycle-group-toggle cycle-js-action">
                                         <input class="form-check-input" type="checkbox" data-cycle-group-toggle data-group-type="row" data-row="@row.RowCode" />
-                                        <span class="form-check-label">Seleccionar toda la fila @row.RowCode</span>
+                                        <span class="form-check-label">@OpTexts["Seleccionar toda la fila {0}", row.RowCode]</span>
                                     </label>
                                     <div class="cycle-rack-list">
                                         @foreach (var rack in row.Racks)
@@ -88,13 +89,13 @@
                                                 <div class="cycle-rack-body">
                                                     <label class="form-check cycle-group-toggle cycle-js-action">
                                                         <input class="form-check-input" type="checkbox" data-cycle-group-toggle data-group-type="rack" data-row="@row.RowCode" data-rack="@rack.RackNumber" />
-                                                        <span class="form-check-label">Seleccionar rack @row.RowCode-@rack.RackNumber completo</span>
+                                                        <span class="form-check-label">@OpTexts["Seleccionar rack {0}-{1} completo", row.RowCode, rack.RackNumber]</span>
                                                     </label>
                                                     <div class="cycle-pallet-grid">
                                                         @foreach (var location in rack.Locations)
                                                         {
                                                             <label class="cycle-location-choice" data-cycle-location-choice data-search-text="@location.Code @location.Description">
-                                                                <input class="form-check-input" type="checkbox" name="Input.LocationIds" value="@location.Id" checked="@selectedIds.Contains(location.Id)" data-cycle-location data-row="@row.RowCode" data-rack="@rack.RackNumber" data-summary-group="Fila @row.RowCode" />
+                                                                <input class="form-check-input" type="checkbox" name="Input.LocationIds" value="@location.Id" checked="@selectedIds.Contains(location.Id)" data-cycle-location data-row="@row.RowCode" data-rack="@rack.RackNumber" data-summary-group="@OpTexts["Fila {0}", row.RowCode]" />
                                                                 <span><strong>@location.Code</strong><small>@(location.Description ?? $"Posición {location.PalletNumber}")</small></span>
                                                             </label>
                                                         }
@@ -110,18 +111,18 @@
                         @if (Model.AreaLocations.Count != 0)
                         {
                             <details class="cycle-row-group" data-cycle-area-group>
-                                <summary><span><strong>Áreas de almacenamiento</strong><small>@Model.AreaLocations.Count ubicaciones fuera de racks</small></span><span class="cycle-group-count" data-cycle-area-count>0 seleccionadas</span></summary>
+                                <summary><span><strong>@OpTexts["Áreas de almacenamiento"]</strong><small>@Model.AreaLocations.Count ubicaciones fuera de racks</small></span><span class="cycle-group-count" data-cycle-area-count>@OpTexts["0 seleccionadas"]</span></summary>
                                 <div class="cycle-row-body">
                                     <label class="form-check cycle-group-toggle cycle-js-action">
                                         <input class="form-check-input" type="checkbox" data-cycle-group-toggle data-group-type="area" />
-                                        <span class="form-check-label">Seleccionar todas las áreas disponibles</span>
+                                        <span class="form-check-label">@OpTexts["Seleccionar todas las áreas disponibles"]</span>
                                     </label>
                                     <div class="cycle-area-grid">
                                         @foreach (var location in Model.AreaLocations)
                                         {
                                             <label class="cycle-location-choice" data-cycle-location-choice data-search-text="@location.Code @location.Description">
-                                                <input class="form-check-input" type="checkbox" name="Input.LocationIds" value="@location.Id" checked="@selectedIds.Contains(location.Id)" data-cycle-location data-area="true" data-summary-group="Áreas" />
-                                                <span><strong>@location.Code</strong><small>@(location.Description ?? "Sin descripción")</small></span>
+                                                <input class="form-check-input" type="checkbox" name="Input.LocationIds" value="@location.Id" checked="@selectedIds.Contains(location.Id)" data-cycle-location data-area="true" data-summary-group="@OpTexts["Áreas"]" />
+                                                <span><strong>@location.Code</strong><small>@(location.Description ?? OpTexts["Sin descripción"].Value)</small></span>
                                             </label>
                                         }
                                     </div>
@@ -132,7 +133,7 @@
 
                     @if (Model.Locations.Count == 0)
                     {
-                        <div class="cycle-empty"><strong>No hay ubicaciones disponibles.</strong><span>Revisa que existan posiciones activas, no bloqueadas y que controlen inventario.</span></div>
+                        <div class="cycle-empty"><strong>@OpTexts["No hay ubicaciones disponibles."]</strong><span>@OpTexts["Revisa que existan posiciones activas, no bloqueadas y que controlen inventario."]</span></div>
                     }
                 </section>
             </div>
@@ -140,30 +141,30 @@
             <aside class="analytics-filter-card cycle-create-summary" aria-labelledby="cycle-step-confirm">
                 <div class="cycle-section-heading">
                     <span class="cycle-step-number" aria-hidden="true">3</span>
-                    <div><h2 id="cycle-step-confirm" class="h5 mb-1">Revisa y confirma</h2><p class="text-muted small mb-0">El NIP autoriza la creación; no asigna la campaña a una sola persona.</p></div>
+                    <div><h2 id="cycle-step-confirm" class="h5 mb-1">@OpTexts["Revisa y confirma"]</h2><p class="text-muted small mb-0">@OpTexts["El NIP autoriza la creación; no asigna la campaña a una sola persona."]</p></div>
                 </div>
 
-                <div class="cycle-selection-total"><strong data-cycle-total>@selectedIds.Count</strong><span>ubicaciones seleccionadas</span></div>
+                <div class="cycle-selection-total"><strong data-cycle-total>@selectedIds.Count</strong><span>@OpTexts["ubicaciones seleccionadas"]</span></div>
                 <ul class="cycle-selection-summary" data-cycle-summary-groups>
-                    @if (selectedIds.Count == 0) { <li data-cycle-empty-summary>Selecciona al menos una ubicación.</li> }
+                    @if (selectedIds.Count == 0) { <li data-cycle-empty-summary>@OpTexts["Selecciona al menos una ubicación."]</li> }
                 </ul>
-                <button type="button" class="btn btn-outline-secondary w-100 cycle-js-action" data-cycle-review-selected>Ver seleccionadas</button>
+                <button type="button" class="btn btn-outline-secondary w-100 cycle-js-action" data-cycle-review-selected>@OpTexts["Ver seleccionadas"]</button>
 
                 <div class="mt-3">
-                    <label for="cycle-pin" class="form-label">NIP responsable</label>
+                    <label for="cycle-pin" class="form-label">@OpTexts["NIP responsable"]</label>
                     <input id="cycle-pin" name="Input.Pin" value="" class="form-control" type="password" inputmode="numeric" minlength="4" maxlength="8" autocomplete="off" required />
-                    <div class="form-text">Cada operador confirmará con su NIP al enviar el conteo de una ubicación.</div>
+                    <div class="form-text">@OpTexts["Cada operador confirmará con su NIP al enviar el conteo de una ubicación."]</div>
                 </div>
 
                 <div class="cycle-create-actions">
-                    <a asp-page="Index" class="btn btn-outline-secondary">Cancelar</a>
-                    <button class="btn btn-primary" data-cycle-submit>Crear campaña</button>
+                    <a asp-page="Index" class="btn btn-outline-secondary">@OpTexts["Cancelar"]</a>
+                    <button class="btn btn-primary" data-cycle-submit>@OpTexts["Crear campaña"]</button>
                 </div>
             </aside>
         </div>
         <div class="cycle-mobile-summary cycle-js-action" data-cycle-mobile-summary>
-            <span><strong data-cycle-mobile-total>@selectedIds.Count</strong> ubicaciones</span>
-            <button type="button" class="btn btn-primary" data-cycle-go-confirm>Revisar y confirmar</button>
+            <span><strong data-cycle-mobile-total>@selectedIds.Count</strong> @OpTexts["ubicaciones (variante)"]</span>
+            <button type="button" class="btn btn-primary" data-cycle-go-confirm>@OpTexts["Revisar y confirmar"]</button>
         </div>
     </form>
 </div>

@@ -1,10 +1,11 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Locations.LocationDetailsPageModel.NeighborRow
 
 <div class="location-neighbor-header">
     <strong>@Model.PalletNumber</strong>
     @if (Model.IsCurrent)
     {
-        <span class="badge text-bg-primary">Actual</span>
+        <span class="badge text-bg-primary">@CatTexts["Actual"]</span>
     }
 </div>
 <small class="location-neighbor-code">@Model.Code</small>
@@ -29,10 +30,10 @@ else if (Model.PrimaryAssignedSku is not null)
 <div class="location-neighbor-flags">
     @if (!Model.IsActive)
     {
-        <span class="badge text-bg-secondary">Inactiva</span>
+        <span class="badge text-bg-secondary">@CatTexts["Inactiva"]</span>
     }
     @if (Model.IsBlocked)
     {
-        <span class="badge text-bg-warning" title="@Model.BlockReason">Bloqueada</span>
+        <span class="badge text-bg-warning" title="@Model.BlockReason">@CatTexts["Bloqueada"]</span>
     }
 </div>

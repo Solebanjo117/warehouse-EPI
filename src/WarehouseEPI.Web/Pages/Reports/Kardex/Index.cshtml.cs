@@ -3,10 +3,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Reports.Kardex;
 
@@ -16,7 +18,8 @@ public sealed class IndexModel(
     WarehouseClock clock,
     WarehouseSettingsService settingsService,
     WarehouseDbContext dbContext,
-    TimeProvider? timeProvider = null) : PageModel
+    TimeProvider? timeProvider = null,
+    IStringLocalizer<OperationsTexts>? localizer = null) : PageModel
 {
     private const int PageSize = 25;
 
@@ -113,12 +116,12 @@ public sealed class IndexModel(
             return Forbid();
 
         if (format is not ("xlsx" or "csv"))
-            return BadRequest("El formato de exportación debe ser xlsx o csv.");
+            return BadRequest((localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<OperationsTexts>>())["El formato de exportación debe ser xlsx o csv."]);
 
         await SetRequestStateAsync(sku, locationId, period, from, to, cancellationToken);
 
         if (string.IsNullOrWhiteSpace(Sku))
-            return BadRequest("Debes especificar un SKU para exportar el Kardex.");
+            return BadRequest((localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<OperationsTexts>>())["Debes especificar un SKU para exportar el Kardex."]);
 
         var product = await ResolveProductAsync(Sku, cancellationToken);
 

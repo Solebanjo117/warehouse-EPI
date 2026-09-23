@@ -1,5 +1,7 @@
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
@@ -11,8 +13,10 @@ public static class CycleCountPresentation
     /// contrario la pantalla muestra una alerta vacía y el operador queda sin salida.
     /// </summary>
     public static string StatusMessage(CycleCountResult result) => StatusMessage(result.Status, result.ValidationErrors);
+    public static string StatusMessage(CycleCountResult result, IStringLocalizer<OperationsTexts> texts) => StatusMessage(result.Status, result.ValidationErrors, texts);
 
     public static string StatusMessage(CycleCountBatchResult result) => StatusMessage(result.Status, result.Errors ?? []);
+    public static string StatusMessage(CycleCountBatchResult result, IStringLocalizer<OperationsTexts> texts) => StatusMessage(result.Status, result.Errors ?? [], texts);
 
     private static string StatusMessage(CycleCountStatus status, IReadOnlyList<string> errors) => status switch
     {
@@ -25,6 +29,16 @@ public static class CycleCountPresentation
         _ => errors.Count != 0
             ? string.Join(' ', errors)
             : "No fue posible completar la operación. Vuelve a intentarlo."
+    };
+    private static string StatusMessage(CycleCountStatus status, IReadOnlyList<string> errors, IStringLocalizer<OperationsTexts> texts) => status switch
+    {
+        CycleCountStatus.InvalidPin => texts["NIP no válido."],
+        CycleCountStatus.BalanceChanged => texts["El saldo cambió; solicita e inicia un reconteo."],
+        CycleCountStatus.RequiresLocationSharingConfirmation => texts["La ubicación contiene otros productos. Confirma expresamente cada asignación compartida y vuelve a autorizar."],
+        CycleCountStatus.NotFound => texts["La campaña o la ubicación ya no está disponible. Vuelve a la campaña y ábrela de nuevo."],
+        CycleCountStatus.InvalidState => texts["Otra persona cambió el estado de esta ubicación. Vuelve a la campaña para ver cómo quedó."],
+        CycleCountStatus.IdempotencyConflict => texts["Esta operación ya se registró con otros datos. Vuelve a la campaña antes de reintentar."],
+        _ => errors.Count != 0 ? string.Join(' ', errors.Select(error => texts[error].Value)) : texts["No fue posible completar la operación. Vuelve a intentarlo."]
     };
 
     public static string CampaignStatusLabel(CycleCountCampaignStatus status) => status switch

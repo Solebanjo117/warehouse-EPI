@@ -1,15 +1,16 @@
 @page
 @using WarehouseEPI.Web.Pages.Operations.Production
 @model WarehouseEPI.Web.Pages.Operations.ProductionSupply.PrepareModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
 @using WarehouseEPI.Core.Entities
 @using WarehouseEPI.Infrastructure.Production
-@{ ViewData["Title"] = "Preparar surtimiento"; var detail = Model.Detail!; var confirmationSources = Model.FailedHandler=="Confirm" ? Model.Input.Sources.Select(x=>new ProductionSupplySourceSelection(x.Kind,x.LocationId,x.Quantity)).ToArray() : detail.Selected.ToArray(); }
+@{ ViewData["Title"] = ProdTexts["Preparar surtimiento"].Value; var detail = Model.Detail!; var confirmationSources = Model.FailedHandler=="Confirm" ? Model.Input.Sources.Select(x=>new ProductionSupplySourceSelection(x.Kind,x.LocationId,x.Quantity)).ToArray() : detail.Selected.ToArray(); }
 
 <div class="supply-preparation production-page" data-supply-preparation data-unit="@detail.Line.Unit" data-pending="@detail.Line.Pending.ToString(System.Globalization.CultureInfo.InvariantCulture)" data-requires-review="@(detail.RequiresReview?"true":"false")" data-line-id="@detail.Line.LineId" data-failed-handler="@Model.FailedHandler" data-request-version="@detail.Line.RequestVersion" data-preparation-version="@detail.PreparationVersion" data-preparation-id="@detail.PreparationId" data-destination-id="@detail.DestinationLocationId">
     <header class="mb-4">
-        <span class="eyebrow">Surtimiento a producción</span>
+        <span class="eyebrow">@ProdTexts["Surtimiento a producción"]</span>
         <h1 class="h2 mb-1">@detail.Line.WorkOrderNumber · @detail.Line.Material</h1>
-        <p class="text-body-secondary mb-0">@detail.Line.Process · entregar en @detail.Line.Destination</p>
+        <p class="text-body-secondary mb-0">@ProdTexts["{0} · entregar en {1}", detail.Line.Process, detail.Line.Destination]</p>
     </header>
     @if (TempData["SuccessMessage"] is string success)
     {
@@ -25,20 +26,20 @@
             var confirmationAssignments = TempData["ConfirmationAssignments"] as string;
             var confirmationOperationId = TempData["ConfirmationOperationId"] as string;
             <section class="card card-body mb-4" aria-labelledby="confirmation-proof-title" data-confirmation-proof>
-                <h2 class="h5" id="confirmation-proof-title">Comprobante de surtimiento</h2>
+                <h2 class="h5" id="confirmation-proof-title">@ProdTexts["Comprobante de surtimiento"]</h2>
                 <dl class="row mb-3">
-                    <dt class="col-5">Confirmación</dt><dd class="col-7"><code>@confirmationId</code></dd>
-                    <dt class="col-5">Operación</dt><dd class="col-7"><code>@confirmationOperationId</code></dd>
-                    <dt class="col-5">Entregado</dt><dd class="col-7">@confirmedQuantity @detail.Line.Unit</dd>
-                    <dt class="col-5">Pendiente actual</dt><dd class="col-7">@pendingQuantity @detail.Line.Unit</dd>
-                    <dt class="col-5">Destino</dt><dd class="col-7">@confirmationDestination</dd>
-                    <dt class="col-5">Responsable</dt><dd class="col-7">@confirmationResponsible</dd>
-                    <dt class="col-5">Fecha</dt><dd class="col-7">@confirmationRecordedAt</dd>
-                    <dt class="col-5">Registros</dt><dd class="col-7">@confirmationMovements traslado(s) · @confirmationAssignments asignación(es) WIP</dd>
+                    <dt class="col-5">@ProdTexts["Confirmación"]</dt><dd class="col-7"><code>@confirmationId</code></dd>
+                    <dt class="col-5">@ProdTexts["Operación"]</dt><dd class="col-7"><code>@confirmationOperationId</code></dd>
+                    <dt class="col-5">@ProdTexts["Entregado"]</dt><dd class="col-7">@confirmedQuantity @detail.Line.Unit</dd>
+                    <dt class="col-5">@ProdTexts["Pendiente actual"]</dt><dd class="col-7">@pendingQuantity @detail.Line.Unit</dd>
+                    <dt class="col-5">@ProdTexts["Destino"]</dt><dd class="col-7">@confirmationDestination</dd>
+                    <dt class="col-5">@ProdTexts["Responsable"]</dt><dd class="col-7">@confirmationResponsible</dd>
+                    <dt class="col-5">@ProdTexts["Fecha"]</dt><dd class="col-7">@confirmationRecordedAt</dd>
+                    <dt class="col-5">@ProdTexts["Registros"]</dt><dd class="col-7">@ProdTexts["{0} traslado(s) · {1} asignación(es) WIP", confirmationMovements ?? string.Empty, confirmationAssignments ?? string.Empty]</dd>
                 </dl>
                 <div class="d-flex flex-wrap gap-2">
-                    @if (detail.Line.Pending > 0) { <a class="btn btn-primary" asp-page="Prepare" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-route-lineId="@detail.Line.LineId">Continuar pendiente</a> }
-                    <a class="btn btn-outline-secondary" asp-page="Index" asp-route-Search="@Model.QueueSearch" asp-route-Condition="@Model.QueueCondition" asp-route-PageNumber="@Model.QueuePage">Volver a la cola</a>
+                    @if (detail.Line.Pending > 0) { <a class="btn btn-primary" asp-page="Prepare" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-route-lineId="@detail.Line.LineId">@ProdTexts["Continuar pendiente"]</a> }
+                    <a class="btn btn-outline-secondary" asp-page="Index" asp-route-Search="@Model.QueueSearch" asp-route-Condition="@Model.QueueCondition" asp-route-PageNumber="@Model.QueuePage">@ProdTexts["Volver a la cola"]</a>
                 </div>
             </section>
         }
@@ -47,18 +48,18 @@
     <div asp-validation-summary="All" tabindex="-1" class="alert alert-danger" role="alert"></div>
 
     <dl class="supply-quantities">
-        <div><dt>Requerido</dt><dd>@detail.Line.Required @detail.Line.Unit</dd></div>
-        <div><dt>Surtido</dt><dd>@detail.Line.Delivered @detail.Line.Unit</dd></div>
-        <div><dt>Reservado</dt><dd>@detail.Line.Reserved @detail.Line.Unit</dd></div>
-        <div><dt>Pendiente</dt><dd>@detail.Line.Pending @detail.Line.Unit</dd></div>
-        <div class="@(detail.Line.Shortage > 0 ? "text-danger" : null)"><dt>Faltante</dt><dd>@detail.Line.Shortage @detail.Line.Unit</dd></div>
+        <div><dt>@ProdTexts["Requerido"]</dt><dd>@detail.Line.Required @detail.Line.Unit</dd></div>
+        <div><dt>@ProdTexts["Surtido"]</dt><dd>@detail.Line.Delivered @detail.Line.Unit</dd></div>
+        <div><dt>@ProdTexts["Reservado"]</dt><dd>@detail.Line.Reserved @detail.Line.Unit</dd></div>
+        <div><dt>@ProdTexts["Pendiente"]</dt><dd>@detail.Line.Pending @detail.Line.Unit</dd></div>
+        <div class="@(detail.Line.Shortage > 0 ? "text-danger" : null)"><dt>@ProdTexts["Faltante"]</dt><dd>@detail.Line.Shortage @detail.Line.Unit</dd></div>
     </dl>
 
     @if (detail.PreparedBy is not null)
     {
-        <div class="alert alert-info" role="status">Preparación guardada por @detail.PreparedBy. La disponibilidad se verificó nuevamente.</div>
+        <div class="alert alert-info" role="status">@ProdTexts["Preparación guardada por {0}. La disponibilidad se verificó nuevamente.", detail.PreparedBy]</div>
     }
-    @if (detail.RequiresReview) { <div class="alert alert-warning" role="alert">El destino o la disponibilidad cambió. Revisa las cantidades y guarda nuevamente antes de confirmar.</div> }
+    @if (detail.RequiresReview) { <div class="alert alert-warning" role="alert">@ProdTexts["El destino o la disponibilidad cambió. Revisa las cantidades y guarda nuevamente antes de confirmar."]</div> }
 
     <form method="post" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-page-handler="Save" class="guided-entry-card" data-supply-form>
         <input asp-for="Input.OperationId" type="hidden" />
@@ -68,96 +69,96 @@
         <input asp-for="Input.PreparationId" type="hidden" />
         <input asp-for="Input.ExpectedPreparationVersion" type="hidden" />
         <section class="entry-step is-active">
-            <div class="entry-step-header"><span class="entry-step-number">1</span><div><h2 class="h5 mb-0">Elige los orígenes</h2><span class="small text-body-secondary" data-entry-step-status>En captura</span></div></div>
+            <div class="entry-step-header"><span class="entry-step-number">1</span><div><h2 class="h5 mb-0">@ProdTexts["Elige los orígenes"]</h2><span class="small text-body-secondary" data-entry-step-status>@ProdTexts["En captura"]</span></div></div>
             <div class="entry-step-body">
-                <p class="text-body-secondary">Puedes combinar ubicaciones de almacén con material libre que ya está en WIP. Los lotes se resuelven automáticamente.</p>
+                <p class="text-body-secondary">@ProdTexts["Puedes combinar ubicaciones de almacén con material libre que ya está en WIP. Los lotes se resuelven automáticamente."]</p>
                 <div class="lookup-field mb-3">
-                    <label for="supply-source-scan" class="form-label">Escanear o escribir ubicación</label>
-                    <div class="input-group input-group-lg"><input id="supply-source-scan" class="form-control" type="search" autocomplete="off" autocapitalize="characters" placeholder="Código de ubicación" data-source-scan autofocus /><button type="button" class="btn btn-outline-secondary" data-source-camera aria-label="Escanear ubicación con cámara"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg></button></div>
-                    <div class="form-text">Enter o HID selecciona el origen y lleva el foco a su cantidad.</div>
+                    <label for="supply-source-scan" class="form-label">@ProdTexts["Escanear o escribir ubicación"]</label>
+                    <div class="input-group input-group-lg"><input id="supply-source-scan" class="form-control" type="search" autocomplete="off" autocapitalize="characters" placeholder="@ProdTexts["Código de ubicación"]" data-source-scan autofocus /><button type="button" class="btn btn-outline-secondary" data-source-camera aria-label="@ProdTexts["Escanear ubicación con cámara"]"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg></button></div>
+                    <div class="form-text">@ProdTexts["Enter o HID selecciona el origen y lleva el foco a su cantidad."]</div>
                 </div>
                 <div class="supply-source-list">
                 @for (var i = 0; i < Model.Input.Sources.Count; i++)
                 {
                     var captured = Model.Input.Sources[i];
-                    var source = detail.Sources.FirstOrDefault(x=>x.Kind==captured.Kind&&x.LocationId==captured.LocationId) ?? new ProductionSupplySourceRow(captured.LocationId,"Origen ya no disponible: revisar",captured.Kind,0,0,0,0);
+                    var source = detail.Sources.FirstOrDefault(x=>x.Kind==captured.Kind&&x.LocationId==captured.LocationId) ?? new ProductionSupplySourceRow(captured.LocationId,ProdTexts["Origen ya no disponible: revisar"].Value,captured.Kind,0,0,0,0);
                     <div class="supply-source-row" data-source-row data-source-code="@source.LocationCode" data-prepared="@((detail.Selected.FirstOrDefault(x=>x.Kind==source.Kind&&x.LocationId==source.LocationId)?.Quantity??0).ToString(System.Globalization.CultureInfo.InvariantCulture))" data-destination="@detail.Line.Destination">
                         <input asp-for="Input.Sources[i].Kind" type="hidden" value="@source.Kind" />
                         <input asp-for="Input.Sources[i].LocationId" type="hidden" value="@source.LocationId" />
-                        <div><strong>@source.LocationCode</strong><span class="badge text-bg-@(source.Kind == ProductionSupplySourceKind.ExistingWip ? "info" : "secondary")">@(source.Kind == ProductionSupplySourceKind.ExistingWip ? "Ya en WIP" : "Almacén")</span><small>Físico @source.Physical · para esta orden @source.ReservedForThisRequest · otras órdenes @source.ReservedForOtherOrders</small></div>
-                        <div><label asp-for="Input.Sources[i].Quantity" class="form-label">Cantidad</label><input asp-for="Input.Sources[i].Quantity" class="form-control form-control-lg" type="text" min="0" max="@source.Available" step="0.0001" inputmode="decimal" data-decimals="@(detail.AllowsDecimals?"true":"false")" data-source-quantity /><span class="form-text">Máximo @source.Available @detail.Line.Unit</span></div>
+                        <div><strong>@source.LocationCode</strong><span class="badge text-bg-@(source.Kind == ProductionSupplySourceKind.ExistingWip ? "info" : "secondary")">@(source.Kind == ProductionSupplySourceKind.ExistingWip ? ProdTexts["Ya en WIP"].Value : ProdTexts["Almacén"].Value)</span><small>@ProdTexts["Físico {0} · para esta orden {1} · otras órdenes {2}", source.Physical, source.ReservedForThisRequest, source.ReservedForOtherOrders]</small></div>
+                        <div><label asp-for="Input.Sources[i].Quantity" class="form-label">@ProdTexts["Cantidad"]</label><input asp-for="Input.Sources[i].Quantity" class="form-control form-control-lg" type="text" min="0" max="@source.Available" step="0.0001" inputmode="decimal" data-decimals="@(detail.AllowsDecimals?"true":"false")" data-source-quantity /><span class="form-text">@ProdTexts["Máximo {0} {1}", source.Available, detail.Line.Unit]</span></div>
                     </div>
                 }
                 </div>
             </div>
         </section>
         <section class="entry-step is-active">
-            <div class="entry-step-header"><span class="entry-step-number">2</span><div><h2 class="h5 mb-0">Revisa y guarda</h2><span class="small text-body-secondary" data-preparation-step-state>@(detail.PreparationId.HasValue&&!detail.RequiresReview?"Preparación guardada":"Pendiente de guardar")</span></div></div>
+            <div class="entry-step-header"><span class="entry-step-number">2</span><div><h2 class="h5 mb-0">@ProdTexts["Revisa y guarda"]</h2><span class="small text-body-secondary" data-preparation-step-state>@(detail.PreparationId.HasValue&&!detail.RequiresReview?ProdTexts["Preparación guardada"].Value:ProdTexts["Pendiente de guardar"].Value)</span></div></div>
             <div class="entry-step-body">
                 <div data-preparation-review class="mb-3" aria-live="polite"></div>
-                <div class="mb-3"><label asp-for="Input.Pin" class="form-label">NIP del responsable</label><input asp-for="Input.Pin" class="form-control form-control-lg" type="password" inputmode="numeric" autocomplete="off" required /></div>
-                <p class="alert alert-warning">Guardar conserva la selección para continuar desde otra tablet. No mueve ni confirma material.</p>
-                <button class="btn btn-primary btn-lg" type="submit">Guardar preparación</button>
+                <div class="mb-3"><label asp-for="Input.Pin" class="form-label">@ProdTexts["NIP del responsable"]</label><input asp-for="Input.Pin" class="form-control form-control-lg" type="password" inputmode="numeric" autocomplete="off" required /></div>
+                <p class="alert alert-warning">@ProdTexts["Guardar conserva la selección para continuar desde otra tablet. No mueve ni confirma material."]</p>
+                <button class="btn btn-primary btn-lg" type="submit">@ProdTexts["Guardar preparación"]</button>
             </div>
         </section>
-        <p class="alert alert-info" role="status" aria-live="polite" data-supply-live>Selecciona orígenes, guarda y confirma la entrega.</p>
+        <p class="alert alert-info" role="status" aria-live="polite" data-supply-live>@ProdTexts["Selecciona orígenes, guarda y confirma la entrega."]</p>
     </form>
 
     @if (detail.PreparationId.HasValue && (!detail.RequiresReview || Model.FailedHandler=="Confirm"))
     {
         <div class="card card-body mt-4 supply-confirmation">
-            <h2 class="h4">3. Confirmar entrega</h2><p data-confirmation-step-state role="status">Preparación guardada. Revisa la cantidad realmente entregada.</p>
-            <p>Se volverán a validar saldos, reservas, destino y pendiente antes de registrar.</p>
+            <h2 class="h4">@ProdTexts["3. Confirmar entrega"]</h2><p data-confirmation-step-state role="status">@ProdTexts["Preparación guardada. Revisa la cantidad realmente entregada."]</p>
+            <p>@ProdTexts["Se volverán a validar saldos, reservas, destino y pendiente antes de registrar."]</p>
             <form method="post" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-page-handler="Confirm" class="row g-3 align-items-end" data-supply-confirm>
                 <input type="hidden" name="Input.OperationId" value="@(Model.FailedHandler=="Confirm"?Model.Input.OperationId:Guid.NewGuid())" /><input type="hidden" name="Input.LineId" value="@detail.Line.LineId" />
                 <input type="hidden" name="Input.PreparationId" value="@detail.PreparationId" /><input type="hidden" name="Input.ExpectedPreparationVersion" value="@(Model.FailedHandler=="Confirm"?Model.Input.ExpectedPreparationVersion:detail.PreparationVersion)" /><input type="hidden" name="Input.ExpectedRequestVersion" value="@(Model.FailedHandler=="Confirm"?Model.Input.ExpectedRequestVersion:detail.Line.RequestVersion)" />
-                <div class="col-12"><h3 class="h6">Cantidad realmente entregada por origen</h3><div class="row g-2">@for (var i = 0; i < confirmationSources.Length; i++) { var selected = confirmationSources[i]; var source = detail.Sources.FirstOrDefault(x => x.Kind == selected.Kind && x.LocationId == selected.LocationId) ?? new ProductionSupplySourceRow(selected.LocationId,"Origen ya no disponible: revisar",selected.Kind,0,0,0,0);<div class="col-12 col-md-6"><input type="hidden" name="Input.Sources[@i].Kind" value="@selected.Kind" /><input type="hidden" name="Input.Sources[@i].LocationId" value="@selected.LocationId" /><label class="form-label" for="confirmed-source-@i">@source.LocationCode</label><input id="confirmed-source-@i" name="Input.Sources[@i].Quantity" value="@(Model.FailedHandler=="Confirm"?ProductionCapture.Value(Model,$"Input.Sources[{Model.Input.Sources.FindIndex(x=>x.Kind==selected.Kind&&x.LocationId==selected.LocationId)}].Quantity",Model.Input.Sources.FirstOrDefault(x=>x.Kind==selected.Kind&&x.LocationId==selected.LocationId)?.Quantity??0):selected.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture))" class="form-control form-control-lg" type="text" min="0" max="@(detail.Selected.FirstOrDefault(x=>x.Kind==selected.Kind&&x.LocationId==selected.LocationId)?.Quantity??0)" step="0.0001" inputmode="decimal" data-decimals="@(detail.AllowsDecimals?"true":"false")" required /></div>}</div><div class="form-text">Puedes reducir una cantidad antes de confirmar; no puedes superar lo preparado.</div></div>
-                <p class="col-12" data-delivery-review aria-live="polite"></p><div class="col-md-6"><label for="confirm-pin" class="form-label">NIP al entregar</label><input id="confirm-pin" name="Input.Pin" class="form-control form-control-lg" type="password" inputmode="numeric" autocomplete="off" required /></div>
-                <div class="col-md-6"><button class="btn btn-success btn-lg w-100" type="submit">Confirmar surtimiento</button></div>
+                <div class="col-12"><h3 class="h6">@ProdTexts["Cantidad realmente entregada por origen"]</h3><div class="row g-2">@for (var i = 0; i < confirmationSources.Length; i++) { var selected = confirmationSources[i]; var source = detail.Sources.FirstOrDefault(x => x.Kind == selected.Kind && x.LocationId == selected.LocationId) ?? new ProductionSupplySourceRow(selected.LocationId,ProdTexts["Origen ya no disponible: revisar"].Value,selected.Kind,0,0,0,0);<div class="col-12 col-md-6"><input type="hidden" name="Input.Sources[@i].Kind" value="@selected.Kind" /><input type="hidden" name="Input.Sources[@i].LocationId" value="@selected.LocationId" /><label class="form-label" for="confirmed-source-@i">@source.LocationCode</label><input id="confirmed-source-@i" name="Input.Sources[@i].Quantity" value="@(Model.FailedHandler=="Confirm"?ProductionCapture.Value(Model,$"Input.Sources[{Model.Input.Sources.FindIndex(x=>x.Kind==selected.Kind&&x.LocationId==selected.LocationId)}].Quantity",Model.Input.Sources.FirstOrDefault(x=>x.Kind==selected.Kind&&x.LocationId==selected.LocationId)?.Quantity??0):selected.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture))" class="form-control form-control-lg" type="text" min="0" max="@(detail.Selected.FirstOrDefault(x=>x.Kind==selected.Kind&&x.LocationId==selected.LocationId)?.Quantity??0)" step="0.0001" inputmode="decimal" data-decimals="@(detail.AllowsDecimals?"true":"false")" required /></div>}</div><div class="form-text">@ProdTexts["Puedes reducir una cantidad antes de confirmar; no puedes superar lo preparado."]</div></div>
+                <p class="col-12" data-delivery-review aria-live="polite"></p><div class="col-md-6"><label for="confirm-pin" class="form-label">@ProdTexts["NIP al entregar"]</label><input id="confirm-pin" name="Input.Pin" class="form-control form-control-lg" type="password" inputmode="numeric" autocomplete="off" required /></div>
+                <div class="col-md-6"><button class="btn btn-success btn-lg w-100" type="submit">@ProdTexts["Confirmar surtimiento"]</button></div>
             </form>
-            <details class="mt-3"><summary class="btn btn-outline-secondary">Descartar preparación</summary><form method="post" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-page-handler="Discard" class="mt-3">
+            <details class="mt-3"><summary class="btn btn-outline-secondary">@ProdTexts["Descartar preparación"]</summary><form method="post" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-page-handler="Discard" class="mt-3">
                 <input type="hidden" name="Input.OperationId" value="@Guid.NewGuid()" /><input type="hidden" name="Input.LineId" value="@detail.Line.LineId" /><input type="hidden" name="Input.PreparationId" value="@detail.PreparationId" /><input type="hidden" name="Input.ExpectedPreparationVersion" value="@detail.PreparationVersion" />
-                <label for="discard-reason" class="form-label">Motivo</label><input id="discard-reason" name="Input.Reason" class="form-control mb-2" maxlength="500" required />
-                <label for="discard-pin" class="form-label">NIP</label><div class="input-group input-group-lg"><input id="discard-pin" name="Input.Pin" class="form-control" type="password" inputmode="numeric" required /><button class="btn btn-outline-danger">Descartar</button></div>
+                <label for="discard-reason" class="form-label">@ProdTexts["Motivo"]</label><input id="discard-reason" name="Input.Reason" class="form-control mb-2" maxlength="500" required />
+                <label for="discard-pin" class="form-label">@ProdTexts["NIP"]</label><div class="input-group input-group-lg"><input id="discard-pin" name="Input.Pin" class="form-control" type="password" inputmode="numeric" required /><button class="btn btn-outline-danger">@ProdTexts["Descartar"]</button></div>
             </form></details>
         </div>
     }
 
-    @if (!detail.PreparationId.HasValue || (detail.RequiresReview && Model.FailedHandler!="Confirm")){<section class="card card-body mt-3"><h2 class="h4">3. Confirmar entrega</h2><p>Guarda una preparación vigente antes de confirmar el movimiento con NIP.</p></section>}
+    @if (!detail.PreparationId.HasValue || (detail.RequiresReview && Model.FailedHandler!="Confirm")){<section class="card card-body mt-3"><h2 class="h4">@ProdTexts["3. Confirmar entrega"]</h2><p>@ProdTexts["Guarda una preparación vigente antes de confirmar el movimiento con NIP."]</p></section>}
     @if (detail.Destinations.Count > 1)
     {
-        <details class="card card-body mt-4"><summary class="btn btn-outline-secondary">Cambiar destino WIP</summary>
+        <details class="card card-body mt-4"><summary class="btn btn-outline-secondary">@ProdTexts["Cambiar destino WIP"]</summary>
             <form method="post" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-page-handler="Destination" class="mt-3">
                 <input type="hidden" name="Input.OperationId" value="@Guid.NewGuid()" /><input type="hidden" name="Input.LineId" value="@detail.Line.LineId" /><input type="hidden" name="Input.ExpectedRequestVersion" value="@detail.Line.RequestVersion" />
-                <label asp-for="Input.DestinationLocationId" class="form-label">Nuevo destino</label><select asp-for="Input.DestinationLocationId" class="form-select form-select-lg mb-2">@foreach (var destination in detail.Destinations) { <option value="@destination.LocationId">@destination.LocationCode</option> }</select>
-                <label asp-for="Input.Reason" class="form-label">Motivo</label><input asp-for="Input.Reason" class="form-control mb-2" maxlength="500" required />
-                <label for="destination-pin" class="form-label">NIP ADMIN</label><div class="input-group input-group-lg"><input id="destination-pin" name="Input.Pin" class="form-control" type="password" inputmode="numeric" required /><button class="btn btn-outline-primary">Cambiar destino</button></div>
+                <label asp-for="Input.DestinationLocationId" class="form-label">@ProdTexts["Nuevo destino"]</label><select asp-for="Input.DestinationLocationId" class="form-select form-select-lg mb-2">@foreach (var destination in detail.Destinations) { <option value="@destination.LocationId">@destination.LocationCode</option> }</select>
+                <label asp-for="Input.Reason" class="form-label">@ProdTexts["Motivo"]</label><input asp-for="Input.Reason" class="form-control mb-2" maxlength="500" required />
+                <label for="destination-pin" class="form-label">@ProdTexts["NIP ADMIN"]</label><div class="input-group input-group-lg"><input id="destination-pin" name="Input.Pin" class="form-control" type="password" inputmode="numeric" required /><button class="btn btn-outline-primary">@ProdTexts["Cambiar destino"]</button></div>
             </form>
         </details>
     }
     @if (detail.CancellableAssignments.Count > 0)
     {
         <section class="card card-body mt-4">
-            <h2 class="h5">Anular asignación de WIP</h2>
-            <p class="text-body-secondary">Libera únicamente material todavía reservado, sin cambiar el saldo físico. La cantidad vuelve al pendiente.</p>
+            <h2 class="h5">@ProdTexts["Anular asignación de WIP"]</h2>
+            <p class="text-body-secondary">@ProdTexts["Libera únicamente material todavía reservado, sin cambiar el saldo físico. La cantidad vuelve al pendiente."]</p>
             @foreach (var assignment in detail.CancellableAssignments)
             {
                 <form method="post" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-page-handler="CancelAssignment" class="row g-3 align-items-end mb-3">
                     <input type="hidden" name="Input.OperationId" value="@Guid.NewGuid()" /><input type="hidden" name="Input.LineId" value="@detail.Line.LineId" />
                     <input type="hidden" name="Input.ExpectedRequestVersion" value="@detail.Line.RequestVersion" /><input type="hidden" name="Input.IssueLinkId" value="@assignment.IssueLinkId" />
-                    <div class="col-md-3"><strong>@assignment.LocationCode</strong><div class="small text-body-secondary">Disponible @assignment.Available de @assignment.Assigned</div></div>
-                    <div class="col-md-2"><label class="form-label">Cantidad</label><input name="Input.CancelQuantity" class="form-control form-control-lg" type="text" min="0.0001" max="@assignment.Available" step="0.0001" required /></div>
-                    <div class="col-md-3"><label class="form-label">Motivo</label><input name="Input.Reason" class="form-control form-control-lg" maxlength="500" required /></div>
-                    <div class="col-md-2"><label class="form-label">NIP ADMIN</label><input name="Input.Pin" class="form-control form-control-lg" type="password" inputmode="numeric" required /></div>
-                    <div class="col-md-2"><button class="btn btn-outline-danger btn-lg w-100" type="submit">Anular</button></div>
+                    <div class="col-md-3"><strong>@assignment.LocationCode</strong><div class="small text-body-secondary">@ProdTexts["Disponible {0} de {1}", assignment.Available, assignment.Assigned]</div></div>
+                    <div class="col-md-2"><label class="form-label">@ProdTexts["Cantidad"]</label><input name="Input.CancelQuantity" class="form-control form-control-lg" type="text" min="0.0001" max="@assignment.Available" step="0.0001" required /></div>
+                    <div class="col-md-3"><label class="form-label">@ProdTexts["Motivo"]</label><input name="Input.Reason" class="form-control form-control-lg" maxlength="500" required /></div>
+                    <div class="col-md-2"><label class="form-label">@ProdTexts["NIP ADMIN"]</label><input name="Input.Pin" class="form-control form-control-lg" type="password" inputmode="numeric" required /></div>
+                    <div class="col-md-2"><button class="btn btn-outline-danger btn-lg w-100" type="submit">@ProdTexts["Anular"]</button></div>
                 </form>
             }
         </section>
     }
-    <div class="modal fade" id="supply-camera-scanner" tabindex="-1" aria-labelledby="supply-camera-title" aria-hidden="true" data-camera-scanner><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="supply-camera-title">Escanear ubicación de origen</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div><div class="modal-body"><div class="camera-preview" data-camera-preview><video class="w-100" autoplay muted playsinline data-camera-video></video></div><p class="mb-0 mt-3" role="status" aria-live="polite" data-camera-status>Preparando cámara…</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-lg d-none" data-camera-switch>Cambiar cámara</button><label class="btn btn-outline-primary btn-lg mb-0" for="supply-camera-photo">Tomar foto</label><input id="supply-camera-photo" class="visually-hidden" type="file" accept="image/*" capture="environment" data-camera-photo /><button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">Cancelar</button></div></div></div></div>
-    <div class="mt-4"><a class="btn btn-outline-secondary" asp-page="Index" asp-route-Search="@Model.QueueSearch" asp-route-Condition="@Model.QueueCondition" asp-route-PageNumber="@Model.QueuePage">Volver a la cola</a></div>
+    <div class="modal fade" id="supply-camera-scanner" tabindex="-1" aria-labelledby="supply-camera-title" aria-hidden="true" data-camera-scanner><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header"><h2 class="modal-title h5" id="supply-camera-title">@ProdTexts["Escanear ubicación de origen"]</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@ProdTexts["Cerrar"]"></button></div><div class="modal-body"><div class="camera-preview" data-camera-preview><video class="w-100" autoplay muted playsinline data-camera-video></video></div><p class="mb-0 mt-3" role="status" aria-live="polite" data-camera-status>@ProdTexts["Preparando cámara…"]</p></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-lg d-none" data-camera-switch>@ProdTexts["Cambiar cámara"]</button><label class="btn btn-outline-primary btn-lg mb-0" for="supply-camera-photo">@ProdTexts["Tomar foto"]</label><input id="supply-camera-photo" class="visually-hidden" type="file" accept="image/*" capture="environment" data-camera-photo /><button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">@ProdTexts["Cancelar"]</button></div></div></div></div>
+    <div class="mt-4"><a class="btn btn-outline-secondary" asp-page="Index" asp-route-Search="@Model.QueueSearch" asp-route-Condition="@Model.QueueCondition" asp-route-PageNumber="@Model.QueuePage">@ProdTexts["Volver a la cola"]</a></div>
 </div>
 
-@section Scripts { <script src="~/js/production-capture.js" asp-append-version="true"></script> <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/operations.js" asp-append-version="true"></script><script src="~/js/production-supply-preparation.js" asp-append-version="true"></script> }
+@section Scripts {<script src="~/js/production-capture.js" asp-append-version="true"></script> <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script><script src="~/js/operations.js" asp-append-version="true"></script><script src="~/js/production-supply-preparation.js" asp-append-version="true"></script> }
 
 @section Styles { <link rel="stylesheet" href="~/css/production-workspace.css" asp-append-version="true"/> }

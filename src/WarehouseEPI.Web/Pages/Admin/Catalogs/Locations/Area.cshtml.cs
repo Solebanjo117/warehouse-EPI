@@ -4,17 +4,19 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 
 [Authorize(Policy = "AdminOnly")]
 public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdministrationService areas,
-    ProductionProcessConfigurationService processes) : PageModel
+    ProductionProcessConfigurationService processes, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     [BindProperty] public DeleteInputModel DeleteInput { get; set; } = new();
@@ -41,7 +43,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         Input.Code = LocationNormalization.NormalizeCode(Input.Code);
         Input.Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim();
         if (!LocationNormalization.IsValidAreaCode(Input.Code))
-            ModelState.AddModelError("Input.Code", "Usa letras, números y guiones, sin espacios externos ni guiones al inicio o final.");
+            ModelState.AddModelError("Input.Code", text["Usa letras, números y guiones, sin espacios externos ni guiones al inicio o final."].Value);
         if (!ModelState.IsValid)
         {
             await LoadProcessesAsync(cancellationToken);
@@ -50,7 +52,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         }
         if (await dbContext.Locations.AnyAsync(location => location.Code == Input.Code && location.Id != Input.Id, cancellationToken))
         {
-            ModelState.AddModelError("Input.Code", "Ya existe una ubicación con ese código.");
+            ModelState.AddModelError("Input.Code", text["Ya existe una ubicación con ese código."].Value);
             await LoadProcessesAsync(cancellationToken);
             await PrepareDeletionAsync(Input.Id, cancellationToken);
             return Page();
@@ -74,9 +76,10 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         if (association.Status != ProcessConfigurationStatus.Success)
         {
             if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
-            ModelState.AddModelError(string.Empty, association.Status == ProcessConfigurationStatus.ConcurrencyConflict
+            var associationMessage = association.Status == ProcessConfigurationStatus.ConcurrencyConflict
                 ? "La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar."
-                : association.Errors?.FirstOrDefault() ?? "No fue posible asociar los procesos.");
+                : association.Errors?.FirstOrDefault() ?? "No fue posible asociar los procesos.";
+            ModelState.AddModelError(string.Empty, text[associationMessage].Value);
             await LoadProcessesAsync(cancellationToken); await PrepareDeletionAsync(Input.Id, cancellationToken); return Page();
         }
         try
@@ -87,7 +90,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         catch (DbUpdateConcurrencyException)
         {
             if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
-            ModelState.AddModelError(string.Empty, "La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar.");
+            ModelState.AddModelError(string.Empty, text["La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar."].Value);
             await LoadProcessesAsync(cancellationToken); await PrepareDeletionAsync(Input.Id, cancellationToken); return Page();
         }
         return RedirectToPage("Index");
@@ -114,16 +117,16 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         ModelState.Remove($"{nameof(DeleteInput)}.{nameof(DeleteInputModel.Pin)}");
         if (result.Status == LocationAreaDeleteStatus.Success)
         {
-            TempData["Message"] = $"Se eliminó definitivamente el área {location.Code}.";
+            TempData["Message"] = text["Se eliminó definitivamente el área {0}.", location.Code].Value;
             return RedirectToPage("Index");
         }
         if (result.Status == LocationAreaDeleteStatus.NotFound) return NotFound();
         DeleteErrors = result.Status switch
         {
-            LocationAreaDeleteStatus.InvalidPin => ["No fue posible validar el NIP de un ADMIN activo."],
-            LocationAreaDeleteStatus.Unauthorized => ["La sesión ADMIN ya no es válida."],
-            LocationAreaDeleteStatus.IdempotencyConflict => ["La operación ya fue utilizada con otro contenido."],
-            _ => result.Errors ?? ["No fue posible eliminar el área."]
+            LocationAreaDeleteStatus.InvalidPin => [text["No fue posible validar el NIP de un ADMIN activo."].Value],
+            LocationAreaDeleteStatus.Unauthorized => [text["La sesión ADMIN ya no es válida."].Value],
+            LocationAreaDeleteStatus.IdempotencyConflict => [text["La operación ya fue utilizada con otro contenido."].Value],
+            _ => (result.Errors ?? ["No fue posible eliminar el área."]).Select(error => text[error].Value).ToArray()
         };
         Deletion = await areas.GetDeletionStateAsync(location.Id, cancellationToken);
         return Page();

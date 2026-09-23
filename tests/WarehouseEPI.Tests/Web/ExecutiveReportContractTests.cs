@@ -28,7 +28,7 @@ public sealed class ExecutiveReportContractTests
         Assert.Contains("@media print", css, StringComparison.Ordinal);
 
         Assert.Contains("/Reports/Executive/Index", summaryNavigation, StringComparison.Ordinal);
-        Assert.Contains(">Gestión</a>", summaryNavigation, StringComparison.Ordinal);
+        Assert.Contains(">@CatTexts[\"Gestión\"]</a>", summaryNavigation, StringComparison.Ordinal);
         Assert.Contains("activeView == \"management\"", summaryNavigation, StringComparison.Ordinal);
     }
 

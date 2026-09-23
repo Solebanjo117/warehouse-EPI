@@ -1,17 +1,18 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @using WarehouseEPI.Core.Entities
 @model WarehouseEPI.Web.Pages.Admin.Inventory.Alerts.DetailsModel
 @{
-    ViewData["Title"] = "Seguimiento de excepción";
+    ViewData["Title"] = CatTexts["Seguimiento de excepción"].Value;
     var item = Model.Exception!.Case;
 }
 
 <div class="exception-detail">
     <header class="exception-detail-header">
-        <a asp-page="/Admin/Inventory/Alerts" class="small text-decoration-none">← Centro de excepciones</a>
+        <a asp-page="/Admin/Inventory/Alerts" class="small text-decoration-none">@CatTexts["← Centro de excepciones"]</a>
         <div class="exception-detail-title-row">
             <div>
-                <div class="exception-detail-badges" aria-label="Clasificación del caso">
+                <div class="exception-detail-badges" aria-label="@CatTexts["Clasificación del caso"]">
                     <span class="badge @SeverityClass(item.Severity)">@SeverityLabel(item.Severity)</span>
                     <span class="badge @StatusClass(item.Status)">@StatusLabel(item.Status)</span>
                 </div>
@@ -27,21 +28,21 @@
     }
 
     <section class="exception-detail-summary mt-3" aria-labelledby="exception-summary-title">
-        <h2 id="exception-summary-title" class="visually-hidden">Resumen de la excepción</h2>
+        <h2 id="exception-summary-title" class="visually-hidden">@CatTexts["Resumen de la excepción"]</h2>
         <dl class="exception-detail-facts mb-0">
             <div><dt>@PrimaryLabel(item.Category)</dt><dd>@item.PrimaryText</dd></div>
             <div><dt>@SecondaryLabel(item.Category)</dt><dd>@item.SecondaryText</dd></div>
-            <div><dt>Valor actual</dt><dd>@(item.ValueText ?? "Requiere atención")</dd></div>
-            <div><dt>Responsable</dt><dd>@(item.AssignedUserName ?? "Sin responsable")</dd></div>
+            <div><dt>@CatTexts["Valor actual"]</dt><dd>@(item.ValueText ?? CatTexts["Requiere atención"].Value)</dd></div>
+            <div><dt>@CatTexts["Responsable"]</dt><dd>@(item.AssignedUserName ?? CatTexts["Sin responsable"].Value)</dd></div>
         </dl>
         <div class="exception-detail-dates">
             <div>
-                <span>Detectada</span>
+                <span>@CatTexts["Detectada"]</span>
                 <time datetime="@item.FirstDetectedAt.ToString("O")">@Model.FirstDetectedAt.ToString("dd/MM/yyyy HH:mm")</time>
                 <small>@Model.FirstDetectedRelative</small>
             </div>
             <div>
-                <span>Última verificación</span>
+                <span>@CatTexts["Última verificación"]</span>
                 <time datetime="@item.LastDetectedAt.ToString("O")">@Model.LastDetectedAt.ToString("dd/MM/yyyy HH:mm")</time>
                 <small>@Model.LastDetectedRelative</small>
             </div>
@@ -50,24 +51,24 @@
 
     <div class="exception-detail-guidance mt-3">
         <section class="exception-detail-reason" aria-labelledby="exception-reason-title">
-            <span class="exception-detail-section-label">Motivo</span>
-            <h2 id="exception-reason-title" class="h5">Por qué apareció</h2>
+            <span class="exception-detail-section-label">@CatTexts["Motivo"]</span>
+            <h2 id="exception-reason-title" class="h5">@CatTexts["Por qué apareció"]</h2>
             <p class="mb-0">@item.ReasonText</p>
         </section>
         <section class="exception-detail-next" aria-labelledby="exception-next-title">
-            <span class="exception-detail-section-label">Acción recomendada</span>
-            <h2 id="exception-next-title" class="h5">Siguiente paso</h2>
+            <span class="exception-detail-section-label">@CatTexts["Acción recomendada"]</span>
+            <h2 id="exception-next-title" class="h5">@CatTexts["Siguiente paso"]</h2>
             <p>@ActionDescription(item.Category)</p>
             <a href="@item.TargetUrl" class="btn btn-primary">@ActionLabel(item.Category)</a>
-            <small>La acción abre el flujo existente y conserva sus validaciones y NIP.</small>
+            <small>@CatTexts["La acción abre el flujo existente y conserva sus validaciones y NIP."]</small>
         </section>
     </div>
 
     @if (item.Status == OperationalExceptionStatus.Resolved)
     {
         <div class="alert alert-success mt-3">
-            <strong>Resuelta automáticamente.</strong>
-            La condición dejó de estar presente el
+            <strong>@CatTexts["Resuelta automáticamente."]</strong>
+            @CatTexts["La condición dejó de estar presente el"]
             <time datetime="@item.ResolvedAt?.ToString("O")">@Model.ResolvedAt?.ToString("dd/MM/yyyy HH:mm")</time>.
         </div>
     }
@@ -76,10 +77,10 @@
         <section class="exception-detail-follow-up mt-3" aria-labelledby="exception-follow-up-title">
             <div class="exception-detail-section-heading">
                 <div>
-                    <span class="exception-detail-section-label">Triage administrativo</span>
-                    <h2 id="exception-follow-up-title" class="h4 mb-1">Actualizar seguimiento</h2>
+                    <span class="exception-detail-section-label">@CatTexts["Triage administrativo"]</span>
+                    <h2 id="exception-follow-up-title" class="h4 mb-1">@CatTexts["Actualizar seguimiento"]</h2>
                 </div>
-                <p class="text-muted mb-0">El seguimiento no modifica inventario.</p>
+                <p class="text-muted mb-0">@CatTexts["El seguimiento no modifica inventario."]</p>
             </div>
             <form method="post" asp-page-handler="Update">
                 <input asp-for="Input.OperationId" type="hidden" />
@@ -87,9 +88,9 @@
                 <div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert" tabindex="-1"></div>
                 <div class="exception-detail-form-grid">
                     <div>
-                        <label asp-for="Input.AssignedUserId" class="form-label">Responsable</label>
+                        <label asp-for="Input.AssignedUserId" class="form-label">@CatTexts["Responsable"]</label>
                         <select asp-for="Input.AssignedUserId" class="form-select">
-                            <option value="">Sin responsable</option>
+                            <option value="">@CatTexts["Sin responsable"]</option>
                             @foreach (var user in Model.Assignees)
                             {
                                 <option value="@user.Id">@user.FullName · @user.RoleCode</option>
@@ -97,21 +98,21 @@
                         </select>
                     </div>
                     <div>
-                        <label asp-for="Input.Status" class="form-label">Estado</label>
+                        <label asp-for="Input.Status" class="form-label">@CatTexts["Estado"]</label>
                         <select asp-for="Input.Status" class="form-select">
-                            <option value="@OperationalExceptionStatus.New">Nueva</option>
-                            <option value="@OperationalExceptionStatus.InProgress">En atención</option>
-                            <option value="@OperationalExceptionStatus.Waiting">En espera</option>
+                            <option value="@OperationalExceptionStatus.New">@CatTexts["Nueva"]</option>
+                            <option value="@OperationalExceptionStatus.InProgress">@CatTexts["En atención"]</option>
+                            <option value="@OperationalExceptionStatus.Waiting">@CatTexts["En espera"]</option>
                         </select>
                     </div>
                     <div class="exception-detail-note">
-                        <label asp-for="Input.Notes" class="form-label">Qué se revisó o qué falta</label>
+                        <label asp-for="Input.Notes" class="form-label">@CatTexts["Qué se revisó o qué falta"]</label>
                         <textarea asp-for="Input.Notes" class="form-control" rows="3" maxlength="500" aria-describedby="exception-note-help"></textarea>
                         <span asp-validation-for="Input.Notes" class="text-danger"></span>
-                        <div id="exception-note-help" class="form-text">Describe el hallazgo o el siguiente paso. Es obligatorio al dejar el caso en espera.</div>
+                        <div id="exception-note-help" class="form-text">@CatTexts["Describe el hallazgo o el siguiente paso. Es obligatorio al dejar el caso en espera."]</div>
                     </div>
                 </div>
-                <button class="btn btn-primary mt-3">Guardar seguimiento</button>
+                <button class="btn btn-primary mt-3">@CatTexts["Guardar seguimiento"]</button>
             </form>
         </section>
     }
@@ -119,14 +120,14 @@
     <section class="exception-detail-history mt-4" aria-labelledby="exception-history-title">
         <div class="exception-detail-section-heading">
             <div>
-                <span class="exception-detail-section-label">Auditoría</span>
-                <h2 id="exception-history-title" class="h4 mb-0">Historial</h2>
+                <span class="exception-detail-section-label">@CatTexts["Auditoría"]</span>
+                <h2 id="exception-history-title" class="h4 mb-0">@CatTexts["Historial"]</h2>
             </div>
-            <span class="text-muted small">Más reciente primero</span>
+            <span class="text-muted small">@CatTexts["Más reciente primero"]</span>
         </div>
         @if (Model.History.Count == 0)
         {
-            <p class="exception-history-empty mb-0">No hay eventos registrados para esta excepción.</p>
+            <p class="exception-history-empty mb-0">@CatTexts["No hay eventos registrados para esta excepción."]</p>
         }
         else
         {
@@ -143,25 +144,25 @@
                         </header>
                         @if (history.ActorUserName is not null)
                         {
-                            <p class="exception-timeline-actor">Realizado por @history.ActorUserName</p>
+                            <p class="exception-timeline-actor">@CatTexts["Realizado por {0}", history.ActorUserName]</p>
                         }
                         <dl class="exception-timeline-changes mb-0">
                             @if (history.PreviousStatus is not null && history.CurrentStatus is not null && history.PreviousStatus != history.CurrentStatus)
                             {
-                                <div><dt>Estado</dt><dd>@StatusLabel(history.PreviousStatus.Value) <span aria-hidden="true">→</span> @StatusLabel(history.CurrentStatus.Value)</dd></div>
+                                <div><dt>@CatTexts["Estado"]</dt><dd>@StatusLabel(history.PreviousStatus.Value) <span aria-hidden="true">→</span> @StatusLabel(history.CurrentStatus.Value)</dd></div>
                             }
                             else if (history.CurrentStatus is not null)
                             {
-                                <div><dt>Estado</dt><dd>@StatusLabel(history.CurrentStatus.Value)</dd></div>
+                                <div><dt>@CatTexts["Estado"]</dt><dd>@StatusLabel(history.CurrentStatus.Value)</dd></div>
                             }
                             @if (history.PreviousAssignedUserName != history.CurrentAssignedUserName &&
                                 (history.PreviousAssignedUserName is not null || history.CurrentAssignedUserName is not null))
                             {
-                                <div><dt>Responsable</dt><dd>@(history.PreviousAssignedUserName ?? "Sin responsable") <span aria-hidden="true">→</span> @(history.CurrentAssignedUserName ?? "Sin responsable")</dd></div>
+                                <div><dt>@CatTexts["Responsable"]</dt><dd>@(history.PreviousAssignedUserName ?? CatTexts["Sin responsable"].Value) <span aria-hidden="true">→</span> @(history.CurrentAssignedUserName ?? CatTexts["Sin responsable"].Value)</dd></div>
                             }
                             else if (history.CurrentAssignedUserName is not null)
                             {
-                                <div><dt>Responsable</dt><dd>@history.CurrentAssignedUserName</dd></div>
+                                <div><dt>@CatTexts["Responsable"]</dt><dd>@history.CurrentAssignedUserName</dd></div>
                             }
                         </dl>
                         @if (history.Notes is not null)
@@ -181,71 +182,71 @@
 }
 
 @functions {
-    static string StatusLabel(OperationalExceptionStatus value) => value switch
+    string StatusLabel(OperationalExceptionStatus value) => value switch
     {
-        OperationalExceptionStatus.New => "Nueva",
-        OperationalExceptionStatus.InProgress => "En atención",
-        OperationalExceptionStatus.Waiting => "En espera",
-        _ => "Resuelta"
+        OperationalExceptionStatus.New => CatTexts["Nueva"].Value,
+        OperationalExceptionStatus.InProgress => CatTexts["En atención"].Value,
+        OperationalExceptionStatus.Waiting => CatTexts["En espera"].Value,
+        _ => CatTexts["Resuelta"].Value
     };
 
-    static string SeverityLabel(OperationalExceptionSeverity value) => value switch
+    string SeverityLabel(OperationalExceptionSeverity value) => value switch
     {
-        OperationalExceptionSeverity.Critical => "Crítica",
-        OperationalExceptionSeverity.Warning => "Advertencia",
-        _ => "Informativa"
+        OperationalExceptionSeverity.Critical => CatTexts["Crítica"].Value,
+        OperationalExceptionSeverity.Warning => CatTexts["Advertencia"].Value,
+        _ => CatTexts["Informativa"].Value
     };
 
-    static string CategoryLabel(OperationalExceptionCategory value) => value switch
+    string CategoryLabel(OperationalExceptionCategory value) => value switch
     {
-        OperationalExceptionCategory.NegativeInventory => "Saldo negativo",
-        OperationalExceptionCategory.BelowMinimum => "Inventario bajo mínimo",
-        OperationalExceptionCategory.UnassignedBalance => "Existencia sin asignación",
-        OperationalExceptionCategory.RestrictedInventory => "Inventario restringido",
-        OperationalExceptionCategory.StagnantInventory => "Inventario estancado",
-        OperationalExceptionCategory.CycleCountStale => "Conteo obsoleto",
-        OperationalExceptionCategory.CycleCountPending => "Conteo pendiente",
-        _ => "WIP estancado"
+        OperationalExceptionCategory.NegativeInventory => CatTexts["Saldo negativo"].Value,
+        OperationalExceptionCategory.BelowMinimum => CatTexts["Inventario bajo mínimo"].Value,
+        OperationalExceptionCategory.UnassignedBalance => CatTexts["Existencia sin asignación"].Value,
+        OperationalExceptionCategory.RestrictedInventory => CatTexts["Inventario restringido"].Value,
+        OperationalExceptionCategory.StagnantInventory => CatTexts["Inventario estancado"].Value,
+        OperationalExceptionCategory.CycleCountStale => CatTexts["Conteo obsoleto"].Value,
+        OperationalExceptionCategory.CycleCountPending => CatTexts["Conteo pendiente"].Value,
+        _ => CatTexts["WIP estancado"].Value
     };
 
-    static string ActionLabel(OperationalExceptionCategory value) => value switch
+    string ActionLabel(OperationalExceptionCategory value) => value switch
     {
-        OperationalExceptionCategory.NegativeInventory => "Revisar y ajustar saldo",
-        OperationalExceptionCategory.BelowMinimum => "Preparar transferencia",
-        OperationalExceptionCategory.UnassignedBalance => "Revisar asignación",
-        OperationalExceptionCategory.RestrictedInventory => "Revisar ubicación",
-        OperationalExceptionCategory.StagnantInventory => "Registrar salida",
-        OperationalExceptionCategory.CycleCountStale or OperationalExceptionCategory.CycleCountPending => "Abrir conteo",
-        _ => "Procesar WIP"
+        OperationalExceptionCategory.NegativeInventory => CatTexts["Revisar y ajustar saldo"].Value,
+        OperationalExceptionCategory.BelowMinimum => CatTexts["Preparar transferencia"].Value,
+        OperationalExceptionCategory.UnassignedBalance => CatTexts["Revisar asignación"].Value,
+        OperationalExceptionCategory.RestrictedInventory => CatTexts["Revisar ubicación"].Value,
+        OperationalExceptionCategory.StagnantInventory => CatTexts["Registrar salida"].Value,
+        OperationalExceptionCategory.CycleCountStale or OperationalExceptionCategory.CycleCountPending => CatTexts["Abrir conteo"].Value,
+        _ => CatTexts["Procesar WIP"].Value
     };
 
-    static string PrimaryLabel(OperationalExceptionCategory value) =>
+    string PrimaryLabel(OperationalExceptionCategory value) =>
         value is OperationalExceptionCategory.CycleCountStale or OperationalExceptionCategory.CycleCountPending
-            ? "Conteo"
-            : "Producto";
+            ? CatTexts["Conteo"].Value
+            : CatTexts["Producto"].Value;
 
-    static string SecondaryLabel(OperationalExceptionCategory value) =>
+    string SecondaryLabel(OperationalExceptionCategory value) =>
         value is OperationalExceptionCategory.BelowMinimum or OperationalExceptionCategory.StagnantInventory
-            ? "Descripción"
-            : "Ubicación";
+            ? CatTexts["Descripción"].Value
+            : CatTexts["Ubicación"].Value;
 
-    static string ActionDescription(OperationalExceptionCategory value) => value switch
+    string ActionDescription(OperationalExceptionCategory value) => value switch
     {
-        OperationalExceptionCategory.NegativeInventory => "Comprueba los movimientos y registra un ajuste sólo si el saldo físico lo confirma.",
-        OperationalExceptionCategory.BelowMinimum => "Revisa la disponibilidad y prepara una transferencia hacia donde se necesita.",
-        OperationalExceptionCategory.UnassignedBalance => "Confirma si el producto debe quedar asignado a esta ubicación.",
-        OperationalExceptionCategory.RestrictedInventory => "Revisa el bloqueo o la inactividad antes de decidir cómo mover la existencia.",
-        OperationalExceptionCategory.StagnantInventory => "Confirma el destino del material antes de registrar una salida.",
-        OperationalExceptionCategory.CycleCountStale => "Abre la campaña y realiza el reconteo solicitado.",
-        OperationalExceptionCategory.CycleCountPending => "Abre la campaña para completar la revisión o el reconteo.",
-        _ => "Decide si corresponde consumo, regreso a bodega o devolución a proveedor."
+        OperationalExceptionCategory.NegativeInventory => CatTexts["Comprueba los movimientos y registra un ajuste sólo si el saldo físico lo confirma."].Value,
+        OperationalExceptionCategory.BelowMinimum => CatTexts["Revisa la disponibilidad y prepara una transferencia hacia donde se necesita."].Value,
+        OperationalExceptionCategory.UnassignedBalance => CatTexts["Confirma si el producto debe quedar asignado a esta ubicación."].Value,
+        OperationalExceptionCategory.RestrictedInventory => CatTexts["Revisa el bloqueo o la inactividad antes de decidir cómo mover la existencia."].Value,
+        OperationalExceptionCategory.StagnantInventory => CatTexts["Confirma el destino del material antes de registrar una salida."].Value,
+        OperationalExceptionCategory.CycleCountStale => CatTexts["Abre la campaña y realiza el reconteo solicitado."].Value,
+        OperationalExceptionCategory.CycleCountPending => CatTexts["Abre la campaña para completar la revisión o el reconteo."].Value,
+        _ => CatTexts["Decide si corresponde consumo, regreso a bodega o devolución a proveedor."].Value
     };
 
-    static string EventLabel(OperationalExceptionEventType value) => value switch
+    string EventLabel(OperationalExceptionEventType value) => value switch
     {
-        OperationalExceptionEventType.Detected => "Condición detectada",
-        OperationalExceptionEventType.AutoResolved => "Condición resuelta automáticamente",
-        _ => "Seguimiento actualizado"
+        OperationalExceptionEventType.Detected => CatTexts["Condición detectada"].Value,
+        OperationalExceptionEventType.AutoResolved => CatTexts["Condición resuelta automáticamente"].Value,
+        _ => CatTexts["Seguimiento actualizado"].Value
     };
 
     static string SeverityClass(OperationalExceptionSeverity value) => value switch

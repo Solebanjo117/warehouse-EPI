@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 
@@ -489,15 +490,11 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         if (secondLocation is not null)
             db.Add(secondLocation);
 
+        Product? otherProduct = null;
         if (assignOtherProduct)
         {
-            var other = new Product { Sku = $"OTHER-{sku}", BaseUnitId = 1 };
-            db.Add(other);
-            db.ProductLocationAssignments.Add(new ProductLocationAssignment
-            {
-                Product = other,
-                Location = location
-            });
+            otherProduct = new Product { Sku = $"OTHER-{sku}", BaseUnitId = 1 };
+            db.Add(otherProduct);
         }
 
         if (createAdmin)
@@ -514,6 +511,14 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         }
 
         await db.SaveChangesAsync();
+        if (otherProduct is not null)
+        {
+            var inventory = scope.ServiceProvider.GetRequiredService<InventoryMovementService>();
+            var occupied = await inventory.ConfirmAsync(new(
+                Guid.NewGuid(), InventoryMovementType.Entry, pin,
+                [new(otherProduct.Id, 1m, DestinationLocationId: location.Id)]));
+            Assert.Equal(InventoryMovementStatus.Success, occupied.Status);
+        }
         return new(product.Id, product.Sku, location.Id, location.Code,
             secondLocation?.Id, secondLocation?.Code, pin);
     }

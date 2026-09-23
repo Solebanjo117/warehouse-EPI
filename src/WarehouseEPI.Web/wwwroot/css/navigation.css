@@ -147,3 +147,8 @@
 
 /* El contador sigue visible en rail aunque se oculten los textos del módulo. */
 .app-nav-link > .notification-count:not([hidden]) { display: inline-block; }
+
+/* Language controls stay usable in the narrow navigation rail. */
+.app-language-control { padding: .25rem 0 .65rem; }
+.app-language-control .btn { min-height: 44px; min-width: 44px; padding: .4rem; }
+.app-language-control .btn[aria-pressed="true"] { background: var(--app-teal); border-color: var(--app-teal); }

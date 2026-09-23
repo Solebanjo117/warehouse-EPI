@@ -36,6 +36,21 @@
     .labels-workspace .label-preview-toolbar > div { flex: 1 1 22rem; min-width: 0; }
     .labels-workspace .label-barcode-dialog .btn-close { min-width: 44px; min-height: 44px; flex-shrink: 0; padding: 0; }
 }
+
+.pallet-product-list { display: grid; gap: .75rem; }
+.pallet-print-product { min-height: 68px; display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(8rem, auto) auto; gap: 1rem; align-items: center; padding: .85rem; border: 1px solid var(--bs-border-color); border-radius: .75rem; background: var(--bs-body-bg); }
+.pallet-print-sku { font-family: var(--bs-font-monospace); overflow-wrap: anywhere; }
+.pallet-print-stock { display: flex; flex-direction: column; }
+.pallet-print-stock small { color: var(--bs-secondary-color); }
+.pallet-print-action { min-width: 9rem; min-height: 44px; margin: 0; }
+.pallet-print-action .btn { min-height: 44px; }
+.pallet-print-action.btn { display: inline-flex; align-items: center; justify-content: center; }
+.pallet-label-workspace .lookup-results:empty { display: none; }
+.pallet-label-workspace .relationship-choice { text-decoration: none; }
+.pallet-label-workspace .relationship-choice:hover,
+.pallet-label-workspace .relationship-choice:focus-visible { border-color: var(--bs-primary); box-shadow: 0 0 0 .12rem rgba(13, 110, 253, .18); }
+.label-preview-section { scroll-margin-top: 5rem; }
+@media (max-width: 767.98px) { .pallet-print-product { grid-template-columns: minmax(0, 1fr) auto; } .pallet-print-action { grid-column: 1 / -1; width: 100%; } .pallet-label-workspace .lookup-results { position: static; } }
 @media screen and (min-width: 768px) {
     .labels-workspace .label-form-card .row > [class*="col-sm-"] { width: 50%; }
     .labels-workspace .receipt-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }

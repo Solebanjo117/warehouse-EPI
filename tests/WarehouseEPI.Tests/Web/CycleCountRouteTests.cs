@@ -206,7 +206,12 @@ public sealed class CycleCountRouteTests
             return fixture;
         }
 
-        public CountModel NewPage(string? cookie = null) => new(cycleCounts, Db, protector, operatorSessions)
+        public CountModel NewPage(string? cookie = null) => new(
+            cycleCounts,
+            Db,
+            protector,
+            operatorSessions,
+            new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts>())
         {
             PageContext = new(new ActionContext(Context(cookie), new RouteData(), new ActionDescriptor(), new ModelStateDictionary()))
         };

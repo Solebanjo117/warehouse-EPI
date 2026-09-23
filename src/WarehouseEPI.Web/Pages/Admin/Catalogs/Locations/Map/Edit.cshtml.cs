@@ -3,14 +3,16 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Web.Locations;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Map;
 
 [Authorize(Policy = "AdminOnly")]
 public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore previews,
-    WarehouseMapReferenceStorage referenceStorage) : PageModel
+    WarehouseMapReferenceStorage referenceStorage, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public WarehouseMapView Map { get; private set; } = new(0, 0, false, [], [], 0, 0, 0, 0, 0, [], [], [], false, null, "IMPERIAL");
@@ -46,10 +48,10 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
 
     public async Task<IActionResult> OnPostInitializeAsync(string? previewToken, CancellationToken token)
     {
-        if (!previews.Consume(previewToken, CurrentUserId())) { ModelState.AddModelError(string.Empty, "La vista previa expiró, fue utilizada o no pertenece a esta sesión."); await ReloadAsync(token); return Page(); }
+        if (!previews.Consume(previewToken, CurrentUserId())) { ModelState.AddModelError(string.Empty, text["La vista previa expiró, fue utilizada o no pertenece a esta sesión."].Value); await ReloadAsync(token); return Page(); }
         IReadOnlyList<WarehouseMapGeometry> geometry;
         try { geometry = JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []; }
-        catch (JsonException) { geometry = []; ModelState.AddModelError(string.Empty, "La geometría recibida no es válida."); }
+        catch (JsonException) { geometry = []; ModelState.AddModelError(string.Empty, text["La geometría recibida no es válida."].Value); }
         var architecture = DeserializeArchitecture();
         var layers = DeserializeLayers();
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
@@ -63,7 +65,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
     {
         IReadOnlyList<WarehouseMapGeometry> geometry;
         try { geometry = JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []; }
-        catch (JsonException) { geometry = []; ModelState.AddModelError(string.Empty, "La geometría recibida no es válida."); }
+        catch (JsonException) { geometry = []; ModelState.AddModelError(string.Empty, text["La geometría recibida no es válida."].Value); }
         if (!ModelState.IsValid) { await ReloadAsync(token); return Page(); }
         var architecture = DeserializeArchitecture();
         var layers = DeserializeLayers();
@@ -72,14 +74,14 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var result = await maps.SaveAsync(new(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry,
             layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, references,
             Input.CanvasWidth, Input.CanvasHeight), token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
-        return await CompleteAsync(result, "Cambios del croquis guardados.", token);
+        return await CompleteAsync(result, text["Cambios del croquis guardados."].Value, token);
     }
 
     public async Task<IActionResult> OnPostReviewAsync(CancellationToken token)
     {
         IReadOnlyList<WarehouseMapGeometry> geometry;
         try { geometry = JsonSerializer.Deserialize<WarehouseMapGeometry[]>(Input.GeometryJson) ?? []; }
-        catch (JsonException) { return new JsonResult(new { errors = new[] { "La geometría recibida no es válida." } }) { StatusCode = 400 }; }
+        catch (JsonException) { return new JsonResult(new { errors = new[] { text["La geometría recibida no es válida."].Value } }) { StatusCode = 400 }; }
         var architecture = DeserializeArchitecture();
         var layers = DeserializeLayers();
         var references = await PrepareReferencesAsync(promote: false, token);
@@ -140,7 +142,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
     {
         if (result.Status == WarehouseMapSaveStatus.Success) { Message = message; return RedirectToPage("/Admin/Catalogs/Locations/Index", new { viewMode = "map" }); }
         var error = result.Status switch { WarehouseMapSaveStatus.InvalidPin => "NIP inválido o sin permiso ADMIN.", WarehouseMapSaveStatus.Conflict => "El croquis ya fue inicializado. Vuelve a abrir el editor.", WarehouseMapSaveStatus.IdempotencyConflict => "El UUID ya fue usado con datos diferentes.", WarehouseMapSaveStatus.NotInitialized => "Primero confirma la distribución inicial.", WarehouseMapSaveStatus.Unauthorized => "La sesión ADMIN ya no es válida.", _ => "No fue posible guardar el croquis." };
-        foreach (var item in result.ValidationErrors.DefaultIfEmpty(error)) ModelState.AddModelError(string.Empty, item); await ReloadAsync(token); return Page();
+        foreach (var item in result.ValidationErrors.DefaultIfEmpty(error)) ModelState.AddModelError(string.Empty, text[item].Value); await ReloadAsync(token); return Page();
     }
 
     private async Task ReloadAsync(CancellationToken token)
@@ -201,25 +203,25 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
     private IReadOnlyList<WarehouseMapArchitectureItem> DeserializeArchitecture()
     {
         try { return JsonSerializer.Deserialize<WarehouseMapArchitectureItem[]>(Input.ArchitectureJson) ?? []; }
-        catch (JsonException) { ModelState.AddModelError(string.Empty, "La geometría arquitectónica recibida no es válida."); return []; }
+        catch (JsonException) { ModelState.AddModelError(string.Empty, text["La geometría arquitectónica recibida no es válida."].Value); return []; }
     }
     private IReadOnlyList<WarehouseMapLayerState> DeserializeLayers()
     {
         try { return JsonSerializer.Deserialize<WarehouseMapLayerState[]>(Input.LayerStateJson) ?? []; }
-        catch (JsonException) { ModelState.AddModelError(string.Empty, "La configuración de capas recibida no es válida."); return []; }
+        catch (JsonException) { ModelState.AddModelError(string.Empty, text["La configuración de capas recibida no es válida."].Value); return []; }
     }
     private async Task<IReadOnlyList<WarehouseMapReferenceImageState>> PrepareReferencesAsync(bool promote,
         CancellationToken token)
     {
         WarehouseMapReferenceImageState[] values;
         try { values = JsonSerializer.Deserialize<WarehouseMapReferenceImageState[]>(Input.ReferenceImageJson ?? "[]") ?? []; }
-        catch (JsonException) { ModelState.AddModelError(string.Empty, "La referencia recibida no es válida."); return []; }
+        catch (JsonException) { ModelState.AddModelError(string.Empty, text["La referencia recibida no es válida."].Value); return []; }
         var persisted = await maps.GetPersistedReferenceIdsAsync(token);
         var additions = values.Where(item => !persisted.Contains(item.Id)).ToArray();
         if (additions.Length == 0) return values;
         if (additions.Length != 1 || Input.ReferenceUploadToken is not Guid uploadToken)
         {
-            ModelState.AddModelError(string.Empty, "La referencia nueva no tiene una carga temporal válida.");
+            ModelState.AddModelError(string.Empty, text["La referencia nueva no tiene una carga temporal válida."].Value);
             return values;
         }
         var staged = promote
@@ -227,7 +229,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
             : await referenceStorage.GetStageAsync(uploadToken, CurrentUserId(), token);
         if (staged is null || additions[0].Id != staged.ReferenceId)
         {
-            ModelState.AddModelError(string.Empty, "La carga temporal expiró o no pertenece a esta sesión.");
+            ModelState.AddModelError(string.Empty, text["La carga temporal expiró o no pertenece a esta sesión."].Value);
             return values;
         }
         var submitted = additions[0];

@@ -22,4 +22,5 @@ public sealed class WarehouseMapLayout
     public ICollection<WarehouseMapLayer> Layers { get; set; } = [];
     public ICollection<WarehouseMapArchitecturalElement> ArchitecturalElements { get; set; } = [];
     public ICollection<WarehouseMapReferenceImage> ReferenceImages { get; set; } = [];
+    public ICollection<WarehouseMapCalibration> Calibrations { get; set; } = [];
 }

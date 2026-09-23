@@ -1,0 +1,126 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleImportModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> ProdTexts
+@using global::System.Globalization
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@using WarehouseEPI.Web.Production
+@{
+    ViewData["Title"] = ProdTexts["Importar programa de producción"];
+}
+<div class="container py-4 import-workspace">
+    <header class="d-flex flex-wrap justify-content-between gap-3 mb-4"><div><span class="eyebrow">@ProdTexts["Producción"]</span><h1 class="h2">@ProdTexts["Importar Excel"]</h1><p class="text-body-secondary">@ProdTexts["La carga usa encabezados y tablas, no posiciones fijas. No crea inventario ni consumos históricos."]</p></div><a asp-page="Schedule" class="btn btn-outline-primary align-self-start">@ProdTexts["Volver al programa"]</a></header>
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+    @if (Model.StatusMessage is not null) { <div class="alert alert-success" role="status">@Model.StatusMessage</div> }
+    @if (TempData["Success"] is string success) { <div class="alert alert-success" role="status">@success</div> }
+    @if (TempData["Error"] is string error) { <div class="alert alert-danger" role="alert">@error</div> }
+    @if (Model.SavedDrafts.Count > 0)
+    {
+        <section class="card mb-3" data-import-drafts><div class="card-body"><h2 class="h5">@ProdTexts["Borradores e importaciones guardadas"]</h2><p class="small text-body-secondary">@ProdTexts["Elimina los borradores que ya no necesites. Las importaciones confirmadas se conservan como registro."]</p>
+            <ul class="list-group list-group-flush">@foreach(var draft in Model.SavedDrafts)
+            {
+                <li class="list-group-item d-flex flex-wrap align-items-center justify-content-between gap-2"><span class="text-break">@draft.FileName · @ProdTexts[draft.Status.ToString()]<small class="d-block text-body-secondary">@draft.UpdatedAt.ToLocalTime().ToString("g")</small></span>
+                    <div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-route-PreviewToken="@draft.Id" asp-route-OnlyPending="false">@ProdTexts["Abrir revisión"]</a>
+                        @if (draft.Status != ProductionImportDraftStatus.Confirmed)
+                        {
+                            <form method="post" asp-page-handler="DeleteDraft" data-import-draft-delete data-confirm="@ProdTexts["¿Eliminar el borrador {0}? Se borran el archivo y sus revisiones; no se puede deshacer.", draft.FileName]"><input type="hidden" name="draftId" value="@draft.Id"/>@if (Model.Draft is not null && Model.Draft.Id != draft.Id) { <input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/> }<button class="btn btn-outline-danger" type="submit">@ProdTexts["Eliminar"]<span class="visually-hidden"> @draft.FileName</span></button></form>
+                        }
+                    </div></li>
+            }</ul></div></section>
+    }
+    @if (Model.Draft is not null)
+    { <p class="text-body-secondary">@ProdTexts["Revisión guardada"] @Model.Draft.Version · @ProdTexts[Model.Draft.Status.ToString()] <a asp-page="ScheduleImport">@ProdTexts["Ver borradores"]</a> @if (Model.CreatedWeekId.HasValue) { <a asp-page="Schedule" asp-route-WeekId="@Model.CreatedWeekId">@ProdTexts["Ver programa creado"]</a> }</p> }
+    <section class="card mb-4"><div class="card-body"><form method="post" enctype="multipart/form-data" asp-page-handler="Preview" class="row g-3 align-items-end"><div class="col-12 col-md-8"><label asp-for="Upload" class="form-label">Production Schedule Report 2026.xlsx</label><input asp-for="Upload" class="form-control form-control-lg" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/><span asp-validation-for="Upload" class="text-danger"></span></div><div class="col-12 col-md-4"><button class="btn btn-primary btn-lg w-100">@ProdTexts["Previsualizar"]</button></div></form></div></section>
+    @if(Model.Preview is not null)
+    {
+        var applied = Model.AppliedDescriptions().ToArray();
+        <section class="card"><div class="card-body"><div class="d-flex flex-wrap justify-content-between gap-3"><div><h2 class="h4">@ProdTexts["Resultado de validación"]</h2><p class="mb-0">@ProdTexts["{0} semanas · {1} líneas · {2} capturas · {3} paquetes de apertura", Model.Preview.Weeks.Count, Model.Preview.LineCount, Model.Preview.CaptureCount, Model.Preview.Weeks.Sum(x => x.OpeningCarryovers.Count)]</p></div><span class="badge @(Model.Draft?.Status == ProductionImportDraftStatus.Confirmed ? "text-bg-success" : Model.Draft?.Status == ProductionImportDraftStatus.Discarded ? "text-bg-secondary" : Model.CanConfirm ? "text-bg-success" : "text-bg-danger") align-self-start">@(Model.Draft?.Status == ProductionImportDraftStatus.Confirmed ? ProdTexts["Confirmed"] : Model.Draft?.Status == ProductionImportDraftStatus.Discarded ? ProdTexts["Discarded"] : Model.CanConfirm ? ProdTexts["Lista para confirmar"] : ProdTexts["Requiere corrección"])</span></div>
+            @if (Model.Preview.Issues.Count > 0)
+            {
+                <div class="alert alert-danger mt-3"><strong>@ProdTexts["Bloqueos"]</strong><ul class="mb-0">
+                    @foreach (var issue in Model.Preview.Issues)
+                    {
+                        var review = issue.Kind == ProductionScheduleImportIssueKind.OpeningReconciliation
+                            ? Model.Preview.OpeningReview.FirstOrDefault(x => x.Sku == issue.Value) : null;
+                        <li class="mb-2">
+                            @ProductionDailyText.ImportSource(ProdTexts, issue) @(issue.Row > 0 ? ProdTexts["fila {0}: ", issue.Row.Value].Value : ": ")@ProductionDailyText.Message(ProdTexts, issue.Message)
+                            @if (review is not null)
+                            {
+                                <ul>@foreach (var problem in review.Problems) { <li>@ProdTexts[problem]</li> }</ul>
+                                <a class="btn btn-link" asp-route-PreviewToken="@Model.PreviewToken" asp-route-Search="@review.Sku" asp-route-OnlyPending="false" asp-route-ReviewPage="@Model.OpeningReviewPage(review)" asp-fragment="product-@review.ProductId">@ProdTexts["Conciliar apertura"]</a>
+                            }
+                        </li>
+                    }
+                </ul></div>
+            }
+            @if (Model.CanEdit && applied.Length > 0)
+            {
+                <div class="alert alert-info mt-3" data-import-applied><strong>@ProdTexts["Soluciones aplicadas"]</strong><p class="small mb-2">@ProdTexts["Aplican solo a esta importación y quedan registradas al confirmar. El archivo no se modifica."]</p><ul class="mb-2">@foreach (var description in applied) { <li>@description</li> }</ul>
+                    <form method="post" asp-page-handler="Discard"><input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/><button class="btn btn-outline-secondary" type="submit">@ProdTexts["Descartar soluciones"]</button></form></div>
+            }
+            @if (Model.CanEdit && Model.NeedsConfiguration && Model.Setup is not null)
+            {
+                <section class="border rounded p-3 mt-3" id="import-configuration" data-import-configuration><h3 class="h5">@ProdTexts["Configuración diaria"]</h3><p class="small text-body-secondary">@ProdTexts["Vincula las áreas y turnos del archivo con tus procesos y turnos. Se guarda como la configuración diaria de Programa semanal."]</p>
+                    <form method="post" asp-page-handler="Configure" class="row g-3"><input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/><input asp-for="Configuration.OperationId" type="hidden"/><input asp-for="Configuration.ExpectedVersion" type="hidden"/>
+                        <div class="col-12 col-md-4"><label asp-for="Configuration.CuttingStageId" class="form-label">@ProdTexts["Corte"]</label><select asp-for="Configuration.CuttingStageId" class="form-select"><option value="">@ProdTexts[Model.Setup.Stages.Count == 0 ? "No hay procesos activos" : "Selecciona un proceso"]</option>@foreach(var stage in Model.Setup.Stages){<option value="@stage.Id">@stage.Name</option>}</select></div>
+                        <div class="col-12 col-md-4"><label asp-for="Configuration.SewingStageId" class="form-label">@ProdTexts["Costura"]</label><select asp-for="Configuration.SewingStageId" class="form-select"><option value="">@ProdTexts[Model.Setup.Stages.Count == 0 ? "No hay procesos activos" : "Selecciona un proceso"]</option>@foreach(var stage in Model.Setup.Stages){<option value="@stage.Id">@stage.Name</option>}</select></div>
+                        <div class="col-12 col-md-4"><label asp-for="Configuration.ReadyToPackStageId" class="form-label">@ProdTexts["Ready to Pack"]</label><select asp-for="Configuration.ReadyToPackStageId" class="form-select"><option value="">@ProdTexts[Model.Setup.Stages.Count == 0 ? "No hay procesos activos" : "Selecciona un proceso"]</option>@foreach(var stage in Model.Setup.Stages){<option value="@stage.Id">@stage.Name</option>}</select></div>
+                        <div class="col-12 col-md-6"><label asp-for="Configuration.Shift1Id" class="form-label">T1</label><select asp-for="Configuration.Shift1Id" class="form-select"><option value="">@ProdTexts[Model.Setup.Shifts.Count == 0 ? "No hay turnos activos" : "Selecciona un turno"]</option>@foreach(var shift in Model.Setup.Shifts){<option value="@shift.Id">@shift.Code · @shift.Name</option>}</select></div>
+                        <div class="col-12 col-md-6"><label asp-for="Configuration.Shift2Id" class="form-label">T2</label><select asp-for="Configuration.Shift2Id" class="form-select"><option value="">@ProdTexts[Model.Setup.Shifts.Count == 0 ? "No hay turnos activos" : "Selecciona un turno"]</option>@foreach(var shift in Model.Setup.Shifts){<option value="@shift.Id">@shift.Code · @shift.Name</option>}</select></div>
+                        <div class="col-12 d-flex flex-wrap gap-2"><button class="btn btn-primary" type="submit">@ProdTexts["Guardar configuración y volver a validar"]</button><a asp-page="Routes" class="btn btn-outline-secondary">@ProdTexts["Agregar turno"]</a><a asp-page="Processes" class="btn btn-outline-secondary">@ProdTexts["Procesos"]</a></div>
+                    </form></section>
+            }
+            @if (Model.CanEdit && Model.CanResolve)
+            {
+                <section class="border rounded p-3 mt-3" id="import-resolve" data-import-resolve data-production-daily data-no-description="@ProdTexts["Sin descripción"]" data-product-url="@Url.Page("/Operations/Lookup", "Products")"><h3 class="h5">@ProdTexts["Resolver bloqueos"]</h3><p class="small text-body-secondary">@ProdTexts["Aplican solo a esta importación y quedan registradas al confirmar. El archivo no se modifica."]</p>
+                    <form method="post" asp-page-handler="Resolve" class="d-grid gap-4"><input type="hidden" name="PreviewToken" value="@Model.PreviewToken"/><partial name="_ImportRevisionFields" model="Model"/>
+                        @if (Model.Resolution.Areas.Count > 0)
+                        {
+                            <fieldset><legend class="h6">@ProdTexts["Áreas sin vincular"]</legend>@for (var i = 0; i < Model.Resolution.Areas.Count; i++)
+                            {
+                                var link = Model.Resolution.Areas[i];
+                                <div class="row g-2 align-items-center mb-2"><label class="col-12 col-md-5 col-form-label fw-semibold" for="area-link-@i">“@link.Text”</label><div class="col-12 col-md-7"><input type="hidden" name="Resolution.Areas[@i].Text" value="@link.Text"/><select id="area-link-@i" name="Resolution.Areas[@i].Value" class="form-select"><option value="">@ProdTexts["Sin vincular"]</option>@foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <option value="@area">@Model.AreaName(area)</option> }</select></div></div>
+                            }</fieldset>
+                        }
+                        @if (Model.Resolution.Shifts.Count > 0)
+                        {
+                            <fieldset><legend class="h6">@ProdTexts["Turnos sin vincular"]</legend>@for (var i = 0; i < Model.Resolution.Shifts.Count; i++)
+                            {
+                                var link = Model.Resolution.Shifts[i];
+                                <div class="row g-2 align-items-center mb-2"><label class="col-12 col-md-5 col-form-label fw-semibold" for="shift-link-@i">“@link.Text”</label><div class="col-12 col-md-7"><input type="hidden" name="Resolution.Shifts[@i].Text" value="@link.Text"/><select id="shift-link-@i" name="Resolution.Shifts[@i].Value" class="form-select"><option value="">@ProdTexts["Sin vincular"]</option><option value="1">@Model.ShiftName(1)</option><option value="2">@Model.ShiftName(2)</option></select></div></div>
+                            }</fieldset>
+                        }
+                        @if (Model.Resolution.Products.Count > 0)
+                        {
+                            <fieldset><legend class="h6">@ProdTexts["SKU sin vincular"]</legend><p class="form-text">@ProdTexts["Elige el producto del catálogo que corresponde a cada SKU del archivo."]</p>@for (var i = 0; i < Model.Resolution.Products.Count; i++)
+                            {
+                                var link = Model.Resolution.Products[i];
+                                <div class="row g-2 align-items-start mb-2"><label class="col-12 col-md-5 col-form-label fw-semibold" for="sku-link-@i">“@link.Text”</label><div class="col-12 col-md-7 position-relative" data-product-field><input type="hidden" name="Resolution.Products[@i].Text" value="@link.Text"/><input type="hidden" name="Resolution.Products[@i].ProductId" data-product-id/><input id="sku-link-@i" name="Resolution.Products[@i].ProductLabel" class="form-control" type="search" autocomplete="off" autocapitalize="characters" data-product-input aria-expanded="false" placeholder="@ProdTexts["Escribe y selecciona"]"/><div class="production-daily__suggestions list-group" data-product-results role="listbox"></div></div></div>
+                            }</fieldset>
+                        }
+                        @if (Model.RowBlocks.Count > 0)
+                        {
+                            <fieldset><legend class="h6">@ProdTexts["Filas con datos inválidos"]</legend><p class="form-text">@ProdTexts["Escribe el valor correcto u omite la fila. Una fila omitida no se importa."]</p>
+                                @if (Model.HiddenRowBlocks > 0) { <p class="alert alert-warning py-2" role="status">@ProdTexts["Se muestran las primeras {0} filas. Aplica y vuelve a validar para ver las siguientes.", WarehouseEPI.Web.Pages.Admin.Production.ScheduleImportModel.MaxRowFixes]</p> }
+                                <div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>@ProdTexts["Origen"]</th><th>@ProdTexts["Problema"]</th><th>@ProdTexts["Corrección"]</th><th>@ProdTexts["Omitir fila"]</th></tr></thead><tbody>
+                                @for (var i = 0; i < Model.RowBlocks.Count; i++)
+                                {
+                                    var block = Model.RowBlocks[i];
+                                    <tr data-import-row="@block.Key"><td><strong>@block.Sheet</strong><br/><small>@Model.TableName(block.Table) · @ProdTexts["Fila {0}", block.Row]</small><input type="hidden" name="Resolution.Rows[@i].Key" value="@block.Key"/></td>
+                                        <td><ul class="list-unstyled small mb-0">@foreach (var issue in block.Issues) { <li>@ProductionDailyText.Message(ProdTexts, issue.Message)</li> }</ul></td>
+                                        <td class="d-grid gap-2">@if (block.NeedsQuantity) { <label class="visually-hidden" asp-for="Resolution.Rows[i].Quantity">@ProdTexts["Cantidad correcta"]</label><input asp-for="Resolution.Rows[i].Quantity" type="number" step="0.0001" min="0.0001" inputmode="decimal" class="form-control" placeholder="@ProdTexts["Cantidad correcta"]"/> }@if (block.NeedsDate) { <label class="visually-hidden" asp-for="Resolution.Rows[i].Date">@ProdTexts["Fecha correcta"]</label><input asp-for="Resolution.Rows[i].Date" type="date" class="form-control"/> }@if (!block.NeedsQuantity && !block.NeedsDate) { <span class="small text-body-secondary">@ProdTexts["Corrige el Excel u omite la fila."]</span> }</td>
+                                        <td><div class="form-check"><input class="form-check-input" type="checkbox" name="Resolution.Rows[@i].Skip" value="true" id="skip-row-@i"/><label class="form-check-label" for="skip-row-@i">@ProdTexts["Omitir"]</label></div></td></tr>
+                                }
+                                </tbody></table></div></fieldset>
+                        }
+                        <div><button class="btn btn-primary btn-lg" type="submit">@ProdTexts["Aplicar y volver a validar"]</button></div>
+                    </form></section>
+            }
+            <partial name="_ImportOpening" model="Model"/>
+            <div class="table-responsive mt-3"><table class="table table-sm"><thead><tr><th>@ProdTexts["Hoja"]</th><th>@ProdTexts["Semana"]</th><th>@ProdTexts["Estado"]</th><th class="text-end">@ProdTexts["Programa"]</th><th class="text-end">@ProdTexts["Capturas"]</th><th class="text-end">@ProdTexts["Arrastre de apertura"]</th></tr></thead><tbody>@foreach(var week in Model.Preview.Weeks){<tr><td>@week.Sheet</td><td>@week.WeekStart.ToString("dd/MM")–@week.WeekStart.AddDays(5).ToString("dd/MM")</td><td>@(week.IsDraft?ProdTexts["Borrador"]:ProdTexts["Cerrada · solo lectura"])</td><td class="text-end">@week.Lines.Count</td><td class="text-end">@week.Captures.Count</td><td class="text-end">@week.OpeningCarryovers.Count</td></tr>}</tbody></table></div>
+            @if(Model.CanConfirm){<form method="post" asp-page-handler="Confirm"><input asp-for="PreviewToken" type="hidden"/><partial name="_ImportRevisionFields" model="Model"/><input asp-for="OperationId" type="hidden"/><div class="alert alert-warning">@ProdTexts["Confirma sólo después de revisar los mapeos. La importación es idempotente por huella del archivo."]</div><button class="btn btn-success btn-lg">@ProdTexts["Confirmar importación y arrastre"]</button></form>}
+        </div></section>
+    }
+</div>
+@section Scripts { <script src="~/js/production-daily.js" asp-append-version="true"></script> }
+@section Styles { <link rel="stylesheet" href="~/css/production-daily.css" asp-append-version="true"/> }

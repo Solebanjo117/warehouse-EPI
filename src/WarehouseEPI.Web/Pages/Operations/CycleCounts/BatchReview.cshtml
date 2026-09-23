@@ -1,9 +1,10 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.CycleCounts.BatchReviewModel
 @using WarehouseEPI.Core.Entities
 @using WarehouseEPI.Infrastructure.Inventory
 @{
-    ViewData["Title"] = "Revisión final";
+    ViewData["Title"] = OpTexts["Revisión final"].Value;
     string ReasonLabel(CycleCountAdjustmentReason reason) => reason switch
     {
         CycleCountAdjustmentReason.UnrecordedEntry => "Entrada no registrada",
@@ -20,9 +21,9 @@
 <div class="inventory-analytics cycle-count-workspace">
     <header class="inventory-page-header">
         <div>
-            <a asp-page="Details" asp-route-id="@Model.Campaign!.Id" class="small text-decoration-none">← Campaña</a>
-            <h1 class="h2 mt-2">Revisión final de diferencias</h1>
-            <p class="text-muted mb-0">Decide todas las ubicaciones pendientes y autoriza el lote con un solo NIP.</p>
+            <a asp-page="Details" asp-route-id="@Model.Campaign!.Id" class="small text-decoration-none">@OpTexts["← Campaña"]</a>
+            <h1 class="h2 mt-2">@OpTexts["Revisión final de diferencias"]</h1>
+            <p class="text-muted mb-0">@OpTexts["Decide todas las ubicaciones pendientes y autoriza el lote con un solo NIP."]</p>
         </div>
     </header>
 
@@ -33,7 +34,7 @@
 
     @if (Model.Decisions.Count == 0)
     {
-        <div class="alert alert-secondary">No hay diferencias pendientes de revisión.</div>
+        <div class="alert alert-secondary">@OpTexts["No hay diferencias pendientes de revisión."]</div>
     }
     else
     {
@@ -48,8 +49,8 @@
                     <input name="Input.Decisions[@index].LocationId" type="hidden" value="@item.LocationId" />
                     <input name="Input.Decisions[@index].OperationId" type="hidden" value="@input.OperationId" />
                     <header>
-                        <div><span class="eyebrow">Ubicación</span><h2 class="h5 mb-0">@item.LocationCode</h2></div>
-                        <span class="badge @CycleCountPresentation.LocationStatusClass(item.Status)">@CycleCountPresentation.LocationStatusLabel(item.Status)</span>
+                        <div><span class="eyebrow">@OpTexts["Ubicación"]</span><h2 class="h5 mb-0">@item.LocationCode</h2></div>
+                        <span class="badge @CycleCountPresentation.LocationStatusClass(item.Status)">@OpTexts[CycleCountPresentation.LocationStatusLabel(item.Status)]</span>
                     </header>
                     @if (itemMessage is not null)
                     {
@@ -58,38 +59,38 @@
                     <ul class="cycle-review-differences">
                         @foreach (var entry in item.Entries)
                         {
-                            <li><strong>@entry.Sku</strong><span>@entry.ExpectedQuantity?.ToString("0.####") → @entry.CountedQuantity?.ToString("0.####")</span><span class="fw-semibold">@entry.Difference?.ToString("+0.####;-0.####;0")</span></li>
+                            <li><strong>@entry.Sku</strong>@if(entry.HasPlateDifference){<span class="badge text-bg-warning">@OpTexts["Diferencia por placa"]</span>}@foreach(var plate in entry.PlateCounts ?? []){<small class="d-block">PLT-@plate.PlateId.ToString("N").ToUpperInvariant(): @plate.Quantity.ToString("0.####") @OpTexts["contado (variante)"]</small>}<span>@entry.ExpectedQuantity?.ToString("0.####") → @entry.CountedQuantity?.ToString("0.####")</span><span class="fw-semibold">@entry.Difference?.ToString("+0.####;-0.####;0")</span></li>
                         }
                     </ul>
 
                     @if (item.Status == CycleCountLocationStatus.Stale)
                     {
                         <input name="Input.Decisions[@index].Decision" type="hidden" value="Recount" />
-                        <div class="alert alert-danger mb-3">El saldo cambió después del conteo. Esta ubicación debe volver a contarse.</div>
-                        <label class="form-label" for="notes-@index">Motivo del reconteo</label>
+                        <div class="alert alert-danger mb-3">@OpTexts["El saldo cambió después del conteo. Esta ubicación debe volver a contarse."]</div>
+                        <label class="form-label" for="notes-@index">@OpTexts["Motivo del reconteo"]</label>
                         <input id="notes-@index" name="Input.Decisions[@index].Notes" value="@input.Notes" class="form-control" maxlength="500" />
                     }
                     else
                     {
                         <div class="row g-3">
                             <div class="col-md-4">
-                                <label class="form-label" for="decision-@index">Decisión</label>
+                                <label class="form-label" for="decision-@index">@OpTexts["Decisión"]</label>
                                 <select id="decision-@index" name="Input.Decisions[@index].Decision" class="form-select" data-cycle-review-decision-select>
-                                    <option value="Approve" selected="@(input.Decision == CycleCountReviewDecision.Approve)">Aprobar ajuste</option>
-                                    <option value="Recount" selected="@(input.Decision == CycleCountReviewDecision.Recount)">Solicitar reconteo</option>
+                                    <option value="Approve" selected="@(input.Decision == CycleCountReviewDecision.Approve)">@OpTexts["Aprobar ajuste"]</option>
+                                    <option value="Recount" selected="@(input.Decision == CycleCountReviewDecision.Recount)">@OpTexts["Solicitar reconteo"]</option>
                                 </select>
                             </div>
                             <div class="col-md-4" data-cycle-approval-field>
-                                <label class="form-label" for="reason-@index">Causa</label>
+                                <label class="form-label" for="reason-@index">@OpTexts["Causa"]</label>
                                 <select id="reason-@index" name="Input.Decisions[@index].Reason" class="form-select">
                                     @foreach (var reason in Enum.GetValues<CycleCountAdjustmentReason>())
                                     {
-                                        <option value="@reason" selected="@(input.Reason == reason)">@ReasonLabel(reason)</option>
+                                        <option value="@reason" selected="@(input.Reason == reason)">@OpTexts[ReasonLabel(reason)]</option>
                                     }
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <label class="form-label" for="notes-@index">Observación</label>
+                                <label class="form-label" for="notes-@index">@OpTexts["Observación"]</label>
                                 <input id="notes-@index" name="Input.Decisions[@index].Notes" value="@input.Notes" class="form-control" maxlength="500" />
                             </div>
                         </div>
@@ -97,7 +98,7 @@
                         @if (item.SharingConflicts.Count != 0)
                         {
                             <fieldset class="alert alert-warning mt-3 mb-0" data-cycle-approval-field>
-                                <legend class="h6">Confirmar ubicación compartida</legend>
+                                <legend class="h6">@OpTexts["Confirmar ubicación compartida"]</legend>
                                 @for (var conflictIndex = 0; conflictIndex < item.SharingConflicts.Count; conflictIndex++)
                                 {
                                     var conflict = item.SharingConflicts[conflictIndex];
@@ -105,7 +106,7 @@
                                     var approvalId = $"shared-{index}-{conflictIndex}";
                                     <div class="form-check mb-2">
                                         <input id="@approvalId" class="form-check-input" type="checkbox" name="Input.Decisions[@index].SharedApprovals" value="@approval" checked="@input.SharedApprovals.Contains(approval)" />
-                                        <label class="form-check-label" for="@approvalId"><strong>@conflict.ProductSku</strong> compartirá @conflict.LocationCode con @string.Join(", ", conflict.ExistingProductSkus).</label>
+                                        <label class="form-check-label" for="@approvalId"><strong>@conflict.ProductSku</strong> @OpTexts["compartirá {0} con {1}.", conflict.LocationCode, string.Join(", ", conflict.ExistingProductSkus)]</label>
                                     </div>
                                 }
                             </fieldset>
@@ -115,8 +116,8 @@
             }
 
             <section class="analytics-filter-card cycle-final-authorization">
-                <div><span class="eyebrow">Autorización</span><h2 class="h5 mb-1">Confirmar revisión final</h2><p class="text-muted mb-0">El NIP autoriza todas las decisiones mostradas. No se guarda ni se repuebla.</p></div>
-                <div><label asp-for="Input.Pin" class="form-label">NIP de autorización</label><input asp-for="Input.Pin" value="" class="form-control" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="8" required /><button class="btn btn-primary mt-3 w-100">Aplicar revisión final</button></div>
+                <div><span class="eyebrow">@OpTexts["Autorización"]</span><h2 class="h5 mb-1">@OpTexts["Confirmar revisión final"]</h2><p class="text-muted mb-0">@OpTexts["El NIP autoriza todas las decisiones mostradas. No se guarda ni se repuebla."]</p></div>
+                <div><label asp-for="Input.Pin" class="form-label">@OpTexts["NIP de autorización"]</label><input asp-for="Input.Pin" value="" class="form-control" type="password" inputmode="numeric" autocomplete="off" minlength="4" maxlength="8" required /><button class="btn btn-primary mt-3 w-100">@OpTexts["Aplicar revisión final"]</button></div>
             </section>
         </form>
     }

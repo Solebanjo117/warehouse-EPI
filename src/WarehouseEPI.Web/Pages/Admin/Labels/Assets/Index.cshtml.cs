@@ -1,11 +1,13 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Infrastructure.Labels;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Labels.Assets;
 
-public sealed class IndexModel(LabelAssetService assets) : PageModel
+public sealed class IndexModel(LabelAssetService assets, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     public IReadOnlyList<LabelAssetView> Items { get; private set; } = [];
     [BindProperty] public IFormFile? Image { get; set; }
@@ -14,15 +16,15 @@ public sealed class IndexModel(LabelAssetService assets) : PageModel
 
     public async Task<IActionResult> OnPostUploadAsync(CancellationToken token)
     {
-        if (Image is null) ModelState.AddModelError(nameof(Image), "Selecciona una imagen PNG o JPEG.");
-        else if (Image.Length > LabelAssetService.MaxBytes) ModelState.AddModelError(nameof(Image), "La imagen debe pesar como máximo 1 MiB.");
+        if (Image is null) ModelState.AddModelError(nameof(Image), text["Selecciona una imagen PNG o JPEG."].Value);
+        else if (Image.Length > LabelAssetService.MaxBytes) ModelState.AddModelError(nameof(Image), text["La imagen debe pesar como máximo 1 MiB."].Value);
         else
         {
             await using var stream = Image.OpenReadStream();
             using var buffer = new MemoryStream(); await stream.CopyToAsync(buffer, token);
             var result = await assets.UploadAsync(CurrentUserId(), Image.FileName, Image.ContentType, buffer.ToArray(), token);
-            if (result.Error is null) { TempData["StatusMessage"] = result.Asset?.Name == Image.FileName ? "Imagen agregada." : "La imagen ya existía; se reutilizará por su hash."; return RedirectToPage(); }
-            ModelState.AddModelError(nameof(Image), result.Error);
+            if (result.Error is null) { TempData["StatusMessage"] = text[result.Asset?.Name == Image.FileName ? "Imagen agregada." : "La imagen ya existía; se reutilizará por su hash."].Value; return RedirectToPage(); }
+            ModelState.AddModelError(nameof(Image), text[result.Error].Value);
         }
         Items = await assets.GetAllAsync(token); return Page();
     }
@@ -30,7 +32,7 @@ public sealed class IndexModel(LabelAssetService assets) : PageModel
     public async Task<IActionResult> OnPostArchiveAsync(Guid id, bool archived, CancellationToken token)
     {
         if (!await assets.SetArchivedAsync(id, archived, token)) return NotFound();
-        TempData["StatusMessage"] = archived ? "Imagen archivada. Las versiones existentes siguen funcionando." : "Imagen restaurada.";
+        TempData["StatusMessage"] = text[archived ? "Imagen archivada. Las versiones existentes siguen funcionando." : "Imagen restaurada."].Value;
         return RedirectToPage();
     }
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : Guid.Empty;

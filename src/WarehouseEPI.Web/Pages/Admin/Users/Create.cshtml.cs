@@ -7,13 +7,15 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Users;
 
 [Authorize(Policy = "AdminOnly")]
 public sealed class CreateModel(
     WarehouseDbContext dbContext,
-    UserPinService userPinService) : PageModel
+    UserPinService userPinService, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -31,7 +33,7 @@ public sealed class CreateModel(
 
         if (!string.Equals(Input.Pin, Input.ConfirmPin, StringComparison.Ordinal))
         {
-            ModelState.AddModelError("Input.ConfirmPin", "Los NIP no coinciden.");
+            ModelState.AddModelError("Input.ConfirmPin", text["Los NIP no coinciden."].Value);
         }
 
         var roleExists = await dbContext.Roles.AnyAsync(
@@ -39,7 +41,7 @@ public sealed class CreateModel(
             cancellationToken);
         if (!roleExists)
         {
-            ModelState.AddModelError("Input.RoleId", "Seleccione un rol válido.");
+            ModelState.AddModelError("Input.RoleId", text["Seleccione un rol válido."].Value);
         }
 
         if (!ModelState.IsValid)
@@ -72,7 +74,7 @@ public sealed class CreateModel(
         }
         catch (DbUpdateException)
         {
-            ModelState.AddModelError("Input.Pin", "El NIP ya está asignado a otro usuario.");
+            ModelState.AddModelError("Input.Pin", text["El NIP ya está asignado a otro usuario."].Value);
             await LoadRolesAsync(cancellationToken);
             return Page();
         }
@@ -94,8 +96,8 @@ public sealed class CreateModel(
         ModelState.AddModelError(
             "Input.Pin",
             result == PinAssignmentResult.Duplicate
-                ? "El NIP ya está asignado a otro usuario."
-                : "Use un NIP de 4 a 8 dígitos.");
+                ? text["El NIP ya está asignado a otro usuario."].Value
+                : text["Use un NIP de 4 a 8 dígitos."].Value);
     }
 
     public sealed class InputModel

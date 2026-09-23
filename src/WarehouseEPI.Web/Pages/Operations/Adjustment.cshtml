@@ -1,7 +1,8 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.AdjustmentModel
 @{
-    ViewData["Title"] = Model.PageTitle;
+    ViewData["Title"] = OpTexts[Model.PageTitle].Value;
 }
 <partial name="_GuidedMovementForm" model="Model" />
 

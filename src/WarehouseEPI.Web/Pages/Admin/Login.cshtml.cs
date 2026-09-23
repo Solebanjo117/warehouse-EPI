@@ -6,11 +6,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Security;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin;
 
 [AllowAnonymous]
-public sealed class LoginModel(UserPinService userPinService) : PageModel
+public sealed class LoginModel(UserPinService userPinService, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -35,7 +37,7 @@ public sealed class LoginModel(UserPinService userPinService) : PageModel
         var user = await userPinService.AuthenticateAsync(Input.Pin, cancellationToken);
         if (user is null || user.Role.Code != "ADMIN")
         {
-            ModelState.AddModelError(string.Empty, "NIP inválido o sin permiso administrativo.");
+            ModelState.AddModelError(string.Empty, text["NIP inválido o sin permiso administrativo."].Value);
             return Page();
         }
 

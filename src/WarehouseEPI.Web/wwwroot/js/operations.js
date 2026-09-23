@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const debounce = (callback, delay = 250) => {
     let timer;
     return (...args) => {
@@ -15,7 +16,7 @@
 
   const describeProduct = (item) => [item.description, item.externalReference, item.unitCode]
     .filter(Boolean).join(" · ");
-  const describeLocation = (item) => item.description || "Ubicación operativa";
+  const describeLocation = (item) => item.description || text("Ubicación operativa");
 
   const preferredCameraStorageKey = "warehouseEpi.preferredCameraDeviceId";
   const cameraVideoConstraints = {
@@ -68,7 +69,7 @@
       button.classList.toggle("d-none", devices.length < 2);
       const currentDeviceId = stream.getVideoTracks?.()[0]?.getSettings?.().deviceId;
       const currentIndex = devices.findIndex(device => device.deviceId === currentDeviceId);
-      button.title = `Cambiar cámara (${(currentIndex >= 0 ? currentIndex : 0) + 1} de ${devices.length})`;
+      button.title = text("Cambiar cámara ({0} de {1})", (currentIndex >= 0 ? currentIndex : 0) + 1, devices.length);
     } catch {
       button.classList.add("d-none");
     }
@@ -116,17 +117,17 @@
 
     const describeCameraError = (error) => {
       if (error?.name === "NotAllowedError")
-        return "No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.";
+        return text("No se concedió permiso para usar la cámara. Puedes escribir o usar el escáner físico.");
       if (error?.name === "NotFoundError")
-        return "No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.";
+        return text("No se encontró una cámara disponible. Puedes escribir o usar el escáner físico.");
       if (error?.name === "NotReadableError")
-        return "La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.";
+        return text("La cámara está ocupada por otra aplicación. Ciérrala e inténtalo nuevamente.");
       if (error?.name === "OverconstrainedError")
-        return "La cámara no admite la configuración solicitada. Prueba con Tomar foto.";
+        return text("La cámara no admite la configuración solicitada. Prueba con Tomar foto.");
       const detail = typeof error?.message === "string" && error.message.trim()
         ? ` ${error.message.trim()}`
         : "";
-      return `No fue posible iniciar la cámara (${error?.name || "error desconocido"}).${detail} Prueba con Tomar foto, escribe o usa el escáner físico.`;
+      return text("No fue posible iniciar la cámara ({0}).{1} Prueba con Tomar foto, escribe o usa el escáner físico.", error?.name || text("error desconocido"), detail);
     };
 
     const isCodeNotDetectedError = (error) => {
@@ -146,7 +147,7 @@
     const resolveDetectedCode = async (code) => {
       if (resolving || accepted) return false;
       resolving = true;
-      setStatus("Código detectado. Validando…");
+      setStatus(text("Código detectado. Validando…"));
       try {
         const result = await onCode(code);
         if (result?.accepted) {
@@ -156,9 +157,9 @@
           onAccepted?.(result, code);
           return true;
         }
-        setStatus(result?.message || "No se encontró un producto con ese código. Intenta nuevamente.");
+        setStatus(result?.message || text("No se encontró un producto con ese código. Intenta nuevamente."));
       } catch {
-        setStatus("No fue posible validar el código. La cámara seguirá activa para reintentar.");
+        setStatus(text("No fue posible validar el código. La cámara seguirá activa para reintentar."));
       } finally {
         if (!accepted) resolving = false;
       }
@@ -199,18 +200,18 @@
     const startCamera = async (requestedDeviceId, session = cameraSession) => {
       if (!window.isSecureContext) {
         preview.classList.add("d-none");
-        setStatus("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico.");
+        setStatus(text("La cámara requiere HTTPS. Puedes escribir o usar el escáner físico."));
         return;
       }
       if (!navigator.mediaDevices?.getUserMedia
         || (!window.ZXingBrowser && typeof window.BarcodeDetector !== "function")) {
         preview.classList.add("d-none");
-        setStatus("Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico.");
+        setStatus(text("Este navegador no permite usar la cámara. Puedes escribir o usar el escáner físico."));
         return;
       }
 
       preview.classList.remove("d-none");
-      setStatus("Solicitando la cámara trasera…");
+      setStatus(text("Solicitando la cámara trasera…"));
       try {
         const stream = await openCameraStream(requestedDeviceId);
         if (session !== cameraSession) {
@@ -226,7 +227,7 @@
           return;
         }
         await updateCameraSwitchButton(cameraSwitch, stream);
-        setStatus(instruction || "Centra el código; para etiquetas largas, acércalo y espera a que enfoque.");
+        setStatus(instruction || text("Centra el código; para etiquetas largas, acércalo y espera a que enfoque."));
 
         if (await startNativeScanner(session)) return;
         if (!window.ZXingBrowser || session !== cameraSession) return;
@@ -260,13 +261,13 @@
       const [file] = photo.files;
       if (!file || resolving || accepted) return;
       if (!window.ZXingBrowser) {
-        setStatus("No fue posible leer la foto. Puedes escribir o usar el escáner físico.");
+        setStatus(text("No fue posible leer la foto. Puedes escribir o usar el escáner físico."));
         return;
       }
 
       const session = ++cameraSession;
       stopCamera();
-      setStatus("Leyendo el código de la foto…");
+      setStatus(text("Leyendo el código de la foto…"));
       const imageUrl = URL.createObjectURL(file);
       try {
         const reader = new ZXingBrowser.BrowserMultiFormatReader();
@@ -274,7 +275,7 @@
         const result = await reader.decodeFromImageUrl(imageUrl);
         await resolveDetectedCode(result.getText());
       } catch {
-        setStatus("No se detectó un código de barras en la foto. Reanudando la cámara…");
+        setStatus(text("No se detectó un código de barras en la foto. Reanudando la cámara…"));
       } finally {
         URL.revokeObjectURL(imageUrl);
         photo.value = "";
@@ -284,7 +285,7 @@
 
     cameraSwitch?.addEventListener("click", async () => {
       cameraSwitch.disabled = true;
-      setStatus("Cambiando cámara…");
+      setStatus(text("Cambiando cámara…"));
       try {
         const deviceId = await nextCameraDeviceId(video.srcObject);
         if (!deviceId) return;
@@ -317,7 +318,7 @@
         accepted = false;
         resolving = false;
         preview.classList.remove("d-none");
-        setStatus("Preparando cámara…");
+        setStatus(text("Preparando cámara…"));
         modal.show();
         const session = ++cameraSession;
         void startCamera(undefined, session);
@@ -378,11 +379,11 @@
           : ["product", "location"];
 
     const fieldName = (kind) => ({
-      product: "Producto",
-      source: "Ubicación origen",
-      destination: "Ubicación destino",
-      "exit-mode": "Tipo de salida",
-      location: "Ubicación"
+      product: text("Producto"),
+      source: text("Ubicación origen"),
+      destination: text("Ubicación destino"),
+      "exit-mode": text("Tipo de salida"),
+      location: text("Ubicación")
     })[kind];
 
     const setOperationFeedback = (message) => {
@@ -440,7 +441,7 @@
       for (const kind of kinds) {
         const step = operationShell.querySelector(`[data-entry-step="${kind}"]`);
         const record = lookups[kind]?.record;
-        const title = kind === "exit-mode" ? (selectedExitMode() === "Wip" ? "Surtir WIP" : selectedExitMode() === "General" ? "Salida general" : "Tipo pendiente")
+        const title = kind === "exit-mode" ? (selectedExitMode() === "Wip" ? text("Surtir WIP") : selectedExitMode() === "General" ? text("Salida general") : text("Tipo pendiente"))
           : kind === "quantity" ? quantityText : kind === "notes" ? (notesInput?.value.trim() || "Motivo pendiente")
           : record?.querySelector("[data-selected-title]")?.textContent?.trim() || `${fieldName(kind)} pendiente`;
         const detail = kind === "quantity" ? (quantityComplete ? balanceText.textContent : "")
@@ -466,7 +467,7 @@
       const missing = kinds.length - completedCount;
       const state = operationShell.querySelector("[data-entry-summary-state]");
       state.textContent = ready ? "Lista para confirmar"
-        : completedCount === kinds.length ? "Confirma el pallet compartido"
+        : completedCount === kinds.length ? text("Confirma el pallet compartido")
           : `Faltan ${missing} ${missing === 1 ? "paso" : "pasos"}`;
       operationShell.querySelector(".entry-summary-card")?.classList.toggle("is-ready", ready);
       operationShell.querySelector("[data-review-button]").disabled = !ready;
@@ -477,7 +478,7 @@
       const source = number(balancePreview.dataset.source);
       const destination = number(balancePreview.dataset.destination);
       const location = number(balancePreview.dataset.location);
-      let message = "Selecciona producto y ubicación";
+      let message = text("Selecciona producto y ubicación");
       let isNegative = false;
 
       if (operation === "entry" && selected.product && selected.destination) {
@@ -579,13 +580,13 @@
       const selectedLocation = selected[primaryLocationKind];
       renderRelationshipChoices(
         panel,
-        productLocations.length === 1 ? "Ubicación relacionada" : "Ubicaciones relacionadas; elige una",
+        productLocations.length === 1 ? text("Ubicación relacionada") : text("Ubicaciones relacionadas; elige una"),
         productLocations,
         "location",
         (item) => void applySelection(primaryLocationKind, item, true).then(focusNextRequired),
         selectedLocation?.id);
       if (selectedLocation && !productLocations.some(item => item.id === selectedLocation.id))
-        addRelationshipMessage(panel, "Esta pareja se asociará al confirmar con NIP.", "text-primary");
+        addRelationshipMessage(panel, text("Esta pareja se asociará al confirmar con NIP."), "text-primary");
     };
 
     const canSelectProductFrom = (kind) => !((operation === "transfer" || operation === "wipissue" || isWipExit()) && kind === "destination");
@@ -605,15 +606,15 @@
       const selectable = canSelectProductFrom(kind);
       renderRelationshipChoices(
         panel,
-        items.length === 1 ? "Producto relacionado" : "Productos relacionados; elige uno",
+        items.length === 1 ? text("Producto relacionado") : text("Productos relacionados; elige uno"),
         items,
         "product",
         selectable ? (item) => void applySelection("product", item, true).then(focusNextRequired) : null,
         selected.product?.id);
       if (selected.product && !items.some(item => item.id === selected.product.id))
-        addRelationshipMessage(panel, "El producto seleccionado se asociará aquí al confirmar con NIP.", "text-primary");
+        addRelationshipMessage(panel, text("El producto seleccionado se asociará aquí al confirmar con NIP."), "text-primary");
       if (!selectable)
-        addRelationshipMessage(panel, "El destino es informativo y no cambia el producto de la transferencia.");
+        addRelationshipMessage(panel, text("El destino es informativo y no cambia el producto de la transferencia."));
     };
 
     const refreshRelationshipPanels = () => {
@@ -670,7 +671,7 @@
         const expectsWip = (operation === "wipissue" || isWipExit()) && kind === "destination";
         const isWipLocation = item.isWip === true;
         if (expectsWip && !isWipLocation) {
-          const message = "Selecciona una ubicación WIP.";
+          const message = text("Selecciona una ubicación WIP.");
           lookup.input.setCustomValidity(message);
           lookup.input.reportValidity();
           setOperationFeedback(message);
@@ -832,7 +833,7 @@
       const lookupKind = kind === "product" ? "product" : "location";
       const resolution = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler: "ResolveCode", code })}`);
       if (!resolution) {
-        const message = "No fue posible validar el código. Intenta nuevamente.";
+        const message = text("No fue posible validar el código. Intenta nuevamente.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
         setOperationFeedback(message);
@@ -842,7 +843,7 @@
       const product = resolution.product;
       const location = resolution.location;
       if (product && location) {
-        const message = "El código coincide con un producto y una ubicación. Escanéalo en el campo correcto.";
+        const message = text("El código coincide con un producto y una ubicación. Escanéalo en el campo correcto.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
         setOperationFeedback(message);
@@ -859,7 +860,7 @@
 
       const oppositeItem = lookupKind === "product" ? location : product;
       if (!oppositeItem) {
-        const message = "No se encontró un registro operativo con ese código.";
+        const message = text("No se encontró un registro operativo con ese código.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
         setOperationFeedback(message);
@@ -883,7 +884,7 @@
       await applySelection(targetKind, oppositeItem, true);
       const message = lookupKind === "product"
         ? `Código de ubicación detectado. Se aplicó en ${fieldName(targetKind)}.`
-        : "Código de producto detectado. Se aplicó en Producto.";
+        : text("Código de producto detectado. Se aplicó en Producto.");
       setOperationFeedback(message);
       focusNextRequired();
       return { selected: true, message };
@@ -906,7 +907,7 @@
           }
           return {
             accepted: false,
-            message: resolution.message || "No se encontró un registro operativo con ese código. Intenta nuevamente."
+            message: resolution.message || text("No se encontró un registro operativo con ese código. Intenta nuevamente.")
           };
         },
         onClosed: () => {
@@ -1006,14 +1007,14 @@
       const pinInput = operationShell.querySelector("[data-pin-input]");
       pinInput.required = false;
       if (operation === "exit" && !selectedExitMode()) {
-        exitModePicker?.querySelector("input")?.setCustomValidity("Selecciona el tipo de salida.");
+        exitModePicker?.querySelector("input")?.setCustomValidity(text("Selecciona el tipo de salida."));
         exitModePicker?.querySelector("input")?.reportValidity();
         return;
       }
       for (const kind of requiredKinds()) {
         if (!hiddenFor(kind).value) {
           const input = operationShell.querySelector(`[data-lookup-field="${kind}"] [data-lookup-input]`);
-          input.setCustomValidity("Selecciona un registro de la lista o escanea un código válido.");
+          input.setCustomValidity(text("Selecciona un registro de la lista o escanea un código válido."));
           input.reportValidity();
           return;
         }
@@ -1110,7 +1111,7 @@
     };
     const showAmbiguousChoices = (resolution) => {
       results.replaceChildren();
-      const message = "El código coincide con un producto y una ubicación. Elige qué deseas consultar.";
+        const message = text("El código coincide con un producto y una ubicación. Elige qué deseas consultar.");
       setFeedback(message);
       addGroup("Producto", [resolution.product], "product");
       addGroup("Ubicación", [resolution.location], "location");
@@ -1139,7 +1140,7 @@
       }
       if (resolution.product) { navigate("product", resolution.product.id); return true; }
       if (resolution.location) { navigate("location", resolution.location.id); return true; }
-      const message = "No se encontró un producto ni una ubicación con ese código.";
+      const message = text("No se encontró un producto ni una ubicación con ese código.");
       input.setCustomValidity(message);
       setFeedback(message);
       return false;
@@ -1238,7 +1239,7 @@
           return;
         }
         preview.classList.remove("d-none");
-        status.textContent = "Solicitando cámara trasera…";
+        status.textContent = text("Solicitando cámara trasera…");
         try {
           const stream = await openCameraStream(requestedDeviceId);
           video.srcObject = stream;
@@ -1268,7 +1269,7 @@
       });
       cameraSwitch?.addEventListener("click", async () => {
         cameraSwitch.disabled = true;
-        status.textContent = "Cambiando cámara…";
+        status.textContent = text("Cambiando cámara…");
         try {
           const deviceId = await nextCameraDeviceId(video.srcObject);
           if (!deviceId) return;

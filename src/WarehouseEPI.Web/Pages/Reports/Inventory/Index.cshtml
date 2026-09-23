@@ -1,8 +1,9 @@
 @page "/Reports/Inventory"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Reports.Inventory.IndexModel
 @using WarehouseEPI.Infrastructure.Reporting
 @{
-    ViewData["Title"] = "Analítica de inventario";
+    ViewData["Title"] = CatTexts["Analítica de inventario"].Value;
     var isAdmin = User.IsInRole("ADMIN");
     var page = Model.View switch
     {
@@ -32,9 +33,9 @@
 <div class="inventory-analytics">
     <header class="inventory-page-header analytics-header">
         <div>
-            <span class="eyebrow">Reportes LAN</span>
-            <h1 class="h2 mb-1">Analítica de inventario</h1>
-            <p class="text-muted mb-0">Capacidad basada en saldo real, actividad de salidas, existencia estancada, antigüedad de lotes, cobertura y excepciones.</p>
+            <span class="eyebrow">@CatTexts["Reportes LAN"]</span>
+            <h1 class="h2 mb-1">@CatTexts["Analítica de inventario"]</h1>
+            <p class="text-muted mb-0">@CatTexts["Capacidad basada en saldo real, actividad de salidas, existencia estancada, antigüedad de lotes, cobertura y excepciones."]</p>
         </div>
         <a class="btn btn-outline-primary"
            asp-route-view="@Model.View"
@@ -47,70 +48,70 @@
            asp-route-ageBucket="@ageBucket"
            asp-route-coverageClass="@coverageClass"
            asp-route-pageNumber="@(Model.View == "exceptions" ? Model.ExceptionPageNumber : page)"
-           asp-route-refresh="true">Actualizar ahora</a>
+           asp-route-refresh="true">@CatTexts["Actualizar ahora"]</a>
     </header>
-    <p class="analytics-updated">Datos generados: <time datetime="@Model.UpdatedAt.ToString("O")">@Model.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</time></p>
-    <aside class="analytics-shortcuts" aria-label="Accesos relacionados">
-        <span class="analytics-shortcuts-label">Ir a</span>
-        <a asp-page="/Operations/CycleCounts/Index">Conteos cíclicos</a>
+    <p class="analytics-updated">@CatTexts["Datos generados:"] <time datetime="@Model.UpdatedAt.ToString("O")">@Model.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</time></p>
+    <aside class="analytics-shortcuts" aria-label="@CatTexts["Accesos relacionados"]">
+        <span class="analytics-shortcuts-label">@CatTexts["Ir a"]</span>
+        <a asp-page="/Operations/CycleCounts/Index">@CatTexts["Conteos cíclicos"]</a>
         @if (isAdmin)
         {
-            <a asp-page="/Admin/Inventory/Alerts">Centro de excepciones</a>
-            <a asp-page="/Admin/Catalogs/Locations/Index">Ubicaciones</a>
-            <a asp-page="/Admin/Catalogs/Products/Index">Catálogo de productos</a>
+            <a asp-page="/Admin/Inventory/Alerts">@CatTexts["Centro de excepciones"]</a>
+            <a asp-page="/Admin/Catalogs/Locations/Index">@CatTexts["Ubicaciones"]</a>
+            <a asp-page="/Admin/Catalogs/Products/Index">@CatTexts["Catálogo de productos"]</a>
         }
     </aside>
 
-    <nav class="inventory-filter-tabs analytics-tabs" aria-label="Vista analítica">
-        <a class="@(Model.View == "occupancy" ? "active" : null)" aria-current="@(Model.View == "occupancy" ? "page" : null)" asp-route-view="occupancy">Ocupación</a>
-        <a class="@(Model.View == "activity" ? "active" : null)" aria-current="@(Model.View == "activity" ? "page" : null)" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">Actividad de salidas</a>
-        <a class="@(Model.View == "stagnant" ? "active" : null)" aria-current="@(Model.View == "stagnant" ? "page" : null)" asp-route-view="stagnant" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory">Estancamiento</a>
-        <a class="@(Model.View == "lot-aging" ? "active" : null)" aria-current="@(Model.View == "lot-aging" ? "page" : null)" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket">Antigüedad de lotes</a>
-        <a class="@(Model.View == "coverage" ? "active" : null)" aria-current="@(Model.View == "coverage" ? "page" : null)" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass">Cobertura por consumo</a>
+    <nav class="inventory-filter-tabs analytics-tabs" aria-label="@CatTexts["Vista analítica"]">
+        <a class="@(Model.View == "occupancy" ? "active" : null)" aria-current="@(Model.View == "occupancy" ? "page" : null)" asp-route-view="occupancy">@CatTexts["Ocupación"]</a>
+        <a class="@(Model.View == "activity" ? "active" : null)" aria-current="@(Model.View == "activity" ? "page" : null)" asp-route-view="activity" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId">@CatTexts["Actividad de salidas"]</a>
+        <a class="@(Model.View == "stagnant" ? "active" : null)" aria-current="@(Model.View == "stagnant" ? "page" : null)" asp-route-view="stagnant" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory">@CatTexts["Estancamiento"]</a>
+        <a class="@(Model.View == "lot-aging" ? "active" : null)" aria-current="@(Model.View == "lot-aging" ? "page" : null)" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket">@CatTexts["Antigüedad de lotes"]</a>
+        <a class="@(Model.View == "coverage" ? "active" : null)" aria-current="@(Model.View == "coverage" ? "page" : null)" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass">@CatTexts["Cobertura por consumo"]</a>
         @if (isAdmin)
         {
-            <a asp-page="/Admin/Inventory/Alerts">Centro de excepciones</a>
+            <a asp-page="/Admin/Inventory/Alerts">@CatTexts["Centro de excepciones"]</a>
         }
         else
         {
-            <a class="@(Model.View == "exceptions" ? "active" : null)" aria-current="@(Model.View == "exceptions" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search">Excepciones</a>
+            <a class="@(Model.View == "exceptions" ? "active" : null)" aria-current="@(Model.View == "exceptions" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search">@CatTexts["Excepciones"]</a>
         }
     </nav>
 
     @if (Model.View == "occupancy")
     {
         var summary = Model.Occupancy.Summary;
-        <p class="analytics-view-intro">Permite decidir dónde existe capacidad física o una anomalía; una posición se ocupa únicamente cuando tiene saldo real.</p>
-        <p class="form-text">Conteos independientes: una posición puede presentar más de una condición. Las barras se comparan con el mayor conteo.</p>
+        <p class="analytics-view-intro">@CatTexts["Permite decidir dónde existe capacidad física o una anomalía; una posición se ocupa únicamente cuando tiene saldo real."]</p>
+        <p class="form-text">@CatTexts["Conteos independientes: una posición puede presentar más de una condición. Las barras se comparan con el mayor conteo."]</p>
         <div class="analytics-occupancy">
             <dl class="analytics-utilization">
-                <dt>Utilización</dt>
+                <dt>@CatTexts["Utilización"]</dt>
                 <dd>@summary.UtilizationPercentage.ToString("0.##")%</dd>
-                <small>@summary.TotalStoragePositions posiciones físicas de rack. El denominador excluye bloqueadas e inactivas.</small>
+                <small>@CatTexts["{0} posiciones físicas de rack. El denominador excluye bloqueadas e inactivas.", summary.TotalStoragePositions]</small>
             </dl>
-            <section class="analytics-metrics" aria-label="Desglose de posiciones">
-                <article><strong>@summary.OccupiedCount</strong><span>Ocupadas</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.OccupiedCount" aria-label="Ocupadas">@summary.OccupiedCount</meter></article>
-                <article><strong>@summary.EmptyCount</strong><span>Vacías</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.EmptyCount" aria-label="Vacías">@summary.EmptyCount</meter></article>
-                <article class="is-danger"><strong>@summary.NegativeCount</strong><span>Negativas</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.NegativeCount" aria-label="Negativas">@summary.NegativeCount</meter></article>
-                <article class="is-warning"><strong>@summary.BlockedCount</strong><span>Bloqueadas</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.BlockedCount" aria-label="Bloqueadas">@summary.BlockedCount</meter></article>
-                <article><strong>@summary.InactiveCount</strong><span>Inactivas</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.InactiveCount" aria-label="Inactivas">@summary.InactiveCount</meter></article>
+            <section class="analytics-metrics" aria-label="@CatTexts["Desglose de posiciones"]">
+                <article><strong>@summary.OccupiedCount</strong><span>@CatTexts["Ocupadas"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.OccupiedCount" aria-label="@CatTexts["Ocupadas"]">@summary.OccupiedCount</meter></article>
+                <article><strong>@summary.EmptyCount</strong><span>@CatTexts["Vacías"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.EmptyCount" aria-label="@CatTexts["Vacías"]">@summary.EmptyCount</meter></article>
+                <article class="is-danger"><strong>@summary.NegativeCount</strong><span>@CatTexts["Negativas"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.NegativeCount" aria-label="@CatTexts["Negativas"]">@summary.NegativeCount</meter></article>
+                <article class="is-warning"><strong>@summary.BlockedCount</strong><span>@CatTexts["Bloqueadas"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.BlockedCount" aria-label="@CatTexts["Bloqueadas"]">@summary.BlockedCount</meter></article>
+                <article><strong>@summary.InactiveCount</strong><span>@CatTexts["Inactivas"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.OccupiedCount, summary.EmptyCount, summary.NegativeCount, summary.BlockedCount, summary.InactiveCount }.Max()))" value="@summary.InactiveCount" aria-label="@CatTexts["Inactivas"]">@summary.InactiveCount</meter></article>
             </section>
         </div>
         @if (isAdmin)
         {
-            <div class="d-flex justify-content-end gap-2 mb-3 report-export-actions" aria-label="Exportar ocupación">
+            <div class="d-flex justify-content-end gap-2 mb-3 report-export-actions" aria-label="@CatTexts["Exportar ocupación"]">
                 <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="occupancy" asp-route-format="xlsx">Excel</a>
                 <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="occupancy" asp-route-format="csv">CSV</a>
             </div>
         }
         <div class="table-responsive analytics-table">
             <table class="table align-middle">
-                <thead><tr><th>Fila</th><th>Posiciones</th><th>Ocupadas</th><th>Vacías</th><th>Negativas</th><th>Bloqueadas</th><th>Inactivas</th><th>Utilización</th><th></th></tr></thead>
+                <thead><tr><th>@CatTexts["Fila"]</th><th>@CatTexts["Posiciones"]</th><th>@CatTexts["Ocupadas"]</th><th>@CatTexts["Vacías"]</th><th>@CatTexts["Negativas"]</th><th>@CatTexts["Bloqueadas"]</th><th>@CatTexts["Inactivas"]</th><th>@CatTexts["Utilización"]</th><th></th></tr></thead>
                 <tbody>
-                @if (Model.Occupancy.Rows.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">No hay posiciones físicas de rack.</td></tr> }
+                @if (Model.Occupancy.Rows.Count == 0) { <tr><td colspan="9" class="text-center text-body-secondary py-4">@CatTexts["No hay posiciones físicas de rack."]</td></tr> }
                 @foreach (var row in Model.Occupancy.Rows)
                 {
-                    <tr><th scope="row" data-label="Fila">@row.RowCode</th><td data-label="Posiciones">@row.Summary.TotalStoragePositions</td><td data-label="Ocupadas">@row.Summary.OccupiedCount</td><td data-label="Vacías">@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)" data-label="Negativas">@row.Summary.NegativeCount</td><td data-label="Bloqueadas">@row.Summary.BlockedCount</td><td data-label="Inactivas">@row.Summary.InactiveCount</td><td data-label="Utilización"><span class="analytics-utilization-cell"><strong>@row.Summary.UtilizationPercentage.ToString("0.##")%</strong><span class="analytics-utilization-bar" aria-hidden="true"><span style="@($"--analytics-share: {Math.Clamp((int)Math.Round(row.Summary.UtilizationPercentage), 0, 100)}%")"></span></span></span></td><td class="text-end" data-label="Acciones"><a asp-page="/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" asp-route-status="all" class="btn btn-outline-primary btn-sm">Ver racks</a></td></tr>
+                    <tr><th scope="row" data-label="@CatTexts["Fila"]">@row.RowCode</th><td data-label="@CatTexts["Posiciones"]">@row.Summary.TotalStoragePositions</td><td data-label="@CatTexts["Ocupadas"]">@row.Summary.OccupiedCount</td><td data-label="@CatTexts["Vacías"]">@row.Summary.EmptyCount</td><td class="@(row.Summary.NegativeCount > 0 ? "text-danger fw-semibold" : null)" data-label="@CatTexts["Negativas"]">@row.Summary.NegativeCount</td><td data-label="@CatTexts["Bloqueadas"]">@row.Summary.BlockedCount</td><td data-label="@CatTexts["Inactivas"]">@row.Summary.InactiveCount</td><td data-label="@CatTexts["Utilización"]"><span class="analytics-utilization-cell"><strong>@row.Summary.UtilizationPercentage.ToString("0.##")%</strong><span class="analytics-utilization-bar" aria-hidden="true"><span style="@($"--analytics-share: {Math.Clamp((int)Math.Round(row.Summary.UtilizationPercentage), 0, 100)}%")"></span></span></span></td><td class="text-end" data-label="@CatTexts["Acciones"]"><a asp-page="/Locations/Index" asp-route-viewMode="racks" asp-route-rowCode="@row.RowCode" asp-route-status="all" class="btn btn-outline-primary btn-sm">@CatTexts["Ver racks"]</a></td></tr>
                 }
                 </tbody>
             </table>
@@ -118,118 +119,118 @@
     }
     else if (Model.View == "exceptions")
     {
-        <p class="analytics-view-intro">Prioriza saldos que requieren conciliación y productos que necesitan reabastecimiento; esta consulta nunca modifica inventario.</p>
+        <p class="analytics-view-intro">@CatTexts["Prioriza saldos que requieren conciliación y productos que necesitan reabastecimiento; esta consulta nunca modifica inventario."]</p>
         @if (isAdmin)
         {
             <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
-                <span>Esta consulta analítica se conserva para compatibilidad y exportación. El seguimiento administrativo se realiza en el Centro de excepciones.</span>
+                <span>@CatTexts["Esta consulta analítica se conserva para compatibilidad y exportación. El seguimiento administrativo se realiza en el Centro de excepciones."]</span>
                 <a asp-page="/Admin/Inventory/Alerts"
                    asp-route-category="@(Model.ExceptionView == "minimum" ? "BelowMinimum" : "NegativeInventory")"
-                   class="btn btn-primary">Abrir Centro de excepciones</a>
+                   class="btn btn-primary">@CatTexts["Abrir Centro de excepciones"]</a>
             </div>
         }
-        <section class="report-print-meta" aria-label="Metadatos de impresión">
-            <strong>Excepción: @(Model.ExceptionView == "negative" ? "Saldos producto-ubicación negativos" : "Productos bajo mínimo")</strong>
-            <span>Búsqueda: @(string.IsNullOrWhiteSpace(Model.Search) ? "Sin filtro" : Model.Search)</span>
+        <section class="report-print-meta" aria-label="@CatTexts["Metadatos de impresión"]">
+            <strong>Excepción: @(Model.ExceptionView == "negative" ? CatTexts["Saldos producto-ubicación negativos"].Value : CatTexts["Productos bajo mínimo"].Value)</strong>
+            <span>Búsqueda: @(string.IsNullOrWhiteSpace(Model.Search) ? CatTexts["Sin filtro"].Value : Model.Search)</span>
             <span>Snapshot: @Model.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</span>
             <span>Zona horaria: @Model.TimeZoneId</span>
         </section>
 
-        <nav class="inventory-filter-tabs" aria-label="Tipo de excepción">
-            <a class="@(Model.ExceptionView == "negative" ? "active" : null)" aria-current="@(Model.ExceptionView == "negative" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="negative" asp-route-search="@Model.Search">Saldos negativos <span>@Model.ExceptionSummary.NegativePositions</span></a>
-            <a class="@(Model.ExceptionView == "minimum" ? "active" : null)" aria-current="@(Model.ExceptionView == "minimum" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="minimum" asp-route-search="@Model.Search">Bajo mínimo <span>@Model.ExceptionSummary.BelowMinimumProducts</span></a>
+        <nav class="inventory-filter-tabs" aria-label="@CatTexts["Tipo de excepción"]">
+            <a class="@(Model.ExceptionView == "negative" ? "active" : null)" aria-current="@(Model.ExceptionView == "negative" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="negative" asp-route-search="@Model.Search">@CatTexts["Saldos negativos"] <span>@Model.ExceptionSummary.NegativePositions</span></a>
+            <a class="@(Model.ExceptionView == "minimum" ? "active" : null)" aria-current="@(Model.ExceptionView == "minimum" ? "page" : null)" asp-route-view="exceptions" asp-route-exception="minimum" asp-route-search="@Model.Search">@CatTexts["Bajo mínimo"] <span>@Model.ExceptionSummary.BelowMinimumProducts</span></a>
         </nav>
         <form method="get" class="alert-search-form">
             <input type="hidden" name="view" value="exceptions" />
             <input type="hidden" name="exception" value="@Model.ExceptionView" />
-            <label class="visually-hidden" for="exception-search">Buscar excepciones</label>
-            <div class="input-group"><input id="exception-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción@(Model.ExceptionView == "negative" ? " o ubicación" : string.Empty)" /><button class="btn btn-outline-primary">Filtrar</button></div>
+            <label class="visually-hidden" for="exception-search">@CatTexts["Buscar excepciones"]</label>
+            <div class="input-group"><input id="exception-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción@(Model.ExceptionView == "negative" ? CatTexts[" o ubicación"].Value : string.Empty)" /><button class="btn btn-outline-primary">@CatTexts["Filtrar"]</button></div>
         </form>
-        <section class="alert-metrics" aria-label="Resumen de excepciones">
-            <article class="is-danger"><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-alert" /></svg></span><strong>@Model.ExceptionSummary.NegativePositions</strong><small>Saldos producto-ubicación negativos</small></article>
-            <article><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-products" /></svg></span><strong>@Model.ExceptionSummary.NegativeProducts</strong><small>Productos con negativo</small></article>
-            <article class="is-warning"><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-inventory" /></svg></span><strong>@Model.ExceptionSummary.BelowMinimumProducts</strong><small>Productos bajo mínimo</small></article>
+        <section class="alert-metrics" aria-label="@CatTexts["Resumen de excepciones"]">
+            <article class="is-danger"><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-alert" /></svg></span><strong>@Model.ExceptionSummary.NegativePositions</strong><small>@CatTexts["Saldos producto-ubicación negativos"]</small></article>
+            <article><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-products" /></svg></span><strong>@Model.ExceptionSummary.NegativeProducts</strong><small>@CatTexts["Productos con negativo"]</small></article>
+            <article class="is-warning"><span aria-hidden="true"><svg class="analytics-metric-glyph"><use href="#icon-inventory" /></svg></span><strong>@Model.ExceptionSummary.BelowMinimumProducts</strong><small>@CatTexts["Productos bajo mínimo"]</small></article>
         </section>
         @if (isAdmin)
         {
-            <div class="d-flex justify-content-end gap-2 mt-3 report-export-actions" aria-label="Exportar excepciones">
+            <div class="d-flex justify-content-end gap-2 mt-3 report-export-actions" aria-label="@CatTexts["Exportar excepciones"]">
                 <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-format="xlsx">Excel</a>
                 <a class="btn btn-outline-secondary btn-sm" asp-page-handler="Export" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-format="csv">CSV</a>
             </div>
         }
         @if (Model.ExceptionView == "negative")
         {
-            @if (Model.NegativeExceptions.Items.Count == 0) { <div class="inventory-empty mt-3"><strong>No hay saldos negativos.</strong><span>Las posiciones actuales no requieren conciliación por negativo.</span></div> }
+            @if (Model.NegativeExceptions.Items.Count == 0) { <div class="inventory-empty mt-3"><strong>@CatTexts["No hay saldos negativos."]</strong><span>@CatTexts["Las posiciones actuales no requieren conciliación por negativo."]</span></div> }
             else
             {
-                <section class="alert-list mt-3" aria-label="Saldos producto-ubicación negativos">
+                <section class="alert-list mt-3" aria-label="@CatTexts["Saldos producto-ubicación negativos"]">
                 @foreach (var item in Model.NegativeExceptions.Items)
                 {
-                    <article class="alert-row is-negative"><div><span class="inventory-card-label">Producto</span><strong>@item.ProductSku</strong><small>@(item.ProductDescription ?? "Sin descripción")</small></div><div><span class="inventory-card-label">Ubicación</span><strong>@item.LocationCode</strong><small>@(item.LocationDescription ?? "Ubicación operativa")</small></div><div><span class="analytics-chip is-danger">Saldo negativo</span><strong>@item.Quantity.ToString("0.####") @item.UnitCode</strong></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" asp-route-filter="negative" asp-route-highlightLocationId="@item.LocationId">Ver existencias</a>@if (isAdmin) { <a class="btn btn-outline-secondary" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">Ficha ADMIN</a> }</div></article>
+                    <article class="alert-row is-negative"><div><span class="inventory-card-label">@CatTexts["Producto"]</span><strong>@item.ProductSku</strong><small>@(item.ProductDescription ?? CatTexts["Sin descripción"].Value)</small></div><div><span class="inventory-card-label">@CatTexts["Ubicación"]</span><strong>@item.LocationCode</strong><small>@(item.LocationDescription ?? CatTexts["Ubicación operativa"].Value)</small></div><div><span class="analytics-chip is-danger">@CatTexts["Saldo negativo"]</span><strong>@item.Quantity.ToString("0.####") @item.UnitCode</strong></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" asp-route-filter="negative" asp-route-highlightLocationId="@item.LocationId">@CatTexts["Ver existencias"]</a>@if (isAdmin) { <a class="btn btn-outline-secondary" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">@CatTexts["Ficha ADMIN"]</a> }</div></article>
                 }
                 </section>
             }
         }
         else
         {
-            @if (Model.MinimumExceptions.Items.Count == 0) { <div class="inventory-empty mt-3"><strong>No hay productos bajo mínimo.</strong><span>Los productos activos cumplen con su mínimo configurado.</span></div> }
+            @if (Model.MinimumExceptions.Items.Count == 0) { <div class="inventory-empty mt-3"><strong>@CatTexts["No hay productos bajo mínimo."]</strong><span>@CatTexts["Los productos activos cumplen con su mínimo configurado."]</span></div> }
             else
             {
-                <section class="alert-list mt-3" aria-label="Productos bajo mínimo">
+                <section class="alert-list mt-3" aria-label="@CatTexts["Productos bajo mínimo"]">
                 @foreach (var item in Model.MinimumExceptions.Items)
                 {
-                    <article class="alert-row is-minimum"><div><span class="inventory-card-label">Producto</span><strong>@item.Sku</strong><small>@(item.Description ?? "Sin descripción")</small></div><div><span class="inventory-card-label">Existencia</span><strong>@item.TotalQuantity.ToString("0.####") / @item.MinimumStock.ToString("0.####") @item.UnitCode</strong><small>Faltan @item.Deficit.ToString("0.####") @item.UnitCode</small></div><div><span class="inventory-card-label">Cobertura</span><strong>@(item.CoveragePercent is decimal coverage ? $"{coverage:0.#}%" : "No aplica")</strong></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-page="/Inventory/Index" asp-route-productId="@item.ProductId">Ver existencias</a>@if (isAdmin) { <a class="btn btn-outline-secondary" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">Ficha ADMIN</a> }</div></article>
+                    <article class="alert-row is-minimum"><div><span class="inventory-card-label">@CatTexts["Producto"]</span><strong>@item.Sku</strong><small>@(item.Description ?? CatTexts["Sin descripción"].Value)</small></div><div><span class="inventory-card-label">@CatTexts["Existencia"]</span><strong>@item.TotalQuantity.ToString("0.####") / @item.MinimumStock.ToString("0.####") @item.UnitCode</strong><small>Faltan @item.Deficit.ToString("0.####") @item.UnitCode</small></div><div><span class="inventory-card-label">@CatTexts["Cobertura"]</span><strong>@(item.CoveragePercent is decimal coverage ? $"{coverage:0.#}%" : CatTexts["No aplica"].Value)</strong></div><div class="d-flex flex-wrap gap-2"><a class="btn btn-outline-primary" asp-page="/Inventory/Index" asp-route-productId="@item.ProductId">@CatTexts["Ver existencias"]</a>@if (isAdmin) { <a class="btn btn-outline-secondary" asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId">@CatTexts["Ficha ADMIN"]</a> }</div></article>
                 }
                 </section>
             }
         }
         @if (Model.ExceptionTotalPages > 1)
         {
-            <nav class="mt-4" aria-label="Paginación de excepciones"><ul class="pagination justify-content-center"><li class="page-item @(Model.ExceptionPageNumber <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-pageNumber="@(Model.ExceptionPageNumber - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@Model.ExceptionPageNumber de @Model.ExceptionTotalPages</span></li><li class="page-item @(Model.ExceptionPageNumber >= Model.ExceptionTotalPages ? "disabled" : null)"><a class="page-link" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-pageNumber="@(Model.ExceptionPageNumber + 1)">Siguiente</a></li></ul></nav>
+            <nav class="mt-4" aria-label="@CatTexts["Paginación de excepciones"]"><ul class="pagination justify-content-center"><li class="page-item @(Model.ExceptionPageNumber <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-pageNumber="@(Model.ExceptionPageNumber - 1)">@CatTexts["Anterior"]</a></li><li class="page-item disabled"><span class="page-link">@CatTexts["{0} de {1}", Model.ExceptionPageNumber, Model.ExceptionTotalPages]</span></li><li class="page-item @(Model.ExceptionPageNumber >= Model.ExceptionTotalPages ? "disabled" : null)"><a class="page-link" asp-route-view="exceptions" asp-route-exception="@Model.ExceptionView" asp-route-search="@Model.Search" asp-route-pageNumber="@(Model.ExceptionPageNumber + 1)">@CatTexts["Siguiente"]</a></li></ul></nav>
         }
     }
     else if (Model.View == "lot-aging")
     {
         var summary = Model.LotAging.Summary;
-        <p class="analytics-view-intro">Segmenta los lotes internos con saldo físico activo según su tiempo de permanencia en el almacén local.</p>
+        <p class="analytics-view-intro">@CatTexts["Segmenta los lotes internos con saldo físico activo según su tiempo de permanencia en el almacén local."]</p>
 
         <div class="alert alert-info d-flex align-items-center gap-2 mb-3" role="alert">
             <svg class="bi flex-shrink-0" width="20" height="20" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-11.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/>
             </svg>
             <div>
-                <strong>Aviso de permanencia:</strong> La antigüedad refleja los días transcurridos desde el registro del lote en el almacén local (tiempo de permanencia física); no representa fecha de caducidad ni vencimiento de fabricante.
+                <strong>@CatTexts["Aviso de permanencia:"]</strong> La antigüedad refleja los días transcurridos desde el registro del lote en el almacén local (tiempo de permanencia física); no representa fecha de caducidad ni vencimiento de fabricante.
             </div>
         </div>
 
 <form method="get" class="analytics-filter-card analytics-filter-form">
             <input type="hidden" name="view" value="lot-aging" />
             <div>
-                <label for="aging-search" class="form-label">Buscar</label>
-                <input id="aging-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción o lote" />
+                <label for="aging-search" class="form-label">@CatTexts["Buscar"]</label>
+                <input id="aging-search" name="search" value="@Model.Search" class="form-control" placeholder="@CatTexts["SKU, descripción o lote"]" />
             </div>
             <div>
-                <label for="aging-bucket" class="form-label">Rango</label>
+                <label for="aging-bucket" class="form-label">@CatTexts["Rango"]</label>
                 <select id="aging-bucket" name="ageBucket" class="form-select">
-                    <option value="">Todos los rangos</option>
-                    <option value="days0to30" selected="@(Model.AgeBucket == LotAgeBucket.Days0To30)">0–30 días</option>
-                    <option value="days31to60" selected="@(Model.AgeBucket == LotAgeBucket.Days31To60)">31–60 días</option>
-                    <option value="days61to90" selected="@(Model.AgeBucket == LotAgeBucket.Days61To90)">61–90 días</option>
-                    <option value="days90plus" selected="@(Model.AgeBucket == LotAgeBucket.Days90Plus)">Más de 90 días</option>
+                    <option value="">@CatTexts["Todos los rangos"]</option>
+                    <option value="days0to30" selected="@(Model.AgeBucket == LotAgeBucket.Days0To30)">@CatTexts["0–30 días"]</option>
+                    <option value="days31to60" selected="@(Model.AgeBucket == LotAgeBucket.Days31To60)">@CatTexts["31–60 días"]</option>
+                    <option value="days61to90" selected="@(Model.AgeBucket == LotAgeBucket.Days61To90)">@CatTexts["61–90 días"]</option>
+                    <option value="days90plus" selected="@(Model.AgeBucket == LotAgeBucket.Days90Plus)">@CatTexts["Más de 90 días"]</option>
                 </select>
             </div>
             <div>
-                <label for="aging-status" class="form-label">Estado</label>
+                <label for="aging-status" class="form-label">@CatTexts["Estado"]</label>
                 <select id="aging-status" name="status" class="form-select">
-                    <option value="active">Activos</option>
-                    <option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option>
-                    <option value="all" selected="@(Model.Status == "all")">Todos</option>
+                    <option value="active">@CatTexts["Activos"]</option>
+                    <option value="inactive" selected="@(Model.Status == "inactive")">@CatTexts["Inactivos"]</option>
+                    <option value="all" selected="@(Model.Status == "all")">@CatTexts["Todos"]</option>
                 </select>
             </div>
             <div>
-                <label for="aging-unit" class="form-label">Unidad</label>
+                <label for="aging-unit" class="form-label">@CatTexts["Unidad"]</label>
                 <select id="aging-unit" name="unitId" class="form-select">
-                    <option value="">Todas</option>
+                    <option value="">@CatTexts["Todas"]</option>
                     @foreach (var unit in Model.UnitOptions)
                     {
                         <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option>
@@ -237,8 +238,8 @@
                 </select>
             </div>
             <div class="analytics-filter-actions">
-                <button class="btn btn-primary">Aplicar</button>
-                <a asp-route-view="lot-aging" class="btn btn-outline-secondary">Limpiar</a>
+                <button class="btn btn-primary">@CatTexts["Aplicar"]</button>
+                <a asp-route-view="lot-aging" class="btn btn-outline-secondary">@CatTexts["Limpiar"]</a>
             </div>
         </form>
 
@@ -256,31 +257,31 @@
             }
         </div>
 
-                <section class="analytics-metrics mb-3" aria-label="Resumen de antigüedad de lotes">
-            <article><strong>@summary.Days0To30LotCount</strong><span>0–30 días</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days0To30LotCount" aria-label="0–30 días">@summary.Days0To30LotCount</meter></article>
-            <article><strong>@summary.Days31To60LotCount</strong><span>31–60 días</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days31To60LotCount" aria-label="31–60 días">@summary.Days31To60LotCount</meter></article>
-            <article class="is-warning"><strong>@summary.Days61To90LotCount</strong><span>61–90 días</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days61To90LotCount" aria-label="61–90 días">@summary.Days61To90LotCount</meter></article>
-            <article class="is-danger"><strong>@summary.Days90PlusLotCount</strong><span>Más de 90 días</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days90PlusLotCount" aria-label="Más de 90 días">@summary.Days90PlusLotCount</meter></article>
+                <section class="analytics-metrics mb-3" aria-label="@CatTexts["Resumen de antigüedad de lotes"]">
+            <article><strong>@summary.Days0To30LotCount</strong><span>@CatTexts["0–30 días"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days0To30LotCount" aria-label="@CatTexts["0–30 días"]">@summary.Days0To30LotCount</meter></article>
+            <article><strong>@summary.Days31To60LotCount</strong><span>@CatTexts["31–60 días"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days31To60LotCount" aria-label="@CatTexts["31–60 días"]">@summary.Days31To60LotCount</meter></article>
+            <article class="is-warning"><strong>@summary.Days61To90LotCount</strong><span>@CatTexts["61–90 días"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days61To90LotCount" aria-label="@CatTexts["61–90 días"]">@summary.Days61To90LotCount</meter></article>
+            <article class="is-danger"><strong>@summary.Days90PlusLotCount</strong><span>@CatTexts["Más de 90 días"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.Days0To30LotCount, summary.Days31To60LotCount, summary.Days61To90LotCount, summary.Days90PlusLotCount }.Max()))" value="@summary.Days90PlusLotCount" aria-label="@CatTexts["Más de 90 días"]">@summary.Days90PlusLotCount</meter></article>
         </section>
-        <p class="form-text">Conteos del resumen completo. Barras comparadas con el mayor conteo del grupo; no representan porcentajes.</p>
+        <p class="form-text">@CatTexts["Conteos del resumen completo. Barras comparadas con el mayor conteo del grupo; no representan porcentajes."]</p>
         <div class="table-responsive analytics-table">
             <table class="table align-middle">
                 <thead>
                     <tr>
-                        <th>Producto</th>
-                        <th>Lote interno</th>
-                        <th>Fecha ingreso</th>
-                        <th>Días</th>
-                        <th>Rango</th>
-                        <th>Existencia</th>
-                        <th>Ubicación</th>
+                        <th>@CatTexts["Producto"]</th>
+                        <th>@CatTexts["Lote interno"]</th>
+                        <th>@CatTexts["Fecha ingreso"]</th>
+                        <th>@CatTexts["Días"]</th>
+                        <th>@CatTexts["Rango"]</th>
+                        <th>@CatTexts["Existencia"]</th>
+                        <th>@CatTexts["Ubicación"]</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                 @if (Model.LotAging.Page.Items.Count == 0)
                 {
-                    <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay lotes que coincidan con los filtros seleccionados.</td></tr>
+                    <tr><td colspan="8" class="text-center text-body-secondary py-4">@CatTexts["No hay lotes que coincidan con los filtros seleccionados."]</td></tr>
                 }
                 @foreach (var item in Model.LotAging.Page.Items)
                 {
@@ -291,34 +292,34 @@
                         _ => "is-active"
                     };
                     <tr>
-                        <td data-label="Producto">
+                        <td data-label="@CatTexts["Producto"]">
                             <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a>
-                            <small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small>
+                            <small class="d-block text-body-secondary">@(item.Description ?? CatTexts["Sin descripción"].Value) · @item.UnitCode</small>
                         </td>
-                        <td data-label="Lote interno">
+                        <td data-label="@CatTexts["Lote interno"]">
                             <span class="font-monospace fw-semibold">@item.LotNumber</span>
                         </td>
-                        <td data-label="Fecha ingreso">
+                        <td data-label="@CatTexts["Fecha ingreso"]">
                             @(item.LotDate?.ToString("dd/MM/yyyy") ?? "—")
                         </td>
-                        <td class="font-monospace" data-label="Días">
+                        <td class="font-monospace" data-label="@CatTexts["Días"]">
                             <strong>@item.AgeDays</strong> d
                         </td>
-                        <td data-label="Rango">
+                        <td data-label="@CatTexts["Rango"]">
                             <span class="analytics-chip @chipClass">@item.AgeBucketLabel</span>
                         </td>
-                        <td class="analytics-quantity" data-label="Existencia">
+                        <td class="analytics-quantity" data-label="@CatTexts["Existencia"]">
                             @item.Quantity.ToString("0.####") @item.UnitCode
                         </td>
-                        <td data-label="Ubicación">
+                        <td data-label="@CatTexts["Ubicación"]">
                             <span class="badge bg-secondary-subtle text-body">@item.PrimaryLocationCode</span>
                             @if (item.LocationCount > 1)
                             {
-                                <small class="text-muted ms-1">(+@(item.LocationCount - 1) más)</small>
+                                <small class="text-muted ms-1">@CatTexts["(+{0} más)", item.LocationCount - 1]</small>
                             }
                         </td>
-                        <td class="text-end" data-label="Acciones">
-                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="btn btn-outline-primary btn-sm">Ver existencias</a>
+                        <td class="text-end" data-label="@CatTexts["Acciones"]">
+                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="btn btn-outline-primary btn-sm">@CatTexts["Ver existencias"]</a>
                         </td>
                     </tr>
                 }
@@ -328,16 +329,16 @@
 
         @if (totalPages > 1)
         {
-            <nav aria-label="Paginación de lotes">
+            <nav aria-label="@CatTexts["Paginación de lotes"]">
                 <ul class="pagination justify-content-center">
                     <li class="page-item @(page <= 1 ? "disabled" : null)">
-                        <a class="page-link" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket" asp-route-pageNumber="@(page - 1)">Anterior</a>
+                        <a class="page-link" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket" asp-route-pageNumber="@(page - 1)">@CatTexts["Anterior"]</a>
                     </li>
                     <li class="page-item disabled">
-                        <span class="page-link">@(page) de @totalPages</span>
+                        <span class="page-link">@CatTexts["{0} de {1}", page, totalPages]</span>
                     </li>
                     <li class="page-item @(page >= totalPages ? "disabled" : null)">
-                        <a class="page-link" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket" asp-route-pageNumber="@(page + 1)">Siguiente</a>
+                        <a class="page-link" asp-route-view="lot-aging" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-ageBucket="@ageBucket" asp-route-pageNumber="@(page + 1)">@CatTexts["Siguiente"]</a>
                     </li>
                 </ul>
             </nav>
@@ -346,46 +347,46 @@
     else if (Model.View == "coverage")
     {
         var summary = Model.Coverage.Summary;
-        <p class="analytics-view-intro">Proyecta los días de disponibilidad del inventario según el ritmo de consumo real neto (salidas a producción y generales deduciendo retornos WIP) en posiciones de rack.</p>
+        <p class="analytics-view-intro">@CatTexts["Proyecta los días de disponibilidad del inventario según el ritmo de consumo real neto (salidas a producción y generales deduciendo retornos WIP) en posiciones de rack."]</p>
 
 <form method="get" class="analytics-filter-card analytics-filter-form">
             <input type="hidden" name="view" value="coverage" />
             <div>
-                <label for="coverage-search" class="form-label">Producto</label>
-                <input id="coverage-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU o descripción" />
+                <label for="coverage-search" class="form-label">@CatTexts["Producto"]</label>
+                <input id="coverage-search" name="search" value="@Model.Search" class="form-control" placeholder="@CatTexts["SKU o descripción"]" />
             </div>
             <div>
-                <label for="coverage-period" class="form-label">Ventana de consumo</label>
+                <label for="coverage-period" class="form-label">@CatTexts["Ventana de consumo"]</label>
                 <select id="coverage-period" name="period" class="form-select">
-                    <option value="30" selected="@(Model.Period == "30")">Últimos 30 días</option>
-                    <option value="60" selected="@(Model.Period == "60")">Últimos 60 días</option>
-                    <option value="90" selected="@(Model.Period == "90")">Últimos 90 días</option>
+                    <option value="30" selected="@(Model.Period == "30")">@CatTexts["Últimos 30 días"]</option>
+                    <option value="60" selected="@(Model.Period == "60")">@CatTexts["Últimos 60 días"]</option>
+                    <option value="90" selected="@(Model.Period == "90")">@CatTexts["Últimos 90 días"]</option>
                 </select>
             </div>
             <div>
-                <label for="coverage-class" class="form-label">Clasificación</label>
+                <label for="coverage-class" class="form-label">@CatTexts["Clasificación"]</label>
                 <select id="coverage-class" name="coverageClass" class="form-select">
-                    <option value="">Todas las clasificaciones</option>
-                    <option value="critical" selected="@(Model.CoverageClass == CoverageClassification.Critical)">Crítico (&lt; 7 días)</option>
-                    <option value="low" selected="@(Model.CoverageClass == CoverageClassification.Low)">Bajo (7–14 días)</option>
-                    <option value="normal" selected="@(Model.CoverageClass == CoverageClassification.Normal)">Normal (15–45 días)</option>
-                    <option value="excess" selected="@(Model.CoverageClass == CoverageClassification.Excess)">Exceso (&gt; 45 días)</option>
-                    <option value="norecentconsumption" selected="@(Model.CoverageClass == CoverageClassification.NoRecentConsumption)">Sin consumo reciente</option>
-                    <option value="exhausted" selected="@(Model.CoverageClass == CoverageClassification.Exhausted)">Agotado</option>
+                    <option value="">@CatTexts["Todas las clasificaciones"]</option>
+                    <option value="critical" selected="@(Model.CoverageClass == CoverageClassification.Critical)">@CatTexts["Crítico (&lt; 7 días)"]</option>
+                    <option value="low" selected="@(Model.CoverageClass == CoverageClassification.Low)">@CatTexts["Bajo (7–14 días)"]</option>
+                    <option value="normal" selected="@(Model.CoverageClass == CoverageClassification.Normal)">@CatTexts["Normal (15–45 días)"]</option>
+                    <option value="excess" selected="@(Model.CoverageClass == CoverageClassification.Excess)">@CatTexts["Exceso (&gt; 45 días)"]</option>
+                    <option value="norecentconsumption" selected="@(Model.CoverageClass == CoverageClassification.NoRecentConsumption)">@CatTexts["Sin consumo reciente"]</option>
+                    <option value="exhausted" selected="@(Model.CoverageClass == CoverageClassification.Exhausted)">@CatTexts["Agotado"]</option>
                 </select>
             </div>
             <div>
-                <label for="coverage-status" class="form-label">Estado</label>
+                <label for="coverage-status" class="form-label">@CatTexts["Estado"]</label>
                 <select id="coverage-status" name="status" class="form-select">
-                    <option value="active">Activos</option>
-                    <option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option>
-                    <option value="all" selected="@(Model.Status == "all")">Todos</option>
+                    <option value="active">@CatTexts["Activos"]</option>
+                    <option value="inactive" selected="@(Model.Status == "inactive")">@CatTexts["Inactivos"]</option>
+                    <option value="all" selected="@(Model.Status == "all")">@CatTexts["Todos"]</option>
                 </select>
             </div>
             <div>
-                <label for="coverage-unit" class="form-label">Unidad</label>
+                <label for="coverage-unit" class="form-label">@CatTexts["Unidad"]</label>
                 <select id="coverage-unit" name="unitId" class="form-select">
-                    <option value="">Todas</option>
+                    <option value="">@CatTexts["Todas"]</option>
                     @foreach (var unit in Model.UnitOptions)
                     {
                         <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option>
@@ -393,8 +394,8 @@
                 </select>
             </div>
             <div class="analytics-filter-actions">
-                <button class="btn btn-primary">Aplicar</button>
-                <a asp-route-view="coverage" class="btn btn-outline-secondary">Limpiar</a>
+                <button class="btn btn-primary">@CatTexts["Aplicar"]</button>
+                <a asp-route-view="coverage" class="btn btn-outline-secondary">@CatTexts["Limpiar"]</a>
             </div>
         </form>
 
@@ -412,33 +413,33 @@
             }
         </div>
 
-                <section class="analytics-metrics mb-3" aria-label="Resumen de cobertura">
-            <article class="is-danger"><strong>@summary.CriticalCount</strong><span>Críticos (&lt; 7d)</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.CriticalCount" aria-label="Críticos (&lt; 7d)">@summary.CriticalCount</meter></article>
-            <article class="is-warning"><strong>@summary.LowCount</strong><span>Bajos (7–14d)</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.LowCount" aria-label="Bajos (7–14d)">@summary.LowCount</meter></article>
-            <article><strong>@summary.NormalCount</strong><span>Normales (15–45d)</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NormalCount" aria-label="Normales (15–45d)">@summary.NormalCount</meter></article>
-            <article><strong>@summary.ExcessCount</strong><span>Exceso (&gt; 45d)</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExcessCount" aria-label="Exceso (&gt; 45d)">@summary.ExcessCount</meter></article>
-            <article><strong>@summary.NoRecentConsumptionCount</strong><span>Sin consumo reciente</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NoRecentConsumptionCount" aria-label="Sin consumo reciente">@summary.NoRecentConsumptionCount</meter></article>
-            <article class="is-danger"><strong>@summary.ExhaustedCount</strong><span>Agotados</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExhaustedCount" aria-label="Agotados">@summary.ExhaustedCount</meter></article>
+                <section class="analytics-metrics mb-3" aria-label="@CatTexts["Resumen de cobertura"]">
+            <article class="is-danger"><strong>@summary.CriticalCount</strong><span>@CatTexts["Críticos (&lt; 7d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.CriticalCount" aria-label="@CatTexts["Críticos (&lt; 7d)"]">@summary.CriticalCount</meter></article>
+            <article class="is-warning"><strong>@summary.LowCount</strong><span>@CatTexts["Bajos (7–14d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.LowCount" aria-label="@CatTexts["Bajos (7–14d)"]">@summary.LowCount</meter></article>
+            <article><strong>@summary.NormalCount</strong><span>@CatTexts["Normales (15–45d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NormalCount" aria-label="@CatTexts["Normales (15–45d)"]">@summary.NormalCount</meter></article>
+            <article><strong>@summary.ExcessCount</strong><span>@CatTexts["Exceso (&gt; 45d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExcessCount" aria-label="@CatTexts["Exceso (&gt; 45d)"]">@summary.ExcessCount</meter></article>
+            <article><strong>@summary.NoRecentConsumptionCount</strong><span>@CatTexts["Sin consumo reciente"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NoRecentConsumptionCount" aria-label="@CatTexts["Sin consumo reciente"]">@summary.NoRecentConsumptionCount</meter></article>
+            <article class="is-danger"><strong>@summary.ExhaustedCount</strong><span>@CatTexts["Agotados"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExhaustedCount" aria-label="@CatTexts["Agotados"]">@summary.ExhaustedCount</meter></article>
         </section>
-        <p class="form-text">Conteos del resumen completo. Barras comparadas con el mayor conteo del grupo; no representan porcentajes.</p>
+        <p class="form-text">@CatTexts["Conteos del resumen completo. Barras comparadas con el mayor conteo del grupo; no representan porcentajes."]</p>
         <div class="table-responsive analytics-table">
             <table class="table align-middle">
                 <thead>
                     <tr>
-                        <th>Producto</th>
-                        <th>Stock disponible (racks)</th>
-                        <th>Consumo neto</th>
-                        <th>Consumo diario prom.</th>
-                        <th>Días cobertura</th>
-                        <th>Clasificación</th>
-                        <th>Última salida</th>
+                        <th>@CatTexts["Producto"]</th>
+                        <th>@CatTexts["Stock disponible (racks)"]</th>
+                        <th>@CatTexts["Consumo neto"]</th>
+                        <th>@CatTexts["Consumo diario prom."]</th>
+                        <th>@CatTexts["Días cobertura"]</th>
+                        <th>@CatTexts["Clasificación"]</th>
+                        <th>@CatTexts["Última salida"]</th>
                         <th></th>
                     </tr>
                 </thead>
                 <tbody>
                 @if (Model.Coverage.Page.Items.Count == 0)
                 {
-                    <tr><td colspan="8" class="text-center text-body-secondary py-4">No hay productos que coincidan con los filtros seleccionados.</td></tr>
+                    <tr><td colspan="8" class="text-center text-body-secondary py-4">@CatTexts["No hay productos que coincidan con los filtros seleccionados."]</td></tr>
                 }
                 @foreach (var item in Model.Coverage.Page.Items)
                 {
@@ -450,37 +451,37 @@
                         _ => ""
                     };
                     <tr>
-                        <td data-label="Producto">
+                        <td data-label="@CatTexts["Producto"]">
                             <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a>
-                            <small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small>
+                            <small class="d-block text-body-secondary">@(item.Description ?? CatTexts["Sin descripción"].Value) · @item.UnitCode</small>
                         </td>
-                        <td class="analytics-quantity" data-label="Stock disponible (racks)">
+                        <td class="analytics-quantity" data-label="@CatTexts["Stock disponible (racks)"]">
                             @item.AvailableStock.ToString("0.####") @item.UnitCode
                         </td>
-                        <td class="analytics-quantity" data-label="Consumo neto">
+                        <td class="analytics-quantity" data-label="@CatTexts["Consumo neto"]">
                             @item.NetConsumption.ToString("0.####") @item.UnitCode
                         </td>
-                        <td class="analytics-quantity" data-label="Consumo diario prom.">
+                        <td class="analytics-quantity" data-label="@CatTexts["Consumo diario prom."]">
                             @item.DailyAverageConsumption.ToString("0.####") @item.UnitCode/d
                         </td>
-                        <td data-label="Días cobertura">
+                        <td data-label="@CatTexts["Días cobertura"]">
                             @if (item.CoverageDays is decimal days)
                             {
-                                <strong class="font-monospace @(item.Classification == CoverageClassification.Critical ? "text-danger" : null)">@days.ToString("0.0")</strong> <small>días</small>
+                                <strong class="font-monospace @(item.Classification == CoverageClassification.Critical ? "text-danger" : null)">@days.ToString("0.0")</strong> <small>@CatTexts["días.lower"]</small>
                             }
                             else
                             {
-                                <span class="text-body-secondary">Sin consumo</span>
+                                <span class="text-body-secondary">@CatTexts["Sin consumo"]</span>
                             }
                         </td>
-                        <td data-label="Clasificación">
+                        <td data-label="@CatTexts["Clasificación"]">
                             <span class="analytics-chip @chipClass">@item.ClassificationLabel</span>
                         </td>
-                        <td data-label="Última salida">
+                        <td data-label="@CatTexts["Última salida"]">
                             @Model.FormatLocalDate(item.LastExitDateUtc)
                         </td>
-                        <td class="text-end" data-label="Acciones">
-                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="btn btn-outline-primary btn-sm">Existencias</a>
+                        <td class="text-end" data-label="@CatTexts["Acciones"]">
+                            <a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="btn btn-outline-primary btn-sm">@CatTexts["Existencias"]</a>
                         </td>
                     </tr>
                 }
@@ -490,16 +491,16 @@
 
         @if (totalPages > 1)
         {
-            <nav aria-label="Paginación de cobertura">
+            <nav aria-label="@CatTexts["Paginación de cobertura"]">
                 <ul class="pagination justify-content-center">
                     <li class="page-item @(page <= 1 ? "disabled" : null)">
-                        <a class="page-link" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass" asp-route-pageNumber="@(page - 1)">Anterior</a>
+                        <a class="page-link" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass" asp-route-pageNumber="@(page - 1)">@CatTexts["Anterior"]</a>
                     </li>
                     <li class="page-item disabled">
-                        <span class="page-link">@(page) de @totalPages</span>
+                        <span class="page-link">@CatTexts["{0} de {1}", page, totalPages]</span>
                     </li>
                     <li class="page-item @(page >= totalPages ? "disabled" : null)">
-                        <a class="page-link" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass" asp-route-pageNumber="@(page + 1)">Siguiente</a>
+                        <a class="page-link" asp-route-view="coverage" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-coverageClass="@coverageClass" asp-route-pageNumber="@(page + 1)">@CatTexts["Siguiente"]</a>
                     </li>
                 </ul>
             </nav>
@@ -507,16 +508,16 @@
     }
     else
     {
-        <p class="analytics-view-intro">@(Model.View == "activity" ? "Mide frecuencia y volumen de salidas efectivas por SKU; no es una tasa contra inventario promedio." : "Identifica existencia positiva sin salida durante 30 días o más para conteo, reasignación o disposición.")</p>
-        @if (stagnantCategory is not null) { <div class="alert alert-warning">Mostrando productos con 90 días o más sin salida efectiva, incluidos los que nunca han salido. <a asp-route-view="stagnant" class="alert-link">Quitar filtro</a></div> }
+        <p class="analytics-view-intro">@(Model.View == "activity" ? CatTexts["Mide frecuencia y volumen de salidas efectivas por SKU; no es una tasa contra inventario promedio."].Value : CatTexts["Identifica existencia positiva sin salida durante 30 días o más para conteo, reasignación o disposición."].Value)</p>
+        @if (stagnantCategory is not null) { <div class="alert alert-warning">@CatTexts["Mostrando productos con 90 días o más sin salida efectiva, incluidos los que nunca han salido."] <a asp-route-view="stagnant" class="alert-link">@CatTexts["Quitar filtro"]</a></div> }
         <form method="get" class="analytics-filter-card analytics-filter-form">
             <input type="hidden" name="view" value="@Model.View" />
             @if (stagnantCategory is not null) { <input type="hidden" name="stagnantCategory" value="@stagnantCategory" /> }
-            <div><label for="analytics-search" class="form-label">Producto</label><input id="analytics-search" name="search" value="@Model.Search" class="form-control" placeholder="SKU, descripción, referencia o código" /></div>
-            <div><label for="analytics-status" class="form-label">Estado</label><select id="analytics-status" name="status" class="form-select"><option value="active">Activos</option><option value="inactive" selected="@(Model.Status == "inactive")">Inactivos</option><option value="all" selected="@(Model.Status == "all")">Todos</option></select></div>
-            <div><label for="analytics-unit" class="form-label">Unidad</label><select id="analytics-unit" name="unitId" class="form-select"><option value="">Todas</option>@foreach (var unit in Model.UnitOptions) { <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option> }</select></div>
-            @if (Model.View == "activity") { <div><label for="analytics-period" class="form-label">Período</label><select id="analytics-period" name="period" class="form-select"><option value="this-month" selected="@(Model.Period == "this-month")">Mes actual</option><option value="last-month" selected="@(Model.Period == "last-month")">Mes anterior</option><option value="30" selected="@(Model.Period == "30")">30 días</option><option value="90" selected="@(Model.Period == "90")">90 días</option><option value="180" selected="@(Model.Period == "180")">180 días</option><option value="all" selected="@(Model.Period == "all")">Todo el historial</option></select></div> }
-            <div class="analytics-filter-actions"><button class="btn btn-primary">Aplicar</button><a asp-route-view="@Model.View" class="btn btn-outline-secondary">Limpiar</a></div>
+            <div><label for="analytics-search" class="form-label">@CatTexts["Producto"]</label><input id="analytics-search" name="search" value="@Model.Search" class="form-control" placeholder="@CatTexts["SKU, descripción, referencia o código"]" /></div>
+            <div><label for="analytics-status" class="form-label">@CatTexts["Estado"]</label><select id="analytics-status" name="status" class="form-select"><option value="active">@CatTexts["Activos"]</option><option value="inactive" selected="@(Model.Status == "inactive")">@CatTexts["Inactivos"]</option><option value="all" selected="@(Model.Status == "all")">@CatTexts["Todos"]</option></select></div>
+            <div><label for="analytics-unit" class="form-label">@CatTexts["Unidad"]</label><select id="analytics-unit" name="unitId" class="form-select"><option value="">@CatTexts["Todas"]</option>@foreach (var unit in Model.UnitOptions) { <option value="@unit.Value" selected="@(unit.Value == Model.UnitId?.ToString())">@unit.Text</option> }</select></div>
+            @if (Model.View == "activity") { <div><label for="analytics-period" class="form-label">@CatTexts["Período"]</label><select id="analytics-period" name="period" class="form-select"><option value="this-month" selected="@(Model.Period == "this-month")">@CatTexts["Mes actual"]</option><option value="last-month" selected="@(Model.Period == "last-month")">@CatTexts["Mes anterior"]</option><option value="30" selected="@(Model.Period == "30")">@CatTexts["30 días"]</option><option value="90" selected="@(Model.Period == "90")">@CatTexts["90 días"]</option><option value="180" selected="@(Model.Period == "180")">@CatTexts["180 días"]</option><option value="all" selected="@(Model.Period == "all")">@CatTexts["Todo el historial"]</option></select></div> }
+            <div class="analytics-filter-actions"><button class="btn btn-primary">@CatTexts["Aplicar"]</button><a asp-route-view="@Model.View" class="btn btn-outline-secondary">@CatTexts["Limpiar"]</a></div>
         </form>
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <p class="mb-0 text-muted">@((Model.View == "activity" ? Model.Activity.TotalCount : Model.Stagnant.TotalCount).ToString("N0")) producto(s)</p>
@@ -528,19 +529,19 @@
 
         @if (Model.View == "activity")
         {
-            <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Producto</th><th>Estado</th><th>Salidas efectivas</th><th>Cantidad movilizada</th><th>Existencia actual</th><th>Última salida</th><th></th></tr></thead><tbody>
-            @if (Model.Activity.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay productos que coincidan.</td></tr> }
-            @foreach (var item in Model.Activity.Items) { <tr><td data-label="Producto"><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td data-label="Estado"><span class="analytics-chip @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td data-label="Salidas efectivas">@item.EffectiveExitMovementCount</td><td data-label="Cantidad movilizada">@item.QuantityInBaseUnit.ToString("0.####") @item.UnitCode</td><td data-label="Existencia actual">@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td data-label="Última salida">@Model.FormatLocalDate(item.LastExitDateUtc)</td><td class="text-end" data-label="Acciones">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
+            <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>@CatTexts["Producto"]</th><th>@CatTexts["Estado"]</th><th>@CatTexts["Salidas efectivas"]</th><th>@CatTexts["Cantidad movilizada"]</th><th>@CatTexts["Existencia actual"]</th><th>@CatTexts["Última salida"]</th><th></th></tr></thead><tbody>
+            @if (Model.Activity.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">@CatTexts["No hay productos que coincidan."]</td></tr> }
+            @foreach (var item in Model.Activity.Items) { <tr><td data-label="@CatTexts["Producto"]"><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? CatTexts["Sin descripción"].Value) · @item.UnitCode</small></td><td data-label="@CatTexts["Estado"]"><span class="analytics-chip @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? CatTexts["Activo"].Value : CatTexts["Inactivo"].Value)</span></td><td data-label="@CatTexts["Salidas efectivas"]">@item.EffectiveExitMovementCount</td><td data-label="@CatTexts["Cantidad movilizada"]">@item.QuantityInBaseUnit.ToString("0.####") @item.UnitCode</td><td data-label="@CatTexts["Existencia actual"]">@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td data-label="@CatTexts["Última salida"]">@Model.FormatLocalDate(item.LastExitDateUtc)</td><td class="text-end" data-label="@CatTexts["Acciones"]">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">@CatTexts["Ficha"]</a> }</td></tr> }
             </tbody></table></div>
         }
         else
         {
-            <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>Producto</th><th>Categoría</th><th>Existencia actual</th><th>Última salida</th><th>Días</th><th>Estado</th><th></th></tr></thead><tbody>
-            @if (Model.Stagnant.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">No hay productos estancados con los filtros seleccionados.</td></tr> }
-            @foreach (var item in Model.Stagnant.Items) { <tr><td data-label="Producto"><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? "Sin descripción") · @item.UnitCode</small></td><td data-label="Categoría"><span class="analytics-chip is-warning">@IndexModel.FormatCategory(item.Category)</span></td><td data-label="Existencia actual">@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td data-label="Última salida">@Model.FormatLocalDate(item.LastExitDateUtc)</td><td data-label="Días">@(item.DaysWithoutExit?.ToString() ?? "Sin salida registrada")</td><td data-label="Estado"><span class="analytics-chip @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? "Activo" : "Inactivo")</span></td><td class="text-end" data-label="Acciones">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">Ficha</a> }</td></tr> }
+            <div class="table-responsive analytics-table"><table class="table align-middle"><thead><tr><th>@CatTexts["Producto"]</th><th>@CatTexts["Categoría"]</th><th>@CatTexts["Existencia actual"]</th><th>@CatTexts["Última salida"]</th><th>@CatTexts["Días"]</th><th>@CatTexts["Estado"]</th><th></th></tr></thead><tbody>
+            @if (Model.Stagnant.Items.Count == 0) { <tr><td colspan="7" class="text-center text-body-secondary py-4">@CatTexts["No hay productos estancados con los filtros seleccionados."]</td></tr> }
+            @foreach (var item in Model.Stagnant.Items) { <tr><td data-label="@CatTexts["Producto"]"><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" class="analytics-sku">@item.Sku</a><small class="d-block text-body-secondary">@(item.Description ?? CatTexts["Sin descripción"].Value) · @item.UnitCode</small></td><td data-label="@CatTexts["Categoría"]"><span class="analytics-chip is-warning">@IndexModel.FormatCategory(item.Category)</span></td><td data-label="@CatTexts["Existencia actual"]">@item.CurrentStock.ToString("0.####") @item.UnitCode</td><td data-label="@CatTexts["Última salida"]">@Model.FormatLocalDate(item.LastExitDateUtc)</td><td data-label="@CatTexts["Días"]">@(item.DaysWithoutExit?.ToString() ?? CatTexts["Sin salida registrada"].Value)</td><td data-label="@CatTexts["Estado"]"><span class="analytics-chip @(item.IsActive ? "is-active" : "is-inactive")">@(item.IsActive ? CatTexts["Activo"].Value : CatTexts["Inactivo"].Value)</span></td><td class="text-end" data-label="@CatTexts["Acciones"]">@if (isAdmin) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@item.ProductId" class="btn btn-outline-primary btn-sm">@CatTexts["Ficha"]</a> }</td></tr> }
             </tbody></table></div>
         }
 
-        @if (totalPages > 1) { <nav aria-label="Paginación analítica"><ul class="pagination justify-content-center"><li class="page-item @(page <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory" asp-route-pageNumber="@(page - 1)">Anterior</a></li><li class="page-item disabled"><span class="page-link">@(page) de @totalPages</span></li><li class="page-item @(page >= totalPages ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory" asp-route-pageNumber="@(page + 1)">Siguiente</a></li></ul></nav> }
+        @if (totalPages > 1) { <nav aria-label="@CatTexts["Paginación analítica"]"><ul class="pagination justify-content-center"><li class="page-item @(page <= 1 ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory" asp-route-pageNumber="@(page - 1)">@CatTexts["Anterior"]</a></li><li class="page-item disabled"><span class="page-link">@CatTexts["{0} de {1}", page, totalPages]</span></li><li class="page-item @(page >= totalPages ? "disabled" : null)"><a class="page-link" asp-route-view="@Model.View" asp-route-period="@Model.Period" asp-route-status="@Model.Status" asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-stagnantCategory="@stagnantCategory" asp-route-pageNumber="@(page + 1)">@CatTexts["Siguiente"]</a></li></ul></nav> }
     }
 </div>

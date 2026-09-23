@@ -14,6 +14,7 @@ public sealed record WarehouseMapPosition(Guid LocationId, string Code, short? P
 public sealed record WarehouseMapElementView(Guid Id, string Kind, string Label, string? RowCode, short? RackNumber, Guid? LocationId, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible, IReadOnlyList<WarehouseMapPosition> Positions)
 {
     public bool IsWip => Positions.Any(position => position.OperationalRole == LocationOperationalRole.Wip);
+    public bool IsMixed => IsWip && Positions.Any(position => position.OperationalRole == LocationOperationalRole.Storage);
 }
 public sealed record WarehouseMapReferenceImageState(Guid Id, string OriginalFileName, string StoredFileName,
     string ContentType, string Sha256, int PixelWidth, int PixelHeight, decimal X, decimal Y, decimal Width,
@@ -615,31 +616,22 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         // rows without mixing quantities from different units.
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
             .Where(item => item.IsActive)
-            .Include(item => item.Product)
-            .ThenInclude(product => product.BaseUnit)
             .ToListAsync(token);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Include(item => item.Product)
             .ThenInclude(product => product.BaseUnit)
             .ToListAsync(token);
         var assignedSet = assignments.Select(item => (item.LocationId, item.ProductId)).ToHashSet();
-        var balanceProducts = balances.Where(item => item.Quantity != 0)
+        var balanceProducts = balances
             .GroupBy(item => new { item.LocationId, item.ProductId, item.Product.Sku, item.Product.Description, Unit = item.Product.BaseUnit.Code })
             .Select(group => new
             {
                 group.Key.LocationId,
                 Product = new WarehouseMapProduct(group.Key.ProductId, group.Key.Sku, group.Key.Description,
                     group.Key.Unit, group.Sum(item => item.Quantity), assignedSet.Contains((group.Key.LocationId, group.Key.ProductId)))
-            });
-        var productsWithBalance = balanceProducts.Select(item => (item.LocationId, item.Product.ProductId)).ToHashSet();
-        var assignedProducts = assignments.Where(item => !productsWithBalance.Contains((item.LocationId, item.ProductId)))
-            .Select(item => new
-            {
-                item.LocationId,
-                Product = new WarehouseMapProduct(item.ProductId, item.Product.Sku, item.Product.Description,
-                    item.Product.BaseUnit.Code, 0, true)
-            });
-        var products = balanceProducts.Concat(assignedProducts).GroupBy(item => item.LocationId)
+            })
+            .Where(item => item.Product.Quantity != 0);
+        var products = balanceProducts.GroupBy(item => item.LocationId)
             .ToDictionary(group => group.Key, group => (IReadOnlyList<WarehouseMapProduct>)group.Select(item => item.Product).ToArray());
         return baseRows.ToDictionary(item => item.Id, item => { var list = products.GetValueOrDefault(item.Id) ?? []; return new WarehouseMapPosition(item.Id, item.Code, item.PalletNumber, item.Description, item.OperationalRole, item.IsActive, item.IsBlocked, item.BlockReason, assignments.Count(value => value.LocationId == item.Id), list.Count(value => value.Quantity != 0), list.Any(value => value.Quantity != 0), list.Any(value => value.Quantity < 0), list); });
     }

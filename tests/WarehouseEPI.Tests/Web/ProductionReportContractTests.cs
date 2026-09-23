@@ -13,7 +13,7 @@ public sealed class ProductionReportContractTests
         Assert.Contains("[Authorize(Policy = \"AdminOnly\")]", model);
         Assert.Contains("[BindProperty(SupportsGet = true)]", model);
         Assert.Contains("asp-page-handler=\"Export\"", page);
-        Assert.Contains("aria-label=\"Vistas del reporte de producción\"", page);
+        Assert.Contains("aria-label=\"@CatTexts[\"Vistas del reporte de producción\"]\"", page);
         Assert.Contains("data-production-print", page);
         Assert.DoesNotContain("onclick=", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("window.print()", script);

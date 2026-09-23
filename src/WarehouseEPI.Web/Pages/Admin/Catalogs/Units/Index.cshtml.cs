@@ -6,11 +6,13 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Units;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
+public sealed class IndexModel(WarehouseDbContext dbContext, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     [BindProperty] public InputModel Input { get; set; } = new();
     public IReadOnlyList<UnitRow> Items { get; private set; } = [];
@@ -33,7 +35,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
         if (!ModelState.IsValid) { await LoadAsync(cancellationToken); return Page(); }
 
         var duplicate = await dbContext.Units.AnyAsync(x => x.Code == Input.Code && x.Id != Input.Id, cancellationToken);
-        if (duplicate) { ModelState.AddModelError("Input.Code", "Ya existe una unidad con ese código."); await LoadAsync(cancellationToken); return Page(); }
+        if (duplicate) { ModelState.AddModelError("Input.Code", text["Ya existe una unidad con ese código."].Value); await LoadAsync(cancellationToken); return Page(); }
 
         if (Input.Id == 0)
             dbContext.Units.Add(new Unit { Code = Input.Code, Name = Input.Name, AllowsDecimals = Input.AllowsDecimals });
@@ -43,7 +45,7 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
             if (unit is null) return NotFound();
             if (unit.Code == CatalogDefaults.UnassignedUnitCode)
             {
-                TempData["Error"] = "La unidad Sin asignar está reservada para importaciones y no puede editarse.";
+                TempData["Error"] = text["La unidad Sin asignar está reservada para importaciones y no puede editarse."].Value;
                 return RedirectToPage();
             }
             unit.Code = Input.Code; unit.Name = Input.Name; unit.AllowsDecimals = Input.AllowsDecimals;
@@ -58,13 +60,13 @@ public sealed class IndexModel(WarehouseDbContext dbContext) : PageModel
         if (unit is null) return NotFound();
         if (unit.Code == CatalogDefaults.UnassignedUnitCode)
         {
-            TempData["Error"] = "La unidad Sin asignar está reservada para importaciones y debe permanecer activa.";
+            TempData["Error"] = text["La unidad Sin asignar está reservada para importaciones y debe permanecer activa."].Value;
             return RedirectToPage();
         }
         if (unit.IsActive)
         {
             var count = await dbContext.Products.CountAsync(x => x.IsActive && x.BaseUnitId == id, cancellationToken);
-            if (count > 0) { TempData["Error"] = $"No se puede desactivar: {count} producto(s) activo(s) usan esta unidad."; return RedirectToPage(); }
+            if (count > 0) { TempData["Error"] = text["No se puede desactivar: {0} producto(s) activo(s) usan esta unidad.", count].Value; return RedirectToPage(); }
         }
         unit.IsActive = !unit.IsActive;
         await dbContext.SaveChangesAsync(cancellationToken);

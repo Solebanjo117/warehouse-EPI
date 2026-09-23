@@ -42,9 +42,9 @@ public sealed class RackViewContractTests
 
         foreach (var label in new[] { "Ubicación", "Posición física", "Productos asignados", "Estado" })
         {
-            Assert.Contains($"data-label=\"{label}\"", page, StringComparison.Ordinal);
+            Assert.Contains($"data-label=\"@CatTexts[\"{label}\"]\"", page, StringComparison.Ordinal);
         }
-        Assert.Contains("Model.IsAdministrativeView ? \"Acciones\" : \"Consulta\"", page, StringComparison.Ordinal);
+        Assert.Contains("Model.IsAdministrativeView ? CatTexts[\"Acciones\"].Value : CatTexts[\"Consulta\"].Value", page, StringComparison.Ordinal);
 
         Assert.Contains("location-row-@AdminState(item)", page, StringComparison.Ordinal);
         Assert.Contains("content:attr(data-label)", styles, StringComparison.Ordinal);
@@ -52,16 +52,17 @@ public sealed class RackViewContractTests
     }
 
     [Fact]
-    public void Rack_administration_and_views_expose_the_whole_rack_wip_role()
+    public void Rack_administration_and_views_expose_position_roles()
     {
         var edit = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Edit.cshtml"));
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Locations", "_LocationIndex.cshtml"));
         var details = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Details.cshtml"));
         var migration = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Infrastructure", "Persistence", "Migrations", "20260904120000_AllowRackWip.cs"));
 
-        Assert.Contains("Input.OperationalRole", edit, StringComparison.Ordinal);
-        Assert.Contains("WIP con inventario", edit, StringComparison.Ordinal);
-        Assert.Contains("Se reclasificará el rack completo", edit, StringComparison.Ordinal);
+        Assert.Contains("Input.WipPallets", edit, StringComparison.Ordinal);
+        Assert.Contains("data-rack-role", edit, StringComparison.Ordinal);
+        Assert.Contains("data-rack-all-wip", edit, StringComparison.Ordinal);
+        Assert.Contains("Cambios de función", edit, StringComparison.Ordinal);
         Assert.Contains("Rack WIP", page, StringComparison.Ordinal);
         Assert.Contains("position.IsWip", page, StringComparison.Ordinal);
         Assert.Contains("WIP · Pallet", details, StringComparison.Ordinal);
@@ -86,8 +87,8 @@ public sealed class RackViewContractTests
         Assert.Contains("asp-route-wipCode=\"@position.Code\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-wipAreaId=\"@position.LocationId\"", page, StringComparison.Ordinal);
         Assert.Contains("<details class=\"map-wip-summary", page, StringComparison.Ordinal);
-        Assert.Contains("Resumen del rack WIP", page, StringComparison.Ordinal);
-        Assert.DoesNotContain("Posiciones WIP", page, StringComparison.Ordinal);
+        Assert.Contains("Resumen de posiciones WIP", page, StringComparison.Ordinal);
+        Assert.Contains("position.OperationalRole == WarehouseEPI.Core.Entities.LocationOperationalRole.Wip", page, StringComparison.Ordinal);
         Assert.Contains(".map-element-detail-wip-rack", styles, StringComparison.Ordinal);
     }
 
@@ -131,7 +132,7 @@ public sealed class RackViewContractTests
         Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Area\" asp-route-locationId=\"@destinationId\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Area\" asp-route-locationId=\"@position.LocationId\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Admin/Catalogs/Locations/Rack/Edit\"", page, StringComparison.Ordinal);
-        Assert.Contains(">Editar área</a>", page, StringComparison.Ordinal);
+        Assert.Contains(">@CatTexts[\"Editar área\"]</a>", page, StringComparison.Ordinal);
     }
 
     private static string RepositoryPath(params string[] parts)

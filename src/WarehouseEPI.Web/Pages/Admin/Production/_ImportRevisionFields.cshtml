@@ -1,0 +1,6 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleImportModel
+<input type="hidden" name="ExpectedRevision" value="@Model.ExpectedRevision"/>
+<input type="hidden" name="Fingerprint" value="@Model.Fingerprint"/>
+<input type="hidden" name="Search" value="@Model.Search"/>
+<input type="hidden" name="OnlyPending" value="@Model.OnlyPending.ToString().ToLowerInvariant()"/>
+<input type="hidden" name="ReviewPage" value="@Model.ReviewPage"/>

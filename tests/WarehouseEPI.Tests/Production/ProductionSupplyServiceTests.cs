@@ -96,6 +96,42 @@ public sealed partial class ProductionSupplyServiceTests
     }
 
     [Fact]
+    public async Task Guided_preparation_persists_the_automatic_plate_composition_used_by_confirmation()
+    {
+        await using var fixture = await Fixture.CreateAsync(stock: 10);
+        var first = new PalletPlate { ProductId = fixture.Material.Id, LocationId = fixture.Source.Id,
+            Quantity = 3, Version = 1, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-2) };
+        first.Lots.Add(new() { Plate = first, LotId = fixture.MaterialLot.Id, Quantity = 3 });
+        var second = new PalletPlate { ProductId = fixture.Material.Id, LocationId = fixture.Source.Id,
+            Quantity = 4, Version = 1, CreatedAt = DateTimeOffset.UtcNow.AddMinutes(-1) };
+        second.Lots.Add(new() { Plate = second, LotId = fixture.MaterialLot.Id, Quantity = 4 });
+        fixture.Db.PalletPlates.AddRange(first, second);
+        await fixture.Db.SaveChangesAsync();
+        await fixture.CreateAndReleaseAsync(5);
+        var row = Assert.Single(await fixture.Supplies.GetQueueAsync());
+        var detail = Assert.IsType<ProductionSupplyPreparationView>(await fixture.Preparations.GetAsync(row.LineId));
+        var source = Assert.Single(detail.Sources, x => x.Kind == ProductionSupplySourceKind.Warehouse);
+
+        var saved = await fixture.Preparations.SaveAsync(new(Guid.NewGuid(), row.LineId, row.RequestVersion,
+            detail.DestinationLocationId, null, 0, [new(ProductionSupplySourceKind.Warehouse, source.LocationId, 5)], fixture.OperatorPin));
+        Assert.Equal(ProductionSupplyCommandStatus.Success, saved.Status);
+        var prepared = Assert.IsType<ProductionSupplyPreparationView>(await fixture.Preparations.GetAsync(row.LineId));
+        var selection = Assert.Single(prepared.Selected);
+        Assert.Equal(new[] { (first.Id, 3m), (second.Id, 2m) }, selection.Plates!.Select(x => (x.PlateId, x.Quantity)).ToArray());
+
+        second.CreatedAt = first.CreatedAt.AddMinutes(-1);
+        await fixture.Db.SaveChangesAsync();
+        var confirmed = await fixture.Preparations.ConfirmAsync(new(Guid.NewGuid(), prepared.PreparationId!.Value,
+            prepared.PreparationVersion, prepared.Line.RequestVersion, fixture.OperatorPin));
+
+        Assert.Equal(ProductionSupplyCommandStatus.Success, confirmed.Status);
+        Assert.Equal(fixture.Wip.Id, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == first.Id)).LocationId);
+        Assert.Equal(3, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == first.Id)).Quantity);
+        Assert.Equal(fixture.Source.Id, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == second.Id)).LocationId);
+        Assert.Equal(2, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == second.Id)).Quantity);
+    }
+
+    [Fact]
     public async Task Two_tablets_cannot_overwrite_the_same_saved_preparation()
     {
         await using var fixture = await Fixture.CreateAsync(stock: 10);

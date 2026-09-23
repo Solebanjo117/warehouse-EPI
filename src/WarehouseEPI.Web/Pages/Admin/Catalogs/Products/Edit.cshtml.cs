@@ -9,6 +9,8 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
@@ -18,7 +20,7 @@ public sealed class EditModel(
     ProductLocationAssignmentService assignmentService,
     ProductionTraceabilityService production,
     ProductionWipDefaultService wipDefaults,
-    ProductionService productionService) : PageModel, IProductFormPage
+    ProductionService productionService, IStringLocalizer<CatalogTexts> text) : PageModel, IProductFormPage
 {
     [BindProperty] public ProductInputModel Input { get; set; } = new();
     [BindProperty] public RecipeInputModel Recipe { get; set; } = new();
@@ -77,12 +79,12 @@ public sealed class EditModel(
         }
         catch (DbUpdateException)
         {
-            ModelState.AddModelError("Input.Sku", "No fue posible guardar; verifique que el SKU no esté repetido.");
+            ModelState.AddModelError("Input.Sku", text["No fue posible guardar; verifique que el SKU no esté repetido."].Value);
             await LoadAsync(initializeRecipe: true, token);
             return Page();
         }
 
-        TempData["Success"] = "Producto actualizado.";
+        TempData["Success"] = text["Producto actualizado."].Value;
         return RedirectToPage("Details", new { id = Input.Id });
     }
 
@@ -92,7 +94,7 @@ public sealed class EditModel(
         var attemptedLines = Recipe.Lines.Where(x => x.MaterialProductId.HasValue || x.StageId.HasValue ||
             x.Quantity.HasValue || !string.IsNullOrWhiteSpace(x.MaterialSearch)).ToArray();
         if (attemptedLines.Any(x => !x.MaterialProductId.HasValue || x.Quantity is null or <= 0))
-            ModelState.AddModelError("Recipe.Lines", "Cada línea iniciada requiere un material válido y una cantidad positiva.");
+            ModelState.AddModelError("Recipe.Lines", text["Cada línea iniciada requiere un material válido y una cantidad positiva."].Value);
         var lines = attemptedLines
             .Where(x => x.MaterialProductId.HasValue && x.Quantity > 0)
             .Select(x => new RecipeLineInput(x.MaterialProductId!.Value, x.StageId, x.Quantity!.Value)).ToArray();
@@ -111,11 +113,11 @@ public sealed class EditModel(
 
         if (result.Success)
         {
-            TempData["Success"] = "Nueva versión de receta guardada.";
+            TempData["Success"] = text["Nueva versión de receta guardada."].Value;
             return RedirectToPage("Edit", null, new { id }, "product-production");
         }
 
-        ModelState.AddModelError(string.Empty, result.Errors?.FirstOrDefault() ?? "No fue posible guardar la receta.");
+        ModelState.AddModelError(string.Empty, result.Errors?.FirstOrDefault() ?? text["No fue posible guardar la receta."].Value);
         ActiveEditorSection = "production";
         if (!await LoadProductAsync(id, token)) return NotFound();
         await LoadAsync(initializeRecipe: false, token);
@@ -127,13 +129,13 @@ public sealed class EditModel(
         ValidateOnly(Route, nameof(Route));
         var selected = Route.Stages.Where(x => x.Order.HasValue).ToArray();
         if (selected.Length == 0)
-            ModelState.AddModelError("Route.Stages", "Indica el orden de al menos un proceso.");
+            ModelState.AddModelError("Route.Stages", text["Indica el orden de al menos un proceso."].Value);
         if (selected.Any(x => x.StageId == Guid.Empty || x.Order <= 0))
-            ModelState.AddModelError("Route.Stages", "Cada proceso incluido requiere un orden mayor que cero.");
+            ModelState.AddModelError("Route.Stages", text["Cada proceso incluido requiere un orden mayor que cero."].Value);
         if (selected.Where(x => x.Order.HasValue).GroupBy(x => x.Order!.Value).Any(x => x.Count() > 1))
-            ModelState.AddModelError("Route.Stages", "No repitas el mismo número de orden en dos procesos.");
+            ModelState.AddModelError("Route.Stages", text["No repitas el mismo número de orden en dos procesos."].Value);
         if (selected.GroupBy(x => x.StageId).Any(x => x.Count() > 1))
-            ModelState.AddModelError("Route.Stages", "Cada proceso sólo puede incluirse una vez.");
+            ModelState.AddModelError("Route.Stages", text["Cada proceso sólo puede incluirse una vez."].Value);
 
         if (!ModelState.IsValid)
         {
@@ -152,13 +154,13 @@ public sealed class EditModel(
 
         if (result.Status == ProductionCommandStatus.Success)
         {
-            TempData["Success"] = "Ruta creada. Ya puedes capturar la receta y sus materiales.";
+            TempData["Success"] = text["Ruta creada. Ya puedes capturar la receta y sus materiales."].Value;
             return RedirectToPage("Edit", null, new { id }, "product-production-route");
         }
 
         ModelState.AddModelError(string.Empty, result.Status == ProductionCommandStatus.InvalidPin
-            ? "NIP ADMIN inválido."
-            : result.ValidationErrors.FirstOrDefault() ?? "No fue posible crear la ruta.");
+            ? text["NIP ADMIN inválido."].Value
+            : result.ValidationErrors.FirstOrDefault() ?? text["No fue posible crear la ruta."].Value);
         ActiveEditorSection = "production";
         ActiveProductionSection = "route";
         if (!await LoadProductAsync(id, token)) return NotFound();
@@ -171,7 +173,7 @@ public sealed class EditModel(
         int assignmentPage = 1)
     {
         var result = await assignmentService.AssignAsync(id, locationId, token);
-        if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = "Ubicación asignada al producto.";
+        if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = text["Ubicación asignada al producto."].Value;
         else TempData["Error"] = AssignmentError(result);
         return RedirectToLocations(id, locationSearch, assignedLocationSearch, assignmentStatus, assignmentPage);
     }
@@ -184,26 +186,26 @@ public sealed class EditModel(
         ValidateOnly(Wip, nameof(Wip));
         var attempted = Wip.Rules.Where(x => x.StageId.HasValue || !string.IsNullOrWhiteSpace(x.TargetKey)).ToArray();
         if (attempted.Any(x => !x.StageId.HasValue || string.IsNullOrWhiteSpace(x.TargetKey)))
-            ModelState.AddModelError("Wip.Rules", "Cada regla requiere proceso y destino WIP.");
+            ModelState.AddModelError("Wip.Rules", text["Cada regla requiere proceso y destino WIP."].Value);
         if (string.IsNullOrWhiteSpace(Wip.Reason) || string.IsNullOrWhiteSpace(Wip.Pin))
-            ModelState.AddModelError("Wip.Reason", "Indica motivo y NIP ADMIN.");
+            ModelState.AddModelError("Wip.Reason", text["Indica motivo y NIP ADMIN."].Value);
         var rules = attempted.Where(x => x.StageId.HasValue && !string.IsNullOrWhiteSpace(x.TargetKey))
             .Select(x => new MaterialWipRuleInput(x.StageId!.Value, x.TargetKey!)).ToArray();
         var result = ModelState.IsValid
             ? await wipDefaults.SaveMaterialAsync(new(Wip.OperationId, id, Wip.ExpectedVersion, rules, Wip.Reason!, Wip.Pin!), token)
-            : new WipDefaultResult(WipDefaultStatus.ValidationFailed, ["Revisa las reglas, el motivo y el NIP ADMIN."]);
+            : new WipDefaultResult(WipDefaultStatus.ValidationFailed, [text["Revisa las reglas, el motivo y el NIP ADMIN."].Value]);
         Wip.Pin = ""; ModelState.Remove("Wip.Pin");
         if (result.Status == WipDefaultStatus.Success)
         {
-            TempData["Success"] = "Destinos WIP actualizados.";
+            TempData["Success"] = text["Destinos WIP actualizados."].Value;
             return RedirectToPage("Edit", null, new { id }, "product-wip-defaults");
         }
         ModelState.AddModelError(string.Empty, result.Status switch
         {
-            WipDefaultStatus.InvalidPin => "NIP ADMIN inválido.",
-            WipDefaultStatus.ConcurrencyConflict => "La configuración WIP cambió. Recarga y vuelve a revisar.",
-            WipDefaultStatus.IdempotencyConflict => "La operación ya se utilizó con datos distintos.",
-            _ => result.Errors?.FirstOrDefault() ?? "No fue posible guardar los destinos WIP."
+            WipDefaultStatus.InvalidPin => text["NIP ADMIN inválido."].Value,
+            WipDefaultStatus.ConcurrencyConflict => text["La configuración WIP cambió. Recarga y vuelve a revisar."].Value,
+            WipDefaultStatus.IdempotencyConflict => text["La operación ya se utilizó con datos distintos."].Value,
+            _ => result.Errors?.FirstOrDefault() ?? text["No fue posible guardar los destinos WIP."].Value
         });
         ActiveEditorSection = "wip";
         if (!await LoadProductAsync(id, token)) return NotFound();
@@ -216,9 +218,9 @@ public sealed class EditModel(
         int assignmentPage = 1)
     {
         var result = await assignmentService.DeactivateAsync(id, locationId, token);
-        if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = "La asignación fue desactivada.";
-        else if (result == ProductLocationAssignmentResult.SuccessDefaultEntryCleared) TempData["Success"] = "La asignación fue desactivada y la ubicación principal de entrada fue retirada.";
-        else TempData["Error"] = "La asignación activa ya no existe.";
+        if (result == ProductLocationAssignmentResult.Success) TempData["Success"] = text["La asignación fue desactivada."].Value;
+        else if (result == ProductLocationAssignmentResult.SuccessDefaultEntryCleared) TempData["Success"] = text["La asignación fue desactivada y la ubicación principal de entrada fue retirada."].Value;
+        else TempData["Error"] = text["La asignación activa ya no existe."].Value;
         return RedirectToLocations(id, locationSearch, assignedLocationSearch, assignmentStatus, assignmentPage);
     }
 
@@ -359,18 +361,18 @@ public sealed class EditModel(
             var members = result.MemberNames.DefaultIfEmpty(string.Empty);
             foreach (var member in members)
                 ModelState.AddModelError(string.IsNullOrEmpty(member) ? prefix : $"{prefix}.{member}",
-                    result.ErrorMessage ?? "El valor no es válido.");
+                    result.ErrorMessage ?? text["El valor no es válido."].Value);
         }
     }
 
-    private static string AssignmentError(ProductLocationAssignmentResult result) => result switch
+    private string AssignmentError(ProductLocationAssignmentResult result) => result switch
     {
-        ProductLocationAssignmentResult.AlreadyActive => "El producto ya está asignado a esa ubicación.",
-        ProductLocationAssignmentResult.ProductInactive => "No se puede asignar un producto inactivo.",
-        ProductLocationAssignmentResult.LocationInactive => "No se puede asignar a una ubicación inactiva.",
-        ProductLocationAssignmentResult.LocationBlocked => "No se puede asignar a una ubicación bloqueada.",
-        ProductLocationAssignmentResult.LocationDoesNotTrackInventory => "La ubicación no admite asignaciones de inventario.",
-        _ => "El producto o la ubicación ya no existe."
+        ProductLocationAssignmentResult.AlreadyActive => text["El producto ya está asignado a esa ubicación."].Value,
+        ProductLocationAssignmentResult.ProductInactive => text["No se puede asignar un producto inactivo."].Value,
+        ProductLocationAssignmentResult.LocationInactive => text["No se puede asignar a una ubicación inactiva."].Value,
+        ProductLocationAssignmentResult.LocationBlocked => text["No se puede asignar a una ubicación bloqueada."].Value,
+        ProductLocationAssignmentResult.LocationDoesNotTrackInventory => text["La ubicación no admite asignaciones de inventario."].Value,
+        _ => text["El producto o la ubicación ya no existe."].Value
     };
 
     public sealed class RecipeInputModel

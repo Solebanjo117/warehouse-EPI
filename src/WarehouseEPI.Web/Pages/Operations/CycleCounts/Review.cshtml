@@ -1,33 +1,34 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.CycleCounts.ReviewModel
 @{
-    ViewData["Title"] = "Revisión de conteo";
+    ViewData["Title"] = OpTexts["Revisión de conteo"].Value;
     var attempt = Model.Attempt;
 }
 
 <div class="inventory-analytics">
     <header class="inventory-page-header">
         <div>
-            <a asp-page="Details" asp-route-id="@Model.Campaign!.Id" class="small text-decoration-none">← Campaña</a>
-            <h1 class="h2 mt-2">Diferencia · @Model.Location!.LocationCode</h1>
-            <p class="text-muted mb-0">Consulta el resultado. Las decisiones se autorizan juntas al finalizar la campaña.</p>
+            <a asp-page="Details" asp-route-id="@Model.Campaign!.Id" class="small text-decoration-none">@OpTexts["← Campaña"]</a>
+            <h1 class="h2 mt-2">@OpTexts["Diferencia · {0}", Model.Location!.LocationCode]</h1>
+            <p class="text-muted mb-0">@OpTexts["Consulta el resultado. Las decisiones se autorizan juntas al finalizar la campaña."]</p>
         </div>
     </header>
 
     @if (attempt is null)
     {
-        <div class="alert alert-secondary">Aún no hay un intento para revisar.</div>
+        <div class="alert alert-secondary">@OpTexts["Aún no hay un intento para revisar."]</div>
     }
     else
     {
         <div class="table-responsive analytics-table">
             <table class="table align-middle">
-                <thead><tr><th>Producto</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr></thead>
+                <thead><tr><th>@OpTexts["Producto"]</th><th>@OpTexts["Esperado"]</th><th>@OpTexts["Contado"]</th><th>@OpTexts["Diferencia"]</th></tr></thead>
                 <tbody>
                     @foreach (var entry in attempt.Entries)
                     {
                         <tr>
-                            <td><strong>@entry.Sku</strong><small class="d-block text-body-secondary">@entry.UnitCode</small></td>
+                            <td><strong>@entry.Sku</strong><small class="d-block text-body-secondary">@entry.UnitCode</small>@if(entry.HasPlateDifference){<span class="badge text-bg-warning">@OpTexts["Diferencia por placa"]</span>}@foreach(var plate in entry.PlateCounts ?? []){<small class="d-block">PLT-@plate.PlateId.ToString("N").ToUpperInvariant(): @plate.Quantity.ToString("0.####") @OpTexts["contado (variante)"]</small>}</td>
                             <td>@entry.ExpectedQuantity?.ToString("0.####")</td>
                             <td>@entry.CountedQuantity?.ToString("0.####")</td>
                             <td class="@(entry.Difference != 0 ? "text-danger fw-semibold" : null)">@entry.Difference?.ToString("+0.####;-0.####;0")</td>
@@ -37,8 +38,8 @@
             </table>
         </div>
         <div class="alert alert-info d-flex flex-wrap align-items-center gap-2 mt-3">
-            <span class="me-auto">Esta pantalla es de consulta. La aprobación o el reconteo se decidirán en la revisión final.</span>
-            <a asp-page="Details" asp-route-id="@Model.Campaign.Id" class="btn btn-primary">Volver a la campaña</a>
+            <span class="me-auto">@OpTexts["Esta pantalla es de consulta. La aprobación o el reconteo se decidirán en la revisión final."]</span>
+            <a asp-page="Details" asp-route-id="@Model.Campaign.Id" class="btn btn-primary">@OpTexts["Volver a la campaña"]</a>
         </div>
     }
 </div>

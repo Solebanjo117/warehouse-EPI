@@ -93,9 +93,9 @@ public sealed class ProductionWipDefaultService(
         {
             var all = await db.Locations.AsNoTracking().Where(x => x.Kind == LocationKind.Rack &&
                 x.RowCode == rack.Key.RowCode && x.RackNumber == rack.Key.RackNumber).ToListAsync(token);
-            if (all.Count == 0 || all.Any(x => x.OperationalRole != LocationOperationalRole.Wip) ||
-                !all.Any(x => x.IsActive && x.IsPhysicallyPresent && !x.IsBlocked)) continue;
-            var partial = all.Any(x => !x.IsActive || !x.IsPhysicallyPresent || x.IsBlocked);
+            var wip = all.Where(x => x.OperationalRole == LocationOperationalRole.Wip).ToArray();
+            if (!wip.Any(x => x.IsOperational)) continue;
+            var partial = wip.Any(x => !x.IsOperational);
             result.Add(new($"R:{rack.Key.RowCode}:{rack.Key.RackNumber}", $"{rack.Key.RowCode}-{rack.Key.RackNumber}",
                 "Rack WIP", "La posición exacta se confirma al surtir", true, partial ? "Disponibilidad parcial" : null));
         }
@@ -194,10 +194,11 @@ public sealed class ProductionWipDefaultService(
             var positions = await db.Locations.AsNoTracking().Where(x => x.Kind == LocationKind.Rack &&
                 x.RowCode == parsed.RowCode && x.RackNumber == parsed.RackNumber).ToListAsync(token);
             var associated = associations.Any(x => x.RowCode == parsed.RowCode && (x.RackNumber == null || x.RackNumber == parsed.RackNumber));
-            var valid = stage.IsActive && associated && positions.Count > 0 && positions.All(x => x.OperationalRole == LocationOperationalRole.Wip) && positions.Any(x => x.IsOperational);
-            var partial = valid && positions.Any(x => !x.IsOperational);
+            var wip = positions.Where(x => x.OperationalRole == LocationOperationalRole.Wip).ToArray();
+            var valid = stage.IsActive && associated && wip.Any(x => x.IsOperational);
+            var partial = valid && wip.Any(x => !x.IsOperational);
             return new(key, $"{parsed.RowCode}-{parsed.RackNumber}", "Rack WIP", "La posición exacta se confirma al surtir", valid,
-                valid ? partial ? "Disponibilidad parcial" : null : "El rack está inactivo, no es WIP completo o ya no pertenece al proceso.");
+                valid ? partial ? "Disponibilidad parcial" : null : "El rack no tiene posiciones WIP disponibles o ya no pertenece al proceso.");
         }
         return new(key ?? "", "Destino inválido", "Destino WIP", "Selecciona un destino válido", false, "Selecciona un área, rack o posición WIP.");
     }

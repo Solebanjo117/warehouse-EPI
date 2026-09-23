@@ -1,0 +1,654 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name=" y observaciones" xml:space="preserve"><value> and notes</value></data>
+  <data name="; el tiempo se renueva al continuar." xml:space="preserve"><value>; the time renews as you continue.</value></data>
+  <data name="(opcional)" xml:space="preserve"><value>(optional)</value></data>
+  <data name="{0} · abierto por {1} el {2}" xml:space="preserve"><value>{0} · opened by {1} on {2}</value></data>
+  <data name="{0} producto(s)" xml:space="preserve"><value>{0} product(s)</value></data>
+  <data name="← Campaña" xml:space="preserve"><value>← Campaign</value></data>
+  <data name="← Conteos cíclicos" xml:space="preserve"><value>← Cycle counts</value></data>
+  <data name="← Menú operativo" xml:space="preserve"><value>← Operations menu</value></data>
+  <data name="← Recepciones" xml:space="preserve"><value>← Receipts</value></data>
+  <data name="0 de {0} contados" xml:space="preserve"><value>0 of {0} counted</value></data>
+  <data name="0 de {0} listos" xml:space="preserve"><value>0 of {0} ready</value></data>
+  <data name="0 seleccionadas" xml:space="preserve"><value>0 selected</value></data>
+  <data name="1 producto por operación" xml:space="preserve"><value>1 product per operation</value></data>
+  <data name="1 ubicación por captura" xml:space="preserve"><value>1 location per count</value></data>
+  <data name="30 minutos" xml:space="preserve"><value>30 minutes</value></data>
+  <data name="Abierto" xml:space="preserve"><value>Open</value></data>
+  <data name="Abiertos y parciales" xml:space="preserve"><value>Open and partial</value></data>
+  <data name="Abre una fila y continúa con la ubicación que te corresponde." xml:space="preserve"><value>Open a row and continue with your assigned location.</value></data>
+  <data name="Abre una fila, selecciona racks completos y ajusta posiciones individuales solo cuando sea necesario." xml:space="preserve"><value>Open a row, select complete racks and adjust individual positions only when needed.</value></data>
+  <data name="Abrir" xml:space="preserve"><value>Open</value></data>
+  <data name="Abrir cámara para escanear ubicación" xml:space="preserve"><value>Open camera to scan location</value></data>
+  <data name="Abrir campaña" xml:space="preserve"><value>Open campaign</value></data>
+  <data name="Abrir documento" xml:space="preserve"><value>Open document</value></data>
+  <data name="Acción" xml:space="preserve"><value>Action</value></data>
+  <data name="Acciones" xml:space="preserve"><value>Actions</value></data>
+  <data name="Acepta el UUID de la Entrada o el folio visible PLT." xml:space="preserve"><value>Accepts the receipt UUID or visible PLT number.</value></data>
+  <data name="Activar seguimiento" xml:space="preserve"><value>Activate tracking</value></data>
+  <data name="Activar una placa documental existente" xml:space="preserve"><value>Activate an existing document plate</value></data>
+  <data name="Acumulado actual: {0} {1} · Disponible para otra recepción: {2} {1}" xml:space="preserve"><value>Current total: {0} {1} · Available for another receipt: {2} {1}</value></data>
+  <data name="Acumulado y pendiente consultados al abrir este comprobante." xml:space="preserve"><value>Cumulative and pending quantities as of opening this receipt.</value></data>
+  <data name="Administrar planes" xml:space="preserve"><value>Manage plans</value></data>
+  <data name="Advertencia: el saldo resultante será negativo." xml:space="preserve"><value>Warning: the resulting balance will be negative.</value></data>
+  <data name="Agotada" xml:space="preserve"><value>Depleted</value></data>
+  <data name="Agregar" xml:space="preserve"><value>Add</value></data>
+  <data name="Agregar {0} a {1}, compartiendo con {2}" xml:space="preserve"><value>Add {0} to {1}, sharing with {2}</value></data>
+  <data name="Agregar inesperado" xml:space="preserve"><value>Add unexpected item</value></data>
+  <data name="Agregar producto" xml:space="preserve"><value>Add product</value></data>
+  <data name="Ajuste" xml:space="preserve"><value>Adjustment</value></data>
+  <data name="Ajuste aplicado" xml:space="preserve"><value>Adjustment applied</value></data>
+  <data name="Ajuste por conteo" xml:space="preserve"><value>Count adjustment</value></data>
+  <data name="Al confirmar, encabezado y cantidades quedarán congelados." xml:space="preserve"><value>Once confirmed, the header and quantities will be locked.</value></data>
+  <data name="Ampliar" xml:space="preserve"><value>Enlarge</value></data>
+  <data name="Anterior" xml:space="preserve"><value>Previous</value></data>
+  <data name="Anual" xml:space="preserve"><value>Annual</value></data>
+  <data name="Anulada" xml:space="preserve"><value>Voided</value></data>
+  <data name="Aplicar filtros" xml:space="preserve"><value>Apply filters</value></data>
+  <data name="Aplicar revisión final" xml:space="preserve"><value>Apply final review</value></data>
+  <data name="Aprobar ajuste" xml:space="preserve"><value>Approve adjustment</value></data>
+  <data name="Áreas de almacenamiento" xml:space="preserve"><value>Storage areas</value></data>
+  <data name="Asignación a producción" xml:space="preserve"><value>Production assignment</value></data>
+  <data name="Asignación cancelada" xml:space="preserve"><value>Assignment canceled</value></data>
+  <data name="Aún no hay un intento para revisar." xml:space="preserve"><value>There is no attempt to review yet.</value></data>
+  <data name="Autoriza todas las diferencias vigentes con un solo NIP." xml:space="preserve"><value>Authorize all current differences with a single PIN.</value></data>
+  <data name="Autorización" xml:space="preserve"><value>Authorization</value></data>
+  <data name="Avance" xml:space="preserve"><value>Progress</value></data>
+  <data name="Bloqueado" xml:space="preserve"><value>Blocked</value></data>
+  <data name="Borrador" xml:space="preserve"><value>Draft</value></data>
+  <data name="Busca una entrada o placa. Las placas activas muestran cantidad y ubicación actuales." xml:space="preserve"><value>Find a receipt or plate. Active plates show current quantity and location.</value></data>
+  <data name="Buscar" xml:space="preserve"><value>Search</value></data>
+  <data name="Buscar en producción" xml:space="preserve"><value>Search production</value></data>
+  <data name="Buscar ubicación" xml:space="preserve"><value>Find location</value></data>
+  <data name="Cada despacho permanece en su fecha programada; solo se publica la cantidad final contada." xml:space="preserve"><value>Each dispatch remains on its scheduled date; only the final counted quantity is published.</value></data>
+  <data name="Cada operador confirmará con su NIP al enviar el conteo de una ubicación." xml:space="preserve"><value>Each operator confirms with their PIN when submitting a location count.</value></data>
+  <data name="Calendario" xml:space="preserve"><value>Calendar</value></data>
+  <data name="Calendario de conteos" xml:space="preserve"><value>Count calendar</value></data>
+  <data name="Cámara" xml:space="preserve"><value>Camera</value></data>
+  <data name="Cambia los filtros o crea una campaña para preparar el siguiente conteo." xml:space="preserve"><value>Change the filters or create a campaign to prepare the next count.</value></data>
+  <data name="Cambiar" xml:space="preserve"><value>Change</value></data>
+  <data name="Cambiar cámara" xml:space="preserve"><value>Switch camera</value></data>
+  <data name="Cambiar operador" xml:space="preserve"><value>Change operator</value></data>
+  <data name="Cambio" xml:space="preserve"><value>Change</value></data>
+  <data name="Campaña" xml:space="preserve"><value>Campaign</value></data>
+  <data name="Campaña cancelada." xml:space="preserve"><value>Campaign canceled.</value></data>
+  <data name="Campaña completada." xml:space="preserve"><value>Campaign completed.</value></data>
+  <data name="Campaña de conteo" xml:space="preserve"><value>Count campaign</value></data>
+  <data name="Campaña sin título" xml:space="preserve"><value>Untitled campaign</value></data>
+  <data name="Cancelada" xml:space="preserve"><value>Canceled</value></data>
+  <data name="Cancelado" xml:space="preserve"><value>Canceled</value></data>
+  <data name="Cancelar" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Cancelar campaña" xml:space="preserve"><value>Cancel campaign</value></data>
+  <data name="Cancelar documento" xml:space="preserve"><value>Cancel document</value></data>
+  <data name="Cantidad" xml:space="preserve"><value>Quantity</value></data>
+  <data name="Cantidad a mover" xml:space="preserve"><value>Quantity to move</value></data>
+  <data name="Cantidad actual" xml:space="preserve"><value>Current quantity</value></data>
+  <data name="Cantidad contada" xml:space="preserve"><value>Counted quantity</value></data>
+  <data name="Cantidad de esta recepción: {0} {1}" xml:space="preserve"><value>Quantity in this receipt: {0} {1}</value></data>
+  <data name="Cantidad esperada" xml:space="preserve"><value>Expected quantity</value></data>
+  <data name="Cantidad física" xml:space="preserve"><value>Physical quantity</value></data>
+  <data name="Cantidad inesperada {0}" xml:space="preserve"><value>Unexpected quantity {0}</value></data>
+  <data name="Cantidad verificada" xml:space="preserve"><value>Verified quantity</value></data>
+  <data name="Captura de {0}" xml:space="preserve"><value>Enter {0}</value></data>
+  <data name="Captura la cantidad física, incluso si es cero." xml:space="preserve"><value>Enter the physical quantity, even if it is zero.</value></data>
+  <data name="Causa" xml:space="preserve"><value>Cause</value></data>
+  <data name="Causa desconocida" xml:space="preserve"><value>Unknown cause</value></data>
+  <data name="Cerrado con diferencias" xml:space="preserve"><value>Closed with differences</value></data>
+  <data name="Cerrar" xml:space="preserve"><value>Close</value></data>
+  <data name="Cerrar diferencias" xml:space="preserve"><value>Close differences</value></data>
+  <data name="Cierre" xml:space="preserve"><value>Closing</value></data>
+  <data name="Código ampliado para escanear" xml:space="preserve"><value>Enlarged code for scanning</value></data>
+  <data name="Código de ubicación" xml:space="preserve"><value>Location code</value></data>
+  <data name="Código de ubicación WIP" xml:space="preserve"><value>WIP location code</value></data>
+  <data name="Comenzar a contar" xml:space="preserve"><value>Start counting</value></data>
+  <data name="Compartir {0} con {1}" xml:space="preserve"><value>Share {0} with {1}</value></data>
+  <data name="compartirá {0} con {1}." xml:space="preserve"><value>will share {0} with {1}.</value></data>
+  <data name="Completada" xml:space="preserve"><value>Completed</value></data>
+  <data name="completadas (variante)" xml:space="preserve"><value>completed</value></data>
+  <data name="Completadas" xml:space="preserve"><value>Completed</value></data>
+  <data name="Completado" xml:space="preserve"><value>Completed</value></data>
+  <data name="Completado automáticamente" xml:space="preserve"><value>Automatically completed</value></data>
+  <data name="Comprobante relacionado con una corrección" xml:space="preserve"><value>Receipt related to a correction</value></data>
+  <data name="Con diferencia" xml:space="preserve"><value>With differences</value></data>
+  <data name="Conciliada" xml:space="preserve"><value>Reconciled</value></data>
+  <data name="Confirma expresamente que deseas compartir la ubicación. No se realizó ningún cambio." xml:space="preserve"><value>Explicitly confirm that you want to share the location. No changes have been made.</value></data>
+  <data name="confirmada" xml:space="preserve"><value>confirmed</value></data>
+  <data name="Confirmar" xml:space="preserve"><value>Confirm</value></data>
+  <data name="Confirmar {0}" xml:space="preserve"><value>Confirm {0}</value></data>
+  <data name="Confirmar conteo" xml:space="preserve"><value>Confirm count</value></data>
+  <data name="Confirmar operación" xml:space="preserve"><value>Confirm operation</value></data>
+  <data name="Confirmar operación WIP" xml:space="preserve"><value>Confirm WIP operation</value></data>
+  <data name="Confirmar recepción" xml:space="preserve"><value>Confirm receipt</value></data>
+  <data name="Confirmar revisión final" xml:space="preserve"><value>Confirm final review</value></data>
+  <data name="Confirmar ubicación compartida" xml:space="preserve"><value>Confirm shared location</value></data>
+  <data name="Consulta cantidad, ubicación e historial de cada pallet." xml:space="preserve"><value>View the quantity, location and history of each pallet.</value></data>
+  <data name="Consulta el resultado. Las decisiones se autorizan juntas al finalizar la campaña." xml:space="preserve"><value>View the result. Decisions are authorized together at the end of the campaign.</value></data>
+  <data name="Consumo" xml:space="preserve"><value>Consumption</value></data>
+  <data name="Consumo WIP" xml:space="preserve"><value>WIP consumption</value></data>
+  <data name="contado (variante)" xml:space="preserve"><value>counted</value></data>
+  <data name="Contado" xml:space="preserve"><value>Counted</value></data>
+  <data name="Contando como {0}" xml:space="preserve"><value>Counting as {0}</value></data>
+  <data name="Contar ubicación" xml:space="preserve"><value>Count location</value></data>
+  <data name="Conteo / ajuste" xml:space="preserve"><value>Count / adjustment</value></data>
+  <data name="Conteo ciego" xml:space="preserve"><value>Blind count</value></data>
+  <data name="Conteo final" xml:space="preserve"><value>Final count</value></data>
+  <data name="Conteo físico" xml:space="preserve"><value>Physical count</value></data>
+  <data name="conteo obsoleto" xml:space="preserve"><value>outdated count</value></data>
+  <data name="Conteos cíclicos" xml:space="preserve"><value>Cycle counts</value></data>
+  <data name="Continuar conteo" xml:space="preserve"><value>Continue counting</value></data>
+  <data name="Copias" xml:space="preserve"><value>Copies</value></data>
+  <data name="Copias idénticas" xml:space="preserve"><value>Identical copies</value></data>
+  <data name="corregida · antecedente" xml:space="preserve"><value>corrected · historical record</value></data>
+  <data name="Creada" xml:space="preserve"><value>Created</value></data>
+  <data name="Creada por {0} · varios operadores pueden contar ubicaciones diferentes." xml:space="preserve"><value>Created by {0} · multiple operators can count different locations.</value></data>
+  <data name="Crear campaña" xml:space="preserve"><value>Create campaign</value></data>
+  <data name="Crear y liberar campaña" xml:space="preserve"><value>Create and release campaign</value></data>
+  <data name="CSV" xml:space="preserve"><value>CSV</value></data>
+  <data name="Cumplimiento vigente" xml:space="preserve"><value>Current compliance</value></data>
+  <data name="Daño o merma no registrada" xml:space="preserve"><value>Unrecorded damage or scrap</value></data>
+  <data name="Datos" xml:space="preserve"><value>Data</value></data>
+  <data name="Datos adicionales" xml:space="preserve"><value>Additional details</value></data>
+  <data name="Datos de impresión" xml:space="preserve"><value>Print details</value></data>
+  <data name="Datos del formato" xml:space="preserve"><value>Template details</value></data>
+  <data name="Deberás introducir nuevamente tu NIP al confirmar." xml:space="preserve"><value>You must enter your PIN again to confirm.</value></data>
+  <data name="Decide todas las ubicaciones pendientes y autoriza el lote con un solo NIP." xml:space="preserve"><value>Decide on all pending locations and authorize the batch with a single PIN.</value></data>
+  <data name="Decisión" xml:space="preserve"><value>Decision</value></data>
+  <data name="Define qué posiciones se contarán. Varios operadores pueden trabajar la misma campaña en ubicaciones diferentes." xml:space="preserve"><value>Define which positions will be counted. Multiple operators can work on the same campaign at different locations.</value></data>
+  <data name="Deja en cero los productos no recibidos; puedes agregar inesperados." xml:space="preserve"><value>Leave unreceived products at zero; you can add unexpected products.</value></data>
+  <data name="Descripción" xml:space="preserve"><value>Description</value></data>
+  <data name="Desde" xml:space="preserve"><value>From</value></data>
+  <data name="Después de liberar, cada ubicación se abre sin NIP; el operador confirma al enviar su conteo." xml:space="preserve"><value>After release, each location opens without a PIN; the operator confirms when submitting their count.</value></data>
+  <data name="Destino" xml:space="preserve"><value>Destination</value></data>
+  <data name="Destino pendiente" xml:space="preserve"><value>Destination pending</value></data>
+  <data name="Destino:" xml:space="preserve"><value>Destination:</value></data>
+  <data name="Devolución a proveedor" xml:space="preserve"><value>Supplier return</value></data>
+  <data name="Devolución a proveedor registrada" xml:space="preserve"><value>Supplier return recorded</value></data>
+  <data name="Devolución registrada" xml:space="preserve"><value>Return recorded</value></data>
+  <data name="Devolución WIP a bodega" xml:space="preserve"><value>WIP return to warehouse</value></data>
+  <data name="Devolución WIP a proveedor" xml:space="preserve"><value>WIP return to supplier</value></data>
+  <data name="Diferencia" xml:space="preserve"><value>Difference</value></data>
+  <data name="Diferencia · {0}" xml:space="preserve"><value>Difference · {0}</value></data>
+  <data name="Diferencia por placa" xml:space="preserve"><value>Plate difference</value></data>
+  <data name="Diferencias o saldo modificado" xml:space="preserve"><value>Differences or changed balance</value></data>
+  <data name="Disponible" xml:space="preserve"><value>Available</value></data>
+  <data name="Documento" xml:space="preserve"><value>Document</value></data>
+  <data name="Documento abierto" xml:space="preserve"><value>Document opened</value></data>
+  <data name="Documento relacionado" xml:space="preserve"><value>Related document</value></data>
+  <data name="Ej. 1,250 LB" xml:space="preserve"><value>e.g. 1,250 LB</value></data>
+  <data name="Ej. A-1-8" xml:space="preserve"><value>e.g. A-1-8</value></data>
+  <data name="Ej. A-3-8" xml:space="preserve"><value>e.g. A-3-8</value></data>
+  <data name="Ej. CC-000021 o Fila A" xml:space="preserve"><value>e.g. CC-000021 or Row A</value></data>
+  <data name="Ej. Dividir A-1 a A-5 y A-6 a A-10" xml:space="preserve"><value>e.g. Split A-1 to A-5 and A-6 to A-10</value></data>
+  <data name="Ej. Fila A · turno matutino" xml:space="preserve"><value>e.g. Row A · morning shift</value></data>
+  <data name="El borrador permanece en este formulario. Solo se guarda al abrirlo con NIP." xml:space="preserve"><value>The draft remains in this form. It is only saved when opened with a PIN.</value></data>
+  <data name="El intento abierto no está disponible. Actualiza la página." xml:space="preserve"><value>The open attempt is unavailable. Refresh the page.</value></data>
+  <data name="El inventario no se descontó nuevamente." xml:space="preserve"><value>Inventory was not deducted again.</value></data>
+  <data name="El inventario se actualizó correctamente." xml:space="preserve"><value>Inventory was updated successfully.</value></data>
+  <data name="El lector HID puede escribir el código y enviar con Enter." xml:space="preserve"><value>The HID scanner can enter the code and submit with Enter.</value></data>
+  <data name="El material quedará como existencia real en el WIP seleccionado." xml:space="preserve"><value>The material will become actual stock at the selected WIP location.</value></data>
+  <data name="El NIP autoriza la creación; no asigna la campaña a una sola persona." xml:space="preserve"><value>The PIN authorizes creation; it does not assign the campaign to a single person.</value></data>
+  <data name="El NIP autoriza todas las decisiones mostradas. No se guarda ni se repuebla." xml:space="preserve"><value>The PIN authorizes all decisions shown. It is not saved or filled in again.</value></data>
+  <data name="El pallet ya contiene otros productos" xml:space="preserve"><value>The pallet already contains other products</value></data>
+  <data name="El peso es opcional y no se almacena." xml:space="preserve"><value>Weight is optional and is not stored.</value></data>
+  <data name="El saldo cambió después del conteo. Esta ubicación debe volver a contarse." xml:space="preserve"><value>The balance changed after counting. This location must be counted again.</value></data>
+  <data name="El surtimiento transfirió existencias al WIP y conservó los lotes del origen." xml:space="preserve"><value>The issue transferred stock to WIP and preserved the source lots.</value></data>
+  <data name="Elige salida general o surtimiento WIP general antes de capturar." xml:space="preserve"><value>Choose a general issue or general WIP issue before entering details.</value></data>
+  <data name="En campaña" xml:space="preserve"><value>In campaign</value></data>
+  <data name="En captura" xml:space="preserve"><value>In progress</value></data>
+  <data name="En conteo" xml:space="preserve"><value>Counting</value></data>
+  <data name="en revisión (variante)" xml:space="preserve"><value>under review</value></data>
+  <data name="En revisión" xml:space="preserve"><value>Under review</value></data>
+  <data name="Entrada" xml:space="preserve"><value>Receipt</value></data>
+  <data name="Entrada confirmada" xml:space="preserve"><value>Receipt confirmed</value></data>
+  <data name="Entrada no registrada" xml:space="preserve"><value>Unrecorded receipt</value></data>
+  <data name="Entrada y trazabilidad" xml:space="preserve"><value>Receiving and traceability</value></data>
+  <data name="Error de captura o unidad" xml:space="preserve"><value>Entry or unit error</value></data>
+  <data name="Escanea o busca por SKU, descripción o referencia" xml:space="preserve"><value>Scan or search by SKU, description or reference</value></data>
+  <data name="Escanea o escribe" xml:space="preserve"><value>Scan or type</value></data>
+  <data name="Escanea o escribe el código" xml:space="preserve"><value>Scan or enter the code</value></data>
+  <data name="Escanea o escribe el pallet WIP" xml:space="preserve"><value>Scan or enter the WIP pallet</value></data>
+  <data name="Escanea o escribe la siguiente ubicación" xml:space="preserve"><value>Scan or enter the next location</value></data>
+  <data name="Escanea o escribe la ubicación" xml:space="preserve"><value>Scan or enter the location</value></data>
+  <data name="Escanea o escribe para buscar" xml:space="preserve"><value>Scan or type to search</value></data>
+  <data name="Escanea o escribe un SKU/código de barras y su cantidad." xml:space="preserve"><value>Scan or enter a SKU/barcode and its quantity.</value></data>
+  <data name="Escanea producto, captura cantidad y continúa." xml:space="preserve"><value>Scan the product, enter the quantity and continue.</value></data>
+  <data name="Escanea SKU o código, o busca por descripción." xml:space="preserve"><value>Scan a SKU or code, or search by description.</value></data>
+  <data name="Escanea ubicación" xml:space="preserve"><value>Scan location</value></data>
+  <data name="Escanear código" xml:space="preserve"><value>Scan code</value></data>
+  <data name="Escanear código de barras" xml:space="preserve"><value>Scan barcode</value></data>
+  <data name="Escanear destino con cámara" xml:space="preserve"><value>Scan destination with camera</value></data>
+  <data name="Escanear producto" xml:space="preserve"><value>Scan product</value></data>
+  <data name="Escanear producto con cámara" xml:space="preserve"><value>Scan product with camera</value></data>
+  <data name="Escanear ubicación con cámara" xml:space="preserve"><value>Scan location with camera</value></data>
+  <data name="Escanear ubicación destino con cámara" xml:space="preserve"><value>Scan destination location with camera</value></data>
+  <data name="Escanear ubicación origen con cámara" xml:space="preserve"><value>Scan source location with camera</value></data>
+  <data name="Escanear WIP con cámara" xml:space="preserve"><value>Scan WIP with camera</value></data>
+  <data name="Esperado" xml:space="preserve"><value>Expected</value></data>
+  <data name="Esta pantalla es de consulta. La aprobación o el reconteo se decidirán en la revisión final." xml:space="preserve"><value>This screen is read-only. Approval or recount will be decided in the final review.</value></data>
+  <data name="Estado" xml:space="preserve"><value>Status</value></data>
+  <data name="Este antecedente no conserva un vínculo completo con la orden y el lote." xml:space="preserve"><value>This historical record does not retain a complete link to the order and lot.</value></data>
+  <data name="Este movimiento no representa una recepción vigente. Consulta la corrección." xml:space="preserve"><value>This movement does not represent a current receipt. View the correction.</value></data>
+  <data name="Etiqueta del lote" xml:space="preserve"><value>Lot label</value></data>
+  <data name="Excel" xml:space="preserve"><value>Excel</value></data>
+  <data name="Existencia esperada oculta. Captura lo que cuentes físicamente, incluso si es cero." xml:space="preserve"><value>Expected stock is hidden. Enter your physical count, even if it is zero.</value></data>
+  <data name="Faltan {0} pasos" xml:space="preserve"><value>{0} steps remaining</value></data>
+  <data name="Fecha" xml:space="preserve"><value>Date</value></data>
+  <data name="Fecha de Entrada" xml:space="preserve"><value>Receipt date</value></data>
+  <data name="Fecha documental" xml:space="preserve"><value>Document date</value></data>
+  <data name="Fecha MFG" xml:space="preserve"><value>MFG date</value></data>
+  <data name="Fecha programada" xml:space="preserve"><value>Scheduled date</value></data>
+  <data name="Fila {0}" xml:space="preserve"><value>Row {0}</value></data>
+  <data name="Filtrar" xml:space="preserve"><value>Filter</value></data>
+  <data name="Filtrar campañas por estado" xml:space="preserve"><value>Filter campaigns by status</value></data>
+  <data name="Filtrar ubicaciones" xml:space="preserve"><value>Filter locations</value></data>
+  <data name="Final" xml:space="preserve"><value>Final</value></data>
+  <data name="Finalizar seguimiento" xml:space="preserve"><value>End tracking</value></data>
+  <data name="Folio" xml:space="preserve"><value>Reference number</value></data>
+  <data name="Folio de entrada o placa" xml:space="preserve"><value>Receipt or plate number</value></data>
+  <data name="Folio de Entrada o placa (variante)" xml:space="preserve"><value>Receipt or plate number</value></data>
+  <data name="Folio o título" xml:space="preserve"><value>Number or title</value></data>
+  <data name="Folio:" xml:space="preserve"><value>Number:</value></data>
+  <data name="Formato" xml:space="preserve"><value>Template</value></data>
+  <data name="Frecuencia" xml:space="preserve"><value>Frequency</value></data>
+  <data name="Generar etiquetas" xml:space="preserve"><value>Generate labels</value></data>
+  <data name="Generar placa" xml:space="preserve"><value>Generate plate</value></data>
+  <data name="Generar placa de pallet" xml:space="preserve"><value>Generate pallet plate</value></data>
+  <data name="Generar vista previa" xml:space="preserve"><value>Generate preview</value></data>
+  <data name="Hasta" xml:space="preserve"><value>To</value></data>
+  <data name="Herramientas de selección" xml:space="preserve"><value>Selection tools</value></data>
+  <data name="Historial" xml:space="preserve"><value>History</value></data>
+  <data name="Historial · últimas 200 operaciones" xml:space="preserve"><value>History · last 200 operations</value></data>
+  <data name="Hoja ciega de conteo" xml:space="preserve"><value>Blind count sheet</value></data>
+  <data name="Hoja de conteo" xml:space="preserve"><value>Count sheet</value></data>
+  <data name="Identifica la campaña" xml:space="preserve"><value>Identify the campaign</value></data>
+  <data name="Identificación pendiente" xml:space="preserve"><value>Identification pending</value></data>
+  <data name="Identifícate para contar" xml:space="preserve"><value>Identify yourself to count</value></data>
+  <data name="Imprimir" xml:space="preserve"><value>Print</value></data>
+  <data name="Imprimir actual" xml:space="preserve"><value>Print current</value></data>
+  <data name="Imprimir etiquetas" xml:space="preserve"><value>Print labels</value></data>
+  <data name="Imprimir placas" xml:space="preserve"><value>Print plates</value></data>
+  <data name="Indicaciones opcionales" xml:space="preserve"><value>Optional instructions</value></data>
+  <data name="Inesperado" xml:space="preserve"><value>Unexpected</value></data>
+  <data name="Ingresa tu NIP al registrar; la captura no se perderá." xml:space="preserve"><value>Enter your PIN when recording; your entries will not be lost.</value></data>
+  <data name="Ingresa tu NIP una vez. La sesión vence después de 30 minutos sin actividad." xml:space="preserve"><value>Enter your PIN once. The session expires after 30 minutes of inactivity.</value></data>
+  <data name="Iniciales" xml:space="preserve"><value>Initials</value></data>
+  <data name="Intento:" xml:space="preserve"><value>Attempt:</value></data>
+  <data name="Intentos" xml:space="preserve"><value>Attempts</value></data>
+  <data name="Ir a la campaña" xml:space="preserve"><value>Go to campaign</value></data>
+  <data name="Ir a la siguiente pendiente" xml:space="preserve"><value>Go to next pending</value></data>
+  <data name="La cancelación conserva la campaña y su auditoría, pero impide iniciar nuevos conteos." xml:space="preserve"><value>Cancellation preserves the campaign and its audit trail, but prevents starting new counts.</value></data>
+  <data name="La captura no se almacena y no cambia inventario." xml:space="preserve"><value>The entered data is not stored and does not change inventory.</value></data>
+  <data name="La operación se guardó, pero existe un saldo negativo." xml:space="preserve"><value>The operation was saved, but there is a negative balance.</value></data>
+  <data name="La sesión se renueva mientras continúes capturando." xml:space="preserve"><value>The session renews as you continue entering counts.</value></data>
+  <data name="La ubicación destino ya contiene otros productos." xml:space="preserve"><value>The destination location already contains other products.</value></data>
+  <data name="La ubicación está vacía" xml:space="preserve"><value>The location is empty</value></data>
+  <data name="Liberar {0} en {1}" xml:space="preserve"><value>Release {0} at {1}</value></data>
+  <data name="Liberar campaña" xml:space="preserve"><value>Release campaign</value></data>
+  <data name="Liberar para comenzar" xml:space="preserve"><value>Release to start</value></data>
+  <data name="Liberar seleccionados de esta página" xml:space="preserve"><value>Release selected items on this page</value></data>
+  <data name="Limpiar selección" xml:space="preserve"><value>Clear selection</value></data>
+  <data name="Líneas recibidas" xml:space="preserve"><value>Received lines</value></data>
+  <data name="Lista para contar" xml:space="preserve"><value>Ready to count</value></data>
+  <data name="Lista para imprimir" xml:space="preserve"><value>Ready to print</value></data>
+  <data name="Lo esperado no cambia inventario; cada recepción confirmada genera una Entrada real." xml:space="preserve"><value>Expected quantities do not change inventory; each confirmed receipt creates an actual stock receipt.</value></data>
+  <data name="Lote/rollo externo" xml:space="preserve"><value>External lot/roll</value></data>
+  <data name="Lote/rollo externo: {0}" xml:space="preserve"><value>External lot/roll: {0}</value></data>
+  <data name="Lote/rollo: {0}" xml:space="preserve"><value>Lot/roll: {0}</value></data>
+  <data name="Mensual" xml:space="preserve"><value>Monthly</value></data>
+  <data name="Menú" xml:space="preserve"><value>Menu</value></data>
+  <data name="Mes" xml:space="preserve"><value>Month</value></data>
+  <data name="Mostrando campañas con ubicaciones que requieren atención:" xml:space="preserve"><value>Showing campaigns with locations requiring attention:</value></data>
+  <data name="Motivo" xml:space="preserve"><value>Reason</value></data>
+  <data name="Motivo de cancelación" xml:space="preserve"><value>Cancellation reason</value></data>
+  <data name="Motivo del ajuste" xml:space="preserve"><value>Adjustment reason</value></data>
+  <data name="Motivo del reconteo" xml:space="preserve"><value>Recount reason</value></data>
+  <data name="Motivo pendiente" xml:space="preserve"><value>Reason pending</value></data>
+  <data name="Motor de plantillas" xml:space="preserve"><value>Template engine</value></data>
+  <data name="Movimiento" xml:space="preserve"><value>Movement</value></data>
+  <data name="Mueve material entre dos ubicaciones en una sola operación." xml:space="preserve"><value>Move material between two locations in a single operation.</value></data>
+  <data name="NIP" xml:space="preserve"><value>PIN</value></data>
+  <data name="NIP de autorización" xml:space="preserve"><value>Authorization PIN</value></data>
+  <data name="NIP del contador" xml:space="preserve"><value>Counter PIN</value></data>
+  <data name="NIP del responsable" xml:space="preserve"><value>Responsible person's PIN</value></data>
+  <data name="NIP para cancelar campaña" xml:space="preserve"><value>PIN to cancel campaign</value></data>
+  <data name="NIP para liberar campaña" xml:space="preserve"><value>PIN to release campaign</value></data>
+  <data name="NIP responsable" xml:space="preserve"><value>Responsible person's PIN</value></data>
+  <data name="No" xml:space="preserve"><value>No</value></data>
+  <data name="No hay campañas con estos filtros." xml:space="preserve"><value>No campaigns match these filters.</value></data>
+  <data name="No hay despachos ni vencimientos programados en este mes." xml:space="preserve"><value>There are no dispatches or due dates scheduled this month.</value></data>
+  <data name="No hay diferencias pendientes de revisión." xml:space="preserve"><value>No differences are pending review.</value></data>
+  <data name="No hay documentos para estos filtros." xml:space="preserve"><value>No documents match these filters.</value></data>
+  <data name="No hay placas que coincidan. Registra una entrada o activa una placa documental." xml:space="preserve"><value>No matching plates. Record a receipt or activate a document plate.</value></data>
+  <data name="No hay planes vencidos pendientes." xml:space="preserve"><value>There are no pending overdue plans.</value></data>
+  <data name="No hay plantillas publicadas disponibles." xml:space="preserve"><value>No published templates are available.</value></data>
+  <data name="No hay ubicaciones con este estado." xml:space="preserve"><value>No locations have this status.</value></data>
+  <data name="No hay ubicaciones disponibles." xml:space="preserve"><value>No locations are available.</value></data>
+  <data name="No necesitas capturar nuevamente el NIP." xml:space="preserve"><value>You do not need to enter your PIN again.</value></data>
+  <data name="Nota de diferencias" xml:space="preserve"><value>Difference note</value></data>
+  <data name="Notas" xml:space="preserve"><value>Notes</value></data>
+  <data name="Nueva campaña" xml:space="preserve"><value>New campaign</value></data>
+  <data name="Nueva campaña de conteo" xml:space="preserve"><value>New count campaign</value></data>
+  <data name="Nueva devolución" xml:space="preserve"><value>New return</value></data>
+  <data name="Nueva operación" xml:space="preserve"><value>New operation</value></data>
+  <data name="Número" xml:space="preserve"><value>Number</value></data>
+  <data name="Número, origen, SKU o código" xml:space="preserve"><value>Number, source, SKU or code</value></data>
+  <data name="Observación" xml:space="preserve"><value>Note</value></data>
+  <data name="Observaciones" xml:space="preserve"><value>Notes</value></data>
+  <data name="Observaciones / motivo" xml:space="preserve"><value>Notes / reason</value></data>
+  <data name="Operación confirmada" xml:space="preserve"><value>Operation confirmed</value></data>
+  <data name="Operación LAN" xml:space="preserve"><value>LAN operations</value></data>
+  <data name="Orden de compra" xml:space="preserve"><value>Purchase order</value></data>
+  <data name="Orden de producción" xml:space="preserve"><value>Production order</value></data>
+  <data name="Órdenes relacionadas" xml:space="preserve"><value>Related orders</value></data>
+  <data name="Organiza conteos ciegos por ubicación y revisa las diferencias sin detener el almacén." xml:space="preserve"><value>Organize blind counts by location and review differences without stopping warehouse operations.</value></data>
+  <data name="Origen" xml:space="preserve"><value>Source</value></data>
+  <data name="Origen pendiente" xml:space="preserve"><value>Source pending</value></data>
+  <data name="Original" xml:space="preserve"><value>Original</value></data>
+  <data name="Otro" xml:space="preserve"><value>Other</value></data>
+  <data name="Packing list" xml:space="preserve"><value>Packing list</value></data>
+  <data name="Páginas de placas" xml:space="preserve"><value>Plate pages</value></data>
+  <data name="Páginas de recepciones" xml:space="preserve"><value>Receipt pages</value></data>
+  <data name="Páginas del calendario" xml:space="preserve"><value>Calendar pages</value></data>
+  <data name="Parcial" xml:space="preserve"><value>Partial</value></data>
+  <data name="Pasos para crear la campaña" xml:space="preserve"><value>Steps to create the campaign</value></data>
+  <data name="Pausado" xml:space="preserve"><value>Paused</value></data>
+  <data name="Pendiente" xml:space="preserve"><value>Pending</value></data>
+  <data name="Pendientes" xml:space="preserve"><value>Pending</value></data>
+  <data name="Peso" xml:space="preserve"><value>Weight</value></data>
+  <data name="Placa" xml:space="preserve"><value>Plate</value></data>
+  <data name="Placa / producto" xml:space="preserve"><value>Plate / product</value></data>
+  <data name="Placa activa: cantidad y ubicación actuales" xml:space="preserve"><value>Active plate: current quantity and location</value></data>
+  <data name="Placa documental: no representa existencia actual" xml:space="preserve"><value>Document plate: does not represent current stock</value></data>
+  <data name="Placa, producto o ubicación" xml:space="preserve"><value>Plate, product or location</value></data>
+  <data name="Placas activas con datos actuales y entradas documentales pendientes de activar." xml:space="preserve"><value>Active plates with current data and document receipts pending activation.</value></data>
+  <data name="Placas de pallet" xml:space="preserve"><value>Pallet plates</value></data>
+  <data name="Placas documentales e impresión" xml:space="preserve"><value>Document plates and printing</value></data>
+  <data name="Placas relacionadas" xml:space="preserve"><value>Related plates</value></data>
+  <data name="Placas y entradas recientes" xml:space="preserve"><value>Recent plates and receipts</value></data>
+  <data name="Planes vencidos al {0}" xml:space="preserve"><value>Overdue plans as of {0}</value></data>
+  <data name="PLT-UUID o UUID de Entrada" xml:space="preserve"><value>PLT-UUID or receipt UUID</value></data>
+  <data name="Por capturar" xml:space="preserve"><value>Pending entry</value></data>
+  <data name="Por revisar" xml:space="preserve"><value>Pending review</value></data>
+  <data name="Prepara un documento o cambia la búsqueda." xml:space="preserve"><value>Prepare a document or change your search.</value></data>
+  <data name="Preparando cámara…" xml:space="preserve"><value>Preparing camera…</value></data>
+  <data name="Preparar documento" xml:space="preserve"><value>Prepare document</value></data>
+  <data name="Preparar el trabajo" xml:space="preserve"><value>Prepare the work</value></data>
+  <data name="Preparar recepción" xml:space="preserve"><value>Prepare receipt</value></data>
+  <data name="Previsualizar" xml:space="preserve"><value>Preview</value></data>
+  <data name="Procesar WIP" xml:space="preserve"><value>Process WIP</value></data>
+  <data name="Producto" xml:space="preserve"><value>Product</value></data>
+  <data name="Producto en ubicación incorrecta" xml:space="preserve"><value>Product at incorrect location</value></data>
+  <data name="Producto inesperado" xml:space="preserve"><value>Unexpected product</value></data>
+  <data name="Producto o ubicación no operativa." xml:space="preserve"><value>Product or location is not operational.</value></data>
+  <data name="Producto pendiente" xml:space="preserve"><value>Product pending</value></data>
+  <data name="Producto reempacado (REPACK)" xml:space="preserve"><value>Repacked product (REPACK)</value></data>
+  <data name="Productos esperados" xml:space="preserve"><value>Expected products</value></data>
+  <data name="Productos inesperados" xml:space="preserve"><value>Unexpected products</value></data>
+  <data name="Programado" xml:space="preserve"><value>Scheduled</value></data>
+  <data name="Progreso" xml:space="preserve"><value>Progress</value></data>
+  <data name="Progreso de la campaña" xml:space="preserve"><value>Campaign progress</value></data>
+  <data name="Quedan cerca de" xml:space="preserve"><value>Approximately remaining</value></data>
+  <data name="Quincenal" xml:space="preserve"><value>Every two weeks</value></data>
+  <data name="Quitar" xml:space="preserve"><value>Remove</value></data>
+  <data name="Quitar filtro" xml:space="preserve"><value>Remove filter</value></data>
+  <data name="Quitar producto" xml:space="preserve"><value>Remove product</value></data>
+  <data name="Reabierto tras corrección" xml:space="preserve"><value>Reopened after correction</value></data>
+  <data name="Received conserva la recepción original. Cantidad y destino corresponden al estado consultado de la placa activa." xml:space="preserve"><value>Received retains the original receipt. Quantity and destination reflect the retrieved state of the active plate.</value></data>
+  <data name="Recepción {0}" xml:space="preserve"><value>Receipt {0}</value></data>
+  <data name="Recepción confirmada" xml:space="preserve"><value>Receipt confirmed</value></data>
+  <data name="Recepción corregida" xml:space="preserve"><value>Receipt corrected</value></data>
+  <data name="Recepción de producción" xml:space="preserve"><value>Production receipt</value></data>
+  <data name="Recepción documental" xml:space="preserve"><value>Document receipt</value></data>
+  <data name="Recepciones" xml:space="preserve"><value>Receipts</value></data>
+  <data name="Recepciones confirmadas" xml:space="preserve"><value>Confirmed receipts</value></data>
+  <data name="Recepciones contra documento" xml:space="preserve"><value>Document receipts</value></data>
+  <data name="Recibido" xml:space="preserve"><value>Received</value></data>
+  <data name="Recibido efectivo" xml:space="preserve"><value>Effective received quantity</value></data>
+  <data name="Recibir otra parcialidad" xml:space="preserve"><value>Receive another partial delivery</value></data>
+  <data name="reconteo solicitado (variante)" xml:space="preserve"><value>recount requested</value></data>
+  <data name="Reconteo solicitado" xml:space="preserve"><value>Recount requested</value></data>
+  <data name="Reemplazo" xml:space="preserve"><value>Replacement</value></data>
+  <data name="Referencia" xml:space="preserve"><value>Reference</value></data>
+  <data name="Referencia externa" xml:space="preserve"><value>External reference</value></data>
+  <data name="Referencia y observaciones" xml:space="preserve"><value>Reference and notes</value></data>
+  <data name="Registra el conteo físico final; el sistema calculará la diferencia." xml:space="preserve"><value>Record the final physical count; the system will calculate the difference.</value></data>
+  <data name="Registra el destino real del material contra las existencias acumuladas de WIP." xml:space="preserve"><value>Record the actual material destination against accumulated WIP stock.</value></data>
+  <data name="Registra material recibido en una ubicación." xml:space="preserve"><value>Record material received at a location.</value></data>
+  <data name="Registrar recepción" xml:space="preserve"><value>Record receipt</value></data>
+  <data name="Registrar y continuar" xml:space="preserve"><value>Record and continue</value></data>
+  <data name="Registrar y escanear siguiente" xml:space="preserve"><value>Record and scan next</value></data>
+  <data name="Regreso a bodega" xml:space="preserve"><value>Return to warehouse</value></data>
+  <data name="Remisión" xml:space="preserve"><value>Delivery note</value></data>
+  <data name="Requiere revisión" xml:space="preserve"><value>Review required</value></data>
+  <data name="Requieren atención" xml:space="preserve"><value>Require attention</value></data>
+  <data name="Reservas:" xml:space="preserve"><value>Reservations:</value></data>
+  <data name="Responsable" xml:space="preserve"><value>Responsible person</value></data>
+  <data name="Responsable:" xml:space="preserve"><value>Responsible person:</value></data>
+  <data name="Responsable: ________________________________ Firma: ________________________________ Fecha: __________________" xml:space="preserve"><value>Responsible person: ________________________________ Signature: ________________________________ Date: __________________</value></data>
+  <data name="Resultado" xml:space="preserve"><value>Result</value></data>
+  <data name="Resumen de {0}" xml:space="preserve"><value>{0} summary</value></data>
+  <data name="Resumen de campaña" xml:space="preserve"><value>Campaign summary</value></data>
+  <data name="Reverso" xml:space="preserve"><value>Reversal</value></data>
+  <data name="Revisa la lectura del código" xml:space="preserve"><value>Check the scanned code</value></data>
+  <data name="Revisa la operación e introduce nuevamente tu NIP." xml:space="preserve"><value>Review the operation and enter your PIN again.</value></data>
+  <data name="Revisa que existan posiciones activas, no bloqueadas y que controlen inventario." xml:space="preserve"><value>Check that active, unblocked positions that track inventory exist.</value></data>
+  <data name="Revisa y confirma" xml:space="preserve"><value>Review and confirm</value></data>
+  <data name="Revisar diferencias" xml:space="preserve"><value>Review differences</value></data>
+  <data name="Revisar y confirmar" xml:space="preserve"><value>Review and confirm</value></data>
+  <data name="Revisé y acepto cualquier sobrante o producto inesperado" xml:space="preserve"><value>I reviewed and accept any surplus or unexpected product</value></data>
+  <data name="Revisión" xml:space="preserve"><value>Review</value></data>
+  <data name="Revisión de conteo" xml:space="preserve"><value>Count review</value></data>
+  <data name="Revisión final" xml:space="preserve"><value>Final review</value></data>
+  <data name="Revisión final de diferencias" xml:space="preserve"><value>Final difference review</value></data>
+  <data name="Revisión final disponible" xml:space="preserve"><value>Final review available</value></data>
+  <data name="Saldo" xml:space="preserve"><value>Balance</value></data>
+  <data name="Saldo cambió" xml:space="preserve"><value>Balance changed</value></data>
+  <data name="Saldo y resultado" xml:space="preserve"><value>Balance and result</value></data>
+  <data name="Salida" xml:space="preserve"><value>Issue</value></data>
+  <data name="Salida con referencia obligatoria." xml:space="preserve"><value>Issue requiring a reference.</value></data>
+  <data name="Salida de material utilizado." xml:space="preserve"><value>Issue of consumed material.</value></data>
+  <data name="Salida general" xml:space="preserve"><value>General issue</value></data>
+  <data name="Salida no registrada" xml:space="preserve"><value>Unrecorded issue</value></data>
+  <data name="Se conserva para consulta y auditoría." xml:space="preserve"><value>Retained for reference and audit.</value></data>
+  <data name="Se crea una campaña lista para contar. Las ubicaciones con una campaña abierta no se liberan." xml:space="preserve"><value>Creates a campaign ready for counting. Locations with an open campaign are not released.</value></data>
+  <data name="Se iniciará una sesión para esta campaña. El NIP no se conservará." xml:space="preserve"><value>A session will start for this campaign. The PIN will not be retained.</value></data>
+  <data name="Se permite saldo negativo, pero debe revisarse antes de confirmar. Las salidas consumen lotes FEFO y los regresos conservan los lotes de origen." xml:space="preserve"><value>Negative balances are allowed but must be reviewed before confirmation. Issues consume lots using FEFO and returns preserve source lots.</value></data>
+  <data name="Se registrará 0 en {0} línea(s). Puedes desmarcarlo antes de confirmar." xml:space="preserve"><value>0 will be recorded in {0} line(s). You can uncheck this before confirming.</value></data>
+  <data name="Seguimiento de placas" xml:space="preserve"><value>Plate tracking</value></data>
+  <data name="Seguimiento histórico sin lote" xml:space="preserve"><value>Historical tracking without lot</value></data>
+  <data name="Selecciona" xml:space="preserve"><value>Select</value></data>
+  <data name="Selecciona al menos una ubicación." xml:space="preserve"><value>Select at least one location.</value></data>
+  <data name="Selecciona Carta horizontal, escala 100 %, sin encabezados/pies y una sola copia." xml:space="preserve"><value>Select Letter landscape, 100% scale, no headers/footers and one copy.</value></data>
+  <data name="Selecciona el alcance físico" xml:space="preserve"><value>Select the physical scope</value></data>
+  <data name="Selecciona producto y ubicación" xml:space="preserve"><value>Select product and location</value></data>
+  <data name="Selecciona ubicación" xml:space="preserve"><value>Select location</value></data>
+  <data name="Selecciona un formato publicado, completa sus datos y revisa antes de imprimir." xml:space="preserve"><value>Select a published template, fill in its details and review before printing.</value></data>
+  <data name="Seleccionar" xml:space="preserve"><value>Select</value></data>
+  <data name="Seleccionar rack {0}-{1} completo" xml:space="preserve"><value>Select the entire rack {0}-{1}</value></data>
+  <data name="Seleccionar toda la fila {0}" xml:space="preserve"><value>Select all of row {0}</value></data>
+  <data name="Seleccionar todas las áreas disponibles" xml:space="preserve"><value>Select all available areas</value></data>
+  <data name="Semanal" xml:space="preserve"><value>Weekly</value></data>
+  <data name="Semestral" xml:space="preserve"><value>Every six months</value></data>
+  <data name="Sesión de conteo" xml:space="preserve"><value>Count session</value></data>
+  <data name="Sesión de conteo activa" xml:space="preserve"><value>Active count session</value></data>
+  <data name="Sí" xml:space="preserve"><value>Yes</value></data>
+  <data name="Siguiente" xml:space="preserve"><value>Next</value></data>
+  <data name="Siguiente paso" xml:space="preserve"><value>Next step</value></data>
+  <data name="Sin capturar" xml:space="preserve"><value>Not entered</value></data>
+  <data name="Sin código de barras" xml:space="preserve"><value>No barcode</value></data>
+  <data name="Sin descripción" xml:space="preserve"><value>No description</value></data>
+  <data name="Sin diferencias" xml:space="preserve"><value>No differences</value></data>
+  <data name="Sin fecha" xml:space="preserve"><value>No date</value></data>
+  <data name="Sin intentos registrados." xml:space="preserve"><value>No attempts recorded.</value></data>
+  <data name="Sin notas" xml:space="preserve"><value>No notes</value></data>
+  <data name="Sin referencia" xml:space="preserve"><value>No reference</value></data>
+  <data name="Sin seleccionar" xml:space="preserve"><value>Not selected</value></data>
+  <data name="Sin título" xml:space="preserve"><value>Untitled</value></data>
+  <data name="SKU" xml:space="preserve"><value>SKU</value></data>
+  <data name="SKU o código" xml:space="preserve"><value>SKU or code</value></data>
+  <data name="SKU o código de barras" xml:space="preserve"><value>SKU or barcode</value></data>
+  <data name="SKU o código de barras inesperado" xml:space="preserve"><value>Unexpected SKU or barcode</value></data>
+  <data name="SKU o código inesperado {0}" xml:space="preserve"><value>Unexpected SKU or code {0}</value></data>
+  <data name="SKU, código o descripción" xml:space="preserve"><value>SKU, code or description</value></data>
+  <data name="Solicitar reconteo" xml:space="preserve"><value>Request recount</value></data>
+  <data name="Solo aparecen los campos utilizados por la plantilla." xml:space="preserve"><value>Only fields used by the template are shown.</value></data>
+  <data name="Solo aparecen planes activos sin un despacho abierto. Los bloqueados permanecen visibles para diagnóstico." xml:space="preserve"><value>Only active plans without an open dispatch are shown. Blocked plans remain visible for diagnosis.</value></data>
+  <data name="Solo seleccionadas" xml:space="preserve"><value>Selected only</value></data>
+  <data name="Surtimiento WIP" xml:space="preserve"><value>WIP issue</value></data>
+  <data name="Surtir WIP" xml:space="preserve"><value>Issue to WIP</value></data>
+  <data name="Tipo" xml:space="preserve"><value>Type</value></data>
+  <data name="Tipo de salida" xml:space="preserve"><value>Issue type</value></data>
+  <data name="Tipo pendiente" xml:space="preserve"><value>Type pending</value></data>
+  <data name="Título" xml:space="preserve"><value>Title</value></data>
+  <data name="Todas" xml:space="preserve"><value>All</value></data>
+  <data name="Todas las ubicaciones quedaron conciliadas o autorizadas." xml:space="preserve"><value>All locations have been reconciled or authorized.</value></data>
+  <data name="Todavía no hay Entradas estándar de una sola línea. Registra una Entrada y aparecerá aquí." xml:space="preserve"><value>There are no standard single-line receipts yet. Record a receipt and it will appear here.</value></data>
+  <data name="Todavía no hay Entradas vinculadas." xml:space="preserve"><value>There are no linked receipts yet.</value></data>
+  <data name="Todos" xml:space="preserve"><value>All</value></data>
+  <data name="Tomar foto" xml:space="preserve"><value>Take photo</value></data>
+  <data name="Total: {0} · Reservado: {1} · Libre:" xml:space="preserve"><value>Total: {0} · Reserved: {1} · Free:</value></data>
+  <data name="Trabajo por ubicación" xml:space="preserve"><value>Work by location</value></data>
+  <data name="Transferencia" xml:space="preserve"><value>Transfer</value></data>
+  <data name="Transferencia a otra ubicación." xml:space="preserve"><value>Transfer to another location.</value></data>
+  <data name="Transfiere existencias del rack al WIP seleccionado." xml:space="preserve"><value>Transfer stock from the rack to the selected WIP location.</value></data>
+  <data name="Trimestral" xml:space="preserve"><value>Quarterly</value></data>
+  <data name="Ubicación" xml:space="preserve"><value>Location</value></data>
+  <data name="Ubicación actual" xml:space="preserve"><value>Current location</value></data>
+  <data name="Ubicación destino" xml:space="preserve"><value>Destination location</value></data>
+  <data name="Ubicación origen" xml:space="preserve"><value>Source location</value></data>
+  <data name="Ubicación pendiente" xml:space="preserve"><value>Location pending</value></data>
+  <data name="Ubicación verificada" xml:space="preserve"><value>Verified location</value></data>
+  <data name="Ubicación WIP" xml:space="preserve"><value>WIP location</value></data>
+  <data name="Ubicación WIP destino" xml:space="preserve"><value>Destination WIP location</value></data>
+  <data name="Ubicación:" xml:space="preserve"><value>Location:</value></data>
+  <data name="ubicaciones (variante)" xml:space="preserve"><value>locations</value></data>
+  <data name="Ubicaciones" xml:space="preserve"><value>Locations</value></data>
+  <data name="Ubicaciones compartidas" xml:space="preserve"><value>Shared locations</value></data>
+  <data name="Ubicaciones de la campaña" xml:space="preserve"><value>Campaign locations</value></data>
+  <data name="Ubicaciones especiales" xml:space="preserve"><value>Special locations</value></data>
+  <data name="Ubicaciones iniciadas o en reconteo" xml:space="preserve"><value>Locations started or being recounted</value></data>
+  <data name="ubicaciones seleccionadas" xml:space="preserve"><value>selected locations</value></data>
+  <data name="Un NIP confirmará todas las líneas como una sola Entrada." xml:space="preserve"><value>One PIN confirms all lines as a single receipt.</value></data>
+  <data name="Un renglón por producto." xml:space="preserve"><value>One line per product.</value></data>
+  <data name="Unidad" xml:space="preserve"><value>Unit</value></data>
+  <data name="Usa la impresora correcta, escala 100 %, sin encabezados/pies y una sola copia." xml:space="preserve"><value>Use the correct printer, 100% scale, no headers/footers and one copy.</value></data>
+  <data name="Usa un nombre que ayude al siguiente turno a reconocer el trabajo." xml:space="preserve"><value>Use a name that helps the next shift identify the work.</value></data>
+  <data name="Vence hoy" xml:space="preserve"><value>Due today</value></data>
+  <data name="Vencido" xml:space="preserve"><value>Overdue</value></data>
+  <data name="Vencidos" xml:space="preserve"><value>Overdue</value></data>
+  <data name="Venta u otra salida de almacén." xml:space="preserve"><value>Sale or other warehouse issue.</value></data>
+  <data name="Ver calendario" xml:space="preserve"><value>View calendar</value></data>
+  <data name="Ver diferencia" xml:space="preserve"><value>View difference</value></data>
+  <data name="Ver movimiento" xml:space="preserve"><value>View movement</value></data>
+  <data name="Ver movimiento y placas relacionadas" xml:space="preserve"><value>View movement and related plates</value></data>
+  <data name="Ver placas de esta operación" xml:space="preserve"><value>View plates for this operation</value></data>
+  <data name="Ver recepción" xml:space="preserve"><value>View receipt</value></data>
+  <data name="Ver seleccionadas" xml:space="preserve"><value>View selected</value></data>
+  <data name="Verifica físicamente la cantidad y ubicación. La activación identifica inventario existente; no registra una nueva entrada. Los lotes se asignan según disponibilidad actual." xml:space="preserve"><value>Physically verify the quantity and location. Activation identifies existing inventory; it does not record a new receipt. Lots are assigned based on current availability.</value></data>
+  <data name="Verificación inicial de existencia y lotes" xml:space="preserve"><value>Initial verification of stock and lots</value></data>
+  <data name="Vistas del calendario" xml:space="preserve"><value>Calendar views</value></data>
+  <data name="Volver" xml:space="preserve"><value>Back</value></data>
+  <data name="Volver a campaña" xml:space="preserve"><value>Back to campaign</value></data>
+  <data name="Volver a la campaña" xml:space="preserve"><value>Back to campaign</value></data>
+  <data name="Volver a la orden" xml:space="preserve"><value>Back to order</value></data>
+  <data name="Vuelve a abrir la ubicación desde la campaña para iniciar la captura." xml:space="preserve"><value>Reopen the location from the campaign to start entering the count.</value></data>
+  <data name="Vuelve a introducir tu NIP." xml:space="preserve"><value>Enter your PIN again.</value></data>
+  <data name="WIP / producto" xml:space="preserve"><value>WIP / product</value></data>
+  <data name="WIP origen" xml:space="preserve"><value>Source WIP</value></data>
+  <data name="WIP-2 o M-1-1" xml:space="preserve"><value>WIP-2 or M-1-1</value></data>
+  <data name="OC" xml:space="preserve"><value>PO</value></data>
+  <data name="Progreso de {0}" xml:space="preserve"><value>Progress of {0}</value></data>
+  <data name="Etiqueta {0} de {1}" xml:space="preserve"><value>Label {0} of {1}</value></data>
+  <data name="Placa {0} de {1}" xml:space="preserve"><value>Plate {0} of {1}</value></data>
+  <data name="Ampliar para escanear código {0}" xml:space="preserve"><value>Enlarge to scan code {0}</value></data>
+  <data name="Se registrará 0 en la línea. Puedes desmarcarlo antes de confirmar." xml:space="preserve"><value>0 will be recorded in the line. You can uncheck this before confirming.</value></data>
+  <data name="Se registrará 0 en las {0} líneas. Puedes desmarcarlo antes de confirmar." xml:space="preserve"><value>0 will be recorded in the {0} lines. You can uncheck this before confirming.</value></data>
+  <data name="Áreas" xml:space="preserve"><value>Areas</value></data>
+  <data name="Parte de la precarga ya no está disponible o no es compatible; vuelve a seleccionarla." xml:space="preserve"><value>Part of the prefill is no longer available or compatible; select it again.</value></data>
+  <data name="No fue posible validar el NIP o el usuario." xml:space="preserve"><value>The PIN or user could not be validated.</value></data>
+  <data name="El saldo cambió. Se recargó el conteo actual; revísalo y vuelve a introducir tu NIP." xml:space="preserve"><value>The balance changed. The current count was reloaded; review it and enter your PIN again.</value></data>
+  <data name="La operación ya fue utilizada con otro contenido o responsable. Inicia una operación nueva." xml:space="preserve"><value>This operation was already used with different data or responsible person. Start a new operation.</value></data>
+  <data name="No fue posible confirmar la operación." xml:space="preserve"><value>The operation could not be confirmed.</value></data>
+  <data name="No fue posible validar el NIP." xml:space="preserve"><value>The PIN could not be validated.</value></data>
+  <data name="Identifícate con tu NIP para comenzar o continuar el conteo." xml:space="preserve"><value>Identify yourself with your PIN to start or continue counting.</value></data>
+  <data name="La ubicación escaneada no pertenece a esta campaña." xml:space="preserve"><value>The scanned location does not belong to this campaign.</value></data>
+  <data name="NIP no válido." xml:space="preserve"><value>Invalid PIN.</value></data>
+  <data name="El intento abierto ya no está disponible. Vuelve a la campaña." xml:space="preserve"><value>The open attempt is no longer available. Return to the campaign.</value></data>
+  <data name="La preparación expiró o no es válida. Vuelve a escanear la ubicación." xml:space="preserve"><value>The preparation expired or is invalid. Scan the location again.</value></data>
+  <data name="Captura la cantidad física de {0}, incluso si es cero. Marca la ubicación como vacía si no hay existencias." xml:space="preserve"><value>Enter the physical quantity for {0}, even if zero. Mark the location empty if there is no stock.</value></data>
+  <data name="Revisa la captura: hay valores que el sistema no pudo interpretar." xml:space="preserve"><value>Review the entry: some values could not be interpreted.</value></data>
+  <data name="Captura la cantidad física del producto inesperado {0}, incluso si es cero." xml:space="preserve"><value>Enter the physical quantity for unexpected product {0}, even if zero.</value></data>
+  <data name="No se encontró el producto inesperado {0}." xml:space="preserve"><value>Unexpected product {0} was not found.</value></data>
+  <data name="Tu sesión de conteo terminó. Ingresa tu NIP para conservar la captura y continuar." xml:space="preserve"><value>Your count session ended. Enter your PIN to keep the entry and continue.</value></data>
+  <data name="No fue posible validar el NIP. La captura permanece disponible para reintentar." xml:space="preserve"><value>The PIN could not be validated. The entry remains available to retry.</value></data>
+  <data name="El mes indicado no es válido. Selecciona un mes con el formato año-mes." xml:space="preserve"><value>The specified month is invalid. Select a month using the year-month format.</value></data>
+  <data name="Se aplicaron {0} de {1} decisiones. Revisa las ubicaciones pendientes." xml:space="preserve"><value>{0} of {1} decisions were applied. Review pending locations.</value></data>
+  <data name="El formato debe ser csv o xlsx." xml:space="preserve"><value>The format must be csv or xlsx.</value></data>
+  <data name="La campaña supera el límite de 10,000 líneas; no se generó un archivo parcial." xml:space="preserve"><value>The campaign exceeds the 10,000 line limit; no partial file was generated.</value></data>
+  <data name="Captura el conteo final."><value>Enter the final count.</value></data>
+  <data name="Captura la cantidad."><value>Enter the quantity.</value></data>
+  <data name="Consulta nuevamente el saldo."><value>Load the balance again.</value></data>
+  <data name="El motivo del ajuste es obligatorio."><value>The adjustment reason is required.</value></data>
+  <data name="El producto no existe o está inactivo."><value>The product does not exist or is inactive.</value></data>
+  <data name="Introduce el NIP para confirmar."><value>Enter the PIN to confirm.</value></data>
+  <data name="La cantidad admite como máximo cuatro decimales."><value>The quantity allows at most four decimal places.</value></data>
+  <data name="La cantidad debe ser mayor que cero."><value>The quantity must be greater than zero.</value></data>
+  <data name="La operación no es válida."><value>The operation is invalid.</value></data>
+  <data name="La salida general no utiliza una ubicación WIP destino."><value>A general issue does not use a destination WIP location.</value></data>
+  <data name="La ubicación destino no está disponible."><value>The destination location is unavailable.</value></data>
+  <data name="La ubicación no está disponible."><value>The location is unavailable.</value></data>
+  <data name="La ubicación origen no está disponible."><value>The source location is unavailable.</value></data>
+  <data name="Origen y destino deben ser distintos."><value>Source and destination must be different.</value></data>
+  <data name="Selecciona el tipo de salida."><value>Select the issue type.</value></data>
+  <data name="Selecciona la ubicación destino."><value>Select the destination location.</value></data>
+  <data name="Selecciona la ubicación origen."><value>Select the source location.</value></data>
+  <data name="Selecciona la ubicación WIP destino."><value>Select the destination WIP location.</value></data>
+  <data name="Selecciona la ubicación."><value>Select the location.</value></data>
+  <data name="Selecciona un producto."><value>Select a product.</value></data>
+  <data name="Selecciona un rack de inventario como origen."><value>Select an inventory rack as the source.</value></data>
+  <data name="Selecciona una ubicación WIP."><value>Select a WIP location.</value></data>
+  <data name="Identificación de inventario"><value>Inventory identification</value></data>
+  <data name="Consulta una ubicación e imprime la placa del producto."><value>Look up a location and print the product plate.</value></data>
+  <data name="Escanea o escribe una ubicación activa, físicamente presente y no bloqueada."><value>Scan or enter an active, physically present, unblocked location.</value></data>
+  <data name="Esta ubicación no tiene productos con stock positivo."><value>This location has no products with positive stock.</value></data>
+  <data name="Consultar o reimprimir una placa"><value>Find or reprint a plate</value></data>
+  <data name="Actualizar previsualización"><value>Update preview</value></data>
+  <data name="La impresión sigue siendo una acción explícita."><value>Printing remains an explicit action.</value></data>
+  <data name="Identificar pallet"><value>Identify pallet</value></data>
+  <data name="Identificar pallet e imprimir"><value>Identify pallet and print</value></data>
+  <data name="Identificación de pallet"><value>Pallet identification</value></data>
+  <data name="Anulación de identificación"><value>Identification voided</value></data>
+  <data name="Anular identificación (ADMIN)"><value>Void identification (ADMIN)</value></data>
+  <data name="Solo se permite si la placa no tiene movimientos, asignaciones ni eventos posteriores. El inventario total no cambia."><value>Allowed only when the plate has no movements, assignments, or later events. Total inventory does not change.</value></data>
+  <data name="NIP ADMIN"><value>ADMIN PIN</value></data>
+  <data name="Anular identificación"><value>Void identification</value></data>
+  <data name="Actividad del almacén"><value>Warehouse activity</value></data>
+  <data name="Últimos 10 movimientos"><value>Latest 10 movements</value></data>
+  <data name="Historial general de todas las ubicaciones."><value>Warehouse-wide history across all locations.</value></data>
+  <data name="Todavía no hay movimientos de inventario."><value>There are no inventory movements yet.</value></data>
+  <data name="Ruta"><value>Route</value></data>
+  <data name="Ver comprobante"><value>View receipt</value></data>
+  <data name="Original corregido"><value>Corrected original</value></data>
+  <data name="Sin relación con corrección"><value>No correction relationship</value></data>
+  <data name="Imprimir placa"><value>Print plate</value></data>
+  <data name="Productos en la ubicación"><value>Products at this location</value></data>
+  <data name="Selecciona Imprimir placa en el producto correspondiente."><value>Select Print plate for the corresponding product.</value></data>
+  <data name="Buscar producto o ubicación"><value>Find a product or location</value></data>
+  <data name="Empieza por cualquiera de los dos campos; el segundo mostrará solamente combinaciones con stock positivo."><value>Start with either field; the other will show only combinations with positive stock.</value></data>
+  <data name="SKU, descripción o referencia"><value>SKU, description, or reference</value></data>
+  <data name="Ubicaciones con stock"><value>Locations with stock</value></data>
+  <data name="Productos con stock"><value>Products with stock</value></data>
+  <data name="Esta combinación no tiene stock positivo."><value>This combination has no positive stock.</value></data>
+  <data name="Consolidar e imprimir placa"><value>Consolidate and print plate</value></data>
+  <data name="Ese movimiento no tiene una placa o una combinación de producto y ubicación que se pueda imprimir."><value>This movement has no plate or product-and-location combination that can be printed.</value></data>
+  <data name="Selecciona un movimiento válido para imprimir."><value>Select a valid movement to print.</value></data>
+  <data name="El producto ya no tiene stock positivo en la ubicación del movimiento."><value>The product no longer has positive stock at the movement location.</value></data>
+  <data name="No fue posible preparar la placa para imprimir."><value>The plate could not be prepared for printing.</value></data>
+  <data name="No existe un producto activo con ese código."><value>There is no active product with that code.</value></data>
+  <data name="Stock"><value>Stock</value></data>
+</root>

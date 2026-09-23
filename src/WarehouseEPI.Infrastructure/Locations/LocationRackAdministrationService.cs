@@ -14,11 +14,12 @@ namespace WarehouseEPI.Infrastructure.Locations;
 public sealed record LocationRackEditCommand(Guid OperationId, Guid RequestedByUserId, string RowCode,
     short RackNumber, LocationOperationalRole OperationalRole,
     IReadOnlyCollection<short> PresentPallets, string? Reason, string? Pin,
-    IReadOnlyList<Guid>? ProcessIds = null, uint? ProcessConfigurationVersion = null);
+    IReadOnlyList<Guid>? ProcessIds = null, uint? ProcessConfigurationVersion = null,
+    IReadOnlyCollection<short>? WipPallets = null);
 
 public sealed record LocationRackPositionState(Guid? Id, short PalletNumber, string Code,
     bool Exists, bool IsPhysicallyPresent, bool IsActive, bool IsBlocked, bool HasBalance,
-    bool HasActiveAssignments);
+    bool HasActiveAssignments, LocationOperationalRole OperationalRole);
 
 public sealed record LocationRackEditView(string RowCode, short RackNumber,
     LocationOperationalRole OperationalRole, IReadOnlyList<LocationRackPositionState> Positions,
@@ -35,9 +36,10 @@ public sealed record LocationRackRevisionView(Guid Id, string Reason, string Req
 
 public sealed record LocationRackEditSummary(IReadOnlyList<string> Added, IReadOnlyList<string> Restored,
     IReadOnlyList<string> Retired, LocationOperationalRole PreviousOperationalRole,
-    LocationOperationalRole RequestedOperationalRole)
+    LocationOperationalRole RequestedOperationalRole,
+    IReadOnlyList<string>? RoleChanges = null, bool DirectProcessesRemoved = false)
 {
-    public bool OperationalRoleChanged => PreviousOperationalRole != RequestedOperationalRole;
+    public bool OperationalRoleChanged => PreviousOperationalRole != RequestedOperationalRole || RoleChanges is { Count: > 0 };
 }
 
 public sealed record LocationRackReviewResult(IReadOnlyList<string> Errors, LocationRackEditSummary Summary);
@@ -93,7 +95,7 @@ public sealed class LocationRackAdministrationService(
         if (locations.Count == 0) errors.Add("El rack no existe.");
         var desired = command.PresentPallets.ToHashSet();
         errors.AddRange(await ValidateRetirementsAsync(locations, desired, token));
-        var summary = BuildSummary(row, command.RackNumber, locations, desired, command.OperationalRole);
+        var summary = BuildSummary(row, command.RackNumber, locations, desired, command);
         return new(errors.Distinct(StringComparer.Ordinal).ToArray(), summary);
     }
 
@@ -110,6 +112,7 @@ public sealed class LocationRackAdministrationService(
         var row = LocationNormalization.NormalizeRowCode(command.RowCode);
         var reason = command.Reason!.Trim();
         var desired = command.PresentPallets.OrderBy(value => value).ToArray();
+        var wipPallets = RequestedWipPallets(command);
         var fingerprint = Hash(JsonSerializer.Serialize(new
         {
             command.RequestedByUserId,
@@ -118,6 +121,7 @@ public sealed class LocationRackAdministrationService(
             command.RackNumber,
             command.OperationalRole,
             PresentPallets = desired,
+            WipPallets = wipPallets.OrderBy(x => x),
             ProcessIds = command.ProcessIds?.OrderBy(x => x),
             command.ProcessConfigurationVersion,
             Reason = reason
@@ -172,7 +176,7 @@ public sealed class LocationRackAdministrationService(
             }
             configuration ??= new ProductionProcessConfiguration();
             if (dbContext.Entry(configuration).State == EntityState.Detached) dbContext.Add(configuration);
-            var requested = command.OperationalRole == LocationOperationalRole.Wip
+            var requested = wipPallets.Count > 0
                 ? command.ProcessIds.Distinct().Except(inheritedProcessIds).ToArray() : [];
             requestedProcessIds = requested.OrderBy(x => x).ToArray();
             var targets = await dbContext.ProductionProcessWipTargets.Where(x => x.RowCode == row && x.RackNumber == command.RackNumber).ToListAsync(token);
@@ -204,7 +208,7 @@ public sealed class LocationRackAdministrationService(
                     RowCode = row,
                     RackNumber = command.RackNumber,
                     PalletNumber = pallet,
-                    OperationalRole = command.OperationalRole,
+                    OperationalRole = wipPallets.Contains(pallet) ? LocationOperationalRole.Wip : LocationOperationalRole.Storage,
                     IsPhysicallyPresent = true,
                     IsActive = true,
                     UpdatedAt = now
@@ -227,9 +231,9 @@ public sealed class LocationRackAdministrationService(
                 location.UpdatedAt = now;
             }
 
-            if (location.OperationalRole != command.OperationalRole)
+            if (shouldExist && location.OperationalRole != (wipPallets.Contains(pallet) ? LocationOperationalRole.Wip : LocationOperationalRole.Storage))
             {
-                location.OperationalRole = command.OperationalRole;
+                location.OperationalRole = wipPallets.Contains(pallet) ? LocationOperationalRole.Wip : LocationOperationalRole.Storage;
                 location.UpdatedAt = now;
             }
         }
@@ -448,7 +452,8 @@ public sealed class LocationRackAdministrationService(
                 location?.Code ?? LocationNormalization.BuildRackCode(row, rack, pallet), exists,
                 location?.IsPhysicallyPresent ?? false, location?.IsActive ?? false,
                 location?.IsBlocked ?? false, location is not null && withBalance.Contains(location.Id),
-                location is not null && withAssignments.Contains(location.Id));
+                location is not null && withAssignments.Contains(location.Id),
+                location?.OperationalRole ?? LocationOperationalRole.Storage);
         }).ToArray();
     }
 
@@ -525,6 +530,10 @@ public sealed class LocationRackAdministrationService(
         if (command.PresentPallets.Count is < 1 or > 9 || command.PresentPallets.Distinct().Count() != command.PresentPallets.Count ||
             command.PresentPallets.Any(item => item is < 1 or > 9))
             errors.Add("Selecciona entre una y nueve posiciones distintas.");
+        if (command.WipPallets is not null &&
+            (command.WipPallets.Distinct().Count() != command.WipPallets.Count ||
+             command.WipPallets.Any(item => item is < 1 or > 9 || !command.PresentPallets.Contains(item))))
+            errors.Add("Las posiciones WIP deben existir físicamente y no repetirse.");
         var reason = command.Reason?.Trim();
         if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
             errors.Add("Escribe un motivo de hasta 500 caracteres.");
@@ -550,13 +559,20 @@ public sealed class LocationRackAdministrationService(
 
     private static LocationRackEditSummary BuildSummary(string row, short rack,
         IReadOnlyList<Location> locations, IReadOnlySet<short> desired,
-        LocationOperationalRole requestedOperationalRole)
+        LocationRackEditCommand command)
     {
         var byPallet = locations.ToDictionary(item => item.PalletNumber!.Value);
+        var wip = RequestedWipPallets(command);
         var added = desired.Where(item => !byPallet.ContainsKey(item)).Select(item => LocationNormalization.BuildRackCode(row, rack, item)).Order().ToArray();
         var restored = desired.Where(item => byPallet.TryGetValue(item, out var location) && !location.IsPhysicallyPresent).Select(item => byPallet[item].Code).Order().ToArray();
         var retired = locations.Where(item => item.IsPhysicallyPresent && !desired.Contains(item.PalletNumber!.Value)).Select(item => item.Code).Order().ToArray();
-        return new(added, restored, retired, RackOperationalRole(locations), requestedOperationalRole);
+        var changes = desired.Where(item => byPallet.TryGetValue(item, out var location) &&
+                location.OperationalRole != (wip.Contains(item) ? LocationOperationalRole.Wip : LocationOperationalRole.Storage))
+            .Select(item => $"{byPallet[item].Code}: {(byPallet[item].OperationalRole == LocationOperationalRole.Wip ? "WIP" : "Almacenamiento")} → {(wip.Contains(item) ? "WIP" : "Almacenamiento")}")
+            .Order().ToArray();
+        return new(added, restored, retired, RackOperationalRole(locations),
+            wip.Count == desired.Count ? LocationOperationalRole.Wip : LocationOperationalRole.Storage,
+            changes, wip.Count == 0);
     }
 
     private static string SerializeState(IEnumerable<Location> locations) => JsonSerializer.Serialize(
@@ -573,9 +589,14 @@ public sealed class LocationRackAdministrationService(
         }));
 
     private static LocationOperationalRole RackOperationalRole(IReadOnlyList<Location> locations) =>
-        locations.Count > 0 && locations.All(item => item.OperationalRole == LocationOperationalRole.Wip)
+        locations.Any(item => item.IsPhysicallyPresent) && locations.Where(item => item.IsPhysicallyPresent).All(item => item.OperationalRole == LocationOperationalRole.Wip)
             ? LocationOperationalRole.Wip
             : LocationOperationalRole.Storage;
+
+    private static HashSet<short> RequestedWipPallets(LocationRackEditCommand command) =>
+        command.WipPallets is null
+            ? (command.OperationalRole == LocationOperationalRole.Wip ? command.PresentPallets.ToHashSet() : [])
+            : command.WipPallets.ToHashSet();
 
     private static LocationRackEditSummary EmptySummary() => new([], [], [],
         LocationOperationalRole.Storage, LocationOperationalRole.Storage);

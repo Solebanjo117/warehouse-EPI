@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const form = document.querySelector("[data-location-search-form]");
   const input = form?.querySelector("[data-location-search-input]");
   const results = form?.querySelector("[data-location-search-results]");
@@ -50,9 +51,9 @@
     title.textContent = option.dataset.searchValue;
     const detail = document.createElement("small");
     detail.className = "text-body-secondary";
-    const type = kind === "product" ? "Producto" : "Ubicación";
-    const description = item.description || (kind === "product" ? "Sin descripción" : "Ubicación física");
-    const state = !item.isActive ? " · Inactivo" : kind === "location" && item.isBlocked ? " · Bloqueada" : "";
+    const type = kind === "product" ? text("Producto") : text("Ubicación");
+    const description = item.description || (kind === "product" ? text("Sin descripción") : text("Ubicación física"));
+    const state = !item.isActive ? text(" · Inactivo") : kind === "location" && item.isBlocked ? text(" · Bloqueada") : "";
     detail.textContent = `${type} · ${description}${state}`;
     option.append(title, detail);
     option.addEventListener("mousedown", (event) => event.preventDefault());
@@ -68,23 +69,23 @@
     matches.forEach((match, index) => addOption(match.item, match.kind, index));
     if (!matches.length) {
       input.setAttribute("aria-expanded", "false");
-      announce("No se encontraron productos ni ubicaciones.");
+      announce(text("No se encontraron productos ni ubicaciones."));
       return;
     }
     input.setAttribute("aria-expanded", "true");
     highlight(0);
-    announce(`${matches.length} resultados disponibles. Usa flechas y Enter para seleccionar.`);
+    announce(text("{0} resultados disponibles. Usa flechas y Enter para seleccionar.", matches.length));
   };
   const search = async () => {
     const query = input.value.trim();
     controller?.abort();
     if (!query) {
       close();
-      announce("Escribe para buscar y selecciona un producto o una ubicación.");
+      announce(text("Escribe para buscar y selecciona un producto o una ubicación."));
       return;
     }
     controller = new AbortController();
-    announce("Buscando productos y ubicaciones…");
+    announce(text("Buscando productos y ubicaciones…"));
     try {
       const url = new URL(lookupUrl, window.location.href);
       url.searchParams.set("handler", "InventorySearch");
@@ -95,7 +96,7 @@
     } catch (error) {
       if (error?.name === "AbortError") return;
       close();
-      announce("No fue posible buscar en la red local. Puedes escribir el filtro y usar Buscar.");
+      announce(text("No fue posible buscar en la red local. Puedes escribir el filtro y usar Buscar."));
     }
   };
 

@@ -1,8 +1,9 @@
 @page "{id:guid}"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @using WarehouseEPI.Core.Entities
 @model WarehouseEPI.Web.Pages.Admin.Inventory.Movements.DetailsModel
 @{
-    ViewData["Title"] = "Ficha de trazabilidad";
+    ViewData["Title"] = CatTexts["Ficha de trazabilidad"].Value;
     var correction = Model.Movement.OriginalCorrection ?? Model.Movement.ReversalCorrection ?? Model.Movement.ReplacementCorrection;
     var typeName = PurposeLabel(Model.Movement.Purpose, Model.Movement.Type);
 }
@@ -24,14 +25,14 @@
                     <h1 class="h2 mb-0">@typeName</h1>
                     <span class="movement-status @StatusClass(Model.Traceability.CurrentMovementStatus)">@Model.Traceability.CurrentMovementStatus</span>
                 </div>
-                <p class="text-body-secondary mb-0">Ficha de trazabilidad del movimiento · @Model.OccurredAt.ToString("dd/MM/yyyy HH:mm")</p>
+                <p class="text-body-secondary mb-0">@CatTexts["Ficha de trazabilidad del movimiento · {0}", Model.OccurredAt.ToString("dd/MM/yyyy HH:mm")]</p>
             </div>
         </div>
         <div class="movement-detail-toolbar d-print-none">
             <button type="button" class="btn btn-primary" data-print-page>
-                Imprimir ficha
+                @CatTexts["Imprimir ficha"]
             </button>
-            <a href="@Model.ReturnUrl" class="btn btn-outline-secondary">Volver a movimientos</a>
+            <a href="@Model.ReturnUrl" class="btn btn-outline-secondary">@CatTexts["Volver a movimientos"]</a>
         </div>
     </header>
 
@@ -39,22 +40,22 @@
         <strong>@Model.Business.WarehouseCode</strong> · Zona @Model.Business.TimeZoneId · Consulta generada @Model.GeneratedAt.ToString("dd/MM/yyyy HH:mm")
     </p>
 
-    <section class="movement-detail-meta" aria-label="Resumen de auditoría">
-        <article><span>Folio del movimiento</span><strong class="movement-detail-id">@Model.Movement.Id</strong></article>
-        <article><span>Operación idempotente</span><strong class="movement-detail-id">@Model.Movement.OperationId</strong></article>
-        <article><span>Responsable</span><strong>@Model.Movement.ResponsibleName</strong></article>
-        <article><span>Propósito / área</span><strong>@typeName @(Model.Movement.OperationalArea is null ? null : "· " + Model.Movement.OperationalArea)</strong></article>
-        <article><span>Fecha efectiva</span><strong>@Model.OccurredAt.ToString("dd/MM/yyyy HH:mm")</strong></article>
-        <article><span>Fecha registrada</span><strong>@Model.RecordedAt.ToString("dd/MM/yyyy HH:mm")</strong></article>
-        <article class="movement-meta-wide"><span>Referencia</span><strong>@(Model.Movement.Reference ?? "Sin referencia")</strong></article>
+    <section class="movement-detail-meta" aria-label="@CatTexts["Resumen de auditoría"]">
+        <article><span>@CatTexts["Folio del movimiento"]</span><strong class="movement-detail-id">@Model.Movement.Id</strong></article>
+        <article><span>@CatTexts["Operación idempotente"]</span><strong class="movement-detail-id">@Model.Movement.OperationId</strong></article>
+        <article><span>@CatTexts["Responsable"]</span><strong>@Model.Movement.ResponsibleName</strong></article>
+        <article><span>@CatTexts["Propósito / área"]</span><strong>@typeName @(Model.Movement.OperationalArea is null ? null : "· " + Model.Movement.OperationalArea)</strong></article>
+        <article><span>@CatTexts["Fecha efectiva"]</span><strong>@Model.OccurredAt.ToString("dd/MM/yyyy HH:mm")</strong></article>
+        <article><span>@CatTexts["Fecha registrada"]</span><strong>@Model.RecordedAt.ToString("dd/MM/yyyy HH:mm")</strong></article>
+        <article class="movement-meta-wide"><span>@CatTexts["Referencia"]</span><strong>@(Model.Movement.Reference ?? CatTexts["Sin referencia"].Value)</strong></article>
     </section>
 
     @if (Model.Traceability.Resources.Count > 0)
     {
         <section class="movement-related" aria-labelledby="related-title">
             <div class="movement-section-heading">
-                <div><span class="inventory-eyebrow">Origen y contexto</span><h2 id="related-title" class="h4 mb-0">Registros relacionados</h2></div>
-                <span class="text-body-secondary small">@Model.Traceability.Resources.Count vínculo(s)</span>
+                <div><span class="inventory-eyebrow">@CatTexts["Origen y contexto"]</span><h2 id="related-title" class="h4 mb-0">@CatTexts["Registros relacionados"]</h2></div>
+                <span class="text-body-secondary small">@CatTexts["{0} vínculo(s)", Model.Traceability.Resources.Count]</span>
             </div>
             <div class="movement-related-grid">
                 @foreach (var resource in Model.Traceability.Resources)
@@ -63,7 +64,7 @@
                         <div><span class="movement-related-kind">@resource.Kind</span><h3 class="h6 mb-1">@resource.Label</h3></div>
                         <span class="movement-related-status">@resource.Status</span>
                         <p>@resource.Summary</p>
-                        <a href="@resource.DetailsUrl" class="d-print-none">Abrir registro relacionado</a>
+                        <a href="@resource.DetailsUrl" class="d-print-none">@CatTexts["Abrir registro relacionado"]</a>
                     </article>
                 }
             </div>
@@ -73,14 +74,14 @@
     @if (correction is not null)
     {
         <section class="movement-correction-panel" aria-labelledby="correction-title">
-            <div><span class="inventory-eyebrow">Auditoría inmutable</span><h2 id="correction-title" class="h5 mb-1">Cadena de corrección</h2><p class="mb-0">@correction.Reason</p></div>
-            <div class="movement-correction-people"><span>Solicitó<strong>@correction.RequestedBy</strong></span><span>Autorizó<strong>@correction.AuthorizedBy</strong></span></div>
-            <nav class="movement-correction-links d-print-none" aria-label="Movimientos de la cadena de corrección">
+            <div><span class="inventory-eyebrow">@CatTexts["Auditoría inmutable"]</span><h2 id="correction-title" class="h5 mb-1">@CatTexts["Cadena de corrección"]</h2><p class="mb-0">@correction.Reason</p></div>
+            <div class="movement-correction-people"><span>@CatTexts["Solicitó"]<strong>@correction.RequestedBy</strong></span><span>@CatTexts["Autorizó"]<strong>@correction.AuthorizedBy</strong></span></div>
+            <nav class="movement-correction-links d-print-none" aria-label="@CatTexts["Movimientos de la cadena de corrección"]">
                 <a asp-page="Details" asp-route-id="@correction.OriginalMovementId" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">Original</a>
-                <a asp-page="Details" asp-route-id="@correction.ReversalMovementId" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">Reverso</a>
+                <a asp-page="Details" asp-route-id="@correction.ReversalMovementId" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">@CatTexts["Reverso"]</a>
                 @if (correction.ReplacementMovementId is Guid replacement)
                 {
-                    <a asp-page="Details" asp-route-id="@replacement" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">Reemplazo</a>
+                    <a asp-page="Details" asp-route-id="@replacement" asp-route-returnUrl="@Model.ReturnUrl" class="btn btn-sm btn-outline-secondary">@CatTexts["Reemplazo"]</a>
                 }
             </nav>
         </section>
@@ -88,30 +89,30 @@
 
     <section aria-labelledby="lines-title">
         <div class="movement-section-heading">
-            <div><span class="inventory-eyebrow">Impacto confirmado</span><h2 id="lines-title" class="h4 mb-0">Productos y cambios de saldo</h2></div>
-            <span class="text-body-secondary small">@Model.Movement.Lines.Count línea(s)</span>
+            <div><span class="inventory-eyebrow">@CatTexts["Impacto confirmado"]</span><h2 id="lines-title" class="h4 mb-0">@CatTexts["Productos y cambios de saldo"]</h2></div>
+            <span class="text-body-secondary small">@CatTexts["{0} línea(s)", Model.Movement.Lines.Count]</span>
         </div>
         @foreach (var line in Model.Movement.Lines)
         {
             <article class="movement-line-card">
                 <header class="movement-line-header">
-                    <div><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@line.ProductId" class="h5 mb-1 d-inline-block">@line.Sku</a><p class="text-body-secondary mb-0">@(line.Description ?? "Sin descripción")</p></div>
+                    <div><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@line.ProductId" class="h5 mb-1 d-inline-block">@line.Sku</a><p class="text-body-secondary mb-0">@(line.Description ?? CatTexts["Sin descripción"].Value)</p></div>
                     <strong class="movement-line-quantity">@line.Quantity.ToString("0.####") <small>@line.Unit</small></strong>
                 </header>
                 <div class="movement-line-context">
-                    <div><span>Trayecto</span><strong>@(line.Source ?? "—") <span aria-hidden="true">→</span> @(line.Destination ?? Model.Movement.OperationalArea ?? "—")</strong></div>
-                    <div><span>Lote interno</span>@if (line.LotId is Guid lot) { <a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@lot">@line.LotNumber</a> } else { <strong>—</strong> }</div>
+                    <div><span>@CatTexts["Trayecto"]</span><strong>@(line.Source ?? "—") <span aria-hidden="true">→</span> @(line.Destination ?? Model.Movement.OperationalArea ?? "—")</strong></div>
+                    <div><span>@CatTexts["Lote interno"]</span>@if (line.LotId is Guid lot) { <a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@lot">@line.LotNumber</a> } else { <strong>—</strong> }</div>
                 </div>
                 <div class="table-responsive movement-change-shell">
                     <table class="table table-sm align-middle movement-change-table mb-0">
-                        <thead><tr><th>Ubicación</th><th class="text-end">Anterior</th><th class="text-end">Cambio</th><th class="text-end">Final</th></tr></thead>
+                        <thead><tr><th>@CatTexts["Ubicación"]</th><th class="text-end">@CatTexts["Anterior"]</th><th class="text-end">@CatTexts["Cambio"]</th><th class="text-end">Final</th></tr></thead>
                         <tbody>
                             @foreach (var change in line.Changes)
                             {
                                 <tr class="@(change.Resulting < 0 ? "movement-negative" : null)">
-                                    <td data-label="Ubicación"><a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@change.LocationId" class="fw-semibold">@change.Location</a></td>
-                                    <td data-label="Anterior" class="text-end">@change.Previous.ToString("0.####")</td>
-                                    <td data-label="Cambio" class="text-end @(change.Delta < 0 ? "text-danger" : "text-success")">@(change.Delta > 0 ? "+" : "")@change.Delta.ToString("0.####")</td>
+                                    <td data-label="@CatTexts["Ubicación"]"><a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@change.LocationId" class="fw-semibold">@change.Location</a></td>
+                                    <td data-label="@CatTexts["Anterior"]" class="text-end">@change.Previous.ToString("0.####")</td>
+                                    <td data-label="@CatTexts["Cambio"]" class="text-end @(change.Delta < 0 ? "text-danger" : "text-success")">@(change.Delta > 0 ? "+" : "")@change.Delta.ToString("0.####")</td>
                                     <td data-label="Final" class="text-end fw-bold">@change.Resulting.ToString("0.####")</td>
                                 </tr>
                             }
@@ -124,12 +125,12 @@
 
     <section class="movement-timeline-section" aria-labelledby="timeline-title">
         <div class="movement-section-heading">
-            <div><span class="inventory-eyebrow">Historia causal</span><h2 id="timeline-title" class="h4 mb-0">Eventos relacionados</h2></div>
-            <span class="text-body-secondary small">Orden cronológico · @Model.Business.TimeZoneId</span>
+            <div><span class="inventory-eyebrow">@CatTexts["Historia causal"]</span><h2 id="timeline-title" class="h4 mb-0">@CatTexts["Eventos relacionados"]</h2></div>
+            <span class="text-body-secondary small">@CatTexts["Orden cronológico · {0}", Model.Business.TimeZoneId]</span>
         </div>
         @if (!Model.Traceability.HasAdditionalContext)
         {
-            <p class="movement-timeline-empty">No existen eventos adicionales relacionados. El movimiento confirmado constituye toda la trazabilidad disponible.</p>
+            <p class="movement-timeline-empty">@CatTexts["No existen eventos adicionales relacionados. El movimiento confirmado constituye toda la trazabilidad disponible."]</p>
         }
         <ol class="movement-trace-timeline">
             @foreach (var item in Model.Traceability.Events)
@@ -140,11 +141,11 @@
                         <div class="movement-trace-topline">
                             <time datetime="@item.OccurredAt.ToString("O")">@Model.TraceDates[item.Id].ToString("dd/MM/yyyy HH:mm")</time>
                             <span class="movement-trace-category">@item.Category</span>
-                            @if (item.IsCurrentMovement) { <span class="movement-current-label">Ficha actual</span> }
+                            @if (item.IsCurrentMovement) { <span class="movement-current-label">@CatTexts["Ficha actual"]</span> }
                         </div>
                         <div class="movement-trace-title"><h3 class="h6 mb-0">@item.Title</h3><span>@item.Status</span></div>
                         <p>@item.Summary</p>
-                        <div class="movement-trace-footer"><span>@(item.ChangesInventory ? "Impacta inventario" : "Evento informativo") · @item.Responsible</span>@if (item.DetailsUrl is not null) { <a href="@item.DetailsUrl" class="d-print-none">Ver detalle</a> }</div>
+                        <div class="movement-trace-footer"><span>@(item.ChangesInventory ? CatTexts["Impacta inventario"].Value : CatTexts["Evento informativo"].Value) · @item.Responsible</span>@if (item.DetailsUrl is not null) { <a href="@item.DetailsUrl" class="d-print-none">@CatTexts["Ver detalle"]</a> }</div>
                     </article>
                 </li>
             }
@@ -153,43 +154,43 @@
 
     @if (Model.Movement.Notes is not null)
     {
-        <section class="movement-notes"><span class="inventory-eyebrow">Observaciones / motivo</span><p class="mb-0">@Model.Movement.Notes</p></section>
+        <section class="movement-notes"><span class="inventory-eyebrow">@CatTexts["Observaciones / motivo"]</span><p class="mb-0">@Model.Movement.Notes</p></section>
     }
 
-    <div class="movement-print-note">Documento de consulta generado por Warehouse EPI. No modifica inventario ni sustituye el registro electrónico.</div>
+    <div class="movement-print-note">@CatTexts["Documento de consulta generado por Warehouse EPI. No modifica inventario ni sustituye el registro electrónico."]</div>
 
     @if (Model.CanGeneratePalletPlate || (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null))
     {
         <footer class="movement-detail-actions d-print-none">
             @if (Model.CanGeneratePalletPlate)
             {
-                <a class="btn btn-primary" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Movement.Id">Generar placa</a>
+                <a class="btn btn-primary" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Movement.Id">@CatTexts["Identificar pallet"]</a>
             }
             @if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null)
             {
-                <a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">Corregir movimiento</a>
+                <a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">@CatTexts["Corregir movimiento"]</a>
             }
         </footer>
     }
 </main>
 
 @functions {
-    static string PurposeLabel(InventoryMovementPurpose purpose, InventoryMovementType type) => purpose switch
+    string PurposeLabel(InventoryMovementPurpose purpose, InventoryMovementType type) => purpose switch
     {
-        InventoryMovementPurpose.ProductionIssue => "Surtimiento WIP",
-        InventoryMovementPurpose.WipWarehouseReturn => "Devolución WIP a bodega",
-        InventoryMovementPurpose.WipConsumption => "Consumo WIP",
-        InventoryMovementPurpose.WipSupplierReturn => "Devolución WIP a proveedor",
-        InventoryMovementPurpose.GeneralExit => "Salida general",
-        InventoryMovementPurpose.CycleCountAdjustment => "Ajuste por conteo cíclico",
-        InventoryMovementPurpose.DocumentReceipt => "Recepción por documento",
+        InventoryMovementPurpose.ProductionIssue => CatTexts["Surtimiento WIP"].Value,
+        InventoryMovementPurpose.WipWarehouseReturn => CatTexts["Devolución WIP a bodega"].Value,
+        InventoryMovementPurpose.WipConsumption => CatTexts["Consumo WIP"].Value,
+        InventoryMovementPurpose.WipSupplierReturn => CatTexts["Devolución WIP a proveedor"].Value,
+        InventoryMovementPurpose.GeneralExit => CatTexts["Salida general"].Value,
+        InventoryMovementPurpose.CycleCountAdjustment => CatTexts["Ajuste por conteo cíclico"].Value,
+        InventoryMovementPurpose.DocumentReceipt => CatTexts["Recepción por documento"].Value,
         _ => type switch
         {
-            InventoryMovementType.Entry => "Entrada",
-            InventoryMovementType.Exit => "Salida",
-            InventoryMovementType.Transfer => "Transferencia",
-            InventoryMovementType.Adjustment => "Ajuste",
-            _ => "Movimiento"
+            InventoryMovementType.Entry => CatTexts["Entrada"].Value,
+            InventoryMovementType.Exit => CatTexts["Salida"].Value,
+            InventoryMovementType.Transfer => CatTexts["Transferencia"].Value,
+            InventoryMovementType.Adjustment => CatTexts["Ajuste"].Value,
+            _ => CatTexts["Movimiento"].Value
         }
     };
 

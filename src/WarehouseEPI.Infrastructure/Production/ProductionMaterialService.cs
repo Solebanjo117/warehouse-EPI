@@ -13,7 +13,7 @@ namespace WarehouseEPI.Infrastructure.Production;
 public enum ProductionMaterialStatus { Success, InvalidPin, ValidationFailed, ConcurrencyConflict, IdempotencyConflict }
 public sealed record ProductionMaterialResult(ProductionMaterialStatus Status, Guid? OperationId = null,
     IReadOnlyList<Guid>? MovementIds = null, IReadOnlyList<string>? Errors = null);
-public sealed record ProductionMaterialSelection(Guid IssueLinkId, decimal Quantity);
+public sealed record ProductionMaterialSelection(Guid IssueLinkId, decimal Quantity, IReadOnlyList<PalletSelection>? Plates = null);
 public sealed record ProductionMaterialCommand(Guid OperationId, Guid WorkOrderId, Guid WorkOrderStageId,
     uint ExpectedVersion, ProductionMaterialOperationType Type, IReadOnlyList<ProductionMaterialSelection> Lines,
     string Pin, Guid? DestinationLocationId = null, string? Reference = null, string? Notes = null,
@@ -151,6 +151,7 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                     InventoryMovementLineId = line.Id, SupplyRequestLineId = supplyLine?.Id,
                     ProductId = line.ProductId, WipLocationId = destinationId, Quantity = line.Quantity,
                     Source = ProductionMaterialSupplySource.Transfer, CreatedAt = timeProvider.GetUtcNow(),
+                    PlateAllocationsJson = await ProductionPlateAllocation.ReceivedAsync(db, line.Id, destinationId, token),
                     Lots = line.BalanceChanges.Where(x => x.LocationId == destinationId && x.DeltaQuantity > 0 && x.LotId.HasValue)
                         .Select(x => new ProductionMaterialIssueLot { LotId = x.LotId!.Value, Quantity = x.DeltaQuantity }).ToList()
                 });
@@ -289,11 +290,18 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                     ? InventoryMovementType.Transfer : InventoryMovementType.Exit;
                 var purpose = command.Type is ProductionMaterialOperationType.Consumption or ProductionMaterialOperationType.Scrap ? InventoryMovementPurpose.WipConsumption :
                     command.Type == ProductionMaterialOperationType.WarehouseReturn ? InventoryMovementPurpose.WipWarehouseReturn : InventoryMovementPurpose.WipSupplierReturn;
+                var plateSelections = new Dictionary<Guid, IReadOnlyList<PalletSelection>>();
+                foreach (var link in group)
+                {
+                    var selected = command.Lines.Single(x => x.IssueLinkId == link.Id).Plates;
+                    plateSelections[link.Id] = selected is { Count: > 0 } ? selected : await ProductionPlateAllocation.SelectAsync(db, link, requested[link.Id], token);
+                }
                 var movementCommand = new InventoryMovementCommand(Derive(command.OperationId, group.Key), movementType, command.Pin,
                     group.Select(link => new InventoryMovementLineCommand(link.ProductId,
                         requested[link.Id], SourceLocationId: group.Key,
                         DestinationLocationId: command.Type == ProductionMaterialOperationType.WarehouseReturn ? command.DestinationLocationId : null,
-                        Lots: AllocateLots(link, requested[link.Id], reversed))).ToArray(),
+                        Lots: plateSelections[link.Id].Count > 0 ? null : AllocateLots(link, requested[link.Id], reversed), Plates: plateSelections[link.Id], MaterialIssueLinkId: link.Id,
+                        AutomaticPalletHandling: true)).ToArray(),
                     command.Reference, command.Notes,
                     command.ApproveSharedDestination && command.DestinationLocationId is Guid destinationId
                         ? group.Select(link => new SharedAssignmentApproval(link.ProductId, destinationId)).ToArray()
@@ -332,6 +340,7 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
             if (transaction is not null) await transaction.RollbackAsync(token);
             return new(ProductionMaterialStatus.ConcurrencyConflict);
         }
+        catch (PalletPlateException exception) { return await Abort(transaction, Invalid(exception.Message), token); }
         catch (DbUpdateException)
         {
             if (transaction is not null) await transaction.RollbackAsync(token);
@@ -401,6 +410,7 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
             if (transaction is not null) await transaction.RollbackAsync(token);
             return new(ProductionMaterialStatus.ConcurrencyConflict);
         }
+        catch (PalletPlateException exception) { return await Abort(transaction, Invalid(exception.Message), token); }
         catch (DbUpdateException)
         {
             if (transaction is not null) await transaction.RollbackAsync(token);
@@ -432,7 +442,7 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
     private static string Json(ProductionMaterialCommand command, Guid userId) => string.Join('|',
         userId, command.WorkOrderId, command.WorkOrderStageId, command.ExpectedVersion, command.Type,
         command.DestinationLocationId, Normalize(command.Reference), Normalize(command.Notes), command.ApproveSharedDestination, command.ReturnEffect, command.ReworkCaseId,
-        string.Join(';', command.Lines.OrderBy(x => x.IssueLinkId).Select(x => $"{x.IssueLinkId:N}:{x.Quantity.ToString("G29", CultureInfo.InvariantCulture)}")));
+        string.Join(';', command.Lines.OrderBy(x => x.IssueLinkId).Select(x => $"{x.IssueLinkId:N}:{x.Quantity.ToString("G29", CultureInfo.InvariantCulture)}{(x.Plates is { Count: > 0 } ? ":" + System.Text.Json.JsonSerializer.Serialize(x.Plates) : string.Empty)}")));
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
     private static Guid Derive(Guid operationId, Guid group) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{operationId:N}|{group:N}"))[..16]);
     private static IReadOnlyList<InventoryLotSelection> AllocateLots(

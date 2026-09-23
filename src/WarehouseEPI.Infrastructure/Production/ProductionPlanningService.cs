@@ -348,10 +348,10 @@ public sealed class ProductionPlanningService(WarehouseDbContext db, UserPinServ
                 x.RackNumber == parsed.RackNumber).ToArray();
             var associated = associations.Any(x => x.RowCode == parsed.RowCode && (x.RackNumber == null || x.RackNumber == parsed.RackNumber));
             var valid = stage.IsActive && associated && positions.Length > 0 &&
-                positions.All(x => x.OperationalRole == LocationOperationalRole.Wip) && positions.Any(x => x.IsOperational);
-            var partial = valid && positions.Any(x => !x.IsOperational);
+                positions.Any(x => x.OperationalRole == LocationOperationalRole.Wip && x.IsOperational);
+            var partial = valid && positions.Any(x => x.OperationalRole == LocationOperationalRole.Wip && !x.IsOperational);
             return new(key, $"{parsed.RowCode}-{parsed.RackNumber}", "Rack WIP", "La posición exacta se confirma al surtir", valid,
-                valid ? partial ? "Disponibilidad parcial" : null : "El rack está inactivo, no es WIP completo o ya no pertenece al proceso.");
+                valid ? partial ? "Disponibilidad parcial" : null : "El rack no tiene posiciones WIP disponibles o ya no pertenece al proceso.");
         }
         return new(key ?? "", "Destino inválido", "Destino WIP", "Selecciona un destino válido", false,
             "Selecciona un área, rack o posición WIP.");

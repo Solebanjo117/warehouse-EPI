@@ -4,13 +4,15 @@ using ClosedXML.Excel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Admin.Reports.Wip;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class ExportModel(WipReportService reportService, WarehouseClock clock) : PageModel
+public sealed class ExportModel(WipReportService reportService, WarehouseClock clock, IStringLocalizer<CatalogTexts> localizer) : PageModel
 {
     public async Task<IActionResult> OnGetAsync(string format, DateOnly? from, DateOnly? to, string? search,
         Guid? wipAreaId, CancellationToken token)
@@ -28,7 +30,7 @@ public sealed class ExportModel(WipReportService reportService, WarehouseClock c
             .Take(10_001)
             .ToArray();
         if (report.TotalActivityCount + report.Inventory.Count > 10_000)
-            return BadRequest("La exportación excede el límite estricto de 10,000 filas. Reduce el periodo o agrega filtros.");
+            return BadRequest(localizer["La exportación excede el límite estricto de 10,000 filas. Reduce el periodo o agrega filtros."]);
         var localNow = await clock.ConvertAsync(DateTimeOffset.UtcNow, token);
         var name = $"reporte-wip-{localNow:yyyyMMddHHmmss}";
         var headers = new[] { "Población", "Fecha local", "Folio", "Producto", "Descripción", "Unidad", "WIP",

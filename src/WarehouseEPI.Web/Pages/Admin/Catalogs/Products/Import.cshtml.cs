@@ -2,13 +2,15 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Imports;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
 [Authorize(Policy = "AdminOnly")]
 [RequestSizeLimit(ProductImportLimits.MaxRequestBytes)]
-public sealed class ImportModel(ProductImportService importService) : PageModel
+public sealed class ImportModel(ProductImportService importService, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     private const int PageSize = 25;
 
@@ -44,13 +46,13 @@ public sealed class ImportModel(ProductImportService importService) : PageModel
     public async Task<IActionResult> OnPostUploadAsync(CancellationToken cancellationToken)
     {
         if (Upload is null || Upload.Length == 0)
-            ModelState.AddModelError(nameof(Upload), "Selecciona un archivo XLSX.");
+            ModelState.AddModelError(nameof(Upload), text["Selecciona un archivo XLSX."].Value);
         else
         {
             if (!string.Equals(Path.GetExtension(Upload.FileName), ".xlsx", StringComparison.OrdinalIgnoreCase))
-                ModelState.AddModelError(nameof(Upload), "Solo se aceptan archivos con extensión .xlsx.");
+                ModelState.AddModelError(nameof(Upload), text["Solo se aceptan archivos con extensión .xlsx."].Value);
             if (Upload.Length > ProductImportLimits.MaxFileBytes)
-                ModelState.AddModelError(nameof(Upload), "El archivo no puede superar 10 MB.");
+                ModelState.AddModelError(nameof(Upload), text["El archivo no puede superar 10 MB."].Value);
         }
 
         if (!ModelState.IsValid || !TryOwnerId(out var ownerId))

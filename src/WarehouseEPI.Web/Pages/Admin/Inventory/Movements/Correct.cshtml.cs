@@ -7,11 +7,13 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.Movements;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionService corrections, InventoryQueryService inventory) : PageModel
+public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionService corrections, InventoryQueryService inventory, IStringLocalizer<CatalogTexts> texts) : PageModel
 {
     public InventoryMovementDetail Movement { get; private set; } = null!;
     public bool CanReplace { get; private set; }
@@ -36,7 +38,7 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         InventoryReplacementCommand? replacement = null;
         if (Input.CreateReplacement)
         {
-            if (!CanReplace) { ModelState.AddModelError(string.Empty, "Esta interfaz solo puede reemplazar movimientos de una línea."); Input.Pin = string.Empty; return Page(); }
+            if (!CanReplace) { ModelState.AddModelError(string.Empty, texts["Esta interfaz solo puede reemplazar movimientos de una línea."]); Input.Pin = string.Empty; return Page(); }
             var original = await db.InventoryMovements.AsNoTracking().SingleAsync(item => item.Id == id, token);
             if (Input.Type == InventoryMovementType.Adjustment && Input.LocationId is Guid locationId)
                 Input.ExpectedBalanceVersion = (await inventory.GetBalanceAsync(Input.ProductId, locationId, token)).Version;
@@ -59,10 +61,10 @@ public sealed class CorrectModel(WarehouseDbContext db, InventoryCorrectionServi
         return true;
     }
     private string SafeReturnUrl(string? returnUrl) => Url.IsLocalUrl(returnUrl) ? returnUrl : Url.Page("Index") ?? "/Admin/Inventory/Movements";
-    private static string Message(InventoryCorrectionResult result) => result.Status switch
+    private string Message(InventoryCorrectionResult result) => result.Status switch
     {
-        InventoryCorrectionStatus.InvalidPin => "NIP inválido o sin permiso administrativo.",
-        InventoryCorrectionStatus.AlreadyCorrected => "El movimiento ya fue corregido.",
+        InventoryCorrectionStatus.InvalidPin => texts["NIP inválido o sin permiso administrativo."],
+        InventoryCorrectionStatus.AlreadyCorrected => texts["El movimiento ya fue corregido."],
         InventoryCorrectionStatus.CannotCorrectReversal => "No se puede corregir un movimiento de reverso.",
         InventoryCorrectionStatus.RequiresLocationSharingConfirmation => "La ubicación comparte pallet; confirme desde una captura operativa compatible.",
         InventoryCorrectionStatus.BalanceChanged => "El saldo cambió mientras se corregía. Recargue y confirme de nuevo.",

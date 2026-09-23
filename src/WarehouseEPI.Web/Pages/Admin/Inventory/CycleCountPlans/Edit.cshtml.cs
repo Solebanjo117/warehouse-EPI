@@ -3,14 +3,16 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Web.Pages.Operations.CycleCounts;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.CycleCountPlans;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class EditModel(CycleCountService cycleCounts) : PageModel
+public sealed class EditModel(CycleCountService cycleCounts, IStringLocalizer<CatalogTexts> text) : PageModel
 {
     public CycleCountPlanCatalogItem? Plan { get; private set; }
     public IReadOnlyList<SelectListItem> FrequencyOptions { get; } = Enum.GetValues<CycleCountFrequency>()
@@ -30,8 +32,8 @@ public sealed class EditModel(CycleCountService cycleCounts) : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        if (!Enum.IsDefined(Input.Frequency)) ModelState.AddModelError("Input.Frequency", "Selecciona una frecuencia válida.");
-        if (Input.AnchorDate == default) ModelState.AddModelError("Input.AnchorDate", "La fecha inicial es obligatoria.");
+        if (!Enum.IsDefined(Input.Frequency)) ModelState.AddModelError("Input.Frequency", text["Selecciona una frecuencia válida."].Value);
+        if (Input.AnchorDate == default) ModelState.AddModelError("Input.AnchorDate", text["La fecha inicial es obligatoria."].Value);
         Plan = await cycleCounts.GetPlanAsync(Input.Id, cancellationToken);
         if (Plan is null) return NotFound();
         if (!ModelState.IsValid) return Page();

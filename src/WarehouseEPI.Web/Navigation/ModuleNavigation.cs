@@ -77,12 +77,14 @@ public static class ModuleNavigation
         new("production", "Producción", "Surte materiales y da seguimiento a la producción.", "movements", false,
         [
             new("Operación", [
+                new("Captura diaria", "Registrar piezas buenas con reparto y balance automáticos.", "movements", "/Operations/Production/Index", View: "capture"),
+                new("Balance", "Consultar plan, arrastre, pendientes y adelantos.", "dashboard", "/Operations/Production/Index", View: "balance"),
                 new("Surtimientos a producción", "Preparar materiales de las órdenes pendientes.", "transfer", "/Operations/ProductionSupply/Index", SupplyCount: true),
-                new("Seguimiento de producción", "Consultar y registrar el avance de producción.", "movements", "/Operations/Production/Index"),
-                new("Procesar WIP", "Procesar material en curso o registrar su retorno.", "transfer", "/Operations/WipProcess")]),
+                new("Producción avanzada", "Atender merma, retrabajo, diferencias, recepción y diagnóstico.", "adjust", "/Operations/Production/Advanced")]),
             new("Administración", [
-                new("Órdenes de trabajo", "Planificar y administrar órdenes de producción.", "products", "/Admin/Production/Orders", true),
-                new("Procesos", "Configurar los procesos de producción.", "adjust", "/Admin/Production/Processes", true)])
+                new("Programa semanal", "Preparar, publicar e importar el programa lunes–sábado.", "products", "/Admin/Production/Schedule", true),
+                new("Procesos", "Configurar los procesos de producción.", "adjust", "/Admin/Production/Processes", true),
+                new("Turnos", "Registrar turnos para la producción diaria.", "adjust", "/Admin/Production/Routes", true)])
         ]),
         new("inventory", "Inventario", "Consulta existencias, ubicaciones y trazabilidad.", "inventory", false,
         [
@@ -98,7 +100,7 @@ public static class ModuleNavigation
         [
             new("Impresión", [
                 new("Generar etiquetas", "Imprimir usando formatos publicados.", "label", "/Operations/Labels/Index"),
-                new("Placas de pallet", "Generar placas desde entradas confirmadas.", "label", "/Operations/PalletLabels/Index")]),
+                new("Placas de pallet", "Identificar saldo libre por ubicación e imprimir placas.", "label", "/Operations/PalletLabels/Index")]),
             new("Administración", [new("Diseñar formatos", "Diseñar y publicar formatos de etiquetas.", "label", "/Admin/Labels/Templates/Index", true)])
         ]),
         new("reports", "Reportes", "Revisa indicadores, saldos e historial del almacén.", "dashboard", false,

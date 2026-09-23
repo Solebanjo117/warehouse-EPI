@@ -17,6 +17,8 @@ internal static class InventoryMovementRules
             .Distinct().OrderBy(item => item.ProductId).ThenBy(item => item.LocationId).ToArray(),
         Lines = command.Lines.Select(line => line with
         {
+            Plates = line.Plates?.OrderBy(x => x.PlateId).ToArray(),
+            PlateCounts = line.PlateCounts?.OrderBy(x => x.PlateId).ToArray(),
             Lots = line.Lots?.GroupBy(x => x.LotId)
                 .Select(x => new InventoryLotSelection(x.Key, x.Sum(y => y.Quantity)))
                 .OrderBy(x => x.LotId).ToArray()
@@ -61,6 +63,11 @@ internal static class InventoryMovementRules
         foreach (var (line, index) in command.Lines.Select((line, index) => (line, index)))
         {
             var label = $"Línea {index + 1}";
+            if ((line.Plates is { Count: > 0 } && command.Type is not (InventoryMovementType.Exit or InventoryMovementType.Transfer)) ||
+                (line.PalletQuantities is not null && command.Type != InventoryMovementType.Entry) ||
+                (line.PlateCounts is not null && command.Type != InventoryMovementType.Adjustment) ||
+                (line.DestinationPlateId.HasValue && command.Type != InventoryMovementType.Transfer))
+                errors.Add($"{label}: la selección de placas no corresponde al tipo de movimiento.");
             if (line.ProductId == Guid.Empty)
                 errors.Add($"{label}: el producto es obligatorio.");
             if (decimal.Round(line.Quantity, 4) != line.Quantity || Math.Abs(line.Quantity) > MaximumQuantity)
@@ -189,6 +196,10 @@ internal static class InventoryMovementRules
             foreach (var lot in line.Lots ?? [])
                 builder.Append(":T:").Append(lot.LotId.ToString("N")).Append(':')
                     .Append(lot.Quantity.ToString("G29", CultureInfo.InvariantCulture));
+            if (line.Plates is not null || line.PlateCounts is not null || line.PalletQuantities is not null || line.DestinationPlateId.HasValue || line.MaterialIssueLinkId.HasValue)
+                builder.Append(":P:").Append(System.Text.Json.JsonSerializer.Serialize(new { line.Plates, line.PlateCounts, line.PalletQuantities, line.DestinationPlateId, line.ExpectedDestinationPlateVersion, line.MaterialIssueLinkId }));
+            if (line.AutomaticPalletHandling)
+                builder.Append(":AP:true");
         }
 
         foreach (var approval in command.ApprovedSharedAssignments ?? [])
@@ -206,4 +217,5 @@ internal static class InventoryMovementRules
 
 internal readonly record struct InventoryBalanceKey(Guid ProductId, Guid LocationId, Guid? LotId);
 internal readonly record struct InventoryAssignmentKey(Guid ProductId, Guid LocationId);
+internal readonly record struct InventoryAssignmentTransfer(Guid ProductId, Guid SourceLocationId, Guid DestinationLocationId);
 internal sealed class InventoryQuantityOutOfRangeException(string message) : Exception(message);

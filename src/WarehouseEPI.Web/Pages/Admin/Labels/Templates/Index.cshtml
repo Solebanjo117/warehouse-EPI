@@ -1,39 +1,40 @@
 @page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Admin.Labels.Templates.IndexModel
 @using WarehouseEPI.Core.Entities
 @{
-    ViewData["Title"] = "Diseñar formatos";
-    string KindName(LabelTemplateKind kind) => kind == LabelTemplateKind.PalletLicensePlate ? "Placa de pallet" : "Etiqueta de producto";
+    ViewData["Title"] = CatTexts["Diseñar formatos"].Value;
+    string KindName(LabelTemplateKind kind) => kind == LabelTemplateKind.PalletLicensePlate ? CatTexts["Placa de pallet"].Value : CatTexts["Etiqueta de producto"].Value;
     string StatusName(LabelTemplateStatus status) => status switch
     {
-        LabelTemplateStatus.Draft => "Borrador",
-        LabelTemplateStatus.InValidation => "En validación",
-        LabelTemplateStatus.Published => "Publicada",
-        _ => "Retirada",
+        LabelTemplateStatus.Draft => CatTexts["Borrador"].Value,
+        LabelTemplateStatus.InValidation => CatTexts["En validación"].Value,
+        LabelTemplateStatus.Published => CatTexts["Publicada"].Value,
+        _ => CatTexts["Retirada"].Value,
     };
 }
 
 <div class="container-fluid py-3">
     <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-4">
-        <div><h1 class="h3 mb-1">Formatos de etiquetas</h1><p class="text-body-secondary mb-0">Cada formato imprime una sola versión. Las demás quedan como historial.</p></div>
-        <a class="btn btn-outline-secondary" asp-page="../Assets/Index">Biblioteca de imágenes</a>
+        <div><h1 class="h3 mb-1">@CatTexts["Formatos de etiquetas"]</h1><p class="text-body-secondary mb-0">@CatTexts["Cada formato imprime una sola versión. Las demás quedan como historial."]</p></div>
+        <a class="btn btn-outline-secondary" asp-page="../Assets/Index">@CatTexts["Biblioteca de imágenes"]</a>
     </div>
     @if (TempData["StatusMessage"] is string message) { <div class="alert alert-success">@message</div> }
     <div asp-validation-summary="All" class="alert alert-danger" role="alert"></div>
 
     <section class="card shadow-sm mb-4">
-        <div class="card-header"><strong>Nueva plantilla</strong></div>
+        <div class="card-header"><strong>@CatTexts["Nueva plantilla"]</strong></div>
         <form method="post" asp-page-handler="Create" class="card-body row g-3 align-items-end">
-            <div class="col-sm-4"><label asp-for="Create.Code" class="form-label">Código estable</label><input asp-for="Create.Code" class="form-control text-uppercase" placeholder="LBL-NUEVA" /></div>
-            <div class="col-sm-4"><label asp-for="Create.Name" class="form-label">Nombre del formato</label><input asp-for="Create.Name" class="form-control" /></div>
-            <div class="col-sm-3"><label asp-for="Create.Size" class="form-label">Tamaño</label><select asp-for="Create.Size" class="form-select">@foreach (var size in Model.Sizes) { <option value="@size.Preset">@size.Name</option> }</select></div>
-            <div class="col-sm-1 d-grid"><button class="btn btn-primary" type="submit">Crear</button></div>
+            <div class="col-sm-4"><label asp-for="Create.Code" class="form-label">@CatTexts["Código estable"]</label><input asp-for="Create.Code" class="form-control text-uppercase" placeholder="LBL-NUEVA" /></div>
+            <div class="col-sm-4"><label asp-for="Create.Name" class="form-label">@CatTexts["Nombre del formato"]</label><input asp-for="Create.Name" class="form-control" /></div>
+            <div class="col-sm-3"><label asp-for="Create.Size" class="form-label">@CatTexts["Tamaño"]</label><select asp-for="Create.Size" class="form-select">@foreach (var size in Model.Sizes) { <option value="@size.Preset">@size.Name</option> }</select></div>
+            <div class="col-sm-1 d-grid"><button class="btn btn-primary" type="submit">@CatTexts["Crear"]</button></div>
         </form>
     </section>
 
     @if (Model.Groups.Count == 0)
     {
-        <div class="card shadow-sm"><div class="card-body text-center text-body-secondary py-5">Aún no hay formatos. Crea el primero con el formulario de arriba; la migración precarga LBL-6X4-ZEBRA.</div></div>
+        <div class="card shadow-sm"><div class="card-body text-center text-body-secondary py-5">@CatTexts["Aún no hay formatos. Crea el primero con el formulario de arriba; la migración precarga LBL-6X4-ZEBRA."]</div></div>
     }
 
     <div class="label-template-list" data-label-template-list>
@@ -48,20 +49,20 @@
                         </div>
                         @if (group.Current is null)
                         {
-                            <span class="badge text-bg-warning">Sin versión publicada</span>
+                            <span class="badge text-bg-warning">@CatTexts["Sin versión publicada"]</span>
                         }
                     </header>
 
                     @if (group.Current is { } current)
                     {
                         <div class="label-version-row is-current" data-label-version="current">
-                            <span class="label-version-role">Imprime hoy</span>
+                            <span class="label-version-role">@CatTexts["Imprime hoy"]</span>
                             <span><strong class="label-version-number">v@(current.Version)</strong> <span class="text-body-secondary small">publicada el @current.UpdatedAt.ToLocalTime().ToString("g")</span></span>
                             <span class="label-version-actions">
-                                <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@current.VersionId">Ver</a>
+                                <a class="btn btn-sm btn-outline-primary" asp-page="Edit" asp-route-id="@current.VersionId">@CatTexts["Ver"]</a>
                                 @if (group.Editable is null)
                                 {
-                                    <form method="post" asp-page-handler="Duplicate" asp-route-id="@current.VersionId" class="d-inline"><button class="btn btn-sm btn-outline-secondary" type="submit">Nueva versión</button></form>
+                                    <form method="post" asp-page-handler="Duplicate" asp-route-id="@current.VersionId" class="d-inline"><button class="btn btn-sm btn-outline-secondary" type="submit">@CatTexts["Nueva versión"]</button></form>
                                 }
                             </span>
                         </div>
@@ -70,10 +71,10 @@
                     @if (group.Editable is { } editable)
                     {
                         <div class="label-version-row is-editable" data-label-version="editable">
-                            <span class="label-version-role">En edición</span>
+                            <span class="label-version-role">@CatTexts["En edición"]</span>
                             <span><strong class="label-version-number">v@(editable.Version)</strong> <span class="text-body-secondary small">@StatusName(editable.Status) · @editable.UpdatedAt.ToLocalTime().ToString("g")</span></span>
                             <span class="label-version-actions">
-                                <a class="btn btn-sm btn-primary" asp-page="Edit" asp-route-id="@editable.VersionId">Editar</a>
+                                <a class="btn btn-sm btn-primary" asp-page="Edit" asp-route-id="@editable.VersionId">@CatTexts["Editar"]</a>
                             </span>
                         </div>
                     }
@@ -81,10 +82,10 @@
                     @if (group.History.Count > 0)
                     {
                         <details class="label-template-history">
-                            <summary>@group.History.Count @(group.History.Count == 1 ? "versión anterior" : "versiones anteriores")</summary>
+                            <summary>@group.History.Count @(group.History.Count == 1 ? CatTexts["versión anterior"].Value : CatTexts["versiones anteriores"].Value)</summary>
                             <table class="table table-sm align-middle mt-2 mb-0">
-                                <caption class="visually-hidden">Historial de versiones de @group.Code</caption>
-                                <thead><tr><th scope="col">Versión</th><th scope="col">Estado</th><th scope="col">Actualizada</th><th scope="col" class="text-end">Acciones</th></tr></thead>
+                                <caption class="visually-hidden">@CatTexts["Historial de versiones de {0}", group.Code]</caption>
+                                <thead><tr><th scope="col">@CatTexts["Versión"]</th><th scope="col">@CatTexts["Estado"]</th><th scope="col">@CatTexts["Actualizada"]</th><th scope="col" class="text-end">@CatTexts["Acciones"]</th></tr></thead>
                                 <tbody>
                                 @foreach (var version in group.History)
                                 {
@@ -92,7 +93,7 @@
                                         <th scope="row" class="label-version-number fw-bold">v@(version.Version)</th>
                                         <td>@StatusName(version.Status)</td>
                                         <td>@version.UpdatedAt.ToLocalTime().ToString("g")</td>
-                                        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" asp-page="Edit" asp-route-id="@version.VersionId">Ver</a></td>
+                                        <td class="text-end"><a class="btn btn-sm btn-outline-secondary" asp-page="Edit" asp-route-id="@version.VersionId">@CatTexts["Ver"]</a></td>
                                     </tr>
                                 }
                                 </tbody>
@@ -103,18 +104,18 @@
                     @if (group.Current is { } retirable)
                     {
                         <details class="label-template-retire">
-                            <summary>Retirar la versión que imprime hoy</summary>
-                            <p class="small text-body-secondary mt-2 mb-2">Al retirarla, @group.Code deja de imprimir hasta que publiques otra versión.</p>
+                            <summary>@CatTexts["Retirar la versión que imprime hoy"]</summary>
+                            <p class="small text-body-secondary mt-2 mb-2">@CatTexts["Al retirarla, {0} deja de imprimir hasta que publiques otra versión.", group.Code]</p>
                             <form method="post" asp-page-handler="Retire" asp-route-id="@retirable.VersionId" class="row g-2">
                                 <div class="col-md-7">
-                                    <label class="form-label small" for="retire-reason-@group.TemplateId">Motivo</label>
+                                    <label class="form-label small" for="retire-reason-@group.TemplateId">@CatTexts["Motivo"]</label>
                                     <input id="retire-reason-@group.TemplateId" name="RetireReason" class="form-control" maxlength="500" required />
                                 </div>
                                 <div class="col-md-3">
-                                    <label class="form-label small" for="retire-pin-@group.TemplateId">NIP ADMIN</label>
+                                    <label class="form-label small" for="retire-pin-@group.TemplateId">@CatTexts["NIP ADMIN"]</label>
                                     <input id="retire-pin-@group.TemplateId" name="RetirePin" class="form-control" type="password" autocomplete="off" required />
                                 </div>
-                                <div class="col-md-2 d-grid align-self-end"><button class="btn btn-danger" type="submit">Retirar</button></div>
+                                <div class="col-md-2 d-grid align-self-end"><button class="btn btn-danger" type="submit">@CatTexts["Retirar"]</button></div>
                             </form>
                         </details>
                     }

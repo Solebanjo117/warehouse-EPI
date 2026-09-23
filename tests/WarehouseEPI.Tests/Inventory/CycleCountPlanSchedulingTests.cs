@@ -171,7 +171,11 @@ public sealed class CycleCountPlanSchedulingTests
     public async Task Calendar_page_rejects_invalid_month_in_spanish_and_uses_controlled_warehouse_date()
     {
         await using var fixture = await Fixture.CreateAsync();
-        var page = new CalendarModel(fixture.Service, fixture.Clock, fixture.Time);
+        var page = new CalendarModel(
+            fixture.Service,
+            fixture.Clock,
+            fixture.Time,
+            new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts>());
 
         await page.OnGetAsync("2026-99", "month");
 

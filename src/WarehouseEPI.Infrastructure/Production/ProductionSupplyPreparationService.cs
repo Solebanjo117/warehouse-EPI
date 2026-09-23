@@ -22,7 +22,7 @@ public sealed record ProductionSupplyPreparationView(ProductionSupplyQueueRow Li
     IReadOnlyList<ProductionSupplyDestinationRow> Destinations, IReadOnlyList<ProductionSupplySourceRow> Sources, Guid? PreparationId, uint PreparationVersion,
     IReadOnlyList<ProductionSupplySourceSelection> Selected, string? PreparedBy, DateTimeOffset? UpdatedAt,
     IReadOnlyList<ProductionSupplyAssignmentRow> CancellableAssignments, bool RequiresReview, bool AllowsDecimals = true);
-public sealed record ProductionSupplySourceSelection(ProductionSupplySourceKind Kind, Guid LocationId, decimal Quantity);
+public sealed record ProductionSupplySourceSelection(ProductionSupplySourceKind Kind, Guid LocationId, decimal Quantity, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)] IReadOnlyList<PalletSelection>? Plates = null);
 public sealed record ProductionSupplySaveCommand(Guid OperationId, Guid LineId, uint ExpectedRequestVersion,
     Guid DestinationLocationId, Guid? PreparationId, uint ExpectedPreparationVersion,
     IReadOnlyList<ProductionSupplySourceSelection> Sources, string Pin);
@@ -76,7 +76,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
                 x.Quantity - x.CancelledQuantity - x.OperationLines.Where(y => y.Operation.Type != ProductionMaterialOperationType.Reversal && !reversed.Contains(y.Operation.Id)).Sum(y => y.Quantity)))
             .Where(x => x.Available > 0).ToArray();
         return new(row, destinationId.Value, destinations.Select(x => new ProductionSupplyDestinationRow(x.Id, x.Code)).ToArray(), sourceRows, preparation?.Id, preparation?.Version ?? 0,
-            preparation?.Sources.Select(x => new ProductionSupplySourceSelection(x.Kind, x.LocationId, x.Quantity)).ToArray() ?? [],
+            preparation?.Sources.Select(x => new ProductionSupplySourceSelection(x.Kind, x.LocationId, x.Quantity, JsonSerializer.Deserialize<List<PalletSelection>>(x.PlatesJson))).ToArray() ?? [],
             preparation?.ResponsibleUser.FullName, preparation?.UpdatedAt, assignments, requiresReview, line.Product.BaseUnit.AllowsDecimals);
     }
 
@@ -89,6 +89,24 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         if (selections.Count == 0) return Invalid("Selecciona al menos un origen con cantidad positiva.");
         var line = await LoadLineAsync(command.LineId, token); if (line is null) return new(ProductionSupplyCommandStatus.NotFound);
         if (line.SupplyRequest.Version != command.ExpectedRequestVersion) return Conflict(line.SupplyRequestId);
+        var resolvedSelections = new List<ProductionSupplySourceSelection>();
+        foreach (var source in selections)
+            resolvedSelections.Add(source.Plates is { Count: > 0 } ? source : source with
+            {
+                Plates = await ProductionPlateAllocation.SelectFreeAsync(db, line.ProductId, source.LocationId, source.Quantity, line.Id, token)
+            });
+        selections = resolvedSelections;
+        foreach (var source in selections)
+        {
+            var selectedPlates = source.Plates ?? [];
+            if (selectedPlates.Any(x => x.Quantity <= 0 || decimal.Round(x.Quantity, 4) != x.Quantity || (!line.Product.BaseUnit.AllowsDecimals && decimal.Truncate(x.Quantity) != x.Quantity)) ||
+                selectedPlates.Sum(x => x.Quantity) > source.Quantity || selectedPlates.Select(x => x.PlateId).Distinct().Count() != selectedPlates.Count)
+                return Invalid("Revisa las cantidades por placa de la preparación.");
+            var ids = selectedPlates.Select(x => x.PlateId).ToArray();
+            var actual = await db.PalletPlates.AsNoTracking().Where(x => ids.Contains(x.Id) && x.ProductId == line.ProductId && x.LocationId == source.LocationId && !x.IsVoided).ToListAsync(token);
+            if (selectedPlates.Any(x => !actual.Any(p => p.Id == x.PlateId && p.Version == x.ExpectedVersion)))
+                return Invalid("Una placa cambió o no corresponde al origen. Consulta nuevamente antes de guardar.");
+        }
         if (line.ReworkCaseId is Guid activeCase && !await ProductionExecutionService.ReworkIsOpenAsync(db, activeCase, token)) return Invalid("El retrabajo ya no tiene cantidad pendiente.");
         if ((line.SupplyRequest.WorkOrder.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed) || (line.SupplyRequest.WorkOrder.Status == ProductionWorkOrderStatus.PrincipalClosed && line.ReworkCaseId == null))) return Invalid("La orden está pausada o ya no admite entregas.");
         if (!(await CompatibleWipLocationsAsync(line, token)).Any(x => x.Id == command.DestinationLocationId)) return Invalid("El destino ya no es compatible o no está operativo.");
@@ -115,17 +133,18 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
             {
                 var selected = selections.SingleOrDefault(x => x.Kind == existingSource.Kind && x.LocationId == existingSource.LocationId);
                 if (selected is null) { preparation.Sources.Remove(existingSource); db.ProductionSupplyPreparationSources.Remove(existingSource); }
-                else existingSource.Quantity = selected.Quantity;
+                else { existingSource.Quantity = selected.Quantity; existingSource.PlatesJson = JsonSerializer.Serialize(selected.Plates ?? []); }
             }
             preparation.OperationId = command.OperationId; preparation.RequestFingerprint = fp;
             preparation.DestinationLocationId = command.DestinationLocationId; preparation.ResponsibleUserId = user.Id;
             preparation.UpdatedAt = now; preparation.Version++;
         }
         foreach (var source in selections.Where(x => preparation.Sources.All(y => y.Kind != x.Kind || y.LocationId != x.LocationId)))
-            preparation.Sources.Add(new ProductionSupplyPreparationSource { Kind = source.Kind, LocationId = source.LocationId, Quantity = source.Quantity });
+            preparation.Sources.Add(new ProductionSupplyPreparationSource { Kind = source.Kind, LocationId = source.LocationId, Quantity = source.Quantity, PlatesJson = JsonSerializer.Serialize(source.Plates ?? []) });
         AddEvent(line, command.OperationId, fp, ProductionSupplyEventType.PreparationSaved, user, selections.Sum(x => x.Quantity));
         line.SupplyRequest.Status = ProductionSupplyRequestStatus.InProgress; line.SupplyRequest.Version++;
         try { await db.SaveChangesAsync(token); return new(ProductionSupplyCommandStatus.Success, line.SupplyRequestId); }
+        catch (PalletPlateException exception) { db.ChangeTracker.Clear(); return Invalid(exception.Message); }
         catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); return await ExistingAsync(command.OperationId, fp, token) ?? Conflict(line.SupplyRequestId); }
         catch (DbUpdateException) { db.ChangeTracker.Clear(); var concurrent = await ExistingAsync(command.OperationId, fp, token); if (concurrent is not null) return concurrent; throw; }
     }
@@ -162,7 +181,22 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
                 await InventoryMovementStore.LockBalancesAsync(keys, tx, token);
             }
             if (command.ActualSources?.Any(x=>x.Quantity<0 || decimal.Round(x.Quantity,4)!=x.Quantity || (!line.Product.BaseUnit.AllowsDecimals && decimal.Truncate(x.Quantity)!=x.Quantity)) == true) return Invalid("Las cantidades no son válidas para la unidad del material.");
-            var confirmedSources = requestedSources ?? Normalize(preparation.Sources.Select(x => new ProductionSupplySourceSelection(x.Kind, x.LocationId, x.Quantity)));
+            var savedSources = Normalize(preparation.Sources.Select(x => new ProductionSupplySourceSelection(x.Kind, x.LocationId, x.Quantity, JsonSerializer.Deserialize<List<PalletSelection>>(x.PlatesJson))));
+            var confirmedSources = requestedSources is null ? savedSources : requestedSources.Select(source =>
+            {
+                if (source.Plates is { Count: > 0 }) return source;
+                var saved = savedSources.SingleOrDefault(x => x.Kind == source.Kind && x.LocationId == source.LocationId);
+                var remaining = source.Quantity;
+                var plates = new List<PalletSelection>();
+                foreach (var plate in saved?.Plates ?? [])
+                {
+                    var take = Math.Min(remaining, plate.Quantity);
+                    if (take > 0) plates.Add(plate with { Quantity = take });
+                    remaining -= take;
+                    if (remaining == 0) break;
+                }
+                return source with { Plates = plates };
+            }).ToList();
             if (confirmedSources.Count == 0 || confirmedSources.Any(x => !preparation.Sources.Any(saved => saved.Kind == x.Kind && saved.LocationId == x.LocationId && saved.Quantity >= x.Quantity)))
                 return await Abort(tx, Invalid("La cantidad entregada debe conservar los orígenes preparados y solo puede reducirse."), token);
             var total = confirmedSources.Sum(x => x.Quantity); if (total <= 0 || total > Pending(line)) return await Abort(tx, Invalid("La cantidad preparada ya no coincide con el pendiente."), token);
@@ -177,7 +211,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
                 var movementCommand = new InventoryMovementCommand(Derive(command.OperationId, source.LocationId),
                     InventoryMovementType.Transfer, command.Pin,
                     [new InventoryMovementLineCommand(line.ProductId, source.Quantity, SourceLocationId: source.LocationId,
-                        DestinationLocationId: preparation.DestinationLocationId)], line.SupplyRequest.WorkOrder.Number,
+                        DestinationLocationId: preparation.DestinationLocationId, Plates: source.Plates, AutomaticPalletHandling: true)], line.SupplyRequest.WorkOrder.Number,
                     "Surtimiento guiado a producción", Purpose: InventoryMovementPurpose.ProductionIssue,
                     OperationalAreaId: preparation.DestinationLocationId);
                 var movementResult = await movements.ConfirmAuthorizedAsync(movementCommand, user,
@@ -193,17 +227,22 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
                     Source = ProductionMaterialSupplySource.Transfer, CreatedAt = timeProvider.GetUtcNow() };
                 foreach (var change in movementLine.BalanceChanges.Where(x => x.LocationId == preparation.DestinationLocationId && x.DeltaQuantity > 0 && x.LotId.HasValue))
                     issue.Lots.Add(new ProductionMaterialIssueLot { LotId = change.LotId!.Value, Quantity = change.DeltaQuantity });
+                if (issue.InventoryMovementLineId is Guid plateLineId) issue.PlateAllocationsJson = await ProductionPlateAllocation.ReceivedAsync(db, plateLineId, issue.WipLocationId, token);
+                else await ProductionPlateAllocation.RecordAssignmentAsync(db, issue, command.OperationId, user.Id, timeProvider.GetUtcNow(), token);
                 db.ProductionMaterialIssueLinks.Add(issue); issueLinks.Add(issue);
             }
             foreach (var source in confirmedSources.Where(x => x.Kind == ProductionSupplySourceKind.ExistingWip).OrderBy(x => x.LocationId))
             {
-                var lots = await AllocateFreeWipLotsAsync(line.ProductId, source.LocationId, source.Quantity, token);
+                var assigned = await ProductionPlateAllocation.AssignAsync(db, line.ProductId, source.LocationId, source.Quantity, source.Plates, token);
+                var lots = assigned.Lots;
                 if (lots.Sum(x => x.Quantity) != source.Quantity) return await Abort(tx, Invalid("El saldo WIP libre cambió. Revisa la preparación."), token);
                 var issue = new ProductionMaterialIssueLink { WorkOrderId = line.SupplyRequest.WorkOrderId,
                     WorkOrderStageId = line.SupplyRequest.WorkOrderStageId, SupplyRequestLineId = line.Id,
                     ProductId = line.ProductId, WipLocationId = source.LocationId, Quantity = source.Quantity,
-                    Source = ProductionMaterialSupplySource.WipAssignment, CreatedAt = timeProvider.GetUtcNow(),
+                    Source = ProductionMaterialSupplySource.WipAssignment, CreatedAt = timeProvider.GetUtcNow(), PlateAllocationsJson = assigned.Plates,
                     Lots = lots.Select(x => new ProductionMaterialIssueLot { LotId = x.LotId, Quantity = x.Quantity }).ToList() };
+                if (issue.InventoryMovementLineId is Guid plateLineId) issue.PlateAllocationsJson = await ProductionPlateAllocation.ReceivedAsync(db, plateLineId, issue.WipLocationId, token);
+                else await ProductionPlateAllocation.RecordAssignmentAsync(db, issue, command.OperationId, user.Id, timeProvider.GetUtcNow(), token);
                 db.ProductionMaterialIssueLinks.Add(issue); issueLinks.Add(issue);
             }
             ReleaseReservations(line, confirmedSources);
@@ -222,6 +261,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
             await db.SaveChangesAsync(token); if (tx is not null) await tx.CommitAsync(token);
             return new(ProductionSupplyCommandStatus.Success, line.SupplyRequestId);
         }
+        catch (PalletPlateException exception) { db.ChangeTracker.Clear(); return Invalid(exception.Message); }
         catch (DbUpdateConcurrencyException) { return await Abort(tx, new(ProductionSupplyCommandStatus.ConcurrencyConflict), token); }
         catch (DbUpdateException)
         {
@@ -281,6 +321,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         var available = issue.Quantity - issue.CancelledQuantity - used;
         if (command.Quantity > available) return Invalid("Solo puede anularse la cantidad todavía reservada y sin consumo o devolución dependiente.");
         issue.CancelledQuantity += command.Quantity;
+        await ProductionPlateAllocation.ReleaseAssignmentAsync(db, issue, command.OperationId, user.Id, timeProvider.GetUtcNow(), token);
         AddEvent(line, command.OperationId, fp, ProductionSupplyEventType.WipAssignmentCancelled, user, command.Quantity, command.Reason);
         line.SupplyRequest.Version++; line.SupplyRequest.WorkOrder.Version++;
         ProductionSupplyService.UpdateStatus(line.SupplyRequest);
@@ -427,7 +468,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
 
     private static decimal Pending(ProductionSupplyRequestLine line) => Math.Max(0, line.RequiredQuantity - line.CancelledQuantity + line.ReopenedQuantity - line.IssueLinks.Sum(x => x.Quantity - x.CancelledQuantity));
     private static List<ProductionSupplySourceSelection> Normalize(IEnumerable<ProductionSupplySourceSelection> sources) => sources.Where(x => x.Quantity > 0)
-        .GroupBy(x => new { x.Kind, x.LocationId }).Select(x => new ProductionSupplySourceSelection(x.Key.Kind, x.Key.LocationId, x.Sum(y => y.Quantity)))
+        .GroupBy(x => new { x.Kind, x.LocationId }).Select(x => new ProductionSupplySourceSelection(x.Key.Kind, x.Key.LocationId, x.Sum(y => y.Quantity), x.SelectMany(y => y.Plates ?? []).Where(y => y.Quantity != 0).OrderBy(y => y.PlateId).ToArray() is { Length: > 0 } plates ? plates : null))
         .OrderBy(x => x.Kind).ThenBy(x => x.LocationId).ToList();
     private static void ReleaseReservations(ProductionSupplyRequestLine line, IReadOnlyCollection<ProductionSupplySourceSelection> sources)
     {

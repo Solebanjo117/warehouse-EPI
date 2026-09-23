@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
 
   const form = document.querySelector("[data-kardex-search-form]");
   if (!form) return;
@@ -38,7 +39,7 @@
   const render = (items) => {
     close();
     if (!items.length) {
-      setFeedback("No se encontraron productos. Puedes consultar el texto escrito para confirmar.");
+      setFeedback(text("No se encontraron productos. Puedes consultar el texto escrito para confirmar."));
       return;
     }
     const fragment = document.createDocumentFragment();
@@ -54,9 +55,9 @@
       title.textContent = item.sku;
       const detail = document.createElement("small");
       detail.className = "d-block text-muted";
-      const description = item.description || "Sin descripción";
-      const reference = item.externalReference ? ` · Ref. ${item.externalReference}` : "";
-      const status = item.isActive ? "" : " · Inactivo";
+      const description = item.description || text("Sin descripción");
+      const reference = item.externalReference ? text(" · Ref. {0}", item.externalReference) : "";
+      const status = item.isActive ? "" : text(" · Inactivo");
       detail.textContent = `${description}${reference}${status}`;
       button.append(title, detail);
       button.addEventListener("mousedown", (event) => event.preventDefault());
@@ -65,7 +66,7 @@
     });
     results.append(fragment);
     input.setAttribute("aria-expanded", "true");
-    setFeedback(`${items.length} ${items.length === 1 ? "producto encontrado" : "productos encontrados"}. Usa flechas y Enter para elegir.`);
+    setFeedback(text("{0} {1}. Usa flechas y Enter para elegir.", items.length, items.length === 1 ? text("producto encontrado") : text("productos encontrados")));
   };
   const search = async (requestSequence) => {
     const query = input.value.trim();
@@ -79,7 +80,7 @@
     } catch {
       if (requestSequence !== sequence) return;
       close();
-      setFeedback("No fue posible buscar en la red local. Conservamos el texto para que puedas consultar o reintentar.");
+      setFeedback(text("No fue posible buscar en la red local. Conservamos el texto para que puedas consultar o reintentar."));
     }
   };
 
@@ -87,7 +88,7 @@
   input.addEventListener("input", () => {
     sequence += 1;
     clearTimeout(timer);
-    setFeedback("Buscando…");
+    setFeedback(text("Buscando…"));
     const current = sequence;
     timer = setTimeout(() => void search(current), 250);
   });

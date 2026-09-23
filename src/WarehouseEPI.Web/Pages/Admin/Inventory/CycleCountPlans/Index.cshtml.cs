@@ -2,11 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Localization;
 using System.Security.Claims;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Pages.Operations.CycleCounts;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.CycleCountPlans;
 
@@ -15,7 +17,8 @@ public sealed class IndexModel(
     CycleCountService cycleCounts,
     OperationalInventoryQueryService operationalQuery,
     WarehouseClock warehouseClock,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider,
+    IStringLocalizer<CatalogTexts> text) : PageModel
 {
     public PagedResult<CycleCountPlanCatalogItem> Result { get; private set; } = new([], 0, 1, 25);
     public IReadOnlyList<CycleCountPlanCatalogItem> Plans => Result.Items;
@@ -82,13 +85,13 @@ public sealed class IndexModel(
     private void ValidateInput()
     {
         if (Input.ProductId == Guid.Empty)
-            ModelState.AddModelError("Input.ProductId", "Selecciona un SKU de los resultados.");
+            ModelState.AddModelError("Input.ProductId", text["Selecciona un SKU de los resultados."].Value);
         if (Input.LocationId == Guid.Empty)
-            ModelState.AddModelError("Input.LocationId", "Selecciona una ubicación de los resultados.");
+            ModelState.AddModelError("Input.LocationId", text["Selecciona una ubicación de los resultados."].Value);
         if (!Enum.IsDefined(Input.Frequency))
-            ModelState.AddModelError("Input.Frequency", "Selecciona una frecuencia válida.");
+            ModelState.AddModelError("Input.Frequency", text["Selecciona una frecuencia válida."].Value);
         if (Input.AnchorDate == default)
-            ModelState.AddModelError("Input.AnchorDate", "La fecha inicial es obligatoria.");
+            ModelState.AddModelError("Input.AnchorDate", text["La fecha inicial es obligatoria."].Value);
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)

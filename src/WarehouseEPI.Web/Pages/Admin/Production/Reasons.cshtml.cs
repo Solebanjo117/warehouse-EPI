@@ -5,11 +5,13 @@ using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Production;
 
 [Authorize(Policy = "AdminOnly")]
-public sealed class ReasonsModel(WarehouseDbContext db, ProductionExecutionService service) : PageModel
+public sealed class ReasonsModel(WarehouseDbContext db, ProductionExecutionService service, IStringLocalizer<ProductionTexts> text) : PageModel
 {
     public IReadOnlyList<ProductionReason> Reasons { get; private set; } = [];
     [BindProperty] public Guid OperationId { get; set; } = Guid.NewGuid();
@@ -31,8 +33,8 @@ public sealed class ReasonsModel(WarehouseDbContext db, ProductionExecutionServi
     {
         var result = await service.SaveReasonAsync(OperationId, ReasonId, Version, Category, Code ?? "", Description ?? "", IsActive, RequiresComment, Pin, token);
         Pin = ""; ModelState.Remove(nameof(Pin));
-        if (result.Status == ProductionCommandStatus.Success) { TempData["Success"] = "Motivo guardado con historial."; return RedirectToPage(); }
-        ModelState.AddModelError("", result.ValidationErrors.FirstOrDefault() ?? "NIP ADMIN inválido o el motivo cambió. Recarga antes de intentar nuevamente.");
+        if (result.Status == ProductionCommandStatus.Success) { TempData["Success"] = text["Motivo guardado con historial."].Value; return RedirectToPage(); }
+        ModelState.AddModelError("", result.ValidationErrors.FirstOrDefault() ?? text["NIP ADMIN inválido o el motivo cambió. Recarga antes de intentar nuevamente."].Value);
         await Load(token); return Page();
     }
     private async Task Load(CancellationToken token) => Reasons = await db.ProductionReasons.AsNoTracking().OrderBy(x => x.Category).ThenBy(x => x.Code).ToListAsync(token);

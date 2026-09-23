@@ -36,6 +36,8 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
             ProcessIds = rack.ProcessIds.ToArray(),
             ProcessConfigurationVersion = rack.ProcessConfigurationVersion,
             PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
+                .Select(item => item.PalletNumber).ToArray(),
+            WipPallets = rack.Positions.Where(item => item.IsPhysicallyPresent && item.OperationalRole == LocationOperationalRole.Wip)
                 .Select(item => item.PalletNumber).ToArray()
         };
         PrepareDeleteInput(rack);
@@ -94,6 +96,8 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
             ProcessIds = rack.ProcessIds.ToArray(),
             ProcessConfigurationVersion = rack.ProcessConfigurationVersion,
             PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
+                .Select(item => item.PalletNumber).ToArray(),
+            WipPallets = rack.Positions.Where(item => item.IsPhysicallyPresent && item.OperationalRole == LocationOperationalRole.Wip)
                 .Select(item => item.PalletNumber).ToArray()
         };
         var result = await racks.DeleteAsync(new LocationRackDeleteCommand(DeleteInput.OperationId,
@@ -135,7 +139,8 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
 
     private LocationRackEditCommand Command(string? pin) => new(Input.OperationId,
         CurrentUserId(), Input.RowCode, Input.RackNumber, Input.OperationalRole,
-        Input.PresentPallets, Input.Reason, pin, Input.ProcessIds, Input.ProcessConfigurationVersion);
+        Input.PresentPallets, Input.Reason, pin, Input.ProcessIds, Input.ProcessConfigurationVersion,
+        Input.WipPallets);
 
     private async Task LoadProcessesAsync(CancellationToken token) => Processes = await db.ProductionStages.AsNoTracking()
         .Where(x => x.IsActive || Input.ProcessIds.Contains(x.Id) || Rack.InheritedProcessIds.Contains(x.Id))
@@ -151,6 +156,7 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
         public short RackNumber { get; set; }
         public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Storage;
         public short[] PresentPallets { get; set; } = [];
+        public short[] WipPallets { get; set; } = [];
         public string? Reason { get; set; }
         public string Pin { get; set; } = string.Empty;
         public Guid[] ProcessIds { get; set; } = [];

@@ -405,7 +405,7 @@ public sealed class CycleCountService(
             .Select(item => new { item.Id, item.CycleCountLocationId, item.CycleCountLocation.CampaignId })
             .SingleOrDefaultAsync(cancellationToken);
         if (submitted is not null)
-            return submitted.Id == attemptId
+            return submitted.Id == attemptId && await SubmissionMatchesAsync(submitted.Id, entries, isLocationEmpty, cancellationToken)
                 ? new(CycleCountStatus.Success, submitted.CampaignId, submitted.CycleCountLocationId, submitted.Id)
                 : new(CycleCountStatus.IdempotencyConflict);
         var attempt = await dbContext.CycleCountAttempts.Include(item => item.Entries).ThenInclude(item => item.Product).ThenInclude(item => item.BaseUnit)
@@ -443,12 +443,16 @@ public sealed class CycleCountService(
 
         if (!await VersionsMatchAsync(attempt, cancellationToken)) return await MarkStaleAsync(attempt, user.Id, cancellationToken);
         foreach (var entry in attempt.Entries)
+        {
+            entry.PlateCountsJson = "[]";
+            entry.HasPlateDifference = false;
             entry.CountedQuantity = isLocationEmpty ? 0m : entriesByProduct[entry.ProductId];
+        }
         attempt.Status = CycleCountAttemptStatus.Submitted;
         attempt.SubmissionOperationId = operationId;
         attempt.SubmittedByUserId = user.Id;
         attempt.SubmittedAt = timeProvider.GetUtcNow();
-        var hasDifference = attempt.Entries.Any(item => item.CountedQuantity != item.ExpectedQuantity);
+        var hasDifference = attempt.Entries.Any(item => item.CountedQuantity != item.ExpectedQuantity || item.HasPlateDifference);
         var cycleLocation = attempt.CycleCountLocation;
         cycleLocation.Status = hasDifference ? CycleCountLocationStatus.UnderReview : CycleCountLocationStatus.Completed;
         cycleLocation.LastActionByUserId = user.Id;
@@ -504,7 +508,7 @@ public sealed class CycleCountService(
         if (operationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
         var existing = await dbContext.CycleCountAttempts.AsNoTracking().Where(item => item.SubmissionOperationId == operationId)
             .Select(item => new { item.Id, item.CycleCountLocationId, item.CycleCountLocation.CampaignId }).SingleOrDefaultAsync(cancellationToken);
-        if (existing is not null) return existing.CycleCountLocationId == preparation.CycleCountLocationId
+        if (existing is not null) return existing.CycleCountLocationId == preparation.CycleCountLocationId && await SubmissionMatchesAsync(existing.Id, entries, isLocationEmpty, cancellationToken)
             ? new(CycleCountStatus.Success, existing.CampaignId, existing.CycleCountLocationId, existing.Id) : new(CycleCountStatus.IdempotencyConflict);
         var location = await dbContext.CycleCountLocations.Include(item => item.Campaign).Include(item => item.Attempts)
             .SingleOrDefaultAsync(item => item.Id == preparation.CycleCountLocationId && item.CampaignId == preparation.CampaignId, cancellationToken);
@@ -634,7 +638,7 @@ public sealed class CycleCountService(
         var attempt = location.Attempts.OrderByDescending(item => item.AttemptNumber).FirstOrDefault(item => item.Status == CycleCountAttemptStatus.Submitted);
         if (location.Status != CycleCountLocationStatus.UnderReview || attempt is null) return new(CycleCountStatus.InvalidState, location.CampaignId, location.Id);
         if (!await VersionsMatchAsync(attempt, cancellationToken)) return await MarkStaleAsync(attempt, user.Id, cancellationToken);
-        var differences = attempt.Entries.Where(item => item.CountedQuantity != item.ExpectedQuantity).ToArray();
+        var differences = attempt.Entries.Where(item => item.CountedQuantity != item.ExpectedQuantity || item.HasPlateDifference).ToArray();
         if (differences.Length == 0) return new(CycleCountStatus.InvalidState, location.CampaignId, location.Id, attempt.Id);
 
         await using var transaction = dbContext.Database.IsRelational()
@@ -644,7 +648,7 @@ public sealed class CycleCountService(
             command.OperationId,
             InventoryMovementType.Adjustment,
             command.Pin,
-            differences.Select(item => new InventoryMovementLineCommand(item.ProductId, item.CountedQuantity!.Value, LocationId: location.LocationId, ExpectedBalanceVersion: item.ExpectedBalanceVersion)).ToArray(),
+            differences.Select(item => new InventoryMovementLineCommand(item.ProductId, item.CountedQuantity!.Value, LocationId: location.LocationId, ExpectedBalanceVersion: item.ExpectedBalanceVersion, AutomaticPalletHandling: true)).ToArray(),
             $"CC-{location.Campaign.Number:D6}",
             Normalize(command.Notes, 500) ?? $"Ajuste autorizado por conteo cíclico CC-{location.Campaign.Number:D6}.",
             command.ApprovedSharedAssignments,
@@ -730,7 +734,7 @@ public sealed class CycleCountService(
         return new(item.Id, item.AttemptNumber, item.Status, item.StartedAt, item.StartedByUser.FullName, item.SubmittedAt, item.SubmittedByUser?.FullName,
             item.Entries.OrderBy(entry => entry.Product.Sku).Select(entry => new CycleCountEntryItem(entry.ProductId, entry.Product.Sku, entry.Product.Description, entry.Product.BaseUnit.Code,
                 entry.Product.BaseUnit.AllowsDecimals, entry.CountedQuantity, includeExpected ? entry.ExpectedQuantity : null,
-                includeExpected && entry.CountedQuantity is not null ? entry.CountedQuantity - entry.ExpectedQuantity : null, entry.IsUnexpectedProduct)).ToArray());
+                includeExpected && entry.CountedQuantity is not null ? entry.CountedQuantity - entry.ExpectedQuantity : null, entry.IsUnexpectedProduct, includeExpected ? System.Text.Json.JsonSerializer.Deserialize<List<PalletSelection>>(entry.PlateCountsJson) : null, includeExpected && entry.HasPlateDifference)).ToArray());
     }
 
     public async Task<CycleCountAttemptView?> GetLatestAttemptAsync(Guid locationId, bool includeExpected, CancellationToken cancellationToken = default)
@@ -749,7 +753,7 @@ public sealed class CycleCountService(
         var attempt = location?.Attempts.OrderByDescending(item => item.AttemptNumber)
             .FirstOrDefault(item => item.Status == CycleCountAttemptStatus.Submitted);
         if (location is null || attempt is null) return [];
-        var differences = attempt.Entries.Where(item => item.CountedQuantity != item.ExpectedQuantity).ToArray();
+        var differences = attempt.Entries.Where(item => item.CountedQuantity != item.ExpectedQuantity || item.HasPlateDifference).ToArray();
         if (differences.Length == 0) return [];
         var pairs = differences.Select(item => new InventoryAssignmentKey(item.ProductId, location.LocationId)).ToArray();
         var products = differences.Select(item => item.Product).DistinctBy(item => item.Id).ToDictionary(item => item.Id);
@@ -814,6 +818,14 @@ public sealed class CycleCountService(
         AddAction(location.Campaign, location, attempt, CycleCountActionType.StaleDetected, userId, now, "El saldo cambió durante el conteo.");
         await dbContext.SaveChangesAsync(cancellationToken);
         return new(CycleCountStatus.BalanceChanged, location.CampaignId, location.Id, attempt.Id, Errors: ["El saldo cambió. Inicia un reconteo ciego antes de autorizar."]);
+    }
+
+    private async Task<bool> SubmissionMatchesAsync(Guid attemptId, IReadOnlyList<CycleCountQuantityCommand> submitted, bool empty, CancellationToken token)
+    {
+        var saved = await dbContext.CycleCountEntries.AsNoTracking().Where(x => x.CycleCountAttemptId == attemptId).ToListAsync(token);
+        if (empty) return saved.All(x => x.CountedQuantity == 0);
+        if (saved.Count != submitted.Count || submitted.Select(x => x.ProductId).Distinct().Count() != submitted.Count) return false;
+        return saved.All(x => submitted.Any(s => s.ProductId == x.ProductId && s.Quantity == x.CountedQuantity));
     }
 
     private async Task<bool> VersionsMatchAsync(CycleCountAttempt attempt, CancellationToken cancellationToken)

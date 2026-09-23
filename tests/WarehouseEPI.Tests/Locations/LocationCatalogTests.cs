@@ -15,6 +15,7 @@ using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Web.Locations;
+using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Web.Pages.Admin.Catalogs.Locations;
 using RackPrintModel = WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack.PrintModel;
 
@@ -42,7 +43,7 @@ public sealed class LocationCatalogTests
         var pins = new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
         var page = new AreaModel(fixture.Db, new LocationAreaAdministrationService(fixture.Db, pins,
             TimeProvider.System), new ProductionProcessConfigurationService(fixture.Db, pins, TimeProvider.System,
-                NullLogger<ProductionProcessConfigurationService>.Instance));
+                NullLogger<ProductionProcessConfigurationService>.Instance), new PassthroughStringLocalizer<CatalogTexts>());
 
         var result = await page.OnGetAsync(area.Id, CancellationToken.None);
 
@@ -213,6 +214,44 @@ public sealed class LocationCatalogTests
         Assert.True(second.X < first.X);
         Assert.Contains(map.Elements, item => item.Label == "SHIPPING");
         Assert.Contains(map.Unplaced, item => item.Label == "Z-1");
+    }
+
+    [Fact]
+    public async Task Warehouse_map_hides_net_zero_products_even_when_they_remain_assigned()
+    {
+        await using var fixture = new Fixture();
+        var each = new Unit { Code = "EA", Name = "Each" };
+        var zeroUnassigned = new Product { Sku = "ZERO-UNASSIGNED", BaseUnit = each };
+        var zeroAssigned = new Product { Sku = "ZERO-ASSIGNED", BaseUnit = each };
+        var positive = new Product { Sku = "POSITIVE", BaseUnit = each };
+        var negative = new Product { Sku = "NEGATIVE", BaseUnit = each };
+        var location = Rack("A", 1, 1);
+        fixture.Db.AddRange(each, zeroUnassigned, zeroAssigned, positive, negative, location);
+        fixture.Db.InventoryBalances.AddRange(
+            new InventoryBalance { Product = zeroUnassigned, Location = location, Quantity = 5m },
+            new InventoryBalance { Product = zeroUnassigned, Location = location, Quantity = -5m },
+            new InventoryBalance { Product = zeroAssigned, Location = location, Quantity = 7m },
+            new InventoryBalance { Product = zeroAssigned, Location = location, Quantity = -7m },
+            new InventoryBalance { Product = positive, Location = location, Quantity = 3m },
+            new InventoryBalance { Product = negative, Location = location, Quantity = -2m });
+        fixture.Db.ProductLocationAssignments.Add(new()
+        {
+            Product = zeroAssigned,
+            Location = location
+        });
+        await fixture.Db.SaveChangesAsync();
+
+        var map = await new WarehouseMapService(fixture.Db).GetAsync(true);
+
+        var position = Assert.Single(Assert.Single(map.Elements, item => item.Label == "A-1").Positions);
+        Assert.Equal(1, position.AssignmentCount);
+        Assert.Equal(2, position.ProductCount);
+        Assert.True(position.HasInventory);
+        Assert.True(position.HasNegative);
+        Assert.DoesNotContain(position.Products, item => item.ProductId == zeroUnassigned.Id);
+        Assert.DoesNotContain(position.Products, item => item.ProductId == zeroAssigned.Id);
+        Assert.Contains(position.Products, item => item.ProductId == positive.Id && item.Quantity == 3m);
+        Assert.Contains(position.Products, item => item.ProductId == negative.Id && item.Quantity == -2m);
     }
 
     [Fact]
@@ -1151,6 +1190,47 @@ public sealed class LocationCatalogTests
         Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(restore)).Status);
         Assert.All(await fixture.Db.Locations.Where(item => item.RowCode == "M" && item.RackNumber == 1).ToArrayAsync(),
             item => Assert.Equal(LocationOperationalRole.Storage, item.OperationalRole));
+    }
+
+    [Fact]
+    public async Task Rack_mixed_roles_change_only_selected_positions_and_keep_retired_role()
+    {
+        await using var fixture = new Fixture();
+        var pins = new UserPinService(fixture.Db,
+            new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Mixed Rack Admin", Role = role, PinLookup = "", PinHash = "" };
+        await pins.AssignAsync(user, "4321");
+        var first = Rack("X", 4, 1);
+        var second = Rack("X", 4, 2);
+        second.OperationalRole = LocationOperationalRole.Wip;
+        fixture.Db.AddRange(role, user, first, second);
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var command = new LocationRackEditCommand(Guid.NewGuid(), user.Id, "X", 4,
+            LocationOperationalRole.Storage, [1, 2, 3], "Configuración mixta", "4321",
+            WipPallets: [1, 2]);
+
+        var review = await service.ReviewAsync(command);
+        Assert.Empty(review.Errors);
+        Assert.Contains(review.Summary.RoleChanges!, change => change.Contains("X-4-1", StringComparison.Ordinal));
+        Assert.Equal(LocationRackSaveStatus.ValidationFailed,
+            (await service.SaveAsync(command with { WipPallets = [4] })).Status);
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        Assert.Equal(LocationRackSaveStatus.IdempotencyConflict,
+            (await service.SaveAsync(command with { WipPallets = [2] })).Status);
+        var rows = await fixture.Db.Locations.Where(x => x.RowCode == "X" && x.RackNumber == 4)
+            .OrderBy(x => x.PalletNumber).ToArrayAsync();
+        Assert.Equal([LocationOperationalRole.Wip, LocationOperationalRole.Wip, LocationOperationalRole.Storage],
+            rows.Select(x => x.OperationalRole));
+        Assert.Equal(first.Id, rows[0].Id);
+        Assert.Equal(second.Id, rows[1].Id);
+
+        var retire = command with { OperationId = Guid.NewGuid(), PresentPallets = [1, 3], WipPallets = [1] };
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(retire)).Status);
+        Assert.False(second.IsPhysicallyPresent);
+        Assert.Equal(LocationOperationalRole.Wip, second.OperationalRole);
+        Assert.Contains("\"OperationalRole\":1", (await fixture.Db.LocationRackRevisions.SingleAsync(x => x.OperationId == command.OperationId)).AfterJson);
     }
 
     [Fact]

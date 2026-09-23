@@ -1,0 +1,16 @@
+.warehouse-calibration{display:grid;grid-template-columns:minmax(0,1fr) minmax(18rem,24rem);gap:1rem}
+.calibration-map-viewport{overflow:auto;max-height:70dvh;border:1px solid var(--bs-border-color);border-radius:var(--bs-border-radius);background:var(--bs-tertiary-bg)}
+.calibration-map{display:block;width:100%;height:auto;min-width:42rem;touch-action:pan-x pan-y}
+.calibration-map.is-placing{cursor:crosshair}
+.calibration-marker{pointer-events:none}
+.calibration-marker circle{fill:var(--bs-primary);stroke:var(--bs-body-bg);stroke-width:4}
+.calibration-marker.is-check circle{fill:var(--bs-warning)}
+.calibration-marker text{fill:var(--bs-body-color);font-weight:700;paint-order:stroke;stroke:var(--bs-body-bg);stroke-width:4px}
+.calibration-point-list{display:grid;gap:.75rem;max-height:58dvh;overflow:auto}
+.calibration-point{border:1px solid var(--bs-border-color);border-radius:var(--bs-border-radius);padding:.75rem;background:var(--bs-body-bg)}
+.calibration-point.is-selected{outline:3px solid color-mix(in srgb,var(--bs-primary) 55%,transparent)}
+.calibration-point-actions{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.5rem}
+.calibration-point-actions .btn{min-height:44px}
+.calibration-metrics{display:flex;flex-wrap:wrap;gap:.75rem;margin-bottom:1rem}
+.calibration-metrics span{border:1px solid var(--bs-border-color);border-radius:999px;padding:.45rem .75rem}
+@media(max-width:991.98px){.warehouse-calibration{grid-template-columns:1fr}.calibration-point-list{max-height:none}.calibration-map-viewport{max-height:55dvh}}

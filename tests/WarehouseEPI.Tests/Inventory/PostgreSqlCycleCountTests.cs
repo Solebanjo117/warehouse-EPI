@@ -55,7 +55,7 @@ public sealed class PostgreSqlCycleCountTests(PostgreSqlInventoryFixture fixture
         var movements = new InventoryMovementService(db, pins, TimeProvider.System);
         var clock = new WarehouseEPI.Infrastructure.Settings.WarehouseClock(new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db));
         var service = new CycleCountService(db, pins, new InventoryQueryService(db), movements, TimeProvider.System, clock);
-        var page = new CreateModel(db, service);
+        var page = new CreateModel(db, service, new PassthroughStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts>());
 
         await page.OnGetAsync(CancellationToken.None);
 

@@ -1,4 +1,6 @@
 (() => {
+  const translate = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
+  const presentationLocale = document.documentElement.lang === "en" ? "en-US" : "es-MX";
   const dashboard = document.querySelector("[data-dashboard]");
   if (!dashboard || typeof Chart === "undefined") return;
   const canvas = dashboard.querySelector("[data-dashboard-chart]");
@@ -13,10 +15,10 @@
   const intervalMilliseconds = 60000;
   const number = (value) => Number(value || 0);
   const text = (value) => String(value ?? "");
-  const format = (value) => number(value).toLocaleString("es-MX");
+  const format = (value) => number(value).toLocaleString(presentationLocale);
   const timestamp = (value) => {
     const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value || "");
-    return match ? `${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}` : "hora no disponible";
+    return match ? `${match[3]}/${match[2]}/${match[1]} ${match[4]}:${match[5]}` : translate("hora no disponible");
   };
   const color = (name) => getComputedStyle(dashboard).getPropertyValue(name).trim();
   let requestInProgress = false;
@@ -36,7 +38,7 @@
     if (number(item?.state) === 1) return "Nuevo";
     if (number(item?.state) === 0) return "Sin actividad";
     const delta = number(item?.delta);
-    return `${delta > 0 ? "+" : ""}${delta} · ${number(item?.percentChange).toLocaleString("es-MX", { maximumFractionDigits: 1 })}%`;
+    return `${delta > 0 ? "+" : ""}${delta} · ${number(item?.percentChange).toLocaleString(presentationLocale, { maximumFractionDigits: 1 })}%`;
   };
   const renderComparison = (snapshot) => {
     const comparison = snapshot?.comparison;
@@ -68,7 +70,7 @@
         const value = document.createElement("span"); const delta = number(driver.delta); value.textContent = `${format(driver.current)} operación(es) · ${delta > 0 ? "+" : ""}${delta}`;
         link.append(code, value); item.append(link); list.append(item);
       });
-      if (!drivers.length) { const emptyItem = document.createElement("li"); emptyItem.className = "text-body-secondary"; emptyItem.textContent = "Sin actividad en el período."; list.append(emptyItem); }
+      if (!drivers.length) { const emptyItem = document.createElement("li"); emptyItem.className = "text-body-secondary"; emptyItem.textContent = translate("Sin actividad en el período."); list.append(emptyItem); }
     });
   };
   const visiblePoints = () => currentPoints.slice(-selectedRange);
@@ -113,8 +115,8 @@
     const totalElement = dashboard.querySelector("[data-dashboard-total]");
     const busiestElement = dashboard.querySelector("[data-dashboard-busiest]");
     if (totalElement) totalElement.textContent = format(total);
-    if (busiestElement) busiestElement.textContent = busiest ? `${text(busiest.dayLabel)} · ${format(busiest.totalEffectiveOperations)}` : "Sin actividad en el período";
-    if (periodLabel) periodLabel.textContent = `Últimos ${selectedRange} días`;
+    if (busiestElement) busiestElement.textContent = busiest ? `${text(busiest.dayLabel)} · ${format(busiest.totalEffectiveOperations)}` : translate("Sin actividad en el período");
+    if (periodLabel) periodLabel.textContent = translate("Últimos {0} días", selectedRange);
   };
   const segmentKeys = ["entryCount", "exitCount", "transferCount", "adjustmentCount"];
   const segmentRadius = (context) => {
@@ -259,7 +261,7 @@
                 const point = visiblePoints()[items.length ? items[0].dataIndex : tooltipIndex];
                 if (!point) return "";
                 const total = number(point.totalEffectiveOperations);
-                return total ? `\nTotal: ${format(total)} operaciones\nSKUs distintos: ${format(point.distinctSkusCount)}` : "Sin actividad registrada";
+                return total ? `\n${translate("Total: {0} operaciones", format(total))}\n${translate("SKUs distintos: {0}", format(point.distinctSkusCount))}` : translate("Sin actividad registrada");
               }
             }
           }
@@ -275,7 +277,7 @@
               callback: (_, index) => {
                 const point = visiblePoints()[index];
                 if (!point) return "";
-                return text(point.date) === dashboard.dataset.warehouseDate ? [text(point.dayLabel), "Hoy"] : text(point.dayLabel);
+                return text(point.date) === dashboard.dataset.warehouseDate ? [text(point.dayLabel), translate("Hoy")] : text(point.dayLabel);
               },
               padding: 10,
               maxRotation: 0
@@ -302,7 +304,7 @@
   };
   const renderSnapshot = (snapshot) => {
     const metrics = snapshot?.metrics;
-    if (!metrics || !Array.isArray(metrics.recentActivityTrend)) throw new Error("Respuesta del tablero incompleta.");
+    if (!metrics || !Array.isArray(metrics.recentActivityTrend)) throw new Error(translate("Respuesta del tablero incompleta."));
     currentPoints = metrics.recentActivityTrend;
     updateMetric("effectiveMovementsToday", metrics.effectiveMovementsToday);
     updateMetric("negativePositionsCount", metrics.negativePositionsCount);
@@ -311,14 +313,14 @@
     renderComparison(snapshot);
     selectedIndex = Math.min(selectedIndex, visiblePoints().length - 1);
     refreshChart("none");
-    if (status) { status.classList.remove("is-stale"); status.replaceChildren(document.createTextNode("Datos generados: ")); const time = document.createElement("time"); time.dateTime = snapshot.generatedAtLocal; time.textContent = timestamp(snapshot.generatedAtLocal); status.appendChild(time); }
+    if (status) { status.classList.remove("is-stale"); status.replaceChildren(document.createTextNode(translate("Datos generados: "))); const time = document.createElement("time"); time.dateTime = snapshot.generatedAtLocal; time.textContent = timestamp(snapshot.generatedAtLocal); status.appendChild(time); }
   };
   const schedule = () => { window.clearTimeout(timerId); if (!document.hidden) timerId = window.setTimeout(refresh, intervalMilliseconds); };
   const refresh = async (forceRefresh = false) => {
     if (requestInProgress || document.hidden) return;
-    requestInProgress = true; shell.setAttribute("aria-busy", "true"); refreshButton?.setAttribute("disabled", "disabled"); if (status) status.textContent = "Actualizando datos…";
+    requestInProgress = true; shell.setAttribute("aria-busy", "true"); refreshButton?.setAttribute("disabled", "disabled"); if (status) status.textContent = translate("Actualizando datos…");
     try { const metricsUrl = new URL(dashboard.dataset.metricsUrl, window.location.href); if (forceRefresh) metricsUrl.searchParams.set("refresh", "true"); const response = await fetch(metricsUrl, { headers: { Accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error(`HTTP ${response.status}`); renderSnapshot(await response.json()); }
-    catch { if (status) { status.classList.add("is-stale"); status.textContent = "Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente."; } }
+    catch { if (status) { status.classList.add("is-stale"); status.textContent = translate("Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente."); } }
     finally { requestInProgress = false; shell.setAttribute("aria-busy", "false"); refreshButton?.removeAttribute("disabled"); schedule(); }
   };
 

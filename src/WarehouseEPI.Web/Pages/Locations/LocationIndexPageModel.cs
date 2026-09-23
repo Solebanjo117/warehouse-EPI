@@ -1,12 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Locations;
 
@@ -16,7 +18,7 @@ public class LocationIndexPageModel(
     WipReportService wipReportService,
     HeatmapReportService heatmapReportService,
     ReportExportService reportExportService,
-    WarehouseClock clock) : PageModel
+    WarehouseClock clock, IStringLocalizer<CatalogTexts>? localizer = null) : PageModel
 {
     protected WarehouseDbContext DbContext { get; } = dbContext;
 
@@ -162,7 +164,7 @@ public class LocationIndexPageModel(
     {
         if (!User.IsInRole("ADMIN")) return Forbid();
         if (!HeatmapQueryNormalizer.IsCanonicalMetric(mapMetric))
-            return BadRequest("Selecciona una métrica válida para exportar el mapa de calor.");
+            return BadRequest((localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>())["Selecciona una métrica válida para exportar el mapa de calor."]);
 
         var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
             mapMetric, period, from, to, clock, rowCode, search, cancellationToken);
@@ -174,7 +176,7 @@ public class LocationIndexPageModel(
                     export.Racks, export.Summary, heatmapQuery.Filter, heatmapQuery.PeriodLabel, cancellationToken),
                 "text/csv; charset=utf-8", $"Mapa_Calor_{MapMetric}_{stamp}.csv");
         if (!string.Equals(format, "xlsx", StringComparison.OrdinalIgnoreCase))
-            return BadRequest("El formato de exportación debe ser xlsx o csv.");
+            return BadRequest((localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>())["El formato de exportación debe ser xlsx o csv."]);
         return File(await reportExportService.ExportHeatmapToExcelAsync(
                 export.Racks, export.Summary, heatmapQuery.Filter, heatmapQuery.PeriodLabel, cancellationToken),
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"Mapa_Calor_{MapMetric}_{stamp}.xlsx");
@@ -185,7 +187,7 @@ public class LocationIndexPageModel(
         DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
     {
         if (!HeatmapQueryNormalizer.IsCanonicalMetric(mapMetric))
-            return BadRequest(new { error = "Selecciona una métrica válida para el mapa de calor." });
+            return BadRequest(new { error = (localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>())["Selecciona una métrica válida para el mapa de calor."].Value });
 
         var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
             mapMetric, period, from, to, clock, cancellationToken: cancellationToken);
@@ -351,6 +353,7 @@ public class LocationIndexPageModel(
         public int EmptyCount => Existing.Count(position => !position.HasInventory);
         public int IssueCount => Existing.Count(position => position.HasIssue);
         public bool IsWip => Existing.Any() && Existing.All(position => position.IsWip);
+        public bool IsMixed => Existing.Any(position => position.IsWip) && Existing.Any(position => !position.IsWip);
         public string RackState => Existing.Any(position => position.HasNegative) ? "negative" : Existing.Any(position => !position.IsActive) ? "inactive" : Existing.Any(position => position.IsBlocked) ? "blocked" : Existing.Any(position => position.HasInventory) ? "occupied" : "empty";
     }
     public sealed record LocationSummary(int Available, int Blocked, int Inactive, int Retired, int Racks, int Areas);

@@ -1,4 +1,5 @@
 (() => {
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   "use strict";
   const shell = document.querySelector("[data-production-planning]");
   if (!shell) return;

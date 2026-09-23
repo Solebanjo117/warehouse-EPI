@@ -1,0 +1,58 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{ string Area(ProductionDailyArea area)=>T[area switch {ProductionDailyArea.Cutting=>"Corte",ProductionDailyArea.Sewing=>"Costura",_=>"Ready to Pack"}]; }
+<section class="production-entry mb-4" aria-labelledby="daily-entry-heading"><div class="production-entry__body">
+<h2 id="daily-entry-heading" class="h4">@T["Registrar producción"]</h2><p class="production-entry__intro">@T["Selecciona dónde trabajaste, escribe las piezas de cada producto y revisa la captura. El NIP se pide al confirmar."]</p>
+<h3 class="production-entry__step">1. @T["Fecha, área y turno"]</h3>
+@if(!Model.ConfigurationReady){<p class="alert alert-warning">@T["Completa la configuración de áreas y turnos activos antes de capturar."] @if(User.IsInRole("ADMIN")){<a asp-page="/Admin/Production/Schedule" asp-fragment="daily-configuration">@T["Configurar áreas y turnos"]</a>}else{<span>@T["Contacta al administrador para habilitar la captura."]</span>}</p>}
+<form method="get" class="row g-3 production-entry__context" data-context-form>
+<input name="Tab" type="hidden" value="capture"/><input name="WeekId" type="hidden" value="@Model.WeekId"/>
+<div class="col-12 col-md-4"><label for="group-date" class="form-label">@T["Fecha efectiva"]</label><input id="group-date" name="Day" value="@Model.Group.Date.ToString("yyyy-MM-dd")" max="@Model.Today.ToString("yyyy-MM-dd")" type="date" class="form-control form-control-lg" data-refresh-context/></div>
+<div class="col-6 col-md-4"><label for="group-area" class="form-label">@T["Área"]</label><select id="group-area" name="Area" class="form-select form-select-lg" data-refresh-context>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<option value="@area" selected="@(area==Model.Group.Area)">@Area(area)</option>}</select></div>
+<div class="col-6 col-md-4"><label for="group-shift" class="form-label">@T["Turno"]</label><select id="group-shift" name="ShiftId" class="form-select form-select-lg" data-refresh-context>@foreach(var shift in Model.Shifts){<option value="@shift.Id" selected="@(shift.Id==Model.Group.ShiftId)">@shift.Name</option>}</select></div>
+</form>
+@if(Model.CaptureWeek is not null){<p class="production-entry__week">@T["Semana"]: @Model.CaptureWeek.WeekStart.ToString("dd/MM/yyyy")–@Model.CaptureWeek.WeekEnd.ToString("dd/MM/yyyy") · <strong>@WarehouseEPI.Web.Production.ProductionDailyText.WeekStatus(T,Model.CaptureWeek.Status)</strong></p>}
+@if(Model.CaptureContextMessage is not null){<div class="alert alert-warning" role="status">@T[Model.CaptureContextMessage]
+@if(User.IsInRole("ADMIN")){<a class="d-block mt-2" asp-page="/Admin/Production/Schedule" asp-route-WeekId="@Model.CaptureWeek?.Id" data-capture-context-link>@T["Programa semanal"]</a>}
+</div>}
+<form id="capture-group" method="post" autocomplete="off" data-capture-group data-unsaved-message="@T["Hay cantidades sin confirmar. ¿Quieres descartarlas?"]">
+<input asp-for="WeekId" type="hidden"/><input asp-for="Group.OperationId" type="hidden"/><input asp-for="Group.Fingerprint" type="hidden"/><input asp-for="Group.Date" type="hidden"/><input asp-for="Group.Area" type="hidden"/><input asp-for="Group.ShiftId" type="hidden"/>
+<fieldset disabled="@(!Model.ConfigurationReady || Model.CaptureContextMessage is not null)">
+<h3 class="production-entry__step">2. @T["Escribe las piezas realizadas"]</h3>
+<div class="row g-2 mb-3 production-entry__add">
+<div class="col-md-9 production-entry__picker" data-daily-product-field data-url="@Url.Page("Index", "DailyProducts")"
+     data-planned="@T["Programados esta semana"]" data-pending="@T["Pendientes anteriores"]" data-other="@T["Otros productos activos"]"
+     data-more="@T["Cargar más"]" data-empty="@T["No hay coincidencias. Busca otro SKU o descripción."]" data-error="@T["No se pudieron consultar los productos. Vuelve a buscar."]">
+<label for="group-add-product" class="form-label">@T["Buscar o agregar producto"]</label>
+<input asp-for="Group.AddProductId" type="hidden" data-product-id/>
+<input id="group-add-product" type="search" class="form-control form-control-lg" data-product-input autocomplete="off" autocapitalize="characters" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="group-product-results"/>
+<div id="group-product-results" class="list-group production-entry__results" role="listbox" data-product-results></div>
+<p class="small text-body-secondary mt-2 mb-0">@T["Primero los productos de la semana. Escribe dos caracteres para buscar también en el catálogo."]</p>
+</div>
+<div class="col-md-3 d-grid align-items-center"><button asp-page-handler="GroupAdd" class="btn btn-outline-primary" data-daily-product-add>@T["Agregar producto"]</button></div>
+</div>
+<p class="production-entry__guidance">@T["El pendiente es una referencia. Puedes registrar extras o piezas cuya etapa anterior aún no se ha capturado."]</p>
+@if(Model.Group.Rows.Count>0){
+<p class="production-entry__count" role="status">@Area(Model.Group.Area) · @T["Productos mostrados: {0}",Model.Group.Rows.Count]</p>
+<p class="small text-body-secondary">@T["Vacío o cero no se incluye. Hasta 100 productos por tanda; usa el buscador para acotar."]</p>
+<div class="production-entry__rows"><table class="table align-middle production-entry__table" role="table"><thead><tr role="row"><th>@T["Producto"]</th><th>@T["Pendiente registrado"]</th><th>@T["Piezas realizadas"]</th><th>@T["Notas"]</th></tr></thead><tbody role="rowgroup">
+@for(var i=0;i<Model.Group.Rows.Count;i++){
+var row=Model.Group.Rows[i];var available=Model.Available.FirstOrDefault(x=>x.ProductId==row.ProductId);
+<tr role="row" data-product-row="@row.ProductId" data-focus-product="@(Model.FocusProductId==row.ProductId ? "true" : null)"><td role="cell" class="production-entry__product"><input asp-for="Group.Rows[i].ProductId" type="hidden"/><input asp-for="Group.Rows[i].Sku" type="hidden"/><strong>@(available?.Sku??row.Sku)</strong></td><td role="cell" class="production-entry__pending" data-label="@T["Pendiente registrado"]">@((available?.Available??0).ToString("0.####",CultureInfo.InvariantCulture))@if(available?.ToReconcile>0){<small class="d-block text-warning">@T["Por conciliar"]: @available.ToReconcile.ToString("0.####",CultureInfo.InvariantCulture)</small>}</td>
+<td role="cell" class="production-entry__quantity" data-label="@T["Piezas realizadas"]"><label asp-for="Group.Rows[i].Quantity" class="visually-hidden">@T["Piezas realizadas"] @row.Sku</label><input asp-for="Group.Rows[i].Quantity" class="form-control form-control-lg" inputmode="decimal" data-group-quantity/><span asp-validation-for="Group.Rows[i].Quantity" class="text-danger"></span></td>
+<td role="cell" class="production-entry__notes"><details><summary>@T["Notas"]</summary><label asp-for="Group.Rows[i].Notes" class="visually-hidden">@T["Notas"] @row.Sku</label><input asp-for="Group.Rows[i].Notes" class="form-control" maxlength="500"/></details></td></tr>}
+</tbody></table></div>
+<div class="production-entry__actions"><button asp-page-handler="GroupPreview" class="btn btn-primary btn-lg" disabled="@(Model.Group.Rows.Count==0)">@T["Revisar captura"]</button></div>
+}
+@if(Model.CaptureEmptyMessage is not null){<div class="alert alert-info" role="status"><strong>@Area(Model.Group.Area)</strong><p class="mt-2">@T[Model.CaptureEmptyMessage]</p>
+@foreach(var availableArea in Model.OtherAvailableAreas){<a class="btn btn-outline-primary me-2 mb-2" asp-page="Index" asp-route-Tab="capture" asp-route-Day="@Model.Group.Date.ToString("yyyy-MM-dd")" asp-route-Area="@availableArea.Key" asp-route-ShiftId="@Model.Group.ShiftId" data-capture-context-link>@Area(availableArea.Key) · @T["Productos disponibles: {0}",availableArea.Value]</a>}
+<a class="btn btn-outline-secondary" asp-page="Index" asp-route-Tab="balance" asp-route-WeekId="@Model.CaptureWeek?.Id" data-capture-context-link>@T["Balance"]</a>
+</div>}
+@if(Model.GroupPreview is not null){<section class="production-entry__review mt-4" aria-labelledby="group-review-heading" tabindex="-1" data-group-review><h3 id="group-review-heading" class="production-entry__step">3. @T["Revisar tanda"]</h3><p>@Model.Group.Date.ToString("dd/MM/yyyy") · @Area(Model.Group.Area) · @Model.Shifts.FirstOrDefault(x=>x.Id==Model.Group.ShiftId)?.Name</p>
+@foreach(var preview in Model.GroupPreview.Products){<div class="production-entry__review-product"><div class="d-flex justify-content-between align-items-baseline gap-3"><strong>@preview.Product</strong><span class="production-entry__total">@preview.Requested.ToString("0.####",CultureInfo.InvariantCulture) <small>@T["Piezas realizadas"]</small></span></div><dl class="production-entry__figures"><div><dt>@T["Pendiente registrado"]</dt><dd>@preview.Available.ToString("0.####",CultureInfo.InvariantCulture)</dd></div><div><dt>@T["Extras"]</dt><dd>@preview.Extra.ToString("0.####",CultureInfo.InvariantCulture)</dd></div><div><dt>@T["Por conciliar"]</dt><dd>@preview.ToReconcile.ToString("0.####",CultureInfo.InvariantCulture)</dd></div></dl><details><summary>@T["Ver reparto por órdenes"]</summary><ul>@foreach(var allocation in preview.Allocations){<li>@allocation.OrderNumber · @allocation.Quantity.ToString("0.####",CultureInfo.InvariantCulture)</li>}</ul></details></div>}
+@foreach(var error in Model.GroupPreview.Errors){<p class="text-danger">@WarehouseEPI.Web.Production.ProductionDailyText.Message(T,error)</p>}
+@if(Model.GroupPreview.CanConfirm){<label asp-for="Group.Pin" class="form-label">@T["NIP responsable"]</label><input asp-for="Group.Pin" type="password" inputmode="numeric" maxlength="8" class="form-control form-control-lg mb-2 production-entry__pin" autocomplete="off"/><button asp-page-handler="GroupConfirm" class="btn btn-success btn-lg" data-group-confirm>@T["Confirmar tanda con NIP"]</button>}
+</section>}
+</fieldset></form></div></section>

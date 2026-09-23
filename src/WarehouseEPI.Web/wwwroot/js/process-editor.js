@@ -1,5 +1,6 @@
 (() => {
   "use strict";
+  const text = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
 
   const form = document.querySelector("[data-process-editor]");
   const picker = form?.querySelector("[data-process-target-picker]");
@@ -134,7 +135,7 @@
     const available = items.filter(item => !keys.has(item.key)
       && !(item.type === "rack" && rows.has(rackRow(item.key))));
     if (!available.length) {
-      announce("No se encontraron destinos WIP adicionales.");
+    announce(text("No se encontraron destinos WIP adicionales."));
       return;
     }
 
@@ -159,7 +160,7 @@
 
     input.setAttribute("aria-expanded", "true");
     setHighlight(0);
-    announce(`${available.length} ${available.length === 1 ? "destino disponible" : "destinos disponibles"}. Usa flechas y Enter para elegir.`);
+    announce(text("{0} {1}. Usa flechas y Enter para elegir.", available.length, available.length === 1 ? text("destino disponible") : text("destinos disponibles")));
   };
 
   const search = async () => {
@@ -167,12 +168,12 @@
     controller?.abort();
     if (!query) {
       closeResults();
-      announce("Escribe para buscar un área WIP, una fila completa o un rack WIP.");
+    announce(text("Escribe para buscar un área WIP, una fila completa o un rack WIP."));
       return;
     }
 
     controller = new AbortController();
-    announce("Buscando destinos WIP…");
+    announce(text("Buscando destinos WIP…"));
     try {
       const url = new URL(lookupUrl, window.location.href);
       url.searchParams.set("q", query);
@@ -185,7 +186,7 @@
     } catch (error) {
       if (error?.name === "AbortError") return;
       closeResults();
-      announce("No fue posible buscar en la red local. Intenta nuevamente.");
+      announce(text("No fue posible buscar en la red local. Intenta nuevamente."));
     }
   };
 
@@ -233,8 +234,8 @@
   form.addEventListener("submit", event => {
     if (!input.value.trim()) return;
     event.preventDefault();
-    input.setCustomValidity("Selecciona un destino de los resultados o limpia la búsqueda.");
-    announce("Selecciona un destino de los resultados antes de guardar.");
+    input.setCustomValidity(text("Selecciona un destino de los resultados o limpia la búsqueda."));
+    announce(text("Selecciona un destino de los resultados antes de guardar."));
     input.reportValidity();
     input.focus();
   });
@@ -283,7 +284,7 @@
     defaultController?.abort();
     if (!query) {
       closeDefaultResults();
-      defaultFeedback.textContent = "Escribe para buscar un área, rack o posición WIP.";
+      defaultFeedback.textContent = text("Escribe para buscar un área, rack o posición WIP.");
       return;
     }
     defaultController = new AbortController();
@@ -315,9 +316,9 @@
       }
       defaultInput.setAttribute("aria-expanded", items.length ? "true" : "false");
       if (items.length) highlightDefault(0);
-      defaultFeedback.textContent = items.length ? `${items.length} destinos disponibles. Usa flechas y Enter para elegir.` : "No hay destinos compatibles con esa búsqueda.";
+      defaultFeedback.textContent = items.length ? text("{0} destinos disponibles. Usa flechas y Enter para elegir.", items.length) : text("No hay destinos compatibles con esa búsqueda.");
     } catch (error) {
-      if (error?.name !== "AbortError") defaultFeedback.textContent = "No fue posible buscar en la red local. Intenta nuevamente.";
+      if (error?.name !== "AbortError") defaultFeedback.textContent = text("No fue posible buscar en la red local. Intenta nuevamente.");
     }
   };
   defaultInput?.addEventListener("input", () => {
@@ -336,7 +337,7 @@
     defaultKey.value = "";
     defaultInput.value = "";
     closeDefaultResults();
-    defaultFeedback.textContent = "El proceso no tendrá WIP predeterminado.";
+    defaultFeedback.textContent = text("El proceso no tendrá WIP predeterminado.");
     defaultInput.focus();
   });
 })();

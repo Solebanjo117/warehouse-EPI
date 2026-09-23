@@ -170,6 +170,7 @@ public sealed class ProductionWorkOrderStage
 
 public sealed class ProductionMaterialIssueLink
 {
+    public string PlateAllocationsJson { get; set; } = "[]";
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid WorkOrderId { get; set; }
     public Guid WorkOrderStageId { get; set; }
@@ -270,6 +271,7 @@ public sealed class ProductionSupplyPreparation
 
 public sealed class ProductionSupplyPreparationSource
 {
+    public string PlatesJson { get; set; } = "[]";
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid PreparationId { get; set; }
     public ProductionSupplySourceKind Kind { get; set; }

@@ -227,6 +227,10 @@ public sealed class InventoryCorrectionService(
                 Balances: replacementResult?.ResultingBalances ??
                     await reversalService.CurrentBalancesAsync(reversal, cancellationToken));
         }
+        catch (PalletPlateException exception)
+        {
+            return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed, Errors: [exception.Message]), cancellationToken);
+        }
         catch (DbUpdateException)
         {
             if (transaction is not null)

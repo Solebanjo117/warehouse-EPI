@@ -7,7 +7,7 @@ public sealed class ProductCatalogIndexContractTests
     {
         var page = Read("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Products", "Index.cshtml");
 
-        Assert.Contains("aria-label=\"Filtros rápidos del catálogo\"", page, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"@CatTexts[\"Filtros rápidos del catálogo\"]\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-status=\"active\" asp-route-stock=\"negative\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-status=\"active\" asp-route-stock=\"minimum\"", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-assignment=\"unassigned\" asp-route-pageNumber=\"1\"", page, StringComparison.Ordinal);
@@ -54,7 +54,7 @@ public sealed class ProductCatalogIndexContractTests
         Assert.Contains("product-catalog-table d-none d-lg-block", page, StringComparison.Ordinal);
         Assert.Contains("product-catalog-card-list d-lg-none", page, StringComparison.Ordinal);
         Assert.Contains("product-catalog-empty", page, StringComparison.Ordinal);
-        Assert.Contains("Mostrando @Model.FirstResult–@Model.LastResult", page, StringComparison.Ordinal);
+        Assert.Contains("@CatTexts[\"Mostrando {0}–{1}\", Model.FirstResult, Model.LastResult]", page, StringComparison.Ordinal);
         Assert.Contains("product-catalog-card", styles, StringComparison.Ordinal);
         Assert.Contains("@media (max-width: 575.98px)", styles, StringComparison.Ordinal);
 

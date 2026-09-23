@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Web.Security;
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
-public sealed class DetailsModel(CycleCountService cycleCountService, CycleCountOperatorSession operatorSessions) : PageModel
+public sealed class DetailsModel(CycleCountService cycleCountService, CycleCountOperatorSession operatorSessions, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     public CycleCountCampaignDetail? Campaign { get; private set; }
     public CycleCountOperatorSessionView? OperatorSession { get; private set; }
@@ -29,7 +31,7 @@ public sealed class DetailsModel(CycleCountService cycleCountService, CycleCount
         if (Campaign is null) return NotFound();
         OperatorSession = await operatorSessions.StartAsync(HttpContext, id, pin, cancellationToken);
         if (OperatorSession is not null) return RedirectToPage(new { id, scanNext = true });
-        Error = "No fue posible validar el NIP.";
+        Error = texts["No fue posible validar el NIP."];
         return Page();
     }
 
@@ -47,11 +49,11 @@ public sealed class DetailsModel(CycleCountService cycleCountService, CycleCount
         OperatorSession = await operatorSessions.GetAsync(HttpContext, id, renew: true, cancellationToken);
         if (OperatorSession is null)
         {
-            Error = "Identifícate con tu NIP para comenzar o continuar el conteo.";
+            Error = texts["Identifícate con tu NIP para comenzar o continuar el conteo."];
             return Page();
         }
         var location = Campaign?.Locations.SingleOrDefault(item => string.Equals(item.LocationCode, ScannedLocationCode?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (location is null) { Error = "La ubicación escaneada no pertenece a esta campaña."; return Page(); }
+        if (location is null) { Error = texts["La ubicación escaneada no pertenece a esta campaña."]; return Page(); }
         return location.Status switch
         {
             WarehouseEPI.Core.Entities.CycleCountLocationStatus.Pending or WarehouseEPI.Core.Entities.CycleCountLocationStatus.RecountRequested or WarehouseEPI.Core.Entities.CycleCountLocationStatus.Stale => RedirectToPage("Count", new { id, locationId = location.Id }),
@@ -61,7 +63,7 @@ public sealed class DetailsModel(CycleCountService cycleCountService, CycleCount
         };
     }
     private async Task<IActionResult> ExecuteAsync(Guid id, Func<Task<CycleCountResult>> action, CancellationToken cancellationToken)
-    { var result = await action(); Pin = string.Empty; if (result.Status == CycleCountStatus.Success) return RedirectToPage(new { id }); await LoadAsync(id, renewOperatorSession: false, cancellationToken); Error = result.Status == CycleCountStatus.InvalidPin ? "NIP no válido." : string.Join(' ', result.ValidationErrors); return Page(); }
+    { var result = await action(); Pin = string.Empty; if (result.Status == CycleCountStatus.Success) return RedirectToPage(new { id }); await LoadAsync(id, renewOperatorSession: false, cancellationToken); Error = result.Status == CycleCountStatus.InvalidPin ? texts["NIP no válido."] : string.Join(' ', result.ValidationErrors.Select(error => texts[error].Value)); return Page(); }
 
     private async Task LoadAsync(Guid id, bool renewOperatorSession, CancellationToken cancellationToken)
     {

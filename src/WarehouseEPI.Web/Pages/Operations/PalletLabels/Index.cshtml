@@ -1,24 +1,213 @@
-@page "/Operations/PalletLabels"
+@page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
 @model WarehouseEPI.Web.Pages.Operations.PalletLabels.IndexModel
 @using WarehouseEPI.Infrastructure.Labels
-@{ ViewData["Title"] = "Placas de pallet"; }
-@if (Model.Preview is not null) { <style>@Html.Raw($"@@page {{ size: {Model.Preview.Size.WidthInches.ToString(System.Globalization.CultureInfo.InvariantCulture)}in {Model.Preview.Size.HeightInches.ToString(System.Globalization.CultureInfo.InvariantCulture)}in; margin: 0; }}")</style> }
+@using System.Globalization
+@{ ViewData["Title"] = OpTexts["Placas de pallet"].Value; }
+@if (Model.Preview is not null) { <style>@Html.Raw($"@@page {{ size: {Model.Preview.Size.WidthInches.ToString(CultureInfo.InvariantCulture)}in {Model.Preview.Size.HeightInches.ToString(CultureInfo.InvariantCulture)}in; margin: 0; }}")</style> }
+
 <div class="label-workspace pallet-label-workspace labels-workspace labels-pallet">
-    <header class="label-page-header no-label-print"><div><span class="label-eyebrow">Entrada confirmada</span><h1 class="h2 mb-1">Placas de pallet</h1><p class="text-body-secondary mb-0">Busca una Entrada para generar su placa documental. No cambia inventario.</p></div></header>
-    <form method="get" class="label-template-picker no-label-print"><label for="pallet-folio" class="form-label fw-bold">Folio de Entrada o placa</label><div class="input-group input-group-lg"><input id="pallet-folio" name="folio" class="form-control" value="@Model.Entry?.Identifier" autocomplete="off" placeholder="PLT-UUID o UUID de Entrada" autofocus/><button class="btn btn-outline-primary" type="submit">Buscar</button></div><div class="form-text">Acepta el UUID de la Entrada o el folio visible PLT.</div></form>
-    @if(Model.SearchError is not null){<div class="alert alert-warning no-label-print mt-3" role="alert">@Model.SearchError</div>}
-    <div asp-validation-summary="ModelOnly" class="alert alert-danger no-label-print mt-3" role="alert"></div>
-    @if(Model.Entry is not null){
-        <section class="operation-card no-label-print mt-3"><div class="receipt-meta"><div><span>Placa</span><strong>@Model.Entry.Identifier</strong></div><div><span>Producto</span><strong>@Model.Entry.Sku</strong></div><div><span>Cantidad</span><strong>@Model.Entry.Quantity.ToString("0.####") @Model.Entry.UnitCode</strong></div><div><span>Destino</span><strong>@(Model.Entry.Destination ?? "—")</strong></div><div><span>Fecha de Entrada</span><strong>@(Model.EntryLocalTime?.ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div><div><span>Responsable</span><strong>@Model.Entry.Responsible</strong></div><div><span>Referencia</span><strong>@(string.IsNullOrWhiteSpace(Model.Entry.Reference) ? "—" : Model.Entry.Reference)</strong></div><div><span>Referencia externa</span><strong>@(string.IsNullOrWhiteSpace(Model.Entry.ExternalReference) ? "—" : Model.Entry.ExternalReference)</strong></div></div>@if(Model.Entry.Description is not null){<p class="text-body-secondary mb-0 mt-2">@Model.Entry.Description</p>}</section>
-        <form method="post" class="label-create-grid no-label-print mt-3"><input asp-for="Input.MovementId" type="hidden"/><section class="label-form-card"><div class="label-section-heading"><span class="label-step-number">1</span><div><h2 class="h5 mb-1">Datos de impresión</h2><p class="text-body-secondary mb-0">El peso es opcional y no se almacena.</p></div></div><div class="row g-3"><div class="col-sm-7"><label asp-for="Input.Weight" class="form-label">Peso</label><input asp-for="Input.Weight" class="form-control form-control-lg" maxlength="40" autocomplete="off" placeholder="Ej. 1,250 LB"/><span asp-validation-for="Input.Weight" class="text-danger"></span></div><div class="col-sm-5"><label asp-for="Input.Copies" class="form-label">Copias idénticas</label><input asp-for="Input.Copies" class="form-control form-control-lg" type="number" min="1" max="100" required/><span asp-validation-for="Input.Copies" class="text-danger"></span></div></div></section><section class="label-form-card label-submit-card"><div class="label-section-heading"><span class="label-step-number">2</span><div><h2 class="h5 mb-1">Previsualizar</h2><p class="text-body-secondary mb-0">Received se deriva de la Entrada; Counted y Removed se completan a mano.</p></div></div><button type="submit" class="btn btn-primary btn-lg">Generar placa</button></section></form>
+    <header class="label-page-header no-label-print">
+        <div><span class="label-eyebrow">@OpTexts["Identificación de inventario"]</span><h1 class="h2 mb-1">@OpTexts["Placas de pallet"]</h1><p class="text-body-secondary mb-0">@OpTexts["Consulta una ubicación e imprime la placa del producto."]</p></div>
+        <a asp-page="Tracking" class="btn btn-outline-primary btn-lg">@OpTexts["Seguimiento de placas"]</a>
+    </header>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div asp-validation-summary="All" class="alert alert-danger no-label-print mt-3" role="alert"></div>
     }
-    @if(Model.Preview is null){
-        <section class="operation-card no-label-print mt-3" aria-labelledby="pallet-recent-title"><div class="label-section-heading"><div><h2 id="pallet-recent-title" class="h5 mb-1">Entradas recientes</h2><p class="text-body-secondary mb-0">Últimas Entradas elegibles para placa. Toca una para cargarla sin teclear el folio.</p></div></div>
-        @if(Model.Recent.Count == 0){<p class="text-body-secondary mb-0">Todavía no hay Entradas estándar de una sola línea. Registra una Entrada y aparecerá aquí.</p>}
-        else{<ul class="pallet-recent-list">@foreach(var row in Model.Recent){<li><a class="pallet-recent-item @(Model.Entry?.MovementId == row.Candidate.MovementId ? "is-active" : null)" asp-page="/Operations/PalletLabels/Index" asp-route-id="@row.Candidate.MovementId" aria-current="@(Model.Entry?.MovementId == row.Candidate.MovementId ? "true" : null)"><span class="pallet-recent-head"><strong class="pallet-recent-sku">@row.Candidate.Sku</strong><span class="pallet-recent-qty">@row.Candidate.Quantity.ToString("0.####") @row.Candidate.UnitCode</span></span>@if(!string.IsNullOrWhiteSpace(row.Candidate.Description)){<span class="pallet-recent-desc">@row.Candidate.Description</span>}<span class="pallet-recent-destination">Destino: <strong>@(row.Candidate.Destination ?? "—")</strong></span><span class="pallet-recent-meta">@row.LocalTime.ToString("dd/MM HH:mm") · @row.Candidate.Responsible@(string.IsNullOrWhiteSpace(row.Candidate.Reference) ? null : $" · {row.Candidate.Reference}")</span></a></li>}</ul>}
+    @if (Model.SearchError is not null) { <div class="alert alert-warning no-label-print mt-3" role="alert">@Model.SearchError</div> }
+
+    <section class="operation-card no-label-print mt-3" aria-labelledby="recent-movements-title">
+        <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
+            <div><span class="label-eyebrow">@OpTexts["Actividad del almacén"]</span><h2 id="recent-movements-title" class="h4 mb-1">@OpTexts["Últimos 10 movimientos"]</h2><p class="text-body-secondary mb-0">@OpTexts["Historial general de todas las ubicaciones."]</p></div>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle report-cards mb-0">
+                <thead><tr><th scope="col">@OpTexts["Fecha"]</th><th scope="col">@OpTexts["Tipo"]</th><th scope="col">@OpTexts["Producto"]</th><th scope="col">@OpTexts["Cantidad"]</th><th scope="col">@OpTexts["Ruta"]</th><th scope="col">@OpTexts["Responsable"]</th><th scope="col">@OpTexts["Estado"]</th><th scope="col"><span class="visually-hidden">@OpTexts["Acciones"]</span></th></tr></thead>
+                <tbody>
+                @if (Model.RecentMovements.Count == 0)
+                {
+                    <tr class="report-empty-row"><td colspan="8">@OpTexts["Todavía no hay movimientos de inventario."]</td></tr>
+                }
+                else
+                {
+                    @foreach (var recent in Model.RecentMovements)
+                    {
+                        var movement = recent.Movement;
+                        <tr>
+                            <td data-label="@OpTexts["Fecha"]">@recent.LocalOccurredAt.ToString("dd/MM/yyyy HH:mm")</td>
+                            <td data-label="@OpTexts["Tipo"]"><strong>@TypeLabel(movement.Type)</strong></td>
+                            <td data-label="@OpTexts["Producto"]">@movement.ProductSummary</td>
+                            <td data-label="@OpTexts["Cantidad"]">@movement.Quantity</td>
+                            <td data-label="@OpTexts["Ruta"]">@movement.Route</td>
+                            <td data-label="@OpTexts["Responsable"]">@movement.ResponsibleName</td>
+                            <td data-label="@OpTexts["Estado"]">@OpTexts[movement.Status]</td>
+                            <td data-label="">
+                                @if (recent.PrintablePlates.Count == 0)
+                                {
+                                    <form method="post" asp-page-handler="PrepareMovementPrint">
+                                        <input type="hidden" name="MovementPrint.OperationId" value="@Guid.NewGuid()" />
+                                        <input type="hidden" name="MovementPrint.MovementId" value="@movement.Id" />
+                                        <button type="submit" class="btn btn-outline-primary btn-sm">@OpTexts["Imprimir placa"]</button>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <div class="d-grid gap-1">
+                                        @foreach (var plate in recent.PrintablePlates)
+                                        {
+                                            <a asp-page="Index" asp-route-id="@plate.Id" asp-route-print="true" asp-fragment="label-preview" class="btn btn-outline-primary btn-sm"
+                                               aria-label="@OpTexts["Imprimir placa"] @plate.Identifier">@OpTexts["Imprimir placa"]</a>
+                                        }
+                                    </div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="label-form-card no-label-print mt-3" data-pallet-finder
+             data-product-options-url="@Url.Page("Index", "ProductOptions")"
+             data-location-options-url="@Url.Page("Index", "LocationOptions")"
+             data-product-stock-title="@OpTexts["Productos con stock"]"
+             data-location-stock-title="@OpTexts["Ubicaciones con stock"]"
+             data-stock-label="@OpTexts["Stock"]"
+             data-selected-location-id="@Model.SelectedLocation?.Id">
+        <div class="label-section-heading"><span class="label-step-number">1</span><div><h2 class="h5 mb-1">@OpTexts["Buscar producto o ubicación"]</h2><p class="text-body-secondary mb-0">@OpTexts["Empieza por cualquiera de los dos campos; el segundo mostrará solamente combinaciones con stock positivo."]</p></div></div>
+        <form method="get" class="row g-3 align-items-end" data-pallet-finder-form>
+            <div class="col-lg-5 lookup-field" data-pallet-lookup="product">
+                <label for="pallet-product" class="form-label">@OpTexts["Producto"]</label>
+                <input id="pallet-product" name="product" class="form-control form-control-lg" type="search"
+                       value="@Model.SelectedProduct?.Sku" autocomplete="off" autocapitalize="characters"
+                       placeholder="@OpTexts["SKU, descripción o referencia"]" data-pallet-lookup-input />
+                <input name="productId" type="hidden" value="@Model.SelectedProduct?.Id" data-pallet-selected-id />
+                <div class="lookup-results list-group" data-pallet-lookup-results></div>
+            </div>
+            <div class="col-lg-5 lookup-field" data-pallet-lookup="location">
+                <label for="pallet-location" class="form-label">@OpTexts["Ubicación"]</label>
+                <input id="pallet-location" name="location" class="form-control form-control-lg" type="search"
+                       value="@Model.SelectedLocation?.Code" autocomplete="off" autocapitalize="characters"
+                       placeholder="A-1-1" data-pallet-lookup-input />
+                <div class="lookup-results list-group" data-pallet-lookup-results></div>
+            </div>
+            <div class="col-lg-2"><button class="btn btn-primary btn-lg w-100" type="submit">@OpTexts["Consultar"]</button></div>
+        </form>
+        <div class="pallet-related-choices mt-3" data-pallet-related aria-live="polite">
+            @if (Model.SelectedProduct is not null && Model.SelectedLocation is null)
+            {
+                <strong>@OpTexts["Ubicaciones con stock"]</strong>
+                <div class="relationship-choices mt-2">
+                    @foreach (var location in Model.ProductLocations)
+                    {
+                        <a asp-page="Index" asp-route-productId="@Model.SelectedProduct.Id" asp-route-location="@location.Code" class="relationship-choice">
+                            <strong>@location.Code</strong><small>@location.Quantity.ToString("0.####")</small>
+                        </a>
+                    }
+                </div>
+            }
+            else if (Model.SelectedLocation is not null && Model.SelectedProduct is null)
+            {
+                <strong>@OpTexts["Productos con stock"]</strong>
+                <div class="relationship-choices mt-2">
+                    @foreach (var product in Model.Products)
+                    {
+                        <a asp-page="Index" asp-route-productId="@product.ProductId" asp-route-location="@Model.SelectedLocation.Code" class="relationship-choice">
+                            <strong>@product.Sku</strong><small>@product.Total.ToString("0.####") @product.UnitCode</small>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+    </section>
+
+    @if (Model.SelectedLocation is not null)
+    {
+        var displayProducts = Model.Products.Where(x => Model.SelectedProduct is null || x.ProductId == Model.SelectedProduct.Id).ToArray();
+        <section class="label-form-card no-label-print mt-3" data-pallet-products>
+            <div class="label-section-heading"><span class="label-step-number">2</span><div><h2 class="h5 mb-1">@OpTexts["Productos en la ubicación"] · @Model.SelectedLocation.Code</h2><p class="text-body-secondary mb-0">@OpTexts["Selecciona Imprimir placa en el producto correspondiente."]</p></div></div>
+            @if (displayProducts.Length == 0) { <div class="alert alert-info mb-0">@OpTexts["Esta combinación no tiene stock positivo."]</div> }
+            else
+            {
+                <div class="pallet-product-list">
+                @foreach (var product in displayProducts)
+                {
+                    Model.PrintablePlates.TryGetValue(product.ProductId, out var printablePlates);
+                    var printablePlate = printablePlates?.FirstOrDefault();
+                    <article class="pallet-print-product">
+                        <strong class="pallet-print-sku">@product.Sku</strong>
+                        <span class="pallet-print-stock"><small>@OpTexts["Stock total"]</small><strong>@product.Total.ToString("0.####") @product.UnitCode</strong></span>
+                        @if (product.Identifiable > 0)
+                        {
+                            <form method="post" asp-page-handler="Identify" class="pallet-print-action">
+                                <input type="hidden" name="Identify.OperationId" value="@Guid.NewGuid()" />
+                                <input type="hidden" name="Identify.LocationId" value="@Model.SelectedLocation.Id" />
+                                <input type="hidden" name="Identify.ProductId" value="@product.ProductId" />
+                                <input type="hidden" name="Identify.Quantity" value="@product.Identifiable.ToString(CultureInfo.InvariantCulture)" />
+                                <input type="hidden" name="Identify.ExpectedBalanceVersion" value="@product.BalanceVersion" />
+                                <input type="hidden" name="Identify.ExpectedIdentifiable" value="@product.Identifiable.ToString(CultureInfo.InvariantCulture)" />
+                                <button class="btn btn-primary w-100" type="submit" aria-label="@OpTexts["Imprimir placa"] @product.Sku">@OpTexts["Imprimir placa"]</button>
+                            </form>
+                        }
+                        else if (printablePlates?.Count > 1)
+                        {
+                            <form method="post" asp-page-handler="PreparePrint" class="pallet-print-action">
+                                <input type="hidden" name="Consolidate.OperationId" value="@Guid.NewGuid()" />
+                                <input type="hidden" name="Consolidate.LocationId" value="@Model.SelectedLocation.Id" />
+                                <input type="hidden" name="Consolidate.ProductId" value="@product.ProductId" />
+                                <button class="btn btn-primary w-100" type="submit" aria-label="@OpTexts["Consolidar e imprimir placa"] @product.Sku">@OpTexts["Imprimir placa"]</button>
+                            </form>
+                        }
+                        else if (printablePlate is not null)
+                        {
+                            <a asp-page="Index" asp-route-location="@Model.SelectedLocation.Code" asp-route-productId="@product.ProductId"
+                               asp-route-id="@printablePlate.Id" asp-route-print="true" asp-fragment="label-preview"
+                               class="btn btn-primary pallet-print-action" aria-label="@OpTexts["Imprimir placa"] @product.Sku">@OpTexts["Imprimir placa"]</a>
+                        }
+                        else
+                        {
+                            <button class="btn btn-secondary pallet-print-action" type="button" disabled>@OpTexts["Imprimir placa"]</button>
+                        }
+                    </article>
+                }
+                </div>
+            }
         </section>
     }
-    @if(Model.Preview is not null){<section class="label-preview-section"><header class="label-preview-toolbar no-label-print"><div><span class="label-eyebrow">@Model.Preview.TemplateCode · v@Model.Preview.TemplateVersion · @Model.Preview.Copies copia(s)</span><h2 class="h4 mb-1">Lista para imprimir</h2><p class="text-body-secondary mb-0">Selecciona Carta horizontal, escala 100 %, sin encabezados/pies y una sola copia.</p></div><button type="button" class="btn btn-primary btn-lg" data-label-print>Imprimir placas</button></header>@if(Model.PrintWarnings.Count>0){<div class="alert alert-warning no-label-print mt-3 mb-0" role="alert"><strong>Revisa la lectura del código</strong><ul class="mb-0">@foreach(var warning in Model.PrintWarnings){<li>@warning</li>}</ul></div>}<div class="label-print-pages" data-label-print-pages>@for(var copy=1;copy<=Model.Preview.Copies;copy++){<article class="label-dynamic" data-label-copy="@copy" aria-label="Placa @copy de @Model.Preview.Copies" style="--label-width:@(Model.Preview.Size.WidthInches.ToString(System.Globalization.CultureInfo.InvariantCulture))in;--label-height:@(Model.Preview.Size.HeightInches.ToString(System.Globalization.CultureInfo.InvariantCulture))in">@foreach(var item in Model.Preview.Elements){var e=item.Definition;var left=e.X*100m/Model.Preview.Size.WidthMils;var top=e.Y*100m/Model.Preview.Size.HeightMils;var width=e.Width*100m/Model.Preview.Size.WidthMils;var height=e.Height*100m/Model.Preview.Size.HeightMils;<div class="label-element label-element-@e.Type.ToString().ToLowerInvariant() @(e.BlankLine&&string.IsNullOrEmpty(item.Text)?"is-blank-line":null)" style="left:@(left.ToString(System.Globalization.CultureInfo.InvariantCulture))%;top:@(top.ToString(System.Globalization.CultureInfo.InvariantCulture))%;width:@(width.ToString(System.Globalization.CultureInfo.InvariantCulture))%;height:@(height.ToString(System.Globalization.CultureInfo.InvariantCulture))%;transform:rotate(@(e.Rotation)deg);z-index:@e.ZIndex;font-family:'@e.FontFamily';font-size:@(e.FontSize)pt;font-weight:@(e.Bold?700:400);color:@e.Color;background-color:@(e.Type==LabelElementType.Rectangle?e.BackgroundColor:"transparent");border-width:@(e.Type==LabelElementType.Rectangle?e.BorderWidth:0)px;text-align:@e.Align;@(item.Barcode is null?null:$"--barcode-print-width:{item.Barcode.PrintWidthInches.ToString(System.Globalization.CultureInfo.InvariantCulture)}in")">@if(item.Barcode is not null){@Html.Raw(item.Barcode.Markup)<button type="button" class="label-barcode-zoom-trigger no-label-print" data-label-barcode-zoom data-barcode-modules="@item.Barcode.ModuleCount" data-barcode-value="@item.Barcode.Payload" aria-label="Ampliar para escanear código @item.Barcode.Payload">Ampliar</button>}else if(item.ImageUrl is not null){<img src="@item.ImageUrl" alt="Extra Packaging, LLC"/>}else if(e.Type==LabelElementType.Line){<span class="label-line"></span>}else{@item.Text}</div>}</article>}</div><dialog class="label-barcode-dialog" data-label-barcode-dialog aria-labelledby="label-barcode-dialog-title"><div class="label-barcode-dialog-header"><div><h2 id="label-barcode-dialog-title" class="h5 mb-1">Código ampliado para escanear</h2><p class="mb-0 text-body-secondary label-barcode-value" data-label-barcode-value></p></div><button type="button" class="btn-close" data-label-barcode-close aria-label="Cerrar"></button></div><div class="label-barcode-dialog-body"><div class="label-barcode-scan-viewport"><div class="label-barcode-scan-canvas" data-label-barcode-canvas></div></div></div></dialog></section>}
+
+    <details class="operation-card no-label-print mt-3" @(Model.Entry is not null ? "open" : null)>
+        <summary class="h5">@OpTexts["Consultar o reimprimir una placa"]</summary>
+        <form method="get" class="input-group input-group-lg mt-3"><input name="folio" class="form-control" value="@Model.Entry?.Identifier" autocomplete="off" placeholder="PLT-UUID" /><button class="btn btn-outline-primary">@OpTexts["Buscar"]</button></form>
+    </details>
+
+    @if (Model.Entry is not null)
+    {
+        <section class="operation-card no-label-print mt-3"><div class="receipt-meta"><div><span>@OpTexts["Placa"]</span><strong>@Model.Entry.Identifier</strong></div><div><span>@OpTexts["Producto"]</span><strong>@Model.Entry.Sku</strong></div><div><span>@OpTexts["Cantidad"]</span><strong>@Model.Entry.Quantity.ToString("0.####") @Model.Entry.UnitCode</strong></div><div><span>@OpTexts["Destino"]</span><strong>@(Model.Entry.Destination ?? "—")</strong></div><div><span>@OpTexts["Fecha"]</span><strong>@(Model.EntryLocalTime?.ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div><div><span>@OpTexts["Responsable"]</span><strong>@Model.Entry.Responsible</strong></div></div></section>
+        <form method="post" asp-page-handler="Print" class="label-create-grid no-label-print mt-3"><input asp-for="Input.MovementId" type="hidden"/><section class="label-form-card"><div class="row g-3"><div class="col-sm-7"><label asp-for="Input.Weight" class="form-label">@OpTexts["Peso opcional"]</label><input asp-for="Input.Weight" class="form-control form-control-lg" maxlength="40" autocomplete="off" /></div><div class="col-sm-5"><label asp-for="Input.Copies" class="form-label">@OpTexts["Copias idénticas"]</label><input asp-for="Input.Copies" class="form-control form-control-lg" type="number" min="1" max="100" required /></div></div><button type="submit" class="btn btn-outline-primary btn-lg mt-3">@OpTexts["Actualizar previsualización"]</button></section></form>
+    }
+
+    @if (Model.Preview is not null)
+    {
+        <section id="label-preview" class="label-preview-section"><header class="label-preview-toolbar no-label-print"><div><span class="label-eyebrow">@Model.Preview.TemplateCode · v@Model.Preview.TemplateVersion</span><h2 class="h4 mb-1">@OpTexts["Lista para imprimir"]</h2><p class="text-body-secondary mb-0">@OpTexts["La impresión sigue siendo una acción explícita."]</p></div><button type="button" class="btn btn-primary btn-lg" data-label-print>@OpTexts["Imprimir placas"]</button></header>
+        @if (Model.PrintWarnings.Count > 0) { <div class="alert alert-warning no-label-print mt-3"><ul class="mb-0">@foreach (var warning in Model.PrintWarnings) { <li>@warning</li> }</ul></div> }
+        <div class="label-print-pages" data-label-print-pages>@for (var copy = 1; copy <= Model.Preview.Copies; copy++) { <article class="label-dynamic" data-label-copy="@copy" style="--label-width:@(Model.Preview.Size.WidthInches.ToString(CultureInfo.InvariantCulture))in;--label-height:@(Model.Preview.Size.HeightInches.ToString(CultureInfo.InvariantCulture))in">@foreach (var item in Model.Preview.Elements) { var e=item.Definition; var left=e.X*100m/Model.Preview.Size.WidthMils; var top=e.Y*100m/Model.Preview.Size.HeightMils; var width=e.Width*100m/Model.Preview.Size.WidthMils; var height=e.Height*100m/Model.Preview.Size.HeightMils;<div class="label-element label-element-@e.Type.ToString().ToLowerInvariant()" style="left:@(left.ToString(CultureInfo.InvariantCulture))%;top:@(top.ToString(CultureInfo.InvariantCulture))%;width:@(width.ToString(CultureInfo.InvariantCulture))%;height:@(height.ToString(CultureInfo.InvariantCulture))%;transform:rotate(@(e.Rotation)deg);z-index:@e.ZIndex;font-family:'@e.FontFamily';font-size:@(e.FontSize)pt;font-weight:@(e.Bold?700:400);color:@e.Color;background-color:@(e.Type==LabelElementType.Rectangle?e.BackgroundColor:"transparent");border-width:@(e.Type==LabelElementType.Rectangle?e.BorderWidth:0)px;text-align:@e.Align">@if (item.Barcode is not null) { @Html.Raw(item.Barcode.Markup) } else if (item.ImageUrl is not null) { <img src="@item.ImageUrl" alt="Extra Packaging, LLC"/> } else if (e.Type == LabelElementType.Line) { <span class="label-line"></span> } else { @item.Text }</div> }</article> }</div></section>
+    }
 </div>
+
 @section Styles { <link rel="stylesheet" href="~/css/label-4x6.css" asp-append-version="true"/><link rel="stylesheet" href="~/css/labels-workspace.css" asp-append-version="true"/> }
-@section Scripts { <script src="~/js/label-4x6.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/label-4x6.js" asp-append-version="true"></script><script src="~/js/pallet-labels.js" asp-append-version="true"></script> }
+
+@functions {
+    string TypeLabel(WarehouseEPI.Core.Entities.InventoryMovementType type) => type switch
+    {
+        WarehouseEPI.Core.Entities.InventoryMovementType.Entry => OpTexts["Entrada"].Value,
+        WarehouseEPI.Core.Entities.InventoryMovementType.Exit => OpTexts["Salida"].Value,
+        WarehouseEPI.Core.Entities.InventoryMovementType.Transfer => OpTexts["Transferencia"].Value,
+        WarehouseEPI.Core.Entities.InventoryMovementType.Adjustment => OpTexts["Ajuste"].Value,
+        _ => OpTexts["Movimiento"].Value
+    };
+}
