@@ -259,7 +259,7 @@ public sealed class ProductionDailyBalanceTests
             OperationId = Guid.NewGuid(),
             RequestFingerprint = new string('B', 64),
             WeekStart = monday,
-            WeekEnd = monday.AddDays(5),
+            WeekEnd = monday.AddDays(6),
             CreatedByUserId = actor.Id,
             CreatedAt = DateTimeOffset.UtcNow
         };

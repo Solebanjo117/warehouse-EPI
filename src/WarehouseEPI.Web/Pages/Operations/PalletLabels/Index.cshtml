@@ -74,9 +74,15 @@
     <section class="label-form-card no-label-print mt-3" data-pallet-finder
              data-product-options-url="@Url.Page("Index", "ProductOptions")"
              data-location-options-url="@Url.Page("Index", "LocationOptions")"
+             data-resolve-code-url="@Url.Page("/Operations/Lookup", "ResolveCode")"
              data-product-stock-title="@OpTexts["Productos con stock"]"
              data-location-stock-title="@OpTexts["Ubicaciones con stock"]"
              data-stock-label="@OpTexts["Stock"]"
+             data-scan-ambiguous="@OpTexts["El código coincide con un producto y una ubicación. Escanéalo en el campo correcto."]"
+             data-scan-unknown="@OpTexts["No se encontró un producto o ubicación con ese código."]"
+             data-scan-error="@OpTexts["No fue posible consultar el código. Intenta nuevamente."]"
+             data-scan-no-locations="@OpTexts["No hay ubicaciones con stock positivo para este producto."]"
+             data-scan-no-products="@OpTexts["Esta ubicación no tiene productos con stock positivo."]"
              data-selected-location-id="@Model.SelectedLocation?.Id">
         <div class="label-section-heading"><span class="label-step-number">1</span><div><h2 class="h5 mb-1">@OpTexts["Buscar producto o ubicación"]</h2><p class="text-body-secondary mb-0">@OpTexts["Empieza por cualquiera de los dos campos; el segundo mostrará solamente combinaciones con stock positivo."]</p></div></div>
         <form method="get" class="row g-3 align-items-end" data-pallet-finder-form>
@@ -97,6 +103,8 @@
             </div>
             <div class="col-lg-2"><button class="btn btn-primary btn-lg w-100" type="submit">@OpTexts["Consultar"]</button></div>
         </form>
+        <p class="small text-body-secondary mt-2 mb-0">@OpTexts["Escanea un producto o una ubicación desde cualquier punto de la pantalla."]</p>
+        <p class="small mt-2 mb-0" data-pallet-scan-status role="status" aria-live="polite" hidden></p>
         <div class="pallet-related-choices mt-3" data-pallet-related aria-live="polite">
             @if (Model.SelectedProduct is not null && Model.SelectedLocation is null)
             {
@@ -138,7 +146,7 @@
                 {
                     Model.PrintablePlates.TryGetValue(product.ProductId, out var printablePlates);
                     var printablePlate = printablePlates?.FirstOrDefault();
-                    <article class="pallet-print-product">
+                    <article class="pallet-print-product" data-pallet-product-id="@product.ProductId">
                         <strong class="pallet-print-sku">@product.Sku</strong>
                         <span class="pallet-print-stock"><small>@OpTexts["Stock total"]</small><strong>@product.Total.ToString("0.####") @product.UnitCode</strong></span>
                         @if (product.Identifiable > 0)
@@ -199,7 +207,7 @@
 </div>
 
 @section Styles { <link rel="stylesheet" href="~/css/label-4x6.css" asp-append-version="true"/><link rel="stylesheet" href="~/css/labels-workspace.css" asp-append-version="true"/> }
-@section Scripts { <script src="~/js/label-4x6.js" asp-append-version="true"></script><script src="~/js/pallet-labels.js" asp-append-version="true"></script> }
+@section Scripts { <script src="~/js/label-4x6.js" asp-append-version="true"></script><script src="~/js/hid-capture.js" asp-append-version="true"></script><script src="~/js/pallet-labels.js" asp-append-version="true"></script> }
 
 @functions {
     string TypeLabel(WarehouseEPI.Core.Entities.InventoryMovementType type) => type switch

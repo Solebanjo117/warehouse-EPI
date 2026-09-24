@@ -24,7 +24,7 @@ public sealed partial class ProductionDailyBalanceService
     {
         var balance = await GetAsync(weekId, false, false, token, scenario: scenario);
         if (balance is null) return null;
-        var end = balance.WeekStart.AddDays(5);
+        var end = balance.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset);
         var through = filter.Through < balance.WeekStart ? balance.WeekStart :
             filter.Through > end ? end : filter.Through;
         // SQL aggregates all active captures, independently of the paged history view.
@@ -43,15 +43,19 @@ public sealed partial class ProductionDailyBalanceService
                 if (index >= 0) shifts.RemoveAt(index);
                 shifts.Add(new { ProductId = addition.ProductId, EffectiveDate = scenario.Date, Area = addition.Area, ShiftId = addition.ShiftId, Shift = shift.Name, Quantity = quantity });
             }
-        var intentions = await db.ProductionCarryoverPlans.AsNoTracking().Where(x => x.WeekId == weekId)
+        var explicitCarry = await db.ProductionScheduleWeeks.AsNoTracking().Where(x => x.Id == weekId).Select(x => x.ExplicitCarryover).SingleAsync(token);
+        var intentions = await db.ProductionCarryoverPlans.AsNoTracking().Where(x => x.WeekId == weekId && !explicitCarry)
             .Select(x => new { x.ProductId, x.PlannedDate, x.Area, x.Quantity }).ToListAsync(token);
+        if (explicitCarry)
+            intentions.AddRange(await db.ProductionWeekOpenings.AsNoTracking().Where(x => x.WeekId == weekId && x.Quantity > 0)
+                .GroupBy(x => new { x.ProductId, x.Area }).Select(x => new { x.Key.ProductId, PlannedDate = balance.WeekStart, x.Key.Area, Quantity = x.Sum(o => o.Quantity) }).ToListAsync(token));
         var grouped = balance.Rows.GroupBy(x => x.ProductId).ToDictionary(x => x.Key, x => x.OrderBy(r => r.Date).ToArray());
         // An intention can remain after its physical balance was consumed; keep it visible without adding stock.
         var missingIds = intentions.Select(x => x.ProductId).Except(grouped.Keys).ToArray();
         var missing = await db.Products.AsNoTracking().Where(x => missingIds.Contains(x.Id))
             .Select(x => new { x.Id, x.Sku, x.Description }).ToListAsync(token);
         foreach (var product in missing)
-            grouped[product.Id] = Enumerable.Range(0, 6).Select(i => new ProductionDailyBalanceRow(
+            grouped[product.Id] = Enumerable.Range(0, ProductionWeekCalendar.DayCount).Select(i => new ProductionDailyBalanceRow(
                 balance.WeekStart.AddDays(i), product.Id, product.Sku, product.Description, 0, 0, 0, 0, 0, [],
                 new(ProductionDailyArea.Cutting, false, 0, 0, 0), new(ProductionDailyArea.Sewing, false, 0, 0, 0),
                 new(ProductionDailyArea.ReadyToPack, false, 0, 0, 0), 0)).ToArray();

@@ -13,6 +13,8 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
     {
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == weekId, token);
         if (week is null) return null;
+        if (week.ExplicitCarryover && !availability && !priorOnly)
+            return await ExplicitWeekAsync(week, shiftCutoffDate, includedShiftId, scenario, token);
         var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
         var lines = await db.ProductionScheduleLines.AsNoTracking()
             .Include(x => x.Week).Include(x => x.WorkOrder).ThenInclude(x => x!.Stages)
@@ -74,7 +76,7 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
                 .Concat(legacyCaptures.Select(x => x.Area)).Distinct().Order().ToArray();
             var applicable = flows.SelectMany(x => x.Stages.Select(s => s.Area)).Concat(legacyAreas)
                 .Concat(productCaptures.Select(x => x.Area)).ToHashSet();
-            foreach (var day in Enumerable.Range(0, 6).Select(week.WeekStart.AddDays))
+            foreach (var day in Enumerable.Range(0, ProductionWeekCalendar.DayCount).Select(week.WeekStart.AddDays))
             {
                 var dayLines = currentLines.Where(x => x.PlannedDate == day).ToArray();
                 var cumulativeLines = currentLines.Where(x => x.PlannedDate <= day).ToArray();

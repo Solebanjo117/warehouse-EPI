@@ -33,7 +33,24 @@ public sealed partial class IndexModel(
     public IReadOnlyList<ProductionShift> Shifts { get; private set; } = [];
     [BindProperty(SupportsGet = true)] public DateOnly? Through { get; set; }
     public ProductionDailySummary? Daily { get; private set; }
-    private static DateOnly DefaultThrough(DateOnly start, DateOnly end, DateOnly today) => today < start || today > start.AddDays(5) ? start.AddDays(5) : today;
+    public IReadOnlySet<Guid> ActiveBalanceProducts { get; private set; } = new HashSet<Guid>();
+    public IReadOnlyList<ProductionBalancePlanLine> BalancePlanLines { get; private set; } = [];
+    [BindProperty(SupportsGet = true)] public int PendingPage { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public int CompletionPage { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public int SummaryPage { get; set; } = 1;
+    [BindProperty(SupportsGet = true)] public string? WeeklySection { get; set; }
+    public ProductionWeekClose? WeekClose { get; private set; }
+    public const int WeeklyClosePageSize = 25;
+    public int PendingPages => Math.Max(1, (int)Math.Ceiling((WeekClose?.PendingProducts.Count ?? 0) / (double)WeeklyClosePageSize));
+    public int CompletionPages => Math.Max(1, (int)Math.Ceiling((WeekClose?.Products.Count ?? 0) / (double)WeeklyClosePageSize));
+    public int SummaryPages => CompletionPages;
+    public IReadOnlyList<ProductionWeekCloseProduct> PendingRows => WeekClose?.PendingProducts
+        .Skip((PendingPage - 1) * WeeklyClosePageSize).Take(WeeklyClosePageSize).ToArray() ?? [];
+    public IReadOnlyList<ProductionWeekCloseProduct> CompletionRows => WeekClose?.Products
+        .Skip((CompletionPage - 1) * WeeklyClosePageSize).Take(WeeklyClosePageSize).ToArray() ?? [];
+    public IReadOnlyList<ProductionWeekCloseProduct> SummaryRows => WeekClose?.Products
+        .Skip((SummaryPage - 1) * WeeklyClosePageSize).Take(WeeklyClosePageSize).ToArray() ?? [];
+    private static DateOnly DefaultThrough(DateOnly start, DateOnly end, DateOnly today) => today < start || today > start.AddDays(ProductionWeekCalendar.LastDayOffset) ? start.AddDays(ProductionWeekCalendar.LastDayOffset) : today;
     public ProductionDailyBalanceView? Balance { get; private set; }
     public IReadOnlyList<ProductionDailyCaptureDetail> Details { get; private set; } = [];
     public ProductionDailyCapturePreview? Preview { get; private set; }
@@ -113,6 +130,8 @@ public sealed partial class IndexModel(
 
     private async Task LoadAsync(CancellationToken token, bool preserveCapture = false)
     {
+        if (Tab is not ("capture" or "balance" or "history")) Tab = "capture";
+        if (WeeklySection is not ("pending" or "completion" or "summary")) WeeklySection = null;
         Today = await clock.GetDateAsync(timeProvider.GetUtcNow(), token);
         Weeks = await schedules.ListWeeksAsync(token);
         WeekId ??= ProductionDailySetup.DefaultWeek(Weeks, Today);
@@ -127,7 +146,19 @@ public sealed partial class IndexModel(
             {
                 if (Tab == "balance")
                 {
-                    Daily = await balances.GetDailySummaryAsync(id, new(Through ?? DefaultThrough(balance.WeekStart, balance.WeekEnd, Today), Sku, Reference, Area), token);
+                    var filter = new ProductionWeeklyFilter(Through ?? DefaultThrough(balance.WeekStart, balance.WeekEnd, Today), Sku, Reference, Area);
+                    Daily = await balances.GetDailySummaryAsync(id, filter, token);
+                    if (Daily is not null && BalanceAdminActor() is Guid actor)
+                    {
+                        BalancePlanLines = await captures.GetBalancePlanLinesAsync(id, Daily.Through, null, actor, token);
+                        var productIds = Daily.Products.Select(x => x.ProductId).ToArray();
+                        ActiveBalanceProducts = (await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id) && x.IsActive)
+                            .Select(x => x.Id).ToArrayAsync(token)).ToHashSet();
+                    }
+                    WeekClose = await balances.GetWeekCloseAsync(id, filter, token);
+                    PendingPage = Math.Clamp(PendingPage, 1, PendingPages);
+                    CompletionPage = Math.Clamp(CompletionPage, 1, CompletionPages);
+                    SummaryPage = Math.Clamp(SummaryPage, 1, SummaryPages);
                     Through = Daily?.Through;
                     ModelState.Remove(nameof(Through));
                 }

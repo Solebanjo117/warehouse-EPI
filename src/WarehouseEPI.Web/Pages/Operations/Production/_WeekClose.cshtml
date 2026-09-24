@@ -1,0 +1,172 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    var close = Model.WeekClose!;
+    string Qty(decimal value) => value.ToString("0.####", CultureInfo.CurrentCulture);
+    string AreaName(ProductionDailyArea area) => area switch
+    {
+        ProductionDailyArea.Cutting => T["Corte"],
+        ProductionDailyArea.Sewing => T["Costura"],
+        _ => T["Ready to Pack"]
+    };
+    string Ratio(ProductionWeekCloseArea area, decimal plan) => !area.Applies ? T["No aplica"] :
+        area.CompletionRatio(plan) is decimal ratio ? ratio.ToString("P1", CultureInfo.CurrentCulture) : T["Sin plan"];
+    var next = Model.Weeks.FirstOrDefault(x => x.WeekStart == close.WeekEnd.AddDays(1) && x.Status != ProductionScheduleWeekStatus.Closed);
+}
+<section id="week-close" class="production-week-close mt-5" aria-labelledby="week-close-heading">
+    <div class="production-week-close__heading d-flex flex-wrap justify-content-between gap-3 align-items-end">
+        <div><h2 id="week-close-heading" class="h4 mb-1">@T["Cierre semanal"]</h2>
+            <p class="text-body-secondary mb-0">@T["Corte al domingo"] @close.WeekEnd.ToString("dd/MM/yyyy") · @(close.Status == ProductionScheduleWeekStatus.Closed ? T["Semana cerrada"] : T["Cifras provisionales"])</p></div>
+        @if (User.IsInRole("ADMIN") && next is not null)
+        { <a class="btn btn-outline-primary" asp-page="/Admin/Production/Schedule" asp-route-WeekId="@next.Id" asp-route-SelectedDay="@next.WeekStart.ToString("yyyy-MM-dd")" asp-route-ActionPanel="carry">@T["Programar arrastre en la siguiente semana"]</a> }
+    </div>
+    <p class="small text-body-secondary mt-3 mb-4">@T["Abre una sección para consultar sus productos y totales."]</p>
+
+    <details id="shift-comparison-heading" class="production-week-close__group mb-3">
+        <summary><span class="fw-semibold">@T["Comparación de turnos"]</span><span class="text-body-secondary small ms-2">@close.WeekStart.ToString("dd/MM")–@close.WeekEnd.ToString("dd/MM")</span></summary>
+        <div class="production-week-close__body">
+            <p class="small text-body-secondary">@T["Acumulado de toda la semana. El total suma trabajo registrado en las áreas; una pieza puede aparecer en varios procesos. Los porcentajes indican la participación de cada turno."]</p>
+            @if (close.ShiftComparison.Count == 0)
+            {
+                <p class="alert alert-info">@T["No hay productos para los filtros seleccionados."]</p>
+            }
+            else
+            {
+                <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Comparación de turnos"]">
+                    <table class="table table-sm production-week-close__table">
+                        <thead><tr><th scope="col">@T["Unidad"]</th><th scope="col">@T["Área"]</th><th scope="col">T1</th><th scope="col">T2</th><th scope="col">@T["Total"]</th><th scope="col">% T1</th><th scope="col">% T2</th></tr></thead>
+                        @foreach (var unit in close.ShiftComparison)
+                        {
+                            <tbody>
+                                @foreach (var area in unit.Areas)
+                                {
+                                    <tr><th scope="row" class="production-week-close__sku">@unit.Unit</th><td data-label="@T["Área"]">@AreaName(area.Area)</td><td data-label="T1">@Qty(area.Shift1)</td><td data-label="T2">@Qty(area.Shift2)</td><td data-label="@T["Total"]">@Qty(area.Total)</td><td data-label="% T1">@(area.Shift1Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td><td data-label="% T2">@(area.Shift2Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td></tr>
+                                }
+                                <tr class="fw-semibold"><th scope="row" class="production-week-close__sku">@unit.Unit</th><td data-label="@T["Área"]">@T["Total"]</td><td data-label="T1">@Qty(unit.Shift1)</td><td data-label="T2">@Qty(unit.Shift2)</td><td data-label="@T["Total"]">@Qty(unit.Total)</td><td data-label="% T1">@(unit.Shift1Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td><td data-label="% T2">@(unit.Shift2Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td></tr>
+                            </tbody>
+                        }
+                    </table>
+                </div>
+            }
+        </div>
+    </details>
+
+    <details id="next-week-heading" class="production-week-close__group mb-3" open="@(Model.WeeklySection == "pending")">
+        <summary><span class="fw-semibold">@T["Pendiente para próxima semana"]</span><span class="text-body-secondary small ms-2">@close.PendingProducts.Count SKU</span></summary>
+        <div class="production-week-close__body">
+        <p class="small text-body-secondary">@T["El pendiente final es el saldo físico después del domingo; programar un arrastre no aumenta ese saldo. Las cifras por conciliar se muestran por separado."]</p>
+        @if (close.PendingProducts.Count == 0) { <p class="alert alert-info">@T["No hay programación ni saldo pendiente al cierre del domingo para los filtros seleccionados."]</p> }
+        else
+        {
+            <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Pendiente para próxima semana"]">
+                <table class="table table-sm production-week-close__table">
+                    <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Unidad"]</th><th rowspan="2" scope="col">@T["Programado nuevo domingo"]</th>
+                        @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th colspan="6" scope="colgroup" class="production-week-close__area-@((int)area)">@AreaName(area)</th> }
+                    </tr><tr>@foreach (var area in Enum.GetValues<ProductionDailyArea>())
+                        { foreach (var label in new[] { "Arrastre", "T1", "Pendiente T2", "T2", "Pendiente final", "Por conciliar" })
+                            { <th scope="col" class="production-week-close__area-@((int)area)">@T[label]</th> } }
+                    </tr></thead>
+                    @foreach (var product in Model.PendingRows)
+                    {
+                        <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Unidad"]">@product.Unit</td><td data-label="@T["Programado nuevo domingo"]">@Qty(product.SundayPlan)</td>
+                            @for (var i = 0; i < product.Areas.Count; i++)
+                            {
+                                var area = product.Areas[i]; var name = AreaName((ProductionDailyArea)i);
+                                <td class="production-week-close__area-@i" data-label="@name · @T["Arrastre"]">@(area.Applies ? Qty(area.Opening) : T["No aplica"])</td>
+                                <td class="production-week-close__area-@i" data-label="@name · T1">@(area.Applies ? Qty(area.Shift1) : T["No aplica"])</td>
+                                <td class="production-week-close__area-@i" data-label="@name · @T["Pendiente T2"]">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</td>
+                                <td class="production-week-close__area-@i" data-label="@name · T2">@(area.Applies ? Qty(area.Shift2) : T["No aplica"])</td>
+                                <td class="production-week-close__area-@i fw-semibold" data-label="@name · @T["Pendiente final"]">@(area.Applies ? Qty(area.Pending) : T["No aplica"])</td>
+                                <td class="production-week-close__area-@i @(area.ToReconcile > 0 ? "text-warning-emphasis" : "")" data-label="@name · @T["Por conciliar"]">@(area.Applies ? Qty(area.ToReconcile) : T["No aplica"])</td>
+                            }
+                        </tr></tbody>
+                    }
+                    <tfoot>@foreach (var total in close.Totals)
+                    { <tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Unidad"]">@total.Unit</td><td data-label="@T["Programado nuevo domingo"]">@Qty(total.SundayPlan)</td>
+                        @for (var i = 0; i < total.Areas.Count; i++)
+                        { var area = total.Areas[i]; var name = AreaName((ProductionDailyArea)i);
+                            <td data-label="@name · @T["Arrastre"]">@(area.Applies ? Qty(area.Opening) : T["No aplica"])</td><td data-label="@name · T1">@(area.Applies ? Qty(area.Shift1) : T["No aplica"])</td><td data-label="@name · @T["Pendiente T2"]">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</td><td data-label="@name · T2">@(area.Applies ? Qty(area.Shift2) : T["No aplica"])</td><td data-label="@name · @T["Pendiente final"]">@(area.Applies ? Qty(area.Pending) : T["No aplica"])</td><td data-label="@name · @T["Por conciliar"]">@(area.Applies ? Qty(area.ToReconcile) : T["No aplica"])</td> }
+                    </tr> }</tfoot>
+                </table>
+            </div>
+            <nav class="d-flex gap-3 align-items-center mt-2" aria-label="@T["Páginas de pendiente"]">
+                <span>@T["Página"] @Model.PendingPage @T["de"] @Model.PendingPages</span>
+                @if (Model.PendingPage > 1) { <a asp-fragment="week-close" asp-route-WeeklySection="pending" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@(Model.Through?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area" asp-route-PendingPage="@(Model.PendingPage - 1)" asp-route-CompletionPage="@Model.CompletionPage" asp-route-SummaryPage="@Model.SummaryPage">@T["Anterior"]</a> }
+                @if (Model.PendingPage < Model.PendingPages) { <a asp-fragment="week-close" asp-route-WeeklySection="pending" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@(Model.Through?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area" asp-route-PendingPage="@(Model.PendingPage + 1)" asp-route-CompletionPage="@Model.CompletionPage" asp-route-SummaryPage="@Model.SummaryPage">@T["Siguiente"]</a> }
+            </nav>
+        }
+        </div>
+    </details>
+
+    <details id="completion-heading" class="production-week-close__group" open="@(Model.WeeklySection == "completion")">
+        <summary><span class="fw-semibold">@T["Cumplimiento semanal por producto y área"]</span><span class="text-body-secondary small ms-2">@close.Products.Count SKU</span></summary>
+        <div class="production-week-close__body">
+        <p class="small text-body-secondary">@T["Porcentaje = piezas completadas ÷ programación nueva de la semana. Si supera 100 %, puede incluir trabajo de arrastres."]</p>
+        @if (close.Products.Count == 0) { <p class="alert alert-info">@T["No hay productos para los filtros seleccionados."]</p> }
+        else
+        {
+            <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Cumplimiento semanal por producto y área"]">
+                <table class="table table-sm production-week-close__table production-week-close__table--completion">
+                    <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Unidad"]</th><th rowspan="2" scope="col">@T["Programado nuevo semana"]</th>
+                        @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th colspan="2" scope="colgroup" class="production-week-close__area-@((int)area)">@AreaName(area)</th> }
+                    </tr><tr>@foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th scope="col" class="production-week-close__area-@((int)area)">@T["Completado"]</th><th scope="col" class="production-week-close__area-@((int)area)">@T["Cumplimiento %"]</th> }</tr></thead>
+                    @foreach (var product in Model.CompletionRows)
+                    { <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Unidad"]">@product.Unit</td><td data-label="@T["Programado nuevo semana"]">@Qty(product.WeeklyPlan)</td>
+                        @for (var i = 0; i < product.Areas.Count; i++)
+                        { var area = product.Areas[i]; var name = AreaName((ProductionDailyArea)i);
+                            <td class="production-week-close__area-@i" data-label="@name · @T["Completado"]">@(area.Applies ? Qty(area.Completed) : T["No aplica"])</td>
+                            <td class="production-week-close__area-@i @(area.CompletionRatio(product.WeeklyPlan) > 1 ? "text-warning-emphasis fw-semibold" : "")" data-label="@name · @T["Cumplimiento"]">@Ratio(area, product.WeeklyPlan)</td> }
+                    </tr></tbody> }
+                    <tfoot>@foreach (var total in close.Totals)
+                    { <tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Unidad"]">@total.Unit</td><td data-label="@T["Programado nuevo semana"]">@Qty(total.WeeklyPlan)</td>
+                        @for (var i = 0; i < total.Areas.Count; i++)
+                        { var area = total.Areas[i]; var name = AreaName((ProductionDailyArea)i);
+                            <td data-label="@name · @T["Completado"]">@(area.Applies ? Qty(area.Completed) : T["No aplica"])</td><td data-label="@name · @T["Cumplimiento"]">@Ratio(area, total.WeeklyPlan)</td> }
+                    </tr> }</tfoot>
+                </table>
+            </div>
+            <nav class="d-flex gap-3 align-items-center mt-2" aria-label="@T["Páginas de cumplimiento"]">
+                <span>@T["Página"] @Model.CompletionPage @T["de"] @Model.CompletionPages</span>
+                @if (Model.CompletionPage > 1) { <a asp-fragment="completion-heading" asp-route-WeeklySection="completion" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@(Model.Through?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area" asp-route-PendingPage="@Model.PendingPage" asp-route-CompletionPage="@(Model.CompletionPage - 1)" asp-route-SummaryPage="@Model.SummaryPage">@T["Anterior"]</a> }
+                @if (Model.CompletionPage < Model.CompletionPages) { <a asp-fragment="completion-heading" asp-route-WeeklySection="completion" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@(Model.Through?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area" asp-route-PendingPage="@Model.PendingPage" asp-route-CompletionPage="@(Model.CompletionPage + 1)" asp-route-SummaryPage="@Model.SummaryPage">@T["Siguiente"]</a> }
+            </nav>
+        }
+        </div>
+    </details>
+    <details id="part-summary-heading" class="production-week-close__group mt-3" open="@(Model.WeeklySection == "summary")">
+        <summary><span class="fw-semibold">@T["Resumen semanal de producción por SKU"]</span><span class="text-body-secondary small ms-2">@close.Products.Count SKU</span></summary>
+        <div class="production-week-close__body">
+            @if (close.Products.Count == 0) { <p class="alert alert-info">@T["No hay productos para los filtros seleccionados."]</p> }
+            else
+            {
+                <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Resumen semanal de producción por SKU"]">
+                    <table class="table table-sm production-week-close__table">
+                        <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Unidad"]</th><th rowspan="2" scope="col">@T["Programado nuevo semana"]</th>
+                            @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th scope="col" class="production-week-close__area-@((int)area)">@AreaName(area) · @T["Completado"]</th> }
+                        </tr></thead>
+                        @foreach (var product in Model.SummaryRows)
+                        { <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Unidad"]">@product.Unit</td><td data-label="@T["Programado nuevo semana"]">@Qty(product.WeeklyPlan)</td>
+                            @for (var i = 0; i < product.Areas.Count; i++)
+                            { var area = product.Areas[i]; var name = AreaName((ProductionDailyArea)i);
+                                <td class="production-week-close__area-@i" data-label="@name · @T["Completado"]">@(area.Applies ? Qty(area.Completed) : T["No aplica"])</td> }
+                        </tr></tbody> }
+                        @{ var summaryTotal = close.SummaryTotal; }
+                        <tfoot><tr><th scope="row" colspan="2">@T["Total filtrado"]</th><td data-label="@T["Programado nuevo semana"]">@Qty(summaryTotal.WeeklyPlan)</td>
+                            @for (var i = 0; i < summaryTotal.Completed.Count; i++)
+                            { var name = AreaName((ProductionDailyArea)i);
+                                <td data-label="@name · @T["Completado"]">@Qty(summaryTotal.Completed[i])</td> }
+                        </tr></tfoot>
+                    </table>
+                </div>
+                <nav class="d-flex gap-3 align-items-center mt-2" aria-label="@T["Páginas del resumen semanal"]">
+                    <span>@T["Página"] @Model.SummaryPage @T["de"] @Model.SummaryPages</span>
+                    @if (Model.SummaryPage > 1) { <a asp-fragment="part-summary-heading" asp-route-WeeklySection="summary" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@(Model.Through?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area" asp-route-PendingPage="@Model.PendingPage" asp-route-CompletionPage="@Model.CompletionPage" asp-route-SummaryPage="@(Model.SummaryPage - 1)">@T["Anterior"]</a> }
+                    @if (Model.SummaryPage < Model.SummaryPages) { <a asp-fragment="part-summary-heading" asp-route-WeeklySection="summary" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@(Model.Through?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area" asp-route-PendingPage="@Model.PendingPage" asp-route-CompletionPage="@Model.CompletionPage" asp-route-SummaryPage="@(Model.SummaryPage + 1)">@T["Siguiente"]</a> }
+                </nav>
+            }
+        </div>
+    </details>
+</section>

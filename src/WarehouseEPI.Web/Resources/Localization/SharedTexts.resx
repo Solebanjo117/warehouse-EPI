@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
   <resheader name="version"><value>2.0</value></resheader>
@@ -11,7 +11,7 @@
   <data name="Registrar piezas buenas con reparto y balance automáticos." xml:space="preserve"><value>Registrar piezas buenas con reparto y balance automáticos.</value></data>
   <data name="Consultar plan, arrastre, pendientes y adelantos." xml:space="preserve"><value>Consultar plan, arrastre, pendientes y adelantos.</value></data>
   <data name="Atender merma, retrabajo, diferencias, recepción y diagnóstico." xml:space="preserve"><value>Atender merma, retrabajo, diferencias, recepción y diagnóstico.</value></data>
-  <data name="Preparar, publicar e importar el programa lunes–sábado." xml:space="preserve"><value>Preparar, publicar e importar el programa lunes–sábado.</value></data>
+  <data name="Preparar, publicar e importar el programa lunes–domingo." xml:space="preserve"><value>Preparar, publicar e importar el programa lunes–domingo.</value></data>
   <data name="Consultar y corregir órdenes desde el flujo avanzado." xml:space="preserve"><value>Consultar y corregir órdenes desde el flujo avanzado.</value></data>
   <data name="¿Qué necesitas hacer?" xml:space="preserve"><value>¿Qué necesitas hacer?</value></data>
   <data name="{0} categoría(s) de alerta aumentaron." xml:space="preserve"><value>{0} categoría(s) de alerta aumentaron.</value></data>

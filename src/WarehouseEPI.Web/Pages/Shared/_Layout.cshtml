@@ -96,15 +96,8 @@
             {
                 <a class="app-nav-link @(activeModule?.Key == module.Key ? "active" : null)"
                    asp-page="/Modules/Index" asp-route-module="@module.Key"
-                   aria-current="@(activeModule?.Key == module.Key ? "page" : null)" title="@SharedTexts[module.Title]"
-                   data-supply-count-root="@(module.Key == "production" ? "true" : null)"
-                   data-supply-label="@(module.Key == "production" ? SharedTexts[module.Title].Value : null)"
-                   data-snapshot-url="@(module.Key == "production" ? Url.Page("/Operations/ProductionSupply/Index", "Snapshot") : null)">
+                   aria-current="@(activeModule?.Key == module.Key ? "page" : null)" title="@SharedTexts[module.Title]">
                     <svg class="app-icon" aria-hidden="true"><use href="@("#icon-" + module.Icon)" /></svg><span>@SharedTexts[module.Title]</span>
-                    @if (module.Key == "production")
-                    {
-                        <span class="notification-count" data-supply-count hidden>0</span>
-                    }
                 </a>
             }
         </nav>

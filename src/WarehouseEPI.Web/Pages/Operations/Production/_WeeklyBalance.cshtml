@@ -19,48 +19,83 @@
     <form method="get" class="row g-3 mb-4 production-daily__filters">
         <input name="Tab" value="balance" type="hidden"/>
         <div class="col-12 col-md-4"><label asp-for="WeekId" class="form-label">@T["Semana"]</label><select asp-for="WeekId" class="form-select production-daily__week" data-balance-week><option value="">@T["Selecciona una semana"]</option>@foreach(var week in Model.Weeks){<option value="@week.Id">@week.WeekStart.ToString("dd/MM/yyyy")–@week.WeekEnd.ToString("dd/MM/yyyy") · @WarehouseEPI.Web.Production.ProductionDailyText.WeekStatus(T,week.Status)</option>}</select></div>
-        <div class="col-6 col-md-3"><label asp-for="Through" class="form-label">@T["Avance al día"]</label><input asp-for="Through" data-balance-date type="date" class="form-control" min="@weekly?.WeekStart.ToString("yyyy-MM-dd")" max="@weekly?.WeekEnd.ToString("yyyy-MM-dd")"/></div>
-        <div class="col-6 col-md-3"><label asp-for="Sku" class="form-label">@T["Producto"]</label><input asp-for="Sku" type="search" class="form-control"/></div>
+        <input name="Through" value="@(weekly?.Through.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))" type="hidden"/>
+        <div class="col-12 col-md-6"><label asp-for="Sku" class="form-label">@T["Producto"]</label><input asp-for="Sku" type="search" class="form-control"/></div>
         <div class="col-12 col-md-2 d-grid align-items-end"><button class="btn btn-outline-primary">@T["Filtrar"]</button></div>
         <div class="col-12"><details><summary>@T["Más filtros"]</summary><div class="row g-3 mt-1">
             <div class="col-6 col-md-3"><label asp-for="Area" class="form-label">@T["Área"]</label><select asp-for="Area" class="form-select"><option value="">@T["Todas"]</option>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<option value="@area">@AreaName(area)</option>}</select></div>
             <div class="col-6 col-md-3"><label asp-for="Reference" class="form-label">@T["Referencia"]</label><input asp-for="Reference" class="form-control"/></div>
         </div></details></div>
+        @if (weekly is not null)
+        {
+            <div class="col-12">
+                <nav class="d-flex gap-2 overflow-auto py-2" aria-label="@T["Días de la semana"]">
+                    @foreach (var day in ProductionWeekCalendar.Days(weekly.WeekStart))
+                    {
+                        <button type="button" class="btn @(weekly.Through == day ? "btn-primary" : "btn-outline-primary") flex-shrink-0"
+                                aria-current="@(weekly.Through == day ? "date" : null)"
+                                data-balance-day="@day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)">@day.ToString("ddd dd/MM", CultureInfo.CurrentUICulture)</button>
+                    }
+                </nav>
+            </div>
+        }
     </form>
     @if (weekly is null) { <p class="alert alert-info">@T["Todavía no hay una semana de producción para consultar."]</p> }
     else
     {
-        @if (weekly.Through > Model.Today) { <p class="alert alert-info">@T["Proyección para una fecha futura; no representa producción realizada."]</p> }
+        @if (weekly.Through > Model.Today) { <p class="alert alert-info">@T["La programación futura es una proyección. Las piezas registradas provienen de capturas confirmadas."]</p> }
         @if (weekly.Status == ProductionScheduleWeekStatus.Draft) { <p class="alert alert-info">@T["Proyección del borrador. La semana todavía no está abierta para capturar."]</p> }
-        <p class="small text-body-secondary">@T["El pendiente para T2 es el saldo después de T1. El pendiente final incluye ambos turnos y las entradas del proceso anterior."]</p>
+        <p class="small text-body-secondary">@(weekly.ExplicitCarryover ? "Trabajo pendiente por área: arrastre inicial + programación acumulada − capturas de esta semana. La disponibilidad física se valida por separado al capturar." : T["El pendiente para T2 es el saldo después de T1. El pendiente final incluye ambos turnos y las entradas del proceso anterior."].Value)</p>
+        <p class="small text-body-secondary">@T["Status % compara lo registrado hoy en Ready to Pack con el programa nuevo y el pendiente al iniciar en esa área."]</p>
         @if (weekly.Products.Count == 0) { <p class="alert alert-info">@T["No hay productos para los filtros seleccionados."]</p> }
         else
         {
-            @if (weekly.Status == ProductionScheduleWeekStatus.Open && weekly.Through <= Model.Today) { <partial name="_BalanceEditor" model="Model"/> }
+            @if (weekly.Status == ProductionScheduleWeekStatus.Open) { <partial name="_BalanceEditor" model="Model"/> }
             <div class="production-weekly-scroll" tabindex="0" aria-label="@T["Balance diario"]">
             <table class="table production-weekly-table">
-                <thead><tr><th rowspan="2" scope="col">@T["Producto"]</th><th rowspan="2" scope="col">@T["Programado del día"]</th>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<th colspan="5" scope="colgroup" class="production-weekly-area-@((int)area)">@AreaName(area)</th>}</tr>
+                <thead><tr><th rowspan="2" scope="col">@T["Producto"]</th><th rowspan="2" scope="col">@T["Programado del día"]</th>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<th colspan="5" scope="colgroup" class="production-weekly-area-@((int)area)">@AreaName(area)</th>}<th rowspan="2" scope="col">@T["Status %"]</th></tr>
                 <tr>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<th scope="col" class="production-weekly-area-@((int)area)">@T["Pendiente al iniciar"]</th><th scope="col" class="production-weekly-area-@((int)area)" title="@T["Turno"] 1">T1</th><th scope="col" class="production-weekly-area-@((int)area)">@T["Pendiente para T2"]</th><th scope="col" class="production-weekly-area-@((int)area)" title="@T["Turno"] 2">T2</th><th scope="col" class="production-weekly-area-@((int)area)">@T["Pendiente final"]</th>}</tr></thead>
                 @foreach (var product in weekly.Products)
                 {
                     <tbody>
                     <tr class="production-weekly-product" data-balance-product="@product.ProductId">
                         <th scope="row" class="production-weekly-sku"><strong>@product.Sku</strong>
-                        @foreach(var intention in product.Intentions){<small class="d-block fw-normal">@T["Arrastre programado"] · @AreaName(intention.Area): @Qty(intention.Quantity)</small>}
+                        @foreach(var intention in product.Intentions){<small class="d-block fw-normal">@(weekly.ExplicitCarryover ? "Arrastre inicial" : T["Arrastre programado"].Value) · @AreaName(intention.Area): @Qty(intention.Quantity)</small>}
                         </th>
-                        <td class="production-weekly-plan" data-label="@T["Programado del día"]">@Qty(product.Planned)</td>
+                        <td class="production-weekly-plan" data-label="@T["Programado del día"]">
+                            @{ var planLines = Model.BalancePlanLines.Where(x => x.ProductId == product.ProductId).ToArray(); }
+                            @if (planLines.Length == 0 && product.Planned == 0 && Model.ActiveBalanceProducts.Contains(product.ProductId) && User.IsInRole("ADMIN") && weekly.Status == ProductionScheduleWeekStatus.Open)
+                            {
+                                <input class="form-control balance-edit-cell" inputmode="decimal" autocomplete="off"
+                                       aria-label="@($"{product.Sku} · {T["Nueva programación"]}")" data-new-plan="@Guid.NewGuid()"
+                                       data-week-version="@Model.Weeks.Single(x => x.Id == weekly.WeekId).Version" data-original="0" value="0"/><button type="button" class="btn btn-sm btn-link balance-edit-undo" hidden>@T["Deshacer"]</button>
+                            }
+                            else if (planLines.Length != 1) { <span data-balance-plan>@Qty(product.Planned)</span> }
+                            @foreach (var line in planLines)
+                            {
+                                <div class="@(planLines.Length > 1 ? "balance-plan-line" : "")">
+                                    @if (planLines.Length > 1)
+                                    { <label for="balance-plan-@line.LineId">@line.Sequence · @line.Unit · @(string.Join(" / ", new[] { line.Reference1, line.Reference2, line.Reference3 }.Where(x => !string.IsNullOrWhiteSpace(x))))</label> }
+                                    <input id="balance-plan-@line.LineId" class="form-control balance-edit-cell" inputmode="decimal" autocomplete="off"
+                                           aria-label="@($"{product.Sku} · {T["Programado del día"]} · {line.Sequence}")"
+                                           data-plan-line="@line.LineId" data-line-version="@line.LineVersion" data-week-version="@line.WeekVersion"
+                                           data-original="@Qty(line.Quantity)" value="@Qty(line.Quantity)"/><button type="button" class="btn btn-sm btn-link balance-edit-undo" hidden>@T["Deshacer"]</button>
+                                </div>
+                            }
+                        </td>
                         @foreach (var area in new[] { product.Cutting, product.Sewing, product.ReadyToPack })
                         {
                             <td class="production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · {T["Pendiente al iniciar"]}")"><span data-balance-field="opening" data-area="@((int)area.Area)">@(area.Applies ? Qty(area.Opening) : T["No aplica"])</span></td>
-                            <td class="production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · T1")">@if (area.Applies && weekly.Status == ProductionScheduleWeekStatus.Open && weekly.Through <= Model.Today)
+                            <td class="production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · T1")">@if (area.Applies && weekly.Status == ProductionScheduleWeekStatus.Open)
                             {<input class="form-control balance-edit-cell" inputmode="decimal" autocomplete="off" aria-label="@($"{product.Sku} · {AreaName(area.Area)} · T1")" data-edit-area="@((int)area.Area)" data-edit-shift="1" data-original="@Qty(area.CompletedShift1)" value="@Qty(area.CompletedShift1)"/><button type="button" class="btn btn-sm btn-link balance-edit-undo" hidden>@T["Deshacer"]</button>}
                             else { @(area.Applies ? Qty(area.CompletedShift1) : T["No aplica"]) }</td>
                             <td class="production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · {T["Pendiente para T2"]}")"><span data-balance-field="pendingAfterShift1" data-area="@((int)area.Area)">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</span></td>
-                            <td class="production-weekly-total production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · T2")">@if (area.Applies && weekly.Status == ProductionScheduleWeekStatus.Open && weekly.Through <= Model.Today)
+                            <td class="production-weekly-total production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · T2")">@if (area.Applies && weekly.Status == ProductionScheduleWeekStatus.Open)
                             {<input class="form-control balance-edit-cell" inputmode="decimal" autocomplete="off" aria-label="@($"{product.Sku} · {AreaName(area.Area)} · T2")" data-edit-area="@((int)area.Area)" data-edit-shift="2" data-original="@Qty(area.CompletedShift2)" value="@Qty(area.CompletedShift2)"/><button type="button" class="btn btn-sm btn-link balance-edit-undo" hidden>@T["Deshacer"]</button>}
                             else { @(area.Applies ? Qty(area.CompletedShift2) : T["No aplica"]) }</td>
                             <td class="production-weekly-close production-weekly-area-@((int)area.Area)" data-label="@($"{AreaName(area.Area)} · {T["Pendiente final"]}")"><span data-balance-field="netPending" data-area="@((int)area.Area)">@(area.Applies ? Qty(area.NetPending ?? area.Pending) : T["No aplica"])</span><small class="balance-edit-detail" hidden="@(area.Extra <= 0)">@T["Extras del día"]: <span data-balance-field="extra" data-area="@((int)area.Area)">@Qty(area.Extra)</span></small><small class="balance-edit-detail text-warning-emphasis" hidden="@(area.ToReconcile <= 0)">@T["Por conciliar"]: <span data-balance-field="toReconcile" data-area="@((int)area.Area)">@Qty(area.ToReconcile)</span></small></td>
                         }
+                        <td class="production-weekly-status" data-label="@T["Status %"]"><span data-balance-status>@(product.StatusRatio.HasValue ? product.StatusRatio.Value.ToString("P1", CultureInfo.CurrentCulture) : T["No aplica"].Value)</span></td>
                     </tr>
                     </tbody>
                 }
@@ -68,3 +103,4 @@
         }
     }
 </section>
+@if (Model.WeekClose is not null) { <partial name="_WeekClose" model="Model" /> }

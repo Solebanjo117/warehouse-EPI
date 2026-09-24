@@ -48,7 +48,9 @@ public sealed record ProductionScheduleImportResolutions(
 }
 public sealed record ProductionScheduleImportLine(DateOnly Date, string Sku, Guid ProductId, decimal Quantity,
     string? Reference1, string? Reference2, string? Reference3, string? Notes, bool IsCarryover, int SourceRow,
-    ProductionDailyArea? StartArea = null, string? SourceSheet = null);
+    ProductionDailyArea? StartArea = null, string? SourceSheet = null,
+    string? OriginalType = null, string? OriginalAnnotation1 = null, string? OriginalAnnotation2 = null,
+    string? OriginalAnnotation1Kind = null, string? OriginalAnnotation2Kind = null);
 public sealed record ProductionScheduleImportCapture(DateOnly Date, ProductionDailyArea Area, Guid ShiftId,
     string Sku, Guid ProductId, decimal Quantity, string? Reporter, string? Notes, int SourceRow);
 public sealed record ProductionScheduleImportCarryover(string Sku, Guid ProductId, ProductionDailyArea Area,
@@ -203,7 +205,7 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
                     OperationId = Derive(operationId, source.WeekStart, "week"),
                     RequestFingerprint = preview.FileHash,
                     WeekStart = source.WeekStart,
-                    WeekEnd = source.WeekStart.AddDays(5),
+                    WeekEnd = source.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset),
                     Status = source.IsDraft ? ProductionScheduleWeekStatus.Draft : ProductionScheduleWeekStatus.Closed,
                     Origin = ProductionScheduleOrigin.ExcelImport,
                     SourceName = source.Sheet,
@@ -228,7 +230,12 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
                         IsCarryover = line.IsCarryover,
                         StartArea = line.StartArea,
                         SourceSheet = line.SourceSheet ?? source.Sheet,
-                        SourceRow = line.SourceRow
+                        SourceRow = line.SourceRow,
+                        OriginalType = line.OriginalType,
+                        OriginalAnnotation1 = line.OriginalAnnotation1,
+                        OriginalAnnotation2 = line.OriginalAnnotation2,
+                        OriginalAnnotation1Kind = line.OriginalAnnotation1Kind,
+                        OriginalAnnotation2Kind = line.OriginalAnnotation2Kind
                     });
                 foreach (var capture in source.Captures)
                     week.Captures.Add(new ProductionDailyCapture
@@ -304,7 +311,7 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
             }
             var date = context.FixDate(sheet, Plan, number, fix, Date(row.Cell(Column(headers, "day", "date")), weekStart), weekStart);
             if (!InWeek(date, weekStart))
-                context.Issue(sheet, number, "La fecha del programa no corresponde a lunes-sábado de la hoja.",
+                context.Issue(sheet, number, "La fecha del programa no corresponde a lunes-domingo de la hoja.",
                     ProductionScheduleImportIssueKind.InvalidDate, Plan);
             var quantity = context.FixQuantity(sheet, Plan, number, fix, sourceQuantity);
             if (!IsPositive(quantity))
@@ -315,7 +322,12 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
             result.Add(new(date.Value, sku, productId.Value, quantity ?? 0,
                 Optional(row, headers, "ordernumber1", "order1", "order"), Optional(row, headers, "ordernumber2", "order2"),
                 Optional(row, headers, "ordernumber3", "order3"), Optional(row, headers, "notes", "comments"),
-                Normalize(type ?? "").Contains("arrastre", StringComparison.Ordinal), number));
+                Normalize(type ?? "").Contains("arrastre", StringComparison.Ordinal), number,
+                OriginalType: Safe(type, 120),
+                OriginalAnnotation1: Safe(Optional(row, headers, "column1"), 500),
+                OriginalAnnotation2: Safe(Optional(row, headers, "column2"), 500),
+                OriginalAnnotation1Kind: AnnotationKind(row, headers, "column1"),
+                OriginalAnnotation2Kind: AnnotationKind(row, headers, "column2")));
         }
         return result;
     }
@@ -353,7 +365,7 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
                 context.Issue(sheet, number, $"Turno sin resolver: {shiftText ?? "vacío"}.",
                     ProductionScheduleImportIssueKind.UnknownShift, Execution, shiftText);
             if (!InWeek(date, weekStart))
-                context.Issue(sheet, number, "La fecha de ejecución no corresponde a lunes-sábado de la hoja.",
+                context.Issue(sheet, number, "La fecha de ejecución no corresponde a lunes-domingo de la hoja.",
                     ProductionScheduleImportIssueKind.InvalidDate, Execution);
             if (!IsPositive(quantity))
                 context.Issue(sheet, number, "Las piezas completadas deben ser positivas.",
@@ -385,6 +397,15 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
     {
         var key = names.FirstOrDefault(headers.ContainsKey);
         return key is null ? null : Text(row.Cell(headers[key]));
+    }
+    private static string? AnnotationKind(IXLRangeRow row, IReadOnlyDictionary<string, int> headers, string name)
+    {
+        if (!headers.TryGetValue(name, out var column)) return null;
+        var cell = row.Cell(column);
+        if (cell.IsEmpty()) return null;
+        if (cell.TryGetValue<DateTime>(out _)) return "Date";
+        var value = cell.HasFormula ? cell.CachedValue : cell.Value;
+        return value.IsNumber ? "Number" : "Text";
     }
     private static string? Text(IXLCell cell)
     {
@@ -477,7 +498,7 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
         return value.Length > max ? value[..max] : value;
     }
     private static bool InWeek(DateOnly? date, DateOnly weekStart) =>
-        date is { } value && value >= weekStart && value <= weekStart.AddDays(5);
+        date is { } value && value >= weekStart && value <= weekStart.AddDays(ProductionWeekCalendar.LastDayOffset);
     private static bool IsPositive(decimal? quantity) =>
         quantity > 0 && decimal.Round(quantity.Value, 4) == quantity.Value;
 

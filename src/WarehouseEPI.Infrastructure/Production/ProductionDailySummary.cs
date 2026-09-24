@@ -5,9 +5,14 @@ namespace WarehouseEPI.Infrastructure.Production;
 
 public sealed record ProductionDailyProductSummary(Guid ProductId, string Sku, decimal Planned,
     ProductionDailyAreaBalance Cutting, ProductionDailyAreaBalance Sewing, ProductionDailyAreaBalance ReadyToPack,
-    IReadOnlyList<ProductionWeeklyIntention> Intentions);
+    IReadOnlyList<ProductionWeeklyIntention> Intentions)
+{
+    // Matches the worksheet's Status %: finished at Ready to Pack / (new plan + pending at start).
+    public decimal? StatusRatio => !ReadyToPack.Applies ? null :
+        Planned + ReadyToPack.Opening <= 0 ? 0 : ReadyToPack.Completed / (Planned + ReadyToPack.Opening);
+}
 public sealed record ProductionDailySummary(Guid WeekId, DateOnly WeekStart, DateOnly WeekEnd, DateOnly Through,
-    ProductionScheduleWeekStatus Status, IReadOnlyList<ProductionDailyProductSummary> Products);
+    ProductionScheduleWeekStatus Status, IReadOnlyList<ProductionDailyProductSummary> Products, bool ExplicitCarryover = false);
 
 public sealed partial class ProductionDailyBalanceService
 {
@@ -20,9 +25,9 @@ public sealed partial class ProductionDailyBalanceService
         if (week is null) return null;
         var configuration = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
         var date = filter.Through < week.WeekStart ? week.WeekStart :
-            filter.Through > week.WeekStart.AddDays(5) ? week.WeekStart.AddDays(5) : filter.Through;
+            filter.Through > week.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset) ? week.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset) : filter.Through;
         // Use the whole week's population, including products only planned or produced on another day.
-        var weekly = (await GetWeeklyAsync(weekId, filter with { Through = week.WeekStart.AddDays(5) }, scenario, token))!;
+        var weekly = (await GetWeeklyAsync(weekId, filter with { Through = week.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset) }, scenario, token))!;
         // Re-run the same order flow at the T1 cutoff; T2 receipts must not inflate the intermediate balance.
         var afterShift1 = (await GetAsync(weekId, false, false, token, date, configuration.Shift1Id, scenario))!
             .Rows.Where(x => x.Date == date).ToDictionary(x => x.ProductId);
@@ -58,13 +63,13 @@ public sealed partial class ProductionDailyBalanceService
                     CompletedShift1 = day.Shifts.Where(x => x.Area == area && x.ShiftId == configuration.Shift1Id).Sum(x => x.Quantity),
                     CompletedShift2 = day.Shifts.Where(x => x.Area == area && x.ShiftId == configuration.Shift2Id).Sum(x => x.Quantity),
                     PendingAfterShift1 = intermediate?.NetPending ?? intermediate?.Pending ?? 0,
-                    Extra = current.Extra - (before?.Extra ?? 0)
+                    Extra = week.ExplicitCarryover ? current.Extra : current.Extra - (before?.Extra ?? 0)
                 };
             }
             return new ProductionDailyProductSummary(product.ProductId, product.Sku, day.Planned,
                 Area(ProductionDailyArea.Cutting), Area(ProductionDailyArea.Sewing), Area(ProductionDailyArea.ReadyToPack),
                 product.Intentions.Where(x => x.Date == date).ToArray());
         }).ToArray();
-        return new(weekId, week.WeekStart, week.WeekEnd, date, week.Status, products);
+        return new(weekId, week.WeekStart, week.WeekEnd, date, week.Status, products, week.ExplicitCarryover);
     }
 }

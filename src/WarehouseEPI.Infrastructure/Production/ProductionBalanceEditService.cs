@@ -6,11 +6,21 @@ namespace WarehouseEPI.Infrastructure.Production;
 
 public sealed record ProductionBalanceCell(Guid ProductId, ProductionDailyArea Area, int Shift, decimal Observed, decimal Requested);
 public sealed record ProductionBalanceEditCommand(Guid OperationId, Guid WeekId, DateOnly Date,
-    IReadOnlyList<ProductionBalanceCell> Cells, string? Reason = null, string ReviewedFingerprint = "", string Pin = "");
+    IReadOnlyList<ProductionBalanceCell> Cells, string? Reason = null, string ReviewedFingerprint = "", string Pin = "",
+    IReadOnlyList<ProductionBalancePlanChange>? PlanChanges = null, Guid? AdminActorId = null,
+    ProductionWeeklyFilter? Filter = null, IReadOnlyList<ProductionBalanceNewPlan>? NewPlans = null);
+public sealed record ProductionBalanceNewPlan(Guid OperationId, Guid ProductId, decimal Requested, uint ExpectedWeekVersion);
+public sealed record ProductionBalanceNewPlanReview(ProductionBalanceNewPlan Change, string Sku, IReadOnlyList<string> Errors, uint CurrentWeekVersion);
+public sealed record ProductionBalancePlanChange(Guid LineId, decimal Observed, decimal Requested,
+    uint ExpectedLineVersion, uint ExpectedWeekVersion);
+public sealed record ProductionBalancePlanReview(ProductionBalancePlanChange Change, string Sku, decimal Current,
+    IReadOnlyList<string> Errors, uint CurrentLineVersion = 0, uint CurrentWeekVersion = 0);
 public sealed record ProductionBalanceCellReview(ProductionBalanceCell Cell, string Sku, decimal Current,
     IReadOnlyList<Guid> Reversals, IReadOnlyList<ProductionBalanceAddition> Additions, IReadOnlyList<string> Errors);
 public sealed record ProductionBalanceEditPreview(bool CanConfirm, bool RequiresAdmin, string Fingerprint,
-    IReadOnlyList<ProductionBalanceCellReview> Cells, ProductionDailySummary? Balance, IReadOnlyList<string> Errors);
+    IReadOnlyList<ProductionBalanceCellReview> Cells, ProductionDailySummary? Balance, IReadOnlyList<string> Errors,
+    IReadOnlyList<ProductionBalancePlanReview>? Plans = null, ProductionWeekClose? WeekClose = null,
+    bool RequiresReason = false, IReadOnlyList<ProductionBalanceNewPlanReview>? NewPlans = null);
 
 public sealed partial class ProductionDailyCaptureService
 {
@@ -18,16 +28,27 @@ public sealed partial class ProductionDailyCaptureService
     {
         var errors = new List<string>();
         var reviews = new List<ProductionBalanceCellReview>();
+        var planChanges = command.PlanChanges ?? [];
+        var newPlans = command.NewPlans ?? [];
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == command.WeekId, token);
         if (week is null || week.Status != ProductionScheduleWeekStatus.Open || command.Date < week.WeekStart || command.Date > week.WeekEnd)
             errors.Add("La fecha debe pertenecer a una semana abierta.");
-        if (command.OperationId == Guid.Empty || command.Cells.Count is < 1 or > 100 ||
-            command.Cells.Select(x => (x.ProductId, x.Area, x.Shift)).Distinct().Count() != command.Cells.Count)
+        if (command.OperationId == Guid.Empty || command.Cells.Count + planChanges.Count + newPlans.Count is < 1 or > 100 ||
+            command.Cells.Select(x => (x.ProductId, x.Area, x.Shift)).Distinct().Count() != command.Cells.Count ||
+            planChanges.Select(x => x.LineId).Distinct().Count() != planChanges.Count ||
+            newPlans.Any(x => x.OperationId == Guid.Empty) || newPlans.Select(x => x.OperationId).Distinct().Count() != newPlans.Count ||
+            newPlans.Select(x => x.ProductId).Distinct().Count() != newPlans.Count)
             errors.Add("Selecciona entre 1 y 100 celdas sin repetir.");
         if (command.Reason?.Length > 500) errors.Add("Usa como máximo 500 caracteres en el motivo.");
         if (errors.Count > 0) return new(false, false, "", reviews, null, errors);
         var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
-        var ids = command.Cells.Select(x => x.ProductId).Distinct().ToArray();
+        var plans = await ReviewPlanChangesAsync(command, token);
+        var newReviews = await ReviewNewPlansAsync(command, week!, token);
+        errors.AddRange(newReviews.SelectMany(x => x.Errors.Select(e => $"{x.Sku}: {e}")));
+        errors.AddRange(plans.SelectMany(x => x.Errors.Select(e => $"{x.Sku}: {e}")));
+        var planIds = planChanges.Select(x => x.LineId).ToArray();
+        var planProducts = await db.ProductionScheduleLines.AsNoTracking().Where(x => planIds.Contains(x.Id)).Select(x => x.ProductId).ToArrayAsync(token);
+        var ids = command.Cells.Select(x => x.ProductId).Concat(planProducts).Concat(newPlans.Select(x => x.ProductId)).Distinct().ToArray();
         var state = await db.ProductionDailyCaptures.AsNoTracking().Include(x => x.Allocations)
             .Where(x => ids.Contains(x.ProductId)).ToListAsync(token);
         var baseBalance = (await new ProductionDailyBalanceService(db).GetDailySummaryAsync(command.WeekId, new(command.Date), token))!;
@@ -82,12 +103,20 @@ public sealed partial class ProductionDailyCaptureService
         var versions = await db.ProductionWorkOrders.AsNoTracking().Where(x => orderIds.Contains(x.Id) || ids.Contains(x.ProductId))
             .OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.Status }).ToListAsync(token);
         var fingerprint = Fingerprint(new { command.WeekId, command.Date, week!.Version, Cells = reviews.Select(x => new { x.Cell, x.Current, x.Reversals, x.Additions }),
+            Plans = plans, NewPlans = newReviews, command.AdminActorId,
             State = state.OrderBy(x => x.Id).Select(x => new { x.Id, x.Status, Allocations = x.Allocations.OrderBy(a => a.Id).Select(a => new { a.Id, a.Quantity }) }), versions });
-        var requiresAdmin = reviews.Any(x => x.Cell.Requested < x.Current);
+        var requiresReason = reviews.Any(x => x.Cell.Requested < x.Current);
+        var requiresAdmin = requiresReason || planChanges.Count > 0 || newPlans.Count > 0;
         errors.AddRange(reviews.SelectMany(x => x.Errors.Select(e => $"{x.Sku}: {e}")));
-        var projected = errors.Count == 0 ? await new ProductionDailyBalanceService(db).GetDailySummaryAsync(command.WeekId, new(command.Date),
-            new(command.Date, reviews.SelectMany(x => x.Reversals).ToArray(), reviews.SelectMany(x => x.Additions).ToArray()), token) : null;
-        return new(errors.Count == 0, requiresAdmin, fingerprint, reviews, projected, errors);
+        if (errors.Count == 0)
+            errors.AddRange(await PlanActivityErrorsAsync(command, reviews.SelectMany(x => x.Reversals).ToArray(), token));
+        var scenario = new ProductionBalanceScenario(command.Date, reviews.SelectMany(x => x.Reversals).ToArray(),
+            reviews.SelectMany(x => x.Additions).ToArray(), planChanges.ToDictionary(x => x.LineId, x => x.Requested), newPlans);
+        var balanceService = new ProductionDailyBalanceService(db);
+        var projected = errors.Count == 0 ? await balanceService.GetDailySummaryAsync(command.WeekId, new(command.Date), scenario, token) : null;
+        var close = errors.Count == 0 ? await balanceService.GetWeekCloseAsync(command.WeekId,
+            command.Filter ?? new(command.Date), scenario, token) : null;
+        return new(errors.Count == 0, requiresAdmin, fingerprint, reviews, projected, errors, plans, close, requiresReason, newReviews);
     }
 
     private async Task<string?> BalanceReversalBlockerAsync(ProductionDailyCapture capture, IEnumerable<ProductionDailyCaptureAllocation> earlierReversals, CancellationToken token)
@@ -112,7 +141,15 @@ public sealed partial class ProductionDailyCaptureService
     {
         var user = await pins.AuthenticateAsync(command.Pin, token);
         if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP inválido."]);
-        var fingerprint = Fingerprint(new { command.WeekId, command.Date, Cells = command.Cells.OrderBy(x => x.Shift).ThenBy(x => x.Area).ThenBy(x => x.ProductId), Reason = command.Reason?.Trim(), user.Id });
+        if ((command.PlanChanges?.Count > 0 || command.NewPlans?.Count > 0) && (user.Role.Code != "ADMIN" || command.AdminActorId != user.Id))
+            return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["El NIP ADMIN no corresponde a la sesión actual."]);
+        var fingerprint = command.NewPlans?.Count > 0
+            ? Fingerprint(new { command.WeekId, command.Date, Cells = command.Cells.OrderBy(x => x.Shift).ThenBy(x => x.Area).ThenBy(x => x.ProductId),
+                Plans = (command.PlanChanges ?? []).OrderBy(x => x.LineId), NewPlans = command.NewPlans.OrderBy(x => x.OperationId), command.AdminActorId, Reason = command.Reason?.Trim(), user.Id })
+            : command.PlanChanges?.Count > 0
+            ? Fingerprint(new { command.WeekId, command.Date, Cells = command.Cells.OrderBy(x => x.Shift).ThenBy(x => x.Area).ThenBy(x => x.ProductId),
+                Plans = command.PlanChanges.OrderBy(x => x.LineId), command.AdminActorId, Reason = command.Reason?.Trim(), user.Id })
+            : Fingerprint(new { command.WeekId, command.Date, Cells = command.Cells.OrderBy(x => x.Shift).ThenBy(x => x.Area).ThenBy(x => x.ProductId), Reason = command.Reason?.Trim(), user.Id });
         async Task<ProductionDailyCommandResult?> Prior()
         {
             var prior = await db.Set<ProductionBalanceEdit>().AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
@@ -125,7 +162,7 @@ public sealed partial class ProductionDailyCaptureService
             var preview = await PreviewBalanceEditAsync(command, token);
             if (!preview.CanConfirm) return new(ProductionDailyCommandStatus.ValidationFailed, Errors: preview.Errors);
             if (preview.RequiresAdmin && user.Role.Code != "ADMIN") return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP ADMIN inválido."]);
-            if (preview.RequiresAdmin && string.IsNullOrWhiteSpace(command.Reason)) return NotReady("Indica el motivo del reverso.");
+            if (preview.RequiresReason && string.IsNullOrWhiteSpace(command.Reason)) return NotReady("Indica el motivo del reverso.");
             if (preview.Fingerprint != command.ReviewedFingerprint) return new(ProductionDailyCommandStatus.ConcurrencyConflict, Errors: ["El balance cambió. Revisa nuevamente los cambios."]);
             var edit = new ProductionBalanceEdit { OperationId = command.OperationId, RequestFingerprint = fingerprint, WeekId = command.WeekId,
                 EffectiveDate = command.Date, Reason = command.Reason?.Trim(), ResponsibleUserId = user.Id, RecordedAt = timeProvider.GetUtcNow() };
@@ -134,22 +171,24 @@ public sealed partial class ProductionDailyCaptureService
                 foreach (var captureId in cell.Reversals)
                 {
                     var reversed = await ReverseAsync(new(Derive(command.OperationId, captureId, Guid.Empty, "edit-reverse"), captureId, command.Reason!, command.Pin), token);
-                    if (!reversed.Success) return await AbortAsync(transaction, reversed, token);
+                    if (!reversed.Success) return await AbortBalanceEditAsync(transaction, reversed, token);
                     edit.Items.Add(new() { ProductId = cell.Cell.ProductId, Area = cell.Cell.Area,
                         ShiftId = (await db.ProductionDailyCaptures.AsNoTracking().SingleAsync(x => x.Id == captureId, token)).ShiftId,
                         PreviousTotal = cell.Current, RequestedTotal = cell.Cell.Requested, ReversedCaptureId = captureId });
                 }
             }
+            var planResult = await ApplyPlanChangesAsync(command, user.Id, token);
+            if (!planResult.Success) return await AbortBalanceEditAsync(transaction, planResult, token);
             foreach (var cell in preview.Cells)
                 foreach (var addition in cell.Additions)
                 {
                     var created = await ConfirmAsync(new(addition.Id, command.Date, addition.Area, addition.ShiftId, addition.ProductId, addition.Quantity, addition.Notes, command.Pin), token);
-                    if (!created.Success) return await AbortAsync(transaction, created, token);
+                    if (!created.Success) return await AbortBalanceEditAsync(transaction, created, token);
                     edit.Items.Add(new() { ProductId = addition.ProductId, Area = addition.Area, ShiftId = addition.ShiftId, PreviousTotal = cell.Current,
                         RequestedTotal = cell.Cell.Requested, CreatedCaptureId = created.Id, ReversedCaptureId = cell.Reversals.LastOrDefault() is var id && id != Guid.Empty ? id : null });
                 }
             var actual = await new ProductionDailyBalanceService(db).GetDailySummaryAsync(command.WeekId, new(command.Date), token);
-            var editedProducts = command.Cells.Select(x => x.ProductId).ToHashSet();
+            var editedProducts = preview.Balance!.Products.Select(x => x.ProductId).ToHashSet();
             var actualRows = actual!.Products.Where(x => editedProducts.Contains(x.ProductId)).OrderBy(x => x.ProductId).ToArray();
             var reviewedRows = preview.Balance!.Products.Where(x => editedProducts.Contains(x.ProductId)).OrderBy(x => x.ProductId).ToArray();
             // Compare decimal values, not their JSON scale (PostgreSQL returns numeric(18,4)).
@@ -157,7 +196,7 @@ public sealed partial class ProductionDailyCaptureService
                 pair.First.ProductId != pair.Second.ProductId || pair.First.Planned != pair.Second.Planned ||
                 pair.First.Cutting != pair.Second.Cutting || pair.First.Sewing != pair.Second.Sewing ||
                 pair.First.ReadyToPack != pair.Second.ReadyToPack || !pair.First.Intentions.SequenceEqual(pair.Second.Intentions)))
-                return await AbortAsync(transaction, NotReady("La proyección cambió al aplicar la conciliación. No se guardaron los cambios."), token);
+                return await AbortBalanceEditAsync(transaction, NotReady("La proyección cambió al aplicar la conciliación. No se guardaron los cambios."), token);
             db.Set<ProductionBalanceEdit>().Add(edit);
             await db.SaveChangesAsync(token);
             if (transaction is not null) await transaction.CommitAsync(token);
@@ -169,5 +208,14 @@ public sealed partial class ProductionDailyCaptureService
             db.ChangeTracker.Clear();
             return await Prior() ?? new(ProductionDailyCommandStatus.ConcurrencyConflict);
         }
+    }
+
+    private async Task<ProductionDailyCommandResult> AbortBalanceEditAsync(
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction, ProductionDailyCommandResult result,
+        CancellationToken token)
+    {
+        if (transaction is not null) await transaction.RollbackAsync(token);
+        db.ChangeTracker.Clear();
+        return result;
     }
 }

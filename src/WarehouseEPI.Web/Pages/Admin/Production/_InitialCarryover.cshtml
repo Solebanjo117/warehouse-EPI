@@ -1,0 +1,36 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using WarehouseEPI.Core.Entities
+@if (Model.Week is { ExplicitCarryover: true } week)
+{
+    <section class="border rounded p-3 my-3" data-opening-editor
+             data-url="@Url.Page("Schedule", "WorkspaceOpenings", new { weekId = week.Id })"
+             data-week-id="@week.Id" data-week-version="@week.Version"
+             data-user-id="@Model.User.FindFirst(global::System.Security.Claims.ClaimTypes.NameIdentifier)?.Value"
+             data-readonly="@(week.Status == ProductionScheduleWeekStatus.Closed || week.Status == ProductionScheduleWeekStatus.Draft && Model.View != "program" ? "true" : "false")"
+             data-correction="@(week.Status == ProductionScheduleWeekStatus.Open ? "true" : "false")"
+             data-review-url="@Url.Page("Schedule", "OpeningReview")"
+             data-confirm-url="@Url.Page("Schedule", "OpeningConfirm")"
+             data-operation-url="@Url.Page("Schedule", "WorkspaceOperation", new { weekId = week.Id })">
+        <details data-opening-panel>
+            <summary class="h5 mb-0 py-2"><span data-opening-summary>Arrastre inicial · consultando pendientes…</span></summary>
+            <div class="pt-2">
+                <p>Selecciona pendientes anteriores para incorporarlos al inicio del lunes. Sin selección, el arrastre inicial es cero. Las áreas no se suman entre sí.</p>
+                <p class="small text-body-secondary">Los orígenes de semanas abiertas son provisionales y se validan nuevamente al guardar y al capturar.</p>
+                <div data-opening-status role="status" aria-live="polite">Consultando pendientes…</div>
+                <button type="button" class="btn btn-outline-secondary my-2" data-opening-refresh>Actualizar pendientes y recuperar preparación</button>
+                <div class="table-responsive"><table class="table align-middle"><thead><tr><th>SKU</th><th>Origen</th><th>Unidad</th><th>Corte</th><th>Costura</th><th>Ready to Pack</th></tr></thead><tbody data-opening-rows></tbody></table></div>
+                @if (week.Status == ProductionScheduleWeekStatus.Open)
+                {
+                    @Html.AntiForgeryToken()
+                    <label class="form-label" for="opening-reason">Motivo de la corrección</label>
+                    <input id="opening-reason" data-opening-reason class="form-control" maxlength="500" />
+                    <button type="button" class="btn btn-primary mt-2" data-opening-review>Revisar arrastre</button>
+                    <div data-opening-preview hidden class="my-3"></div>
+                    <div data-opening-auth hidden><label class="form-label" for="opening-pin">NIP ADMIN de la sesión</label>
+                        <input id="opening-pin" data-opening-pin class="form-control" type="password" inputmode="numeric" autocomplete="off" />
+                        <button type="button" class="btn btn-success mt-2" data-opening-confirm>Confirmar corrección</button></div>
+                }
+            </div>
+        </details>
+    </section>
+}

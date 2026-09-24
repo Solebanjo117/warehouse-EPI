@@ -7,7 +7,7 @@
   const results = field.querySelector('[data-product-results]');
   const add = form.querySelector('[data-daily-product-add]');
   const labels = [field.dataset.planned, field.dataset.pending, field.dataset.other];
-  let controller, timer, generation = 0, active = -1;
+  let controller, timer, generation = 0, active = -1, resolving = false;
   let groups = [];
   let options = [];
   const close = () => {
@@ -27,7 +27,13 @@
     close();
     // Selecting an existing row is navigation, never another insertion or submission.
     const row = [...form.querySelectorAll('[data-product-row]')].find(row => row.dataset.productRow === item.id);
-    if (row) row.querySelector('[data-group-quantity]')?.focus();
+    if (row) {
+      row.hidden = false;
+      row.dataset.focusProduct = 'true';
+      const table = row.closest?.('.production-entry__rows');
+      if (table) table.hidden = false;
+      row.querySelector('[data-group-quantity]')?.focus();
+    }
     else form.requestSubmit(add);
   };
   const highlight = () => {
@@ -126,7 +132,7 @@
     close();
     timer = setTimeout(() => search(), 180);
   });
-  input.addEventListener('keydown', event => {
+  input.addEventListener('keydown', async event => {
     if (event.key === 'Escape') { close(); return; }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -135,6 +141,25 @@
       highlight();
     } else if (event.key === 'Enter') {
       event.preventDefault();
+      if (form.querySelector('[name="Group.Mode"]')?.value === 'quick' && field.dataset.resolveUrl) {
+        if (resolving) return;
+        resolving = true;
+        const code = input.value.trim();
+        try {
+          const url = new URL(field.dataset.resolveUrl, window.location.origin);
+          url.searchParams.set('code', code);
+          const response = await fetch(url, { headers: { Accept: 'application/json' } });
+          if (input.value.trim() !== code) return;
+          if (response.ok) {
+            const exact = await response.json();
+            if (input.value.trim() !== code) return;
+            if (exact?.id) { select(exact); return; }
+          }
+        } catch { /* Keep the typed code and let the normal search show the error. */ }
+        finally { resolving = false; }
+        search();
+        return;
+      }
       if (options.length) options[active < 0 ? 0 : active].click();
       else search();
     }

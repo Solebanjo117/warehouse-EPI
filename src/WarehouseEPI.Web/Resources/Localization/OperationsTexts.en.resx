@@ -639,6 +639,11 @@
   <data name="Productos en la ubicación"><value>Products at this location</value></data>
   <data name="Selecciona Imprimir placa en el producto correspondiente."><value>Select Print plate for the corresponding product.</value></data>
   <data name="Buscar producto o ubicación"><value>Find a product or location</value></data>
+  <data name="Escanea un producto o una ubicación desde cualquier punto de la pantalla."><value>Scan a product or location from anywhere on this page.</value></data>
+  <data name="El código coincide con un producto y una ubicación. Escanéalo en el campo correcto."><value>The code matches both a product and a location. Scan it in the correct field.</value></data>
+  <data name="No se encontró un producto o ubicación con ese código."><value>No product or location was found with that code.</value></data>
+  <data name="No fue posible consultar el código. Intenta nuevamente."><value>The code could not be checked. Try again.</value></data>
+  <data name="No hay ubicaciones con stock positivo para este producto."><value>This product has no locations with positive stock.</value></data>
   <data name="Empieza por cualquiera de los dos campos; el segundo mostrará solamente combinaciones con stock positivo."><value>Start with either field; the other will show only combinations with positive stock.</value></data>
   <data name="SKU, descripción o referencia"><value>SKU, description, or reference</value></data>
   <data name="Ubicaciones con stock"><value>Locations with stock</value></data>

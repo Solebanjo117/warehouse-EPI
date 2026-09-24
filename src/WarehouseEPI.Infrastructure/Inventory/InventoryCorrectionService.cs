@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -46,9 +47,10 @@ public sealed class InventoryCorrectionService(
         if (existing is not null)
             return existing;
 
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var ownedTransaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction is null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken)
             : null;
+        var transaction = ownedTransaction ?? dbContext.Database.CurrentTransaction;
         try
         {
             var original = await dbContext.InventoryMovements
@@ -56,37 +58,37 @@ public sealed class InventoryCorrectionService(
                 .SingleOrDefaultAsync(movement => movement.Id == normalized.OriginalMovementId, cancellationToken);
             if (original is null)
             {
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                     Errors: ["El movimiento original no existe."]), cancellationToken);
             }
 
             if (await dbContext.InventoryMovementCorrections.AnyAsync(item => item.OriginalMovementId == original.Id, cancellationToken))
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.AlreadyCorrected), cancellationToken);
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.AlreadyCorrected), cancellationToken);
             if (await dbContext.InventoryMovementCorrections.AnyAsync(item => item.ReversalMovementId == original.Id, cancellationToken))
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.CannotCorrectReversal), cancellationToken);
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.CannotCorrectReversal), cancellationToken);
             var isDocumentReceipt = await dbContext.ReceivingConfirmations.AsNoTracking()
                 .AnyAsync(item => item.InventoryMovementId == original.Id, cancellationToken);
             var isProductionReceipt = await dbContext.ProductionEvents.AsNoTracking()
                 .AnyAsync(item => item.InventoryMovementId == original.Id, cancellationToken);
             if (isProductionReceipt)
             {
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                     Errors: ["La Entrada pertenece a una orden de producción. Corrígela desde la orden para conservar su avance."]), cancellationToken);
             }
             if (isDocumentReceipt && normalized.Replacement is { } receiptReplacement &&
                 (receiptReplacement.Type != InventoryMovementType.Entry || receiptReplacement.Purpose != InventoryMovementPurpose.DocumentReceipt))
             {
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                     Errors: ["El reemplazo de una recepción documental debe conservar Entrada y propósito Recepción documental."]), cancellationToken);
             }
             var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
             if (await dbContext.ProductionMaterialOperationLines.AsNoTracking()
                 .AnyAsync(line => originalLineIds.Contains(line.InventoryMovementLineId), cancellationToken))
             {
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                     Errors: ["El movimiento pertenece a una operación de material. Revierte la operación desde la orden de trabajo."]), cancellationToken);
             }
-            var materialIssue = await dbContext.ProductionMaterialIssueLinks
+            var materialIssues = await dbContext.ProductionMaterialIssueLinks
                 .Include(link => link.WorkOrder)
                 .Include(link => link.OperationLines).ThenInclude(line => line.Operation)
                 .Include(link => link.InventoryMovementLine)
@@ -94,32 +96,37 @@ public sealed class InventoryCorrectionService(
                 .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.Reservations)
                 .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.IssueLinks).ThenInclude(issue => issue.InventoryMovementLine)
                 .Include(link => link.SupplyRequestLine).ThenInclude(line => line!.SupplyRequest).ThenInclude(request => request.Events)
-                .SingleOrDefaultAsync(link => link.InventoryMovementLineId.HasValue && originalLineIds.Contains(link.InventoryMovementLineId.Value), cancellationToken);
-            if (materialIssue is not null)
+                .Where(link => link.InventoryMovementLineId.HasValue && originalLineIds.Contains(link.InventoryMovementLineId.Value))
+                .ToListAsync(cancellationToken);
+            var singleMaterialIssue = materialIssues.FirstOrDefault();
+            if (materialIssues.Count > 0)
             {
                 var reversedMaterialOperations = await dbContext.ProductionMaterialOperations.AsNoTracking()
                     .Where(operation => operation.ReversesOperationId != null)
                     .Select(operation => operation.ReversesOperationId!.Value).ToListAsync(cancellationToken);
-                if (materialIssue.OperationLines.Any(line =>
+                if (materialIssues.Any(issue => issue.OperationLines.Any(line =>
                         line.Operation.Type != ProductionMaterialOperationType.Reversal &&
-                        !reversedMaterialOperations.Contains(line.Operation.Id)))
-                    return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                        !reversedMaterialOperations.Contains(line.Operation.Id))))
+                    return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                         Errors: ["El surtimiento ya tiene consumos o devoluciones. Revierte primero esas operaciones desde la orden."]), cancellationToken);
+                if (materialIssues.Count > 1 && normalized.Replacement is not null)
+                    return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
+                        Errors: ["Un movimiento con varios surtimientos solo admite reverso completo."]), cancellationToken);
                 if (normalized.Replacement is { } issueReplacement &&
                     (issueReplacement.Type != InventoryMovementType.Transfer ||
                      issueReplacement.Purpose != InventoryMovementPurpose.ProductionIssue ||
                      issueReplacement.Lines.Count != 1 ||
                      issueReplacement.Lines[0].ProductId != original.Lines.Single().ProductId ||
                      issueReplacement.Lines[0].DestinationLocationId != original.Lines.Single().DestinationLocationId))
-                    return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                    return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                         Errors: ["El reemplazo debe conservar producto, destino WIP y propósito del surtimiento vinculado."]), cancellationToken);
-                if (normalized.Replacement is { } supplyReplacement && materialIssue.SupplyRequestLine is { } supplyLine)
+                if (normalized.Replacement is { } supplyReplacement && singleMaterialIssue?.SupplyRequestLine is { } supplyLine)
                 {
-                    var deliveredByOthers = supplyLine.IssueLinks.Where(x => x.Id != materialIssue.Id)
+                    var deliveredByOthers = supplyLine.IssueLinks.Where(x => x.Id != singleMaterialIssue.Id)
                         .Sum(x => x.Quantity - x.CancelledQuantity);
                     if (supplyReplacement.Lines.Single().Quantity > supplyLine.RequiredQuantity -
                         supplyLine.CancelledQuantity + supplyLine.ReopenedQuantity - deliveredByOthers)
-                        return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                        return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                             Errors: ["El reemplazo supera el pendiente permitido por la solicitud de surtimiento."]), cancellationToken);
                 }
             }
@@ -129,7 +136,7 @@ public sealed class InventoryCorrectionService(
                     !dbContext.WipDispositions.Any(reversal => reversal.ReversesDispositionId == disposition.Id),
                     cancellationToken))
             {
-                return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed,
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                     Errors: ["Corrige primero las devoluciones WIP relacionadas con este movimiento."]), cancellationToken);
             }
 
@@ -150,12 +157,12 @@ public sealed class InventoryCorrectionService(
                     normalized.Replacement.ApprovedSharedAssignments,
                     normalized.Replacement.Purpose,
                     normalized.Replacement.OperationalAreaId);
-                replacementResult = materialIssue?.SupplyRequestLineId is Guid supplyLineId
+                replacementResult = singleMaterialIssue?.SupplyRequestLineId is Guid supplyLineId
                     ? await movementService.ConfirmAuthorizedAsync(replacementCommand, requestedBy,
                         productionSupplyLineId: supplyLineId, cancellationToken: cancellationToken)
                     : await movementService.ConfirmAsync(replacementCommand, cancellationToken);
                 if (replacementResult.Status != InventoryMovementStatus.Success)
-                    return await AbortAsync(transaction, Map(replacementResult), cancellationToken);
+                    return await AbortAsync(ownedTransaction, Map(replacementResult), cancellationToken);
             }
 
             var correction = new InventoryMovementCorrection
@@ -174,8 +181,9 @@ public sealed class InventoryCorrectionService(
                 RecordedAt = timeProvider.GetUtcNow()
             };
             dbContext.InventoryMovementCorrections.Add(correction);
-            if (materialIssue is not null)
+            foreach (var materialIssueToCorrect in materialIssues)
             {
+                var materialIssue = materialIssueToCorrect;
                 var originalQuantity = materialIssue.Quantity;
                 var replacementQuantity = normalized.Replacement?.Lines.Single().Quantity ?? 0;
                 if (replacementResult?.MovementId is Guid replacementId)
@@ -192,7 +200,14 @@ public sealed class InventoryCorrectionService(
                 }
                 else
                 {
-                    dbContext.ProductionMaterialIssueLinks.Remove(materialIssue);
+                    // Reversed material operations retain their issue link for audit and foreign keys.
+                    // The linked delivery has been reversed, so the issue is no longer available.
+                    if (materialIssue.OperationLines.Count > 0 ||
+                        await dbContext.ProductionSupplyConfirmationIssues.AnyAsync(
+                            x => x.IssueLinkId == materialIssue.Id, cancellationToken))
+                        materialIssue.CancelledQuantity = materialIssue.Quantity;
+                    else
+                        dbContext.ProductionMaterialIssueLinks.Remove(materialIssue);
                 }
                 materialIssue.WorkOrder.Version++;
                 if (materialIssue.SupplyRequestLine is { } supplyLine)
@@ -204,7 +219,8 @@ public sealed class InventoryCorrectionService(
                         reservation.ReleasedQuantity -= amount; restore -= amount; if (restore == 0) break;
                     }
                     var request = supplyLine.SupplyRequest;
-                    request.Events.Add(new ProductionSupplyEvent { OperationId = normalized.OperationId,
+                    request.Events.Add(new ProductionSupplyEvent { OperationId = materialIssues.Count == 1
+                            ? normalized.OperationId : DeriveSupplyEventOperationId(normalized.OperationId, materialIssue.Id),
                         RequestFingerprint = fingerprint, SupplyRequest = request, SupplyRequestLine = supplyLine,
                         Type = ProductionSupplyEventType.DeliveryReversed, ResponsibleUserId = authorizedBy.Id,
                         Quantity = originalQuantity - replacementQuantity, Reason = normalized.Reason,
@@ -217,8 +233,8 @@ public sealed class InventoryCorrectionService(
             await dbContext.SaveChangesAsync(cancellationToken);
             if (isDocumentReceipt && receivingService is not null)
                 await receivingService.RecalculateAfterCorrectionAsync(original.Id, normalized.OperationId, normalized.Reason, cancellationToken);
-            if (transaction is not null)
-                await transaction.CommitAsync(cancellationToken);
+            if (ownedTransaction is not null)
+                await ownedTransaction.CommitAsync(cancellationToken);
             return new(
                 InventoryCorrectionStatus.Success,
                 correction.Id,
@@ -229,12 +245,12 @@ public sealed class InventoryCorrectionService(
         }
         catch (PalletPlateException exception)
         {
-            return await AbortAsync(transaction, new(InventoryCorrectionStatus.ValidationFailed, Errors: [exception.Message]), cancellationToken);
+            return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed, Errors: [exception.Message]), cancellationToken);
         }
         catch (DbUpdateException)
         {
-            if (transaction is not null)
-                await transaction.RollbackAsync(cancellationToken);
+            if (ownedTransaction is not null)
+                await ownedTransaction.RollbackAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();
             return await ExistingAsync(normalized.OperationId, fingerprint, cancellationToken)
                 ?? new(InventoryCorrectionStatus.IdempotencyConflict);
@@ -313,6 +329,9 @@ public sealed class InventoryCorrectionService(
 
         return InventoryFingerprint.Hash(builder.ToString());
     }
+
+    private static Guid DeriveSupplyEventOperationId(Guid operationId, Guid issueId) =>
+        new(SHA256.HashData(Encoding.UTF8.GetBytes($"{operationId:N}:{issueId:N}:delivery-reversed")).AsSpan(0, 16));
 
     private async Task<InventoryCorrectionResult> AbortAsync(
         IDbContextTransaction? transaction,

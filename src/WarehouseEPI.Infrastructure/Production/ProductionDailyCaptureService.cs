@@ -25,9 +25,6 @@ public sealed partial class ProductionDailyCaptureService(
         if (!Enum.IsDefined(command.Area)) blockers.Add("El área seleccionada no está configurada.");
         if (command.Quantity <= 0 || command.Quantity > 99999999999999.9999m || decimal.Round(command.Quantity, 4) != command.Quantity)
             blockers.Add("Indica una cantidad positiva con hasta cuatro decimales.");
-        var today = await clock.GetDateAsync(timeProvider.GetUtcNow(), token);
-        if (command.EffectiveDate > today) blockers.Add("La fecha efectiva no puede estar en el futuro.");
-        if (command.EffectiveDate.DayOfWeek == DayOfWeek.Sunday) blockers.Add("El domingo no admite captura ordinaria.");
         var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
         var stageId = Stage(config, command.Area);
         if (stageId is not null && !await db.ProductionStages.AnyAsync(x => x.Id == stageId && x.IsActive, token))
@@ -45,9 +42,14 @@ public sealed partial class ProductionDailyCaptureService(
             .SingleOrDefaultAsync(x => x.Status == ProductionScheduleWeekStatus.Open &&
                 x.WeekStart <= command.EffectiveDate && x.WeekEnd >= command.EffectiveDate, token);
         if (effectiveWeek is null) blockers.Add("La fecha debe pertenecer a una semana abierta.");
+        else if (effectiveWeek.ExplicitCarryover)
+            blockers.AddRange(await new ProductionWeekOpeningService(db).RevalidateAsync(effectiveWeek.Id, token));
+        if (effectiveWeek is not null && await new ProductionWeekOpeningService(db)
+            .CaptureCommitmentErrorAsync(effectiveWeek.Id, command.ProductId, command.Area, command.Quantity, token) is string commitmentError)
+            blockers.Add(commitmentError);
         if (blockers.Count > 0 || stageId is null)
             return new(false, effectiveWeek?.Id, stageId, product?.Sku, command.Quantity, [], blockers);
-        var allocations = await AllocateAsync(command.ProductId, stageId.Value, command.Area, command.Quantity, effectiveWeek!.WeekStart, token);
+        var allocations = await AllocateAsync(command.ProductId, stageId.Value, command.Area, command.Quantity, effectiveWeek!.WeekStart, token, effectiveWeek.Id);
         foreach (var allocation in allocations)
         {
             var order = await LoadOrderAsync(allocation.WorkOrderId, token);

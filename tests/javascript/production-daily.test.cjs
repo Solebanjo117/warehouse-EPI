@@ -17,7 +17,7 @@ for (const [language, missingDescription] of [['en', 'No description'], ['es', '
     const root = { dataset: { noDescription: missingDescription, productUrl: '/Operations/Lookup?handler=Products' },
       querySelectorAll() { return [field]; },
       querySelector(selector) { return selector === '[data-product-id]' ? null : selector === '[data-product-field]' ? field : { focus() { focused = true; } }; } };
-    const document = { querySelector(selector) { return selector === '[data-production-daily]' ? root : null; }, querySelectorAll() { return []; }, createElement() { return { classList: { toggle() {} }, setAttribute() {}, append(...children) { this.children = children; }, addEventListener() {} }; } };
+    const document = { querySelector(selector) { return selector === '[data-production-daily]' ? root : null; }, querySelectorAll() { return []; }, createElement() { return { children: [], classList: { toggle() {} }, setAttribute() {}, append(...children) { this.children.push(...children); }, addEventListener() {} }; } };
     const script = fs.readFileSync(path.join(__dirname, '../../src/WarehouseEPI.Web/wwwroot/js/production-daily.js'), 'utf8');
     vm.runInNewContext(script, { document, AbortController, setTimeout(callback) { timer = callback; return 1; }, clearTimeout() {},
       fetch: async (url) => { requested = url; return { ok: true, json: async () => [{ id: 'product-guid', sku: 'SKU-Ñ', description: null }] }; } });
@@ -26,7 +26,8 @@ for (const [language, missingDescription] of [['en', 'No description'], ['es', '
     assert.equal(id.value, skuOnly ? 'previous-id' : '');
     await timer();
     assert.match(requested, /q=SKU-%C3%91$/);
-    assert.equal(results.children[0].children[1].textContent, missingDescription);
+    if (skuOnly) assert.equal(results.children[0].children.length, 1);
+    else assert.equal(results.children[0].children[1].textContent, missingDescription);
     let prevented = false;
     input.events.keydown({ key: 'Enter', preventDefault() { prevented = true; } });
     assert.equal(id.value, skuOnly ? 'previous-id' : 'product-guid');
@@ -87,13 +88,14 @@ test('forms with data-confirm post only after the user accepts', () => {
 test('batch entry advances with Enter, invalidates review and prevents duplicate submits', () => {
   const field = () => ({ value: '', events: {}, focused: false,
     addEventListener(name, fn) { this.events[name] = fn; }, focus() { this.focused = true; } });
-  const first = field(), second = field(), notes = field(), pin = field(), review = field();
+  const first = field(), second = field(), notes = field(), pin = field(), review = field(), search = field();
+  const mode = { value: 'list' };
   const confirm = { disabled: false };
   pin.value = '0123';
   const form = { dataset: {}, events: {}, addEventListener(name, fn) { this.events[name] = fn; },
     querySelectorAll(selector) { return selector === '[data-group-quantity]' ? [first, second] : [first, second, notes]; },
     querySelector(selector) { return ({ '[data-group-confirm]': confirm, 'input[type="password"]': pin,
-      'button[formaction*="GroupPreview"]': review })[selector]; } };
+      'button[formaction*="GroupPreview"]': review, '[name="Group.Mode"]': mode })[selector]; } };
   const context = field();
   const area = field(); area.value = 'Cutting';
   let contextSubmissions = 0;
@@ -103,7 +105,8 @@ test('batch entry advances with Enter, invalidates review and prevents duplicate
     if (!prevented) contextSubmissions++;
   };
   const document = { querySelectorAll(selector) { return selector === '[data-refresh-context]' ? [area] : []; }, querySelector(selector) {
-    return ({ '[data-capture-group]': form, '[data-context-form]': context })[selector] ?? null;
+    return ({ '[data-capture-group]': form, '[data-context-form]': context,
+      '#group-add-product': search })[selector] ?? null;
   } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/WarehouseEPI.Web/wwwroot/js/production-daily.js'), 'utf8'),
     { document, window: { confirm() { return false; } } });
@@ -111,6 +114,9 @@ test('batch entry advances with Enter, invalidates review and prevents duplicate
   assert.equal(second.focused, true);
   second.events.keydown({ key: 'Enter', preventDefault() {} });
   assert.equal(review.focused, true);
+  mode.value = 'quick';
+  second.events.keydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(search.focused, true);
   notes.events.input();
   assert.equal(confirm.disabled, true);
   assert.equal(pin.value, '');
@@ -170,26 +176,20 @@ for (const hasError of [false, true]) {
   });
 }
 
-test('balance date refreshes automatically and changing week clears the old date bounds', () => {
-  let submissions = 0;
-  const through = { value: '2026-09-22', events: {}, attributes: { min: '2026-09-21', max: '2026-09-26' },
-    addEventListener(name, fn) { this.events[name] = fn; }, checkValidity() { return this.value !== 'invalid'; },
-    removeAttribute(name) { delete this.attributes[name]; }, closest() { return form; } };
+test('balance tabs submit all seven days and changing week clears the date', () => {
+  const submitted = [];
+  const through = { value: '2026-09-28' };
+  const days = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
+  const buttons = days.map(day => ({ dataset: { balanceDay: day }, events: {},
+    addEventListener(name, fn) { this.events[name] = fn; }, closest() { return form; } }));
   const week = { events: {}, addEventListener(name, fn) { this.events[name] = fn; }, closest() { return form; } };
-  const form = { requestSubmit() { submissions++; }, querySelector(selector) { assert.equal(selector, '[name="Through"]'); return through; } };
-  const document = { querySelectorAll() { return []; }, querySelector(selector) {
-    return ({ '[data-balance-date]': through, '[data-balance-week]': week })[selector] ?? null;
-  } };
+  const form = { requestSubmit() { submitted.push(through.value); }, querySelector() { return through; } };
+  const document = { querySelectorAll(selector) { return selector === '[data-balance-day]' ? buttons : []; },
+    querySelector(selector) { return selector === '[data-balance-week]' ? week : null; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/WarehouseEPI.Web/wwwroot/js/production-daily.js'), 'utf8'), { document });
-  through.events.change();
-  assert.equal(submissions, 1);
-  through.value = '';
-  through.events.change();
-  through.value = 'invalid';
-  through.events.change();
-  assert.equal(submissions, 1);
+  buttons.forEach(button => button.events.click());
+  assert.deepEqual(submitted, days);
   week.events.change();
   assert.equal(through.value, '');
-  assert.deepEqual(through.attributes, {});
-  assert.equal(submissions, 2);
+  assert.equal(submitted.at(-1), '');
 });

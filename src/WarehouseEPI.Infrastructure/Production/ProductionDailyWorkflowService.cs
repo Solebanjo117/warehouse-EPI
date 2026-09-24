@@ -43,6 +43,7 @@ public sealed partial class ProductionDailyScheduleService
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token) : null;
         var week = await db.ProductionScheduleWeeks.SingleOrDefaultAsync(x => x.Id == command.WeekId, token);
         if (week is null) return new(ProductionDailyCommandStatus.NotFound);
+        if (week.ExplicitCarryover) return Invalid("Selecciona el arrastre en Arrastre inicial de la preparación semanal.");
         if (week.Status == ProductionScheduleWeekStatus.Closed) return Invalid("Reabre la semana antes de modificarla.");
         if (week.Version != command.WeekVersion) return new(ProductionDailyCommandStatus.ConcurrencyConflict);
         if (command.Date < week.WeekStart || command.Date > week.WeekEnd || !Enum.IsDefined(command.Area) ||

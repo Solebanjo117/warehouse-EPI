@@ -98,7 +98,8 @@ public sealed partial class ProductionDailyScheduleService(
             OperationId = command.OperationId,
             RequestFingerprint = fp,
             WeekStart = command.WeekStart,
-            WeekEnd = command.WeekStart.AddDays(5),
+            ExplicitCarryover = true,
+            WeekEnd = command.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset),
             CreatedByUserId = command.ActorUserId,
             CreatedAt = timeProvider.GetUtcNow()
         };
@@ -126,9 +127,8 @@ public sealed partial class ProductionDailyScheduleService(
             return Invalid("Reabre la semana antes de modificarla.");
         if (week.Version != command.ExpectedWeekVersion)
             return new(ProductionDailyCommandStatus.ConcurrencyConflict);
-        if (command.PlannedDate < week.WeekStart || command.PlannedDate > week.WeekEnd ||
-            command.PlannedDate.DayOfWeek == DayOfWeek.Sunday)
-            return Invalid("La fecha debe ser un lunes a sábado de la semana seleccionada.");
+        if (command.PlannedDate < week.WeekStart || command.PlannedDate > week.WeekEnd)
+            return Invalid("La fecha debe pertenecer a la semana seleccionada.");
         if (command.Quantity <= 0 || decimal.Round(command.Quantity, 4) != command.Quantity)
             return Invalid("La cantidad debe ser positiva y admitir hasta cuatro decimales.");
         var product = await db.Products.Include(x => x.BaseUnit)
@@ -155,6 +155,17 @@ public sealed partial class ProductionDailyScheduleService(
             if (line.IsExtra) return Invalid("Las órdenes extra se corrigen mediante el reverso de su captura.");
             if (line.Version != command.ExpectedLineVersion)
                 return new(ProductionDailyCommandStatus.ConcurrencyConflict);
+            var commitments = await db.ProductionWeekOpenings.AsNoTracking()
+                .Where(x => x.SourceLineId == line.Id && x.SourceWeekId == week.Id && x.Quantity > 0)
+                .GroupBy(x => x.Area).Select(x => new { Area = x.Key, Quantity = x.Sum(y => y.Quantity) }).ToListAsync(token);
+            foreach (var commitment in commitments)
+            {
+                var consumed = await db.ProductionDailyCaptureAllocations.AsNoTracking()
+                    .Where(x => x.ScheduleLineId == line.Id && x.Capture.WeekId == week.Id && x.Capture.Area == commitment.Area && x.Capture.Status == ProductionDailyCaptureStatus.Active)
+                    .SumAsync(x => x.Quantity, token);
+                if (line.ProductId != command.ProductId || command.Quantity < consumed + commitment.Quantity)
+                    return Invalid($"El renglón tiene {commitment.Quantity} comprometidas en arrastres posteriores ({commitment.Area}). Corrige esos arrastres primero.");
+            }
             if (week.Status == ProductionScheduleWeekStatus.Open && line.ProductId != command.ProductId && line.WorkOrderId.HasValue)
             {
                 var hasActivity = await db.ProductionEvents.AnyAsync(x => x.WorkOrderId == line.WorkOrderId &&
@@ -260,6 +271,11 @@ public sealed partial class ProductionDailyScheduleService(
             line.OrderReference2 = Trim(command.OrderReference2, 120);
             line.OrderReference3 = Trim(command.OrderReference3, 120);
             line.Notes = Trim(command.Notes, 500);
+            line.OriginalType = Trim(command.OriginalType, 120);
+            line.OriginalAnnotation1 = Trim(command.OriginalAnnotation1, 500);
+            line.OriginalAnnotation2 = Trim(command.OriginalAnnotation2, 500);
+            line.OriginalAnnotation1Kind = line.OriginalAnnotation1 is null ? null : AnnotationKind(command.OriginalAnnotation1Kind);
+            line.OriginalAnnotation2Kind = line.OriginalAnnotation2 is null ? null : AnnotationKind(command.OriginalAnnotation2Kind);
             line.Version++;
             week.Version++;
             db.ProductionScheduleRevisions.Add(Revision(command.OperationId, fp, week.Id, line.Id,
@@ -297,6 +313,8 @@ public sealed partial class ProductionDailyScheduleService(
         if (week.Status != ProductionScheduleWeekStatus.Draft) return Invalid("Sólo una semana en borrador puede publicarse.");
 
         var validation = await ValidateForPublicationAsync(week, token);
+        if (week.ExplicitCarryover)
+            validation.AddRange(await new ProductionWeekOpeningService(db).RevalidateAsync(week.Id, token));
         if (validation.Count > 0) return new(ProductionDailyCommandStatus.ValidationFailed, Errors: validation);
 
         var ownsTransaction = db.Database.IsRelational() && db.Database.CurrentTransaction is null;
@@ -307,6 +325,11 @@ public sealed partial class ProductionDailyScheduleService(
         {
             var traceability = new ProductionTraceabilityService(db, pins,
                 new ProductionMaterialService(db, pins, movements, timeProvider), timeProvider);
+            if (week.ExplicitCarryover)
+            {
+                var openingErrors = await new ProductionWeekOpeningService(db).RevalidateAsync(week.Id, token);
+                if (openingErrors.Count > 0) return await AbortAsync(transaction, new(ProductionDailyCommandStatus.ValidationFailed, Errors: openingErrors), token);
+            }
             foreach (var line in week.Lines.Where(x => !x.IsCancelled).OrderBy(x => x.Sequence))
             {
                 var reference = string.Join(" / ", new[] { line.OrderReference1, line.OrderReference2, line.OrderReference3 }
@@ -623,14 +646,16 @@ public sealed partial class ProductionDailyScheduleService(
     }
 
     private IQueryable<ProductionScheduleWeek> WeekQuery() => db.ProductionScheduleWeeks.AsNoTracking()
-        .Include(x => x.Lines).ThenInclude(x => x.Product);
+        .Include(x => x.Lines).ThenInclude(x => x.Product).ThenInclude(x => x.BaseUnit);
 
     private static ProductionScheduleWeekView View(ProductionScheduleWeek week) => new(
         week.Id, week.WeekStart, week.WeekEnd, week.Status, week.Origin, week.Version,
         week.Lines.Where(x => !x.IsCancelled && !x.IsExtra).OrderBy(x => x.Sequence).Select(x => new ProductionScheduleLineView(
             x.Id, x.Sequence, x.PlannedDate, x.ProductId, x.Product.Sku, x.Product.Description, x.Quantity,
             x.OrderReference1, x.OrderReference2, x.OrderReference3, x.Notes, x.IsCarryover,
-            x.StartArea, x.WorkOrderId, x.Version)).ToArray());
+            x.StartArea, x.WorkOrderId, x.Version, x.Product.BaseUnit.Code,
+            x.OriginalType, x.OriginalAnnotation1, x.OriginalAnnotation2,
+            x.OriginalAnnotation1Kind, x.OriginalAnnotation2Kind)).ToArray(), week.ExplicitCarryover);
 
     private static ProductionDailyConfigurationView View(ProductionDailyConfiguration row) => new(
         row.CuttingStageId, row.SewingStageId, row.ReadyToPackStageId, row.Shift1Id, row.Shift2Id,
@@ -675,12 +700,19 @@ public sealed partial class ProductionDailyScheduleService(
         line.OrderReference2,
         line.OrderReference3,
         line.Notes,
+        line.OriginalType,
+        line.OriginalAnnotation1,
+        line.OriginalAnnotation2,
+        line.OriginalAnnotation1Kind,
+        line.OriginalAnnotation2Kind,
         line.IsCarryover,
         line.StartArea,
         line.WorkOrderId,
         line.IsCancelled,
         line.Version
     };
+
+    private static string AnnotationKind(string? value) => value is "Date" or "Number" ? value : "Text";
 
     private static Guid Stage(ProductionDailyConfiguration config, ProductionDailyArea area) => area switch
     {

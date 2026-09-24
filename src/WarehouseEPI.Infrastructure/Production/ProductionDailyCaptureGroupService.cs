@@ -20,6 +20,27 @@ public sealed partial class ProductionDailyCaptureService
         var monday = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.WeekStart == monday, token);
         if (week is null) return [];
+        if (week.ExplicitCarryover && !priorOnly)
+        {
+            var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
+            var stage = ProductionDailyProcessFlow.Stage(config, area);
+            if (stage is null) return [];
+            var admitted = db.ProductionWeekOpenings.Where(x => x.WeekId == week.Id && x.Area == area && x.Quantity > 0).Select(x => x.ProductId);
+            var planned = db.ProductionScheduleLines.Where(x => x.WeekId == week.Id && !x.IsCancelled).Select(x => x.ProductId);
+            var captured = db.ProductionDailyCaptures.Where(x => x.WeekId == week.Id && x.Area == area && x.Status == ProductionDailyCaptureStatus.Active).Select(x => x.ProductId);
+            var catalog = await db.Products.AsNoTracking().Where(x => x.IsActive && (planned.Contains(x.Id) || admitted.Contains(x.Id) || captured.Contains(x.Id)))
+                .OrderBy(x => x.Sku).Select(x => new { x.Id, x.Sku, x.Description }).ToListAsync(token);
+            var result = new List<ProductionAvailableProduct>();
+            foreach (var product in catalog)
+            {
+                var allocations = await AllocateAsync(product.Id, stage.Value, area, 99999999999999m, week.WeekStart, token, week.Id);
+                var residual = await db.ProductionDailyCaptures.AsNoTracking().Where(x => x.WeekId == week.Id && x.ProductId == product.Id && x.Area == area && x.Status == ProductionDailyCaptureStatus.Active)
+                    .Select(x => x.Quantity - x.Allocations.Sum(a => a.Quantity)).SumAsync(token);
+                var available = allocations.Sum(x => x.Quantity);
+                if (available > 0 || residual > 0) result.Add(new(product.Id, product.Sku, product.Description ?? "", available, residual));
+            }
+            return result;
+        }
         var balance = await new ProductionDailyBalanceService(db).GetAsync(week.Id, true, priorOnly, token);
         var products = await db.Products.AsNoTracking().Where(x => x.IsActive).Select(x => x.Id).ToListAsync(token);
         return balance!.Rows.Where(x => x.Date == date && products.Contains(x.ProductId)).Select(row =>

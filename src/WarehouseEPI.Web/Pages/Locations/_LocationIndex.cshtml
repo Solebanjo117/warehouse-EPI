@@ -14,7 +14,7 @@
 <div class="locations-index-workspace">
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div><h1 class="h2 mb-1">@(Model.IsAdministrativeView ? CatTexts["Administrar ubicaciones"].Value : CatTexts["Ubicaciones"].Value)</h1><p class="text-muted mb-0">@(Model.IsAdministrativeView ? CatTexts["Consulta y mantenimiento protegido del almacén."].Value : CatTexts["Consulta física y operativa del almacén."].Value)</p></div>
-    @if(Model.IsAdministrativeView){<div class="d-flex flex-wrap gap-2"><a asp-page="/Admin/Catalogs/Locations/Generate" class="btn btn-outline-primary btn-lg">@CatTexts["Preparar racks"]</a><a asp-page="/Admin/Catalogs/Locations/Area" class="btn btn-primary btn-lg">@CatTexts["Crear área"]</a></div>}
+    <div class="d-flex flex-wrap gap-2"><a asp-page="/Locations/Display" class="btn btn-outline-primary btn-lg">Exhibición de filas</a>@if(Model.IsAdministrativeView){<a asp-page="/Admin/Catalogs/Locations/Generate" class="btn btn-outline-primary btn-lg">@CatTexts["Preparar racks"]</a><a asp-page="/Admin/Catalogs/Locations/Area" class="btn btn-primary btn-lg">@CatTexts["Crear área"]</a>}</div>
 </div>
 @if(Model.Message is not null){<div class="alert alert-success">@Model.Message</div>}
 @if(Model.Error is not null){<div class="alert alert-danger">@Model.Error</div>}

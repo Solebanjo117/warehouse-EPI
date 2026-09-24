@@ -35,6 +35,7 @@ public sealed class ProductionScheduleWeek
     public DateOnly WeekEnd { get; set; }
     public ProductionScheduleWeekStatus Status { get; set; } = ProductionScheduleWeekStatus.Draft;
     public ProductionScheduleOrigin Origin { get; set; } = ProductionScheduleOrigin.Manual;
+    public bool ExplicitCarryover { get; set; }
     public string? SourceName { get; set; }
     public Guid CreatedByUserId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -63,6 +64,11 @@ public sealed class ProductionScheduleLine
     public string? OrderReference2 { get; set; }
     public string? OrderReference3 { get; set; }
     public string? Notes { get; set; }
+    public string? OriginalType { get; set; }
+    public string? OriginalAnnotation1 { get; set; }
+    public string? OriginalAnnotation2 { get; set; }
+    public string? OriginalAnnotation1Kind { get; set; }
+    public string? OriginalAnnotation2Kind { get; set; }
     public ProductionScheduleOrigin Origin { get; set; } = ProductionScheduleOrigin.Manual;
     public bool IsExtra { get; set; }
     public bool IsCarryover { get; set; }

@@ -10,14 +10,12 @@ public sealed class ProductionSupplyUxContractTests
             "ProductionSupply", "Index.cshtml"));
         var script = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "wwwroot", "js",
             "production-supply-queue.js"));
-        var layout = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
 
         Assert.Contains("Surtimientos a producción", page, StringComparison.Ordinal);
         Assert.Contains("data-supply-queue", page, StringComparison.Ordinal);
         Assert.Contains("role=\"status\"", page, StringComparison.Ordinal);
         Assert.DoesNotContain("onclick=", page, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("30000", script, StringComparison.Ordinal);
-        Assert.Contains("data-supply-count-root", layout, StringComparison.Ordinal);
     }
 
     [Fact]

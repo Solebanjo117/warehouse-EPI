@@ -52,7 +52,7 @@ public static class ModuleNavigation
         foreach (var module in modules)
         {
             if (module.Key == "production")
-                foreach (var prefix in new[] { "/Operations/WipReturn", "/Admin/Production" })
+                foreach (var prefix in new[] { "/Operations/ProductionSupply", "/Operations/WipReturn", "/Admin/Production" })
                     yield return (module, prefix);
             if (module.Key == "labels") yield return (module, "/Admin/Labels");
             if (module.Key == "reports") yield return (module, "/Reports/Executive");
@@ -78,11 +78,9 @@ public static class ModuleNavigation
         [
             new("Operación", [
                 new("Captura diaria", "Registrar piezas buenas con reparto y balance automáticos.", "movements", "/Operations/Production/Index", View: "capture"),
-                new("Balance", "Consultar plan, arrastre, pendientes y adelantos.", "dashboard", "/Operations/Production/Index", View: "balance"),
-                new("Surtimientos a producción", "Preparar materiales de las órdenes pendientes.", "transfer", "/Operations/ProductionSupply/Index", SupplyCount: true),
-                new("Producción avanzada", "Atender merma, retrabajo, diferencias, recepción y diagnóstico.", "adjust", "/Operations/Production/Advanced")]),
+                new("Balance", "Consultar plan, arrastre, pendientes y adelantos.", "dashboard", "/Operations/Production/Index", View: "balance")]),
             new("Administración", [
-                new("Programa semanal", "Preparar, publicar e importar el programa lunes–sábado.", "products", "/Admin/Production/Schedule", true),
+                new("Programa semanal", "Preparar, publicar e importar el programa lunes–domingo.", "products", "/Admin/Production/Schedule", true),
                 new("Procesos", "Configurar los procesos de producción.", "adjust", "/Admin/Production/Processes", true),
                 new("Turnos", "Registrar turnos para la producción diaria.", "adjust", "/Admin/Production/Routes", true)])
         ]),

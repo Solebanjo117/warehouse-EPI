@@ -34,8 +34,8 @@ public sealed partial class ScheduleModel
                 Rows = CopySource.Lines.Where(x => !x.IsCarryover).Select(x => new CopyRowInput
                 { SourceLineId = x.Id, Sku = x.Sku, Date = Week.WeekStart.AddDays(x.PlannedDate.DayNumber - CopySource.WeekStart.DayNumber) }).ToList()
             };
-        Suggestions = await service.GetCarryoverSuggestionsAsync(Week.Id, token);
-        CarryoverPlans = await db.ProductionCarryoverPlans.AsNoTracking().Where(x => x.WeekId == Week.Id).OrderBy(x => x.PlannedDate).ToListAsync(token);
+        Suggestions = Week.ExplicitCarryover ? [] : await service.GetCarryoverSuggestionsAsync(Week.Id, token);
+        CarryoverPlans = await db.ProductionCarryoverPlans.AsNoTracking().Where(x => x.WeekId == Week.Id && !Week.ExplicitCarryover).OrderBy(x => x.PlannedDate).ToListAsync(token);
         var productIds = CarryoverPlans.Select(x => x.ProductId).Concat(Suggestions.Select(x => x.ProductId)).Distinct().ToArray();
         CarryoverSkus = await db.Products.AsNoTracking().Where(x => productIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Sku, token);
         if (handler != "Carryover")
@@ -50,7 +50,7 @@ public sealed partial class ScheduleModel
                 Version = plan?.Version ?? 0,
                 ProductId = plan?.ProductId ?? suggestion?.ProductId ?? Guid.Empty,
                 Area = plan?.Area ?? suggestion?.Area ?? ProductionDailyArea.Cutting,
-                Date = plan?.PlannedDate ?? Week.WeekStart,
+                Date = plan?.PlannedDate ?? SelectedDay ?? Week.WeekStart,
                 Quantity = plan?.Quantity.ToString("0.####", global::System.Globalization.CultureInfo.InvariantCulture) ?? "",
                 ExpectedAvailable = suggestion?.Available ?? 0
             };
@@ -59,6 +59,7 @@ public sealed partial class ScheduleModel
 
     public async Task<IActionResult> OnPostCopyAsync(CancellationToken token)
     {
+        ActionPanel = "copy";
         WeekId = Copy.WeekId;
         var selected = Copy.Rows.Select((row, index) => (row, index)).Where(x => x.row.Selected).ToArray();
         var rows = new List<ProductionCopyRow>();
@@ -78,7 +79,9 @@ public sealed partial class ScheduleModel
 
     public async Task<IActionResult> OnPostCarryoverAsync(CancellationToken token)
     {
+        ActionPanel = "carry";
         WeekId = Carryover.WeekId;
+        SelectedDay = Carryover.Date;
         ProductionCapture.ValidateOnly(this, nameof(Carryover));
         if (!ProductionQuantityBinder.TryParse(Carryover.Quantity ?? "", out var quantity))
             ModelState.AddModelError("Carryover.Quantity", texts[ProductionQuantityBinder.Error]);

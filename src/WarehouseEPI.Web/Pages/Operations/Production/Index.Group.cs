@@ -1,6 +1,6 @@
-using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Web.Production;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
 
@@ -8,7 +8,7 @@ namespace WarehouseEPI.Web.Pages.Operations.Production;
 
 public sealed partial class IndexModel
 {
-    [BindProperty(SupportsGet = true)] public string Tab { get; set; } = "capture";
+    [BindProperty(SupportsGet = true)] public string? Tab { get; set; } = "capture";
     [BindProperty] public GroupInput Group { get; set; } = new();
     public IReadOnlyList<ProductionAvailableProduct> Available { get; private set; } = [];
     public ProductionCaptureGroupPreview? GroupPreview { get; private set; }
@@ -16,12 +16,17 @@ public sealed partial class IndexModel
     public string? CaptureContextMessage { get; private set; }
     public string? CaptureEmptyMessage { get; private set; }
     public Dictionary<ProductionDailyArea, int> OtherAvailableAreas { get; } = [];
+    public IReadOnlyDictionary<Guid, decimal> RegisteredInShift { get; private set; } = new Dictionary<Guid, decimal>();
+    public IReadOnlyDictionary<Guid, CaptureProductMeta> CaptureProducts { get; private set; } = new Dictionary<Guid, CaptureProductMeta>();
+    [BindProperty(SupportsGet = true)] public Guid? ReceiptId { get; set; }
+    public CaptureReceipt? Receipt { get; private set; }
 
     private async Task LoadGroupAsync(CancellationToken token)
     {
         if (Tab is not ("capture" or "balance" or "history")) Tab = "capture";
         if (Tab != "capture") return;
-        var isGroupPost = HttpMethods.IsPost(Request.Method) && (RouteData.Values["handler"]?.ToString() ?? Request.Query["handler"].ToString()) is "GroupPreview" or "GroupConfirm" or "GroupAdd" or "GroupFilter";
+        var handler = RouteData.Values["handler"]?.ToString() ?? Request.Query["handler"].ToString();
+        var isGroupPost = HttpMethods.IsPost(Request.Method) && handler is "GroupPreview" or "GroupConfirm" or "GroupAdd" or "GroupFilter" or "GroupMode";
         if (!isGroupPost)
         {
             var week = Weeks.SingleOrDefault(x => x.Id == WeekId);
@@ -29,10 +34,9 @@ public sealed partial class IndexModel
             Group.Area = Area ?? ProductionDailyArea.Cutting;
             Group.ShiftId = ShiftId ?? Shifts.FirstOrDefault()?.Id ?? Guid.Empty;
         }
+        Group.Mode = Group.Mode == "quick" ? "quick" : "list";
         CaptureWeek = Weeks.SingleOrDefault(x => x.WeekStart <= Group.Date && x.WeekEnd >= Group.Date);
-        CaptureContextMessage = Group.Date > Today ? "La fecha efectiva no puede estar en el futuro."
-            : Group.Date.DayOfWeek == DayOfWeek.Sunday ? "El domingo no admite captura ordinaria."
-            : CaptureWeek is null ? "No hay una semana programada para esta fecha. Selecciona otra fecha o crea la semana en Programa semanal."
+        CaptureContextMessage = CaptureWeek is null ? "No hay una semana programada para esta fecha. Selecciona otra fecha o crea la semana en Programa semanal."
             : CaptureWeek.Status == ProductionScheduleWeekStatus.Draft ? "Esta semana está en borrador. Ábrela desde Programa semanal para empezar a capturar."
             : CaptureWeek.Status == ProductionScheduleWeekStatus.Closed ? "Esta semana está cerrada. Consulta su balance o solicita al administrador que la reabra."
             : null;
@@ -41,11 +45,47 @@ public sealed partial class IndexModel
         if (!isGroupPost) Group.Rows = Available.Where(x => string.IsNullOrWhiteSpace(Sku) || x.Sku.Contains(Sku, StringComparison.OrdinalIgnoreCase) || x.Description.Contains(Sku, StringComparison.OrdinalIgnoreCase)).Take(100).Select(x => new GroupRowInput { ProductId = x.ProductId, Sku = x.Sku }).ToList();
         if (isGroupPost)
         {
-            var rowIds = Group.Rows.Select(x => x.ProductId).Distinct().ToArray();
-            var selected = await db.Products.AsNoTracking().Where(x => rowIds.Contains(x.Id))
+            var selectedIds = Group.Rows.Select(x => x.ProductId).Distinct().ToArray();
+            var selected = await db.Products.AsNoTracking().Where(x => selectedIds.Contains(x.Id))
                 .Select(x => new ProductionAvailableProduct(x.Id, x.Sku, x.Description ?? "", 0, 0)).ToListAsync(token);
             Available = Available.Concat(selected.Where(x => !Available.Any(a => a.ProductId == x.ProductId))).ToArray();
             foreach (var row in Group.Rows) row.Sku = selected.FirstOrDefault(x => x.ProductId == row.ProductId)?.Sku;
+        }
+        if (handler == "GroupMode" && Group.Mode == "list")
+        {
+            var kept = Group.Rows.Where(x => !string.IsNullOrWhiteSpace(x.Quantity) || !string.IsNullOrWhiteSpace(x.Notes)).ToList();
+            foreach (var product in Available.Where(x => string.IsNullOrWhiteSpace(Sku) ||
+                x.Sku.Contains(Sku, StringComparison.OrdinalIgnoreCase) || x.Description.Contains(Sku, StringComparison.OrdinalIgnoreCase)))
+                if (kept.Count < 100 && kept.All(x => x.ProductId != product.ProductId))
+                    kept.Add(new GroupRowInput { ProductId = product.ProductId, Sku = product.Sku });
+            Group.Rows = kept;
+            ModelState.Clear();
+        }
+        var rowIds = Group.Rows.Select(x => x.ProductId).Distinct().ToArray();
+        CaptureProducts = await db.Products.AsNoTracking().Where(x => rowIds.Contains(x.Id))
+            .Select(x => new { x.Id, Unit = x.BaseUnit.Code })
+            .ToDictionaryAsync(x => x.Id, x => new CaptureProductMeta(x.Unit), token);
+        RegisteredInShift = await db.ProductionDailyCaptures.AsNoTracking()
+            .Where(x => x.EffectiveDate == Group.Date && x.Area == Group.Area && x.ShiftId == Group.ShiftId
+                && x.Status == ProductionDailyCaptureStatus.Active && rowIds.Contains(x.ProductId))
+            .GroupBy(x => x.ProductId).Select(x => new { ProductId = x.Key, Quantity = x.Sum(c => c.Quantity) })
+            .ToDictionaryAsync(x => x.ProductId, x => x.Quantity, token);
+        if (ReceiptId is Guid receiptId)
+        {
+            var submission = await db.ProductionCaptureSubmissions.AsNoTracking()
+                .Include(x => x.Items).ThenInclude(x => x.Capture).ThenInclude(x => x.Product).ThenInclude(x => x.BaseUnit)
+                .SingleOrDefaultAsync(x => x.Id == receiptId, token);
+            if (submission is not null && submission.Items.Count > 0 && CaptureWeek is not null &&
+                submission.Items.All(x => x.Capture.WeekId == CaptureWeek.Id &&
+                    x.Capture.EffectiveDate == Group.Date && x.Capture.Area == Group.Area && x.Capture.ShiftId == Group.ShiftId))
+            {
+                var actor = await db.Users.AsNoTracking().Where(x => x.Id == submission.ResponsibleUserId)
+                    .Select(x => x.FullName).SingleAsync(token);
+                Receipt = new CaptureReceipt(submission.Id, submission.RecordedAt, actor,
+                    submission.Items.OrderBy(x => x.Capture.Product.Sku).Select(x => new CaptureReceiptItem(
+                        x.Capture.Id, x.Capture.EffectiveDate, x.Capture.Area, x.Capture.ShiftId,
+                        x.Capture.Product.Sku, x.Capture.Quantity, x.Capture.Product.BaseUnit.Code)).ToArray());
+            }
         }
         if (ConfigurationReady && CaptureContextMessage is null && Group.Rows.Count == 0)
         {
@@ -63,6 +103,15 @@ public sealed partial class IndexModel
 
     public Guid? FocusProductId { get; private set; }
 
+    public async Task<IActionResult> OnPostGroupModeAsync(CancellationToken token)
+    {
+        Group.Pin = ""; ProductionCapture.ClearPins(this);
+        Group.Fingerprint = "";
+        Tab = "capture";
+        await LoadAsync(token, true);
+        return Page();
+    }
+
     public async Task<IActionResult> OnGetDailyProductsAsync(DateOnly date, ProductionDailyArea area,
         string? q, int? category, int offset, CancellationToken token)
     {
@@ -78,6 +127,7 @@ public sealed partial class IndexModel
     {
         ProductionCapture.ValidateOnly(this, nameof(Group));
         Group.Pin = ""; ProductionCapture.ClearPins(this);
+        if (Group.Mode == "quick") Group.Rows = Group.Rows.Where(x => !string.IsNullOrWhiteSpace(x.Quantity) || !string.IsNullOrWhiteSpace(x.Notes)).ToList();
         var product = await db.Products.AsNoTracking().SingleOrDefaultAsync(x => x.Id == Group.AddProductId && x.IsActive, token);
         if (product is null) ModelState.AddModelError(string.Empty, texts["Selecciona un SKU activo del catálogo."]);
         else if (!Group.Rows.Any(x => x.ProductId == product.Id))
@@ -138,8 +188,7 @@ public sealed partial class IndexModel
                 var result = await captures.ConfirmGroupAsync(command, token);
                 if (result.Success)
                 {
-                    TempData["Success"] = texts["Tanda registrada; el balance y los pendientes se actualizaron."].Value;
-                    return RedirectToPage(new { WeekId, Tab = "capture", Day = Group.Date.ToString("yyyy-MM-dd"), Area = Group.Area, ShiftId = Group.ShiftId });
+                    return RedirectToPage(new { WeekId, Tab = "capture", Day = Group.Date.ToString("yyyy-MM-dd"), Area = Group.Area, ShiftId = Group.ShiftId, Sku, Reference, ReceiptId = result.Id });
                 }
                 foreach (var error in result.Errors ?? [result.Status == ProductionDailyCommandStatus.IdempotencyConflict
                     ? "La operación ya se utilizó con otros datos." : "No fue posible confirmar la tanda."])
@@ -156,6 +205,7 @@ public sealed partial class IndexModel
 
     public sealed class GroupInput
     {
+        public string Mode { get; set; } = "list";
         public Guid? AddProductId { get; set; }
         public Guid OperationId { get; set; } = Guid.NewGuid();
         public DateOnly Date { get; set; }
@@ -173,4 +223,9 @@ public sealed partial class IndexModel
         public string? Quantity { get; set; }
         public string? Notes { get; set; }
     }
+    public sealed record CaptureProductMeta(string Unit);
+    public sealed record CaptureReceiptItem(Guid CaptureId, DateOnly Date, ProductionDailyArea Area, Guid ShiftId,
+        string Sku, decimal Quantity, string Unit);
+    public sealed record CaptureReceipt(Guid Id, DateTimeOffset RecordedAt, string Responsible,
+        IReadOnlyList<CaptureReceiptItem> Items);
 }

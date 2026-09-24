@@ -8,9 +8,14 @@ namespace WarehouseEPI.Tests.Production;
 public sealed class ProductionBalanceEditPostgreSqlTests
 {
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Migration_and_balance_edits_work_on_isolated_postgresql(bool multipleAreas)
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public async Task Migration_and_balance_edits_work_on_isolated_postgresql(int scenario)
     {
         var config = new ConfigurationBuilder().AddUserSecrets<Program>(optional: true).AddEnvironmentVariables().Build();
         var source = Environment.GetEnvironmentVariable("WAREHOUSE_EPI_TEST_CONNECTION") ?? config.GetConnectionString("Warehouse")
@@ -27,7 +32,11 @@ public sealed class ProductionBalanceEditPostgreSqlTests
             await using var db = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>()
                 .UseNpgsql(testBuilder.ConnectionString).Options);
             await db.Database.MigrateAsync();
-            if (multipleAreas) await ProductionDailyFlexibleTests.VerifyBalanceEditProjectionAsync(db);
+            if (scenario == 6) await ProductionExplicitCarryoverTests.VerifyMigrationAsync(db);
+            else if (scenario == 5) await ProductionExplicitCarryoverTests.VerifyAsync(db);
+            else if (scenario >= 3) await ProductionDailyFlexibleTests.VerifyNewBalancePlansAsync(db, scenario == 3 ? 0 : 6, true);
+            else if (scenario == 2) await ProductionDailyFlexibleTests.VerifyCombinedBalanceEditsAsync(db);
+            else if (scenario == 1) await ProductionDailyFlexibleTests.VerifyBalanceEditProjectionAsync(db);
             else await ProductionDailyFlexibleTests.VerifyBalanceEditsAsync(db);
         }
         finally

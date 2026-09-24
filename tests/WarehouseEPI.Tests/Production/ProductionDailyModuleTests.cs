@@ -14,6 +14,42 @@ public sealed class ProductionDailyModuleTests
     private const string PinKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 
     [Fact]
+    public async Task Imported_tuesday_balance_carries_monday_plan_and_subtracts_both_shifts()
+    {
+        await using var db = Context();
+        await db.Database.EnsureCreatedAsync();
+        await SeedImportCatalogAsync(db);
+        var config = await db.ProductionDailyConfigurations.SingleAsync();
+        var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
+        var actor = new User { FullName = "Imported", RoleId = 1, PinLookup = Guid.NewGuid().ToString("N"), PinHash = "x" };
+        var monday = new DateOnly(2026, 9, 21);
+        var week = new ProductionScheduleWeek { WeekStart = monday, WeekEnd = monday.AddDays(6),
+            OperationId = Guid.NewGuid(), RequestFingerprint = new string('A', 64), CreatedByUser = actor,
+            Origin = ProductionScheduleOrigin.ExcelImport };
+        week.Lines.Add(new() { Product = product, Sequence = 1, PlannedDate = monday, Quantity = 300,
+            Origin = ProductionScheduleOrigin.ExcelImport });
+        week.Lines.Add(new() { Product = product, Sequence = 2, PlannedDate = monday.AddDays(1), Quantity = 200,
+            Origin = ProductionScheduleOrigin.ExcelImport });
+        foreach (var (day, shift, quantity) in new[]
+                 { (monday, config.Shift1Id!.Value, 66m), (monday.AddDays(1), config.Shift1Id.Value, 30m),
+                   (monday.AddDays(1), config.Shift2Id!.Value, 201m) })
+            week.Captures.Add(new() { EffectiveDate = day, Product = product, Area = ProductionDailyArea.Cutting,
+                StageId = config.CuttingStageId!.Value, ShiftId = shift, Quantity = quantity, ResponsibleUser = actor,
+                OperationId = Guid.NewGuid(), RequestFingerprint = new string('C', 64),
+                Origin = ProductionScheduleOrigin.ExcelImport });
+        db.Add(week);
+        await db.SaveChangesAsync();
+        var tuesday = Assert.Single((await new ProductionDailyBalanceService(db)
+            .GetDailySummaryAsync(week.Id, new(monday.AddDays(1))))!.Products);
+        Assert.Equal(200, tuesday.Planned);
+        Assert.Equal(234, tuesday.Cutting.Opening);
+        Assert.Equal(30, tuesday.Cutting.CompletedShift1);
+        Assert.Equal(404, tuesday.Cutting.PendingAfterShift1);
+        Assert.Equal(201, tuesday.Cutting.CompletedShift2);
+        Assert.Equal(203, tuesday.Cutting.NetPending);
+    }
+
+    [Fact]
     public async Task Balance_clamps_pending_and_reports_advance_with_skipped_process_as_not_applicable()
     {
         await using var db = Context();
@@ -33,7 +69,7 @@ public sealed class ProductionDailyModuleTests
         db.ProductionRoutes.Add(new ProductionRoute { ProductId = product.Id, Name = "Ruta sin costura",
             Stages = { new ProductionRouteStage { StageId = cutting.Id, Sequence = 1 }, new ProductionRouteStage { StageId = ready.Id, Sequence = 2 } } });
         var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "A".PadLeft(64, 'A'),
-            WeekStart = new(2026, 9, 21), WeekEnd = new(2026, 9, 26), Status = ProductionScheduleWeekStatus.Open,
+            WeekStart = new(2026, 9, 21), WeekEnd = new(2026, 9, 27), Status = ProductionScheduleWeekStatus.Open,
             CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = week.WeekStart, ProductId = product.Id,
             Quantity = 100, OrderReference1 = "=unsafe" });
@@ -74,6 +110,8 @@ public sealed class ProductionDailyModuleTests
         Assert.True(preview.CanConfirm, string.Join(" | ", preview.Issues.Select(x => x.Message)));
         Assert.Equal(5, preview.Weeks.Count);
         Assert.Equal(12, preview.Weeks.Single(x => x.WeekStart == new DateOnly(2026, 9, 21)).Lines.Count);
+        Assert.Contains(preview.Weeks.Single(x => x.WeekStart == new DateOnly(2026, 9, 21)).Lines,
+            x => x.Date.DayOfWeek == DayOfWeek.Sunday);
         Assert.True(preview.Weeks.Single(x => x.WeekStart == new DateOnly(2026, 9, 21)).IsDraft);
         Assert.All(preview.Weeks.Where(x => !x.IsDraft), x => Assert.Single(x.Captures));
         Assert.Equal(2, preview.Weeks.Single(x => x.IsDraft).OpeningCarryovers.Count);
@@ -273,7 +311,7 @@ public sealed class ProductionDailyModuleTests
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
         var monday = new DateOnly(2026, 9, 21);
         var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "B".PadLeft(64, 'B'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), Status = ProductionScheduleWeekStatus.Open,
+            WeekStart = monday, WeekEnd = monday.AddDays(6), Status = ProductionScheduleWeekStatus.Open,
             CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         week.Lines.Add(LineWithOrder(week, product, cutting, admin, 1, monday, 5));
         week.Lines.Add(LineWithOrder(week, product, cutting, admin, 2, monday.AddDays(1), 7));
@@ -329,7 +367,7 @@ public sealed class ProductionDailyModuleTests
                 new ProductionRouteStage { StageId = ready.Id, Sequence = 3 } } });
         var priorMonday = new DateOnly(2026, 9, 14);
         var prior = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "D".PadLeft(64, 'D'),
-            WeekStart = priorMonday, WeekEnd = priorMonday.AddDays(5), Status = ProductionScheduleWeekStatus.Closed,
+            WeekStart = priorMonday, WeekEnd = priorMonday.AddDays(6), Status = ProductionScheduleWeekStatus.Closed,
             CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         prior.Lines.Add(LineWithOrder(prior, product, cutting, admin, 1, priorMonday, 100));
         var priorLine = prior.Lines.Single();
@@ -348,7 +386,7 @@ public sealed class ProductionDailyModuleTests
             });
         var currentMonday = priorMonday.AddDays(7);
         var current = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "E".PadLeft(64, 'E'),
-            WeekStart = currentMonday, WeekEnd = currentMonday.AddDays(5), Status = ProductionScheduleWeekStatus.Open,
+            WeekStart = currentMonday, WeekEnd = currentMonday.AddDays(6), Status = ProductionScheduleWeekStatus.Open,
             CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         db.AddRange(prior, current); await db.SaveChangesAsync();
 
@@ -395,7 +433,7 @@ public sealed class ProductionDailyModuleTests
         }
         var monday = new DateOnly(2026, 9, 21);
         var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "F".PadLeft(64, 'F'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+            WeekStart = monday, WeekEnd = monday.AddDays(6), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = monday, ProductId = first.Id, Quantity = 10 });
         db.Add(week); await db.SaveChangesAsync();
         var service = new ProductionDailyScheduleService(db, pins,
@@ -430,7 +468,7 @@ public sealed class ProductionDailyModuleTests
 
         var nextMonday = monday.AddDays(7);
         var carryoverWeek = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "G".PadLeft(64, 'G'),
-            WeekStart = nextMonday, WeekEnd = nextMonday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+            WeekStart = nextMonday, WeekEnd = nextMonday.AddDays(6), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         carryoverWeek.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = nextMonday,
             ProductId = first.Id, Quantity = 7, IsCarryover = true, StartArea = ProductionDailyArea.ReadyToPack });
         db.Add(carryoverWeek); await db.SaveChangesAsync();
@@ -472,7 +510,7 @@ public sealed class ProductionDailyModuleTests
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var monday = today.AddDays(-7 - ((int)today.DayOfWeek + 6) % 7);
         var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "H".PadLeft(64, 'H'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+            WeekStart = monday, WeekEnd = monday.AddDays(6), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = monday, ProductId = plain.Id, Quantity = 10 });
         week.Lines.Add(new ProductionScheduleLine { Sequence = 2, PlannedDate = monday, ProductId = noSewing.Id, Quantity = 5 });
         // The route lacks the carryover area, so the order starts there and follows the daily processes.
@@ -548,7 +586,7 @@ public sealed class ProductionDailyModuleTests
         config.Shift1Id = t1.Id; config.Shift2Id = t2.Id;
         var monday = new DateOnly(2026, 9, 21);
         var week = new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = "I".PadLeft(64, 'I'),
-            WeekStart = monday, WeekEnd = monday.AddDays(5), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
+            WeekStart = monday, WeekEnd = monday.AddDays(6), CreatedByUserId = admin.Id, CreatedAt = DateTimeOffset.UtcNow };
         week.Lines.Add(new ProductionScheduleLine { Sequence = 1, PlannedDate = monday, ProductId = product.Id, Quantity = 10 });
         db.Add(week); await db.SaveChangesAsync();
         var service = new ProductionDailyScheduleService(db, pins,
@@ -623,7 +661,7 @@ public sealed class ProductionDailyModuleTests
             var count = index == starts.Length - 1 ? 12 : 1;
             for (var row = 1; row <= count; row++)
             {
-                sheet.Cell(planRow + row, planColumn).Value = start.AddDays((row - 1) % 6).ToDateTime(TimeOnly.MinValue);
+                sheet.Cell(planRow + row, planColumn).Value = start.AddDays((row - 1) % 7).ToDateTime(TimeOnly.MinValue);
                 sheet.Cell(planRow + row, planColumn + 1).Value = sku;
                 sheet.Cell(planRow + row, planColumn + 2).Value = 10 + row;
             }

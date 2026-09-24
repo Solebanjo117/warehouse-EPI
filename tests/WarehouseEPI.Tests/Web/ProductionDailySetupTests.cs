@@ -91,7 +91,7 @@ public sealed class ProductionDailySetupTests
     }
 
     private static ProductionScheduleWeekView Week(int day, ProductionScheduleWeekStatus status) =>
-        new(Guid.NewGuid(), new(2026, 9, day), new DateOnly(2026, 9, day).AddDays(5), status, default, 0, []);
+        new(Guid.NewGuid(), new(2026, 9, day), new DateOnly(2026, 9, day).AddDays(6), status, default, 0, []);
 
     private static ProductionDailySetup Complete()
     {

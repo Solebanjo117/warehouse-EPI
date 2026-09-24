@@ -30,7 +30,7 @@ public static partial class ProductionModelConfiguration
         config.HasData(new ProductionDailyConfiguration { Id = 1, Version = 0 });
 
         var week = modelBuilder.Entity<ProductionScheduleWeek>();
-        week.ToTable("production_schedule_weeks", table => table.HasCheckConstraint("ck_production_schedule_week_dates", "week_end = week_start + 5"));
+        week.ToTable("production_schedule_weeks", table => table.HasCheckConstraint("ck_production_schedule_week_dates", "week_end = week_start + 6"));
         week.HasKey(x => x.Id);
         week.Property(x => x.Id).HasColumnName("id");
         week.Property(x => x.OperationId).HasColumnName("operation_id");
@@ -39,6 +39,7 @@ public static partial class ProductionModelConfiguration
         week.Property(x => x.WeekEnd).HasColumnName("week_end");
         week.Property(x => x.Status).HasColumnName("status").HasMaxLength(12).HasConversion<string>();
         week.Property(x => x.Origin).HasColumnName("origin").HasMaxLength(16).HasConversion<string>();
+        week.Property(x => x.ExplicitCarryover).HasColumnName("explicit_carryover");
         week.Property(x => x.SourceName).HasColumnName("source_name").HasMaxLength(160);
         week.Property(x => x.CreatedByUserId).HasColumnName("created_by_user_id");
         week.Property(x => x.CreatedAt).HasColumnName("created_at");
@@ -52,6 +53,24 @@ public static partial class ProductionModelConfiguration
         week.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
         week.HasOne(x => x.PublishedByUser).WithMany().HasForeignKey(x => x.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
         week.HasOne(x => x.ClosedByUser).WithMany().HasForeignKey(x => x.ClosedByUserId).OnDelete(DeleteBehavior.Restrict);
+
+        var opening = modelBuilder.Entity<ProductionWeekOpening>();
+        opening.ToTable("production_week_openings", t => t.HasCheckConstraint("ck_week_opening_quantity", "quantity >= 0"));
+        opening.HasKey(x => x.Id);
+        opening.Property(x => x.Id).HasColumnName("id");
+        opening.Property(x => x.WeekId).HasColumnName("week_id");
+        opening.Property(x => x.SourceWeekId).HasColumnName("source_week_id");
+        opening.Property(x => x.SourceLineId).HasColumnName("source_line_id");
+        opening.Property(x => x.ProductId).HasColumnName("product_id");
+        opening.Property(x => x.Area).HasColumnName("area").HasConversion<string>().HasMaxLength(20);
+        opening.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        opening.Property(x => x.SourceFingerprint).HasColumnName("source_fingerprint").HasMaxLength(64);
+        opening.Property(x => x.Version).HasColumnName("version").IsConcurrencyToken();
+        opening.HasIndex(x => new { x.WeekId, x.SourceWeekId, x.SourceLineId, x.Area }).IsUnique();
+        opening.HasOne<ProductionScheduleWeek>().WithMany().HasForeignKey(x => x.WeekId).OnDelete(DeleteBehavior.Restrict);
+        opening.HasOne<ProductionScheduleWeek>().WithMany().HasForeignKey(x => x.SourceWeekId).OnDelete(DeleteBehavior.Restrict);
+        opening.HasOne<ProductionScheduleLine>().WithMany().HasForeignKey(x => x.SourceLineId).OnDelete(DeleteBehavior.Restrict);
+        opening.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
 
         var line = modelBuilder.Entity<ProductionScheduleLine>();
         line.ToTable("production_schedule_lines", table => table.HasCheckConstraint("ck_production_schedule_line_quantity", "quantity > 0"));
@@ -67,6 +86,11 @@ public static partial class ProductionModelConfiguration
         line.Property(x => x.OrderReference2).HasColumnName("order_reference_2").HasMaxLength(120);
         line.Property(x => x.OrderReference3).HasColumnName("order_reference_3").HasMaxLength(120);
         line.Property(x => x.Notes).HasColumnName("notes").HasMaxLength(500);
+        line.Property(x => x.OriginalType).HasColumnName("original_type").HasMaxLength(120);
+        line.Property(x => x.OriginalAnnotation1).HasColumnName("original_annotation_1").HasMaxLength(500);
+        line.Property(x => x.OriginalAnnotation2).HasColumnName("original_annotation_2").HasMaxLength(500);
+        line.Property(x => x.OriginalAnnotation1Kind).HasColumnName("original_annotation_1_kind").HasMaxLength(12);
+        line.Property(x => x.OriginalAnnotation2Kind).HasColumnName("original_annotation_2_kind").HasMaxLength(12);
         line.Property(x => x.Origin).HasColumnName("origin").HasMaxLength(16).HasConversion<string>();
         line.Property(x => x.IsCarryover).HasColumnName("is_carryover");
         line.Property(x => x.StartArea).HasColumnName("start_area").HasMaxLength(20).HasConversion<string>();

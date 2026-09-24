@@ -16,17 +16,19 @@ class Element {
   focus() { this.focused = true; }
   scrollIntoView() {}
 }
-function setup(fetcher, existing = false) {
+function setup(fetcher, existing = false, quick = false) {
   const field = new Element(), input = new Element(), id = new Element(), results = new Element(), add = new Element(), quantity = new Element();
   quantity.value = '150';
   const notes = { value: 'keep this note' };
   field.dataset = { url: '/Operations/Production?handler=DailyProducts', planned: 'Plan', pending: 'Prior', other: 'Catalog', more: 'More', empty: 'Empty', error: 'Retry' };
+  if (quick) field.dataset.resolveUrl = '/Operations/Lookup?handler=ResolveProduct';
   field.querySelector = selector => ({ '[data-product-input]': input, '[data-product-id]': id, '[data-product-results]': results })[selector];
   field.contains = node => node === input || results.children.includes(node);
-  const row = { dataset: { productRow: 'planned' }, querySelector() { return quantity; } };
+  const row = { dataset: { productRow: 'planned' }, hidden: quick, querySelector() { return quantity; } };
   let submissions = 0;
   const form = {
-    querySelector(selector) { return ({ '[data-daily-product-add]': add, '[name="Group.Date"]': { value: '2026-07-06' }, '[name="Group.Area"]': { value: 'Sewing' } })[selector]; },
+    querySelector(selector) { return ({ '[data-daily-product-add]': add, '[name="Group.Date"]': { value: '2026-07-06' }, '[name="Group.Area"]': { value: 'Sewing' },
+      '[name="Group.Mode"]': { value: quick ? 'quick' : 'list' } })[selector]; },
     querySelectorAll() { return existing ? [row] : []; },
     requestSubmit(button) { assert.equal(button, add); submissions++; }
   };
@@ -37,7 +39,7 @@ function setup(fetcher, existing = false) {
     document, AbortController, URL, window: { location: { origin: 'https://localhost' } }, fetch: fetcher,
     setTimeout(fn) { timer = fn; return 1; }, clearTimeout() { timer = null; }
   });
-  return { input, id, results, quantity, notes, submissions: () => submissions,
+  return { input, id, results, row, quantity, notes, submissions: () => submissions,
     open: () => input.events.focus(), type: async value => { input.value = value; input.events.input(); await timer(); },
     key: key => input.events.keydown({ key, preventDefault() {} }) };
 }
@@ -58,6 +60,7 @@ test('grouped picker shows planned first, focuses existing quantity and preserve
   ui.key('ArrowDown'); ui.key('Enter');
   assert.equal(ui.id.value, 'planned');
   assert.equal(ui.quantity.focused, true);
+  assert.equal(ui.row.hidden, false);
   assert.equal(ui.quantity.value, '150');
   assert.equal(ui.notes.value, 'keep this note');
   assert.equal(ui.submissions(), 0);
@@ -104,5 +107,34 @@ test('a stale network response cannot replace a newer search; network failures a
   assert.equal(ui.results.children[0].children[1].children[0].textContent, 'NEW');
   await ui.type('FAIL');
   assert.equal(ui.results.children[0].textContent, 'Retry');
+  assert.equal(ui.quantity.value, '150');
+});
+
+test('quick scan resolves an exact barcode and focuses an existing row without duplicating it', async () => {
+  let resolvedCode;
+  const ui = setup(async url => {
+    if (url.searchParams.has('code')) {
+      resolvedCode = url.searchParams.get('code');
+      return response(planned);
+    }
+    return response([]);
+  }, true, true);
+  ui.input.value = 'BAR-123';
+  await ui.key('Enter');
+  assert.equal(resolvedCode, 'BAR-123');
+  assert.equal(ui.id.value, 'planned');
+  assert.equal(ui.row.hidden, false, 'a hidden quick-mode row becomes visible before focus');
+  assert.equal(ui.quantity.focused, true);
+  assert.equal(ui.quantity.value, '150');
+  assert.equal(ui.submissions(), 0);
+});
+
+test('quick scan adds one resolved SKU while keeping the current batch', async () => {
+  const ui = setup(async url => response(url.searchParams.has('code') ?
+    { id: 'new', sku: 'NEW' } : []), false, true);
+  ui.input.value = 'NEW-BARCODE';
+  await ui.key('Enter');
+  assert.equal(ui.id.value, 'new');
+  assert.equal(ui.submissions(), 1);
   assert.equal(ui.quantity.value, '150');
 });

@@ -10,6 +10,97 @@ namespace WarehouseEPI.Tests.Production;
 public sealed partial class ProductionMaterialServiceTests
 {
     [Fact]
+    public async Task Cancelling_idle_scheduled_order_reverses_issued_material_atomically()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        Assert.Equal(InventoryMovementStatus.Success, (await fixture.IssueAsync(5)).Status);
+        var issued = await fixture.Db.ProductionMaterialIssueLinks.SingleAsync();
+        Assert.Equal(ProductionMaterialStatus.Success, (await fixture.Materials.ApplyAsync(
+            new ProductionMaterialCommand(Guid.NewGuid(), fixture.Order.Id, fixture.OrderStage.Id,
+                fixture.Order.Version, ProductionMaterialOperationType.Consumption,
+                [new ProductionMaterialSelection(issued.Id, 3)], fixture.OperatorPin))).Status);
+        var day = new DateOnly(2026, 9, 21);
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(), RequestFingerprint = new string('W', 64),
+            WeekStart = day, WeekEnd = day.AddDays(6), Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = fixture.AdminId, CreatedAt = DateTimeOffset.UtcNow
+        };
+        week.Lines.Add(new ProductionScheduleLine
+        {
+            Sequence = 1, PlannedDate = day, ProductId = fixture.Order.ProductId,
+            Quantity = 10, WorkOrderId = fixture.Order.Id
+        });
+        fixture.Db.Add(week);
+        await fixture.Db.SaveChangesAsync();
+        var service = new ProductionDailyScheduleService(fixture.Db, fixture.Pins,
+            fixture.Movements, TimeProvider.System);
+        var line = Assert.Single((await service.GetWeekAsync(week.Id))!.Lines);
+        var eligibility = await service.GetDeletionEligibilityAsync(week.Id, [line.Id]);
+        Assert.True(eligibility[line.Id].Allowed);
+        Assert.True(eligibility[line.Id].RequiresPin);
+        var command = new CancelProductionScheduleLineCommand(Guid.NewGuid(), week.Id, line.Id,
+            week.Version, line.Version, fixture.AdminId, "0000");
+        Assert.Equal(ProductionDailyCommandStatus.InvalidPin,
+            (await service.CancelLineAsync(command)).Status);
+        Assert.Equal(5, await fixture.Db.ProductionMaterialIssueLinks.SumAsync(x => x.Quantity));
+
+        var result = await service.CancelLineAsync(command with
+        {
+            OperationId = Guid.NewGuid(), AdminPin = fixture.AdminPin
+        });
+        Assert.True(result.Success, string.Join(" | ", result.Errors ?? []));
+        Assert.All(await fixture.Db.ProductionMaterialIssueLinks.ToListAsync(),
+            x => Assert.Equal(x.Quantity, x.CancelledQuantity));
+        Assert.Equal(ProductionWorkOrderStatus.Cancelled,
+            (await fixture.Db.ProductionWorkOrders.SingleAsync(x => x.Id == fixture.Order.Id)).Status);
+        Assert.Equal(10, await fixture.Db.InventoryBalances.Where(x => x.ProductId == fixture.Material.Id &&
+            x.LocationId == fixture.Source.Id).SumAsync(x => x.Quantity));
+        Assert.Empty((await service.GetWeekAsync(week.Id))!.Lines);
+    }
+
+    [Fact]
+    public async Task Failed_delivery_reversal_keeps_scheduled_line_and_order()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var delivery = await fixture.IssueAsync(5);
+        Assert.Equal(InventoryMovementStatus.Success, delivery.Status);
+        fixture.Db.InventoryMovementCorrections.Add(new InventoryMovementCorrection
+        {
+            OperationId = Guid.NewGuid(), RequestFingerprint = new string('R', 64),
+            Type = InventoryMovementCorrectionType.Reversal,
+            OriginalMovementId = delivery.MovementId!.Value,
+            ReversalMovementId = delivery.MovementId.Value,
+            Reason = "Corrección previa", RequestedByUserId = fixture.AdminId,
+            AuthorizedByUserId = fixture.AdminId
+        });
+        var day = new DateOnly(2026, 9, 21);
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(), RequestFingerprint = new string('W', 64),
+            WeekStart = day, WeekEnd = day.AddDays(6), Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = fixture.AdminId, CreatedAt = DateTimeOffset.UtcNow
+        };
+        week.Lines.Add(new ProductionScheduleLine
+        {
+            Sequence = 1, PlannedDate = day, ProductId = fixture.Order.ProductId,
+            Quantity = 10, WorkOrderId = fixture.Order.Id
+        });
+        fixture.Db.Add(week);
+        await fixture.Db.SaveChangesAsync();
+        var service = new ProductionDailyScheduleService(fixture.Db, fixture.Pins,
+            fixture.Movements, TimeProvider.System);
+        var line = Assert.Single((await service.GetWeekAsync(week.Id))!.Lines);
+        var result = await service.CancelLineAsync(new(Guid.NewGuid(), week.Id, line.Id,
+            week.Version, line.Version, fixture.AdminId, fixture.AdminPin));
+        Assert.Equal(ProductionDailyCommandStatus.ValidationFailed, result.Status);
+        Assert.False((await fixture.Db.ProductionScheduleLines.AsNoTracking().SingleAsync(x => x.Id == line.Id)).IsCancelled);
+        Assert.Equal(ProductionWorkOrderStatus.Released,
+            (await fixture.Db.ProductionWorkOrders.AsNoTracking().SingleAsync(x => x.Id == fixture.Order.Id)).Status);
+        Assert.Equal(5, await fixture.Db.ProductionMaterialIssueLinks.SumAsync(x => x.Quantity - x.CancelledQuantity));
+    }
+
+    [Fact]
     public async Task Linked_issue_and_partial_consumption_preserve_the_order_reservation()
     {
         await using var fixture = await Fixture.CreateAsync();

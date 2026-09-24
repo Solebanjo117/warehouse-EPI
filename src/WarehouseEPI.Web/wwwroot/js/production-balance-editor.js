@@ -4,6 +4,8 @@
     if (!form) return;
     const cells = [...document.querySelectorAll('.balance-edit-cell')];
     const originalFields = [...document.querySelectorAll('[data-balance-field]')].map(el => [el, el.textContent, el.parentElement.hidden]);
+    const originalPlans = [...document.querySelectorAll('[data-balance-plan]')].map(el => [el, el.textContent]);
+    const originalWeekly = document.querySelector('#week-close')?.outerHTML;
     const filterValues = [...document.querySelectorAll('form[method="get"] input, form[method="get"] select')].map(el => [el, el.value, el.min, el.max]);
     const status = form.querySelector('[data-edit-status]');
     const errors = form.querySelector('[data-edit-errors]');
@@ -18,9 +20,27 @@
     const valid = value => /^\d{1,14}(?:\.\d{1,4})?$/.test(value);
     const changes = () => cells.filter(el => !valid(el.value) || Number(el.value) !== Number(el.dataset.original));
     const payload = () => ({ operationId: form.dataset.operation, weekId: form.dataset.week, date: form.dataset.date,
-        cells: changes().map(el => ({ productId: el.closest('[data-balance-product]').dataset.balanceProduct,
+        cells: changes().filter(el => !el.dataset.planLine && !el.dataset.newPlan).map(el => ({ productId: el.closest('[data-balance-product]').dataset.balanceProduct,
             area: Number(el.dataset.editArea), shift: Number(el.dataset.editShift), observed: el.dataset.original, requested: el.value })),
+        planChanges: changes().filter(el => el.dataset.planLine).map(el => ({ lineId: el.dataset.planLine,
+            observed: el.dataset.original, requested: el.value, expectedLineVersion: Number(el.dataset.lineVersion),
+            expectedWeekVersion: Number(el.dataset.weekVersion) })),
+        newPlans: changes().filter(el => el.dataset.newPlan).map(el => ({ operationId: el.dataset.newPlan,
+            productId: el.closest('[data-balance-product]').dataset.balanceProduct, requested: el.value,
+            expectedWeekVersion: Number(el.dataset.weekVersion) })),
         reason: reason.value, fingerprint: reviewed?.fingerprint || '', pin: '' });
+    function replaceWeekly(html) {
+        const current = document.querySelector('#week-close');
+        if (!current || !html) return;
+        const open = [...current.querySelectorAll('details[open]')].map(el => el.id);
+        current.outerHTML = html;
+        for (const id of open) document.getElementById(id)?.setAttribute('open', '');
+    }
+    function restoreProjection() {
+        for (const [el, value, hidden] of originalFields) { el.textContent = value; el.parentElement.hidden = hidden; }
+        for (const [el, value] of originalPlans) el.textContent = value;
+        replaceWeekly(originalWeekly);
+    }
     function invalidate() {
         serial++; clearTimeout(timer); reviewed = null; pin.value = ''; confirm.hidden = true; auth.hidden = true; review.hidden = true;
         dirty = changes().length > 0;
@@ -32,7 +52,7 @@
             cell.setAttribute('aria-invalid', String(!valid(cell.value))); cell.title = '';
             cell.nextElementSibling.hidden = !modified;
         }
-        if (!dirty) for (const [el, value, hidden] of originalFields) { el.textContent = value; el.parentElement.hidden = hidden; }
+        restoreProjection();
     }
     async function post(url, body) {
         const response = await fetch(url, { method: 'POST', credentials: 'same-origin', headers: {
@@ -56,12 +76,34 @@
                         Number(x.dataset.editArea) === item.cell.area && Number(x.dataset.editShift) === item.cell.shift);
                     if (el) { el.dataset.original = String(item.current); el.title = (item.errors || []).join(' '); el.setAttribute('aria-invalid', String(!!item.errors?.length)); }
                 }
+                for (const item of result.plans || []) {
+                    const el = cells.find(x => x.dataset.planLine === item.change.lineId);
+                    if (el) {
+                        el.dataset.original = String(item.current);
+                        el.dataset.lineVersion = String(item.currentLineVersion); el.dataset.weekVersion = String(item.currentWeekVersion);
+                        el.title = (item.errors || []).join(' '); el.setAttribute('aria-invalid', String(!!item.errors?.length));
+                    }
+                }
+                for (const item of result.newPlans || []) {
+                    const el = cells.find(x => x.dataset.newPlan === item.change.operationId);
+                    if (el) {
+                        el.dataset.weekVersion = String(item.currentWeekVersion);
+                        el.title = (item.errors || []).join(' '); el.setAttribute('aria-invalid', String(!!item.errors?.length));
+                    }
+                }
                 if (explicit) errors.focus();
                 return;
             }
             for (const product of result.balance.products) {
                 const row = document.querySelector(`[data-balance-product="${product.productId}"]`);
                 if (!row) continue;
+                const plan = row.querySelector('[data-balance-plan]');
+                if (plan) plan.textContent = String(product.planned);
+                const status = row.querySelector('[data-balance-status]');
+                if (status && product.statusRatio !== undefined) {
+                    status.textContent = product.statusRatio === null ? form.dataset.notApplicable :
+                        new Intl.NumberFormat(document.documentElement?.lang || 'es', { style: 'percent', minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(product.statusRatio);
+                }
                 for (const el of row.querySelectorAll('[data-balance-field]')) {
                     const area = [product.cutting, product.sewing, product.readyToPack][Number(el.dataset.area)];
                     if (area.applies) {
@@ -71,6 +113,13 @@
                     }
                 }
             }
+            replaceWeekly(result.weeklyHtml);
+            const weekly = document.querySelector('#week-close');
+            if (weekly) {
+                const badge = document.createElement('p'); badge.className = 'alert alert-warning py-2';
+                badge.textContent = form.dataset.previewLabel; weekly.prepend(badge);
+            }
+            status.textContent = form.dataset.previewLabel;
             if (explicit) {
                 reviewed = result;
                 const tbody = review.querySelector('tbody'); tbody.replaceChildren();
@@ -83,23 +132,44 @@
                     }
                     tbody.append(tr);
                 }
+                for (const item of result.plans || []) {
+                    const input = cells.find(x => x.dataset.planLine === item.change.lineId);
+                    const tr = document.createElement('tr');
+                    for (const value of [item.sku, input?.getAttribute('aria-label'), item.current, item.change.requested, item.change.requested - item.current]) {
+                        const td = document.createElement('td'); td.textContent = String(value); tr.append(td);
+                    }
+                    tbody.append(tr);
+                }
+                for (const item of result.newPlans || []) {
+                    const tr = document.createElement('tr');
+                    for (const value of [item.sku, form.dataset.newPlanLabel, 0, item.change.requested, item.change.requested]) {
+                        const td = document.createElement('td'); td.textContent = String(value); tr.append(td);
+                    }
+                    tbody.append(tr);
+                }
                 review.hidden = false; auth.hidden = false; confirm.hidden = false;
-                reason.required = result.requiresAdmin;
-                status.textContent = result.requiresAdmin ? form.dataset.admin : form.dataset.review;
-                (result.requiresAdmin ? reason : pin).focus();
+                reason.required = result.requiresReason;
+                status.textContent = result.requiresReason ? form.dataset.admin : result.requiresAdmin ? form.dataset.planAdmin : form.dataset.review;
+                (result.requiresReason ? reason : pin).focus();
             }
         } catch (_) { if (generation === serial) errors.textContent = form.dataset.error; }
     }
-    for (const cell of cells) {
+    function bindCell(cell) {
         let entered;
         cell.addEventListener('focus', () => { entered = cell.value; cell.select(); });
         cell.addEventListener('input', () => { invalidate(); timer = setTimeout(() => preview(false), 350); });
         cell.addEventListener('keydown', event => {
-            if (event.key === 'Enter') { event.preventDefault(); cell.blur(); }
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                const ordered = [...document.querySelectorAll('.balance-edit-cell')].filter(el => !el.disabled && el.getClientRects().length);
+                const next = ordered[ordered.indexOf(cell) + 1];
+                if (next) { next.focus(); next.select(); } else reviewButton.focus();
+            }
             if (event.key === 'Escape') { event.preventDefault(); cell.value = entered; invalidate(); preview(false); cell.blur(); }
         });
         cell.nextElementSibling.addEventListener('click', () => { if (saving || retryPayload) return; cell.value = cell.dataset.original; invalidate(); preview(false); });
     }
+    cells.forEach(bindCell);
     discard.addEventListener('click', () => { for (const cell of cells) cell.value = cell.dataset.original; errors.textContent = ''; invalidate(); });
     reviewButton.addEventListener('click', () => { clearTimeout(timer); preview(true); });
     form.addEventListener('submit', async event => {

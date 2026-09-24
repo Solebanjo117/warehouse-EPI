@@ -49,7 +49,33 @@ public sealed record SaveProductionScheduleLineCommand(
     string? OrderReference3,
     string? Notes,
     Guid ActorUserId,
-    string AdminPin = "");
+    string AdminPin = "",
+    string? OriginalType = null,
+    string? OriginalAnnotation1 = null,
+    string? OriginalAnnotation2 = null,
+    string? OriginalAnnotation1Kind = null,
+    string? OriginalAnnotation2Kind = null);
+
+public sealed record ProductionScheduleBatchLine(DateOnly PlannedDate, Guid ProductId, decimal Quantity,
+    string? OrderReference1, string? OrderReference2, string? OrderReference3, string? Notes,
+    string? OriginalType = null, string? OriginalAnnotation1 = null, string? OriginalAnnotation2 = null,
+    string? OriginalAnnotation1Kind = null, string? OriginalAnnotation2Kind = null);
+
+public sealed record SaveProductionScheduleBatchCommand(Guid OperationId, Guid WeekId,
+    uint ExpectedWeekVersion, IReadOnlyList<ProductionScheduleBatchLine> Lines,
+    Guid ActorUserId, string AdminPin = "");
+
+public sealed record ProductionScheduleDraftChange(string Kind, Guid? LineId,
+    uint? ExpectedLineVersion, ProductionScheduleBatchLine? Line);
+
+public sealed record SaveProductionScheduleDraftCommand(Guid OperationId, Guid WeekId,
+    uint ExpectedWeekVersion, IReadOnlyList<ProductionScheduleDraftChange> Changes,
+    Guid ActorUserId, IReadOnlyList<ProductionOpeningChange>? Openings = null);
+
+public sealed record CancelProductionScheduleLineCommand(Guid OperationId, Guid WeekId, Guid LineId,
+    uint ExpectedWeekVersion, uint ExpectedLineVersion, Guid ActorUserId, string AdminPin = "");
+
+public sealed record ProductionScheduleLineDeletion(Guid LineId, bool Allowed, bool RequiresPin, string? Reason);
 
 public sealed record PublishProductionScheduleWeekCommand(
     Guid OperationId,
@@ -79,7 +105,13 @@ public sealed record ProductionScheduleLineView(
     bool IsCarryover,
     ProductionDailyArea? StartArea,
     Guid? WorkOrderId,
-    uint Version);
+    uint Version,
+    string? Unit = null,
+    string? OriginalType = null,
+    string? OriginalAnnotation1 = null,
+    string? OriginalAnnotation2 = null,
+    string? OriginalAnnotation1Kind = null,
+    string? OriginalAnnotation2Kind = null);
 
 public sealed record ProductionScheduleWeekView(
     Guid Id,
@@ -88,7 +120,7 @@ public sealed record ProductionScheduleWeekView(
     ProductionScheduleWeekStatus Status,
     ProductionScheduleOrigin Origin,
     uint Version,
-    IReadOnlyList<ProductionScheduleLineView> Lines);
+    IReadOnlyList<ProductionScheduleLineView> Lines, bool ExplicitCarryover = false);
 
 public sealed record ProductionDailyConfigurationView(
     Guid? CuttingStageId,

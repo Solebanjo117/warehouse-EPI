@@ -6,15 +6,23 @@ namespace WarehouseEPI.Infrastructure.Production;
 public sealed partial class ProductionDailyCaptureService
 {
     private async Task<IReadOnlyList<ProductionDailyAllocationPreview>> AllocateAsync(Guid productId, Guid stageId,
-        ProductionDailyArea area, decimal quantityRequested, DateOnly throughWeek, CancellationToken token)
+        ProductionDailyArea area, decimal quantityRequested, DateOnly throughWeek, CancellationToken token, Guid? admissionWeekId = null)
     {
+        var explicitWeek = admissionWeekId.HasValue && await db.ProductionScheduleWeeks.AsNoTracking()
+            .AnyAsync(x => x.Id == admissionWeekId && x.ExplicitCarryover, token);
+        var admissions = explicitWeek ? await db.ProductionWeekOpenings.AsNoTracking()
+            .Where(x => x.WeekId == admissionWeekId && x.ProductId == productId && x.Area == area && x.Quantity > 0)
+            .GroupBy(x => x.SourceLineId).Select(x => new { Id = x.Key, Quantity = x.Sum(y => y.Quantity) })
+            .ToDictionaryAsync(x => x.Id, x => x.Quantity, token) : new Dictionary<Guid, decimal>();
+        var admittedIds = admissions.Keys.ToArray();
         var lines = await db.ProductionScheduleLines.AsNoTracking()
             .Include(x => x.Week).Include(x => x.WorkOrder).ThenInclude(x => x!.Stages)
             .Include(x => x.WorkOrder).ThenInclude(x => x!.Batches)
             .Include(x => x.WorkOrder).ThenInclude(x => x!.Events)
             .Include(x => x.WorkOrder).ThenInclude(x => x!.Batches).ThenInclude(x => x.Results)
             .Where(x => !x.IsCancelled && x.ProductId == productId && x.WorkOrderId != null &&
-                x.Week.Status != ProductionScheduleWeekStatus.Draft && x.Week.WeekStart <= throughWeek)
+                x.Week.Status != ProductionScheduleWeekStatus.Draft && x.Week.WeekStart <= throughWeek &&
+                (explicitWeek ? x.WeekId == admissionWeekId || admittedIds.Contains(x.Id) : !x.Week.ExplicitCarryover))
             .OrderBy(x => x.Week.WeekStart).ThenBy(x => x.IsCarryover ? 0 : 1)
             .ThenBy(x => x.PlannedDate).ThenBy(x => x.Sequence).ThenBy(x => x.Id).ToListAsync(token);
         var lineIds = lines.Select(x => x.Id).ToArray();
@@ -24,13 +32,30 @@ public sealed partial class ProductionDailyCaptureService
             .GroupBy(x => x.ScheduleLineId).Select(x => new { LineId = x.Key, Quantity = x.Sum(y => y.Quantity) })
             .ToDictionaryAsync(x => x.LineId, x => x.Quantity, token);
         var remaining = quantityRequested;
+        var weeklyUsed = explicitWeek ? await db.ProductionDailyCaptureAllocations.AsNoTracking()
+            .Where(x => lineIds.Contains(x.ScheduleLineId) && x.Capture.WeekId == admissionWeekId &&
+                x.Capture.Area == area && x.Capture.Status == ProductionDailyCaptureStatus.Active)
+            .GroupBy(x => x.ScheduleLineId).Select(x => new { Id = x.Key, Quantity = x.Sum(y => y.Quantity) })
+            .ToDictionaryAsync(x => x.Id, x => x.Quantity, token) : new Dictionary<Guid, decimal>();
         var allocations = new List<ProductionDailyAllocationPreview>();
+        var legacyUsed = !explicitWeek ? await db.ProductionDailyCaptureAllocations.AsNoTracking()
+            .Where(x => lineIds.Contains(x.ScheduleLineId) && !x.Capture.Week.ExplicitCarryover && x.Capture.Area == area && x.Capture.Status == ProductionDailyCaptureStatus.Active)
+            .GroupBy(x => x.ScheduleLineId).Select(x => new { Id = x.Key, Quantity = x.Sum(y => y.Quantity) })
+            .ToDictionaryAsync(x => x.Id, x => x.Quantity, token) : new Dictionary<Guid, decimal>();
+        var reserved = await db.ProductionWeekOpenings.AsNoTracking()
+            .Where(x => lineIds.Contains(x.SourceLineId) && x.Area == area &&
+                (explicitWeek ? x.SourceWeekId == admissionWeekId : x.SourceWeekId == db.ProductionScheduleLines.Where(l => l.Id == x.SourceLineId).Select(l => l.WeekId).First()))
+            .GroupBy(x => x.SourceLineId).Select(x => new { Id = x.Key, Quantity = x.Sum(y => y.Quantity) })
+            .ToDictionaryAsync(x => x.Id, x => x.Quantity, token);
         foreach (var line in lines)
         {
             if (line.WorkOrder!.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress)) continue;
             var stage = line.WorkOrder!.Stages.SingleOrDefault(x => x.SourceStageId == stageId);
             if (stage is null || !Applies(line, area)) continue;
             var pending = line.Quantity - used.GetValueOrDefault(line.Id);
+            if (explicitWeek)
+                pending = Math.Min(pending, (line.WeekId == admissionWeekId ? line.Quantity : admissions.GetValueOrDefault(line.Id)) - weeklyUsed.GetValueOrDefault(line.Id) - reserved.GetValueOrDefault(line.Id));
+            else pending = Math.Min(pending, line.Quantity - legacyUsed.GetValueOrDefault(line.Id) - reserved.GetValueOrDefault(line.Id));
             if (pending <= 0) continue;
             var batch = line.WorkOrder.Batches.SingleOrDefault();
             if (batch is null) continue;
@@ -57,7 +82,11 @@ public sealed partial class ProductionDailyCaptureService
         {
             var remaining = capture.Quantity - capture.Allocations.Sum(x => x.Quantity);
             if (remaining <= 0) continue;
-            var allocations = await AllocateAsync(productId, capture.StageId, capture.Area, remaining, throughWeek, token);
+            var explicitWeek = await db.ProductionScheduleWeeks.AsNoTracking().AnyAsync(x => x.Id == capture.WeekId && x.ExplicitCarryover, token);
+            if (explicitWeek && (await new ProductionWeekOpeningService(db).RevalidateAsync(capture.WeekId, token)).Count > 0)
+                continue; // Keep residual captures until their own admitted sources are reviewed.
+            var allocations = await AllocateAsync(productId, capture.StageId, capture.Area, remaining,
+                explicitWeek ? capture.EffectiveDate : throughWeek, token, capture.WeekId);
             var result = await ApplyAllocationsAsync(capture, allocations, actorId, pin, token);
             if (!result.Success) return result;
         }

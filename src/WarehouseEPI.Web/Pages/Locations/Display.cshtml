@@ -1,0 +1,109 @@
+@page "/Locations/Display"
+@model WarehouseEPI.Web.Pages.Locations.DisplayModel
+@{
+    ViewData["Title"] = "Exhibición de filas";
+    Layout = Model.Play ? null : "_Layout";
+}
+@if (Model.Play)
+{
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Exhibición de filas - Warehouse EPI</title>
+        <script src="~/js/theme-init.js" asp-append-version="true"></script>
+        <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+        <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/location-display.css" asp-append-version="true" />
+    </head>
+    <body class="location-display" data-location-display data-seconds="@Model.Seconds">
+        <main class="display-shell">
+            <div class="display-topline">
+                <span class="display-brand">Warehouse EPI <span>· Exhibición de almacén</span></span>
+                <span class="display-updated" data-display-updated>Actualizado @Model.GeneratedAt.ToString("dd/MM/yyyy HH:mm:ss")</span>
+            </div>
+            <div class="display-stage">
+                <button type="button" class="display-swipe-control display-swipe-prev" data-display-prev aria-label="Pantalla anterior" title="Pantalla anterior"><span aria-hidden="true">‹</span></button>
+                <div data-display-slides>
+                @for (var i = 0; i < Model.Slides.Count; i++)
+                {
+                    var slide = Model.Slides[i];
+                    <section class="display-slide" data-display-slide data-display-row="@slide.RowCode" data-display-part="@slide.Part" aria-label="Fila @slide.RowCode, parte @slide.Part de @slide.Parts" hidden="@(i != 0)">
+                        <header class="display-heading">
+                            <div><p class="display-eyebrow">Inventario por ubicación</p><h1>Fila <strong>@slide.RowCode</strong></h1></div>
+                            <div class="display-heading-side"><span>@slide.RackCount racks · @slide.OccupiedLocations ubicaciones con saldo</span>@if(slide.Parts > 1){<span>Parte @slide.Part de @slide.Parts</span>}</div>
+                        </header>
+                        @if (slide.Stocks.Count == 0)
+                        {
+                            <div class="display-empty"><strong>Sin existencias en esta fila</strong><span>Las posiciones físicas de esta fila no tienen saldo actual.</span></div>
+                        }
+                        else
+                        {
+                            <div class="display-stock-grid">
+                                @foreach (var stock in slide.Stocks)
+                                {
+                                    <article class="display-stock @(stock.Quantity < 0 ? "display-stock-negative" : "")">
+                                        <div class="display-stock-location"><span>@stock.LocationCode</span><small>Rack @stock.RackNumber</small></div>
+                                        <div class="display-stock-product"><strong>@stock.Sku</strong></div>
+                                        <div class="display-stock-quantity"><strong>@stock.Quantity.ToString("0.####")</strong><span>@stock.Unit</span>@if(stock.Quantity < 0){<small>Saldo negativo</small>}</div>
+                                    </article>
+                                }
+                            </div>
+                        }
+                    </section>
+                }
+                </div>
+                <button type="button" class="display-swipe-control display-swipe-next" data-display-next aria-label="Pantalla siguiente" title="Pantalla siguiente"><span aria-hidden="true">›</span></button>
+            </div>
+            <footer class="display-controls">
+                <div class="display-progress"><span data-display-progress>1 de @Model.Slides.Count</span><span data-display-status>Reproduciendo</span><span class="display-swipe-hint">Desliza a los lados para cambiar de pantalla</span></div>
+                <div class="display-actions">
+                    <button type="button" class="btn btn-outline-secondary" data-display-pause aria-pressed="false">Pausar</button>
+                    <button type="button" class="btn btn-outline-secondary" data-display-fullscreen>Pantalla completa</button>
+                    <a href="@Model.ConfigurationUrl" class="btn btn-outline-primary">Configurar</a>
+                </div>
+            </footer>
+            <p class="visually-hidden" role="status" aria-live="polite" data-display-live></p>
+        </main>
+        <script src="~/js/location-display.js" asp-append-version="true"></script>
+    </body>
+    </html>
+}
+else
+{
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
+        <div><h1 class="h2 mb-1">Exhibición de filas</h1><p class="text-body-secondary mb-0">Configura qué filas aparecerán en el monitor y cuánto dura cada pantalla.</p></div>
+        <a asp-page="/Locations/Index" class="btn btn-outline-secondary">Volver a ubicaciones</a>
+    </div>
+    @if (Model.Error is not null) { <div class="alert alert-danger" role="alert">@Model.Error</div> }
+    @if (Model.AvailableRows.Count == 0)
+    {
+        <div class="alert alert-info">Aún no hay filas físicas para exhibir. Crea posiciones de rack para comenzar.</div>
+    }
+    else
+    {
+        <form method="get" class="card card-body" target="_blank" data-display-config>
+            <input type="hidden" name="play" value="true" />
+            <fieldset class="mb-4">
+                <legend class="h5">Filas del carrusel</legend>
+                <p class="text-body-secondary">Cada fila aparece por separado. Si tiene muchas existencias, se divide en varias pantallas.</p>
+                <div class="d-flex flex-wrap gap-3">
+                    @foreach (var row in Model.AvailableRows)
+                    {
+                        <label class="form-check border rounded px-3 py-2 d-flex align-items-center gap-2">
+                            <input class="form-check-input m-0" type="checkbox" name="rows" value="@row" checked="@Model.SelectedRows.Contains(row)" />
+                            <span class="form-check-label fs-5">Fila @row</span>
+                        </label>
+                    }
+                </div>
+            </fieldset>
+            <div class="mb-4 col-12 col-md-4 col-xl-3">
+                <label for="display-seconds" class="form-label">Segundos por pantalla</label>
+                <input id="display-seconds" class="form-control form-control-lg" type="number" name="seconds" min="5" max="120" step="1" value="@Model.Seconds" required />
+                <div class="form-text">Entre 5 y 120 segundos. Los datos se actualizan cada minuto.</div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 align-items-center"><button class="btn btn-primary btn-lg" type="submit">Abrir exhibición</button><span class="text-body-secondary">La selección queda en la dirección para guardarla como favorito del monitor.</span></div>
+        </form>
+    }
+}

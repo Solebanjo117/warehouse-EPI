@@ -165,6 +165,8 @@ public sealed class ProductionDailyWorkflowTests
         var schedule = Schedule(db);
         var created = await schedule.CreateWeekAsync(new(Guid.NewGuid(), monday, actor.Id));
         var sourceId = created.Id!.Value;
+        (await db.ProductionScheduleWeeks.SingleAsync(x => x.Id == sourceId)).ExplicitCarryover = false;
+        await db.SaveChangesAsync(); // Regression of the legacy intention-based workflow.
         foreach (var product in new[] { a, a, b })
         {
             var current = (await schedule.GetWeekAsync(sourceId))!;
@@ -175,6 +177,8 @@ public sealed class ProductionDailyWorkflowTests
         var source = (await schedule.GetWeekAsync(sourceId))!;
         Assert.True((await schedule.PublishAsync(new(Guid.NewGuid(), sourceId, source.Version, "4826", actor.Id))).Success);
         var nextId = (await schedule.CreateWeekAsync(new(Guid.NewGuid(), monday.AddDays(7), actor.Id))).Id!.Value;
+        (await db.ProductionScheduleWeeks.SingleAsync(x => x.Id == nextId)).ExplicitCarryover = false;
+        await db.SaveChangesAsync();
         var next = (await schedule.GetWeekAsync(nextId))!;
         var suggestions = await schedule.GetCarryoverSuggestionsAsync(nextId);
         Assert.Equal(20, suggestions.Single(x => x.ProductId == a.Id && x.Area == ProductionDailyArea.Cutting).Available);

@@ -85,7 +85,7 @@ public sealed class ProductionDailyRouteTests
         Assert.Contains(language == "en" ? "The file is not a valid XLSX file or is damaged." : "El archivo no es un XLSX válido o está dañado.", invalidImportHtml, StringComparison.Ordinal);
         Assert.Contains(language == "en" ? "Daily configuration" : "Configuración diaria", invalidImportHtml, StringComparison.Ordinal);
         var menu = WebUtility.HtmlDecode(await client.GetStringAsync("/Modules/production"));
-        Assert.Contains(language == "en" ? "Advanced production" : "Producción avanzada", menu, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Operations/Production/Advanced", menu, StringComparison.Ordinal);
         var configuration = new Dictionary<string, string>
         {
             ["Configuration.OperationId"] = Input(html, "Configuration.OperationId"),

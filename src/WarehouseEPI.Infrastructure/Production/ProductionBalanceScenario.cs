@@ -3,7 +3,9 @@ using WarehouseEPI.Core.Entities;
 namespace WarehouseEPI.Infrastructure.Production;
 
 public sealed record ProductionBalanceScenario(DateOnly Date, IReadOnlyList<Guid> ReversedCaptures,
-    IReadOnlyList<ProductionBalanceAddition> Additions);
+    IReadOnlyList<ProductionBalanceAddition> Additions,
+    IReadOnlyDictionary<Guid, decimal>? PlanQuantities = null, IReadOnlyList<ProductionBalanceNewPlan>? NewPlans = null,
+    IReadOnlyList<ProductionOpeningChange>? Openings = null);
 public sealed record ProductionBalanceAddition(Guid Id, Guid ProductId, ProductionDailyArea Area, Guid ShiftId, decimal Quantity, string? Notes = null);
 
 public sealed partial class ProductionDailyBalanceService
@@ -16,8 +18,11 @@ public sealed partial class ProductionDailyBalanceService
     // Detached read models only: no EF tracking, writes, provisional orders or database transactions.
     private static void ApplyScenario(ProductionBalanceScenario scenario, ProductionScheduleWeek week,
         ProductionDailyConfiguration config, List<ProductionScheduleLine> lines, List<BalanceCapture> captures,
-        List<BalanceAllocation> allocations)
+        List<BalanceAllocation> allocations, IReadOnlyDictionary<(Guid, ProductionDailyArea), decimal>? explicitLimits = null)
     {
+        if (scenario.PlanQuantities is not null)
+            foreach (var line in lines)
+                if (scenario.PlanQuantities.TryGetValue(line.Id, out var quantity)) line.Quantity = quantity;
         var reversedCutting = captures.Where(x => x.Area == ProductionDailyArea.Cutting && scenario.ReversedCaptures.Contains(x.Id)).Select(x => x.Id).ToHashSet();
         var cancelledExtras = allocations.Where(a => reversedCutting.Contains(a.CaptureId))
             .Select(a => a.ScheduleLineId).ToHashSet();
@@ -25,7 +30,25 @@ public sealed partial class ProductionDailyBalanceService
         captures.RemoveAll(x => scenario.ReversedCaptures.Contains(x.Id));
         allocations.RemoveAll(x => scenario.ReversedCaptures.Contains(x.CaptureId));
         Guid Stage(ProductionDailyArea area) => ProductionDailyProcessFlow.Stage(config, area)!.Value;
+        foreach (var plan in scenario.NewPlans ?? [])
+        {
+            var stages = Enum.GetValues<ProductionDailyArea>().Select((area, i) => new ProductionWorkOrderStage
+            { Id = Guid.NewGuid(), SourceStageId = Stage(area), Sequence = i + 1, Code = area.ToString(), Name = area.ToString() }).ToArray();
+            var order = new ProductionWorkOrder { Id = plan.OperationId, Number = "PREVIEW", CreateFingerprint = "PREVIEW",
+                Status = ProductionWorkOrderStatus.Released, Stages = stages };
+            lines.Add(new ProductionScheduleLine { Id = plan.OperationId, WeekId = week.Id, Week = week, ProductId = plan.ProductId,
+                Quantity = plan.Requested, PlannedDate = scenario.Date,
+                Sequence = lines.Where(x => x.WeekId == week.Id).Select(x => x.Sequence).DefaultIfEmpty().Max() + 1,
+                WorkOrderId = order.Id, WorkOrder = order });
+        }
         decimal Used(Guid lineId, Guid stageId) => allocations.Where(a => a.ScheduleLineId == lineId && a.WorkOrderStageId == stageId).Sum(a => a.Quantity);
+        decimal AdmittedRemaining(ProductionScheduleLine line, ProductionDailyArea area, Guid stageId)
+        {
+            if (explicitLimits is null) return decimal.MaxValue;
+            var capacity = explicitLimits.GetValueOrDefault((line.Id, area), line.WeekId == week.Id ? line.Quantity : 0);
+            var weeklyIds = captures.Where(x => x.WeekId == week.Id).Select(x => x.Id).ToHashSet();
+            return Math.Max(0, capacity - allocations.Where(a => a.ScheduleLineId == line.Id && a.WorkOrderStageId == stageId && weeklyIds.Contains(a.CaptureId)).Sum(a => a.Quantity));
+        }
         IEnumerable<ProductionScheduleLine> Ordered(Guid productId) => lines.Where(x => x.ProductId == productId && !x.IsCancelled && x.WorkOrder is not null &&
                 x.WorkOrder.Status is ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress)
             .OrderBy(x => x.Week.WeekStart).ThenBy(x => x.IsCarryover ? 0 : 1).ThenBy(x => x.PlannedDate).ThenBy(x => x.Sequence).ThenBy(x => x.Id);
@@ -36,7 +59,7 @@ public sealed partial class ProductionDailyBalanceService
                 var capacity = Ordered(addition.ProductId).Sum(line =>
                 {
                     var stage = line.WorkOrder!.Stages.SingleOrDefault(s => s.SourceStageId == Stage(addition.Area));
-                    return stage is null ? 0 : Math.Max(0, line.Quantity - Used(line.Id, stage.Id));
+                    return stage is null ? 0 : Math.Max(0, Math.Min(line.Quantity - Used(line.Id, stage.Id), AdmittedRemaining(line, addition.Area, stage.Id)));
                 });
                 var extra = Math.Max(0, addition.Quantity - capacity);
                 if (extra > 0)
@@ -50,7 +73,7 @@ public sealed partial class ProductionDailyBalanceService
             }
             captures.Add(new(addition.Id, addition.ProductId, addition.Area, scenario.Date, addition.ShiftId, addition.Quantity, true, week.Id, 0, false, captures.Select(x => x.RecordedAt).DefaultIfEmpty(DateTimeOffset.UnixEpoch).Max().AddTicks(1)));
             // Reconcile the same product from upstream to downstream after each addition, as confirmation does.
-            foreach (var capture in captures.Where(x => x.ProductId == addition.ProductId && x.IsFlexible)
+            foreach (var capture in captures.Where(x => x.ProductId == addition.ProductId && x.IsFlexible && (explicitLimits == null || x.WeekId == week.Id))
                          .OrderBy(x => x.Area).ThenBy(x => x.EffectiveDate).ThenBy(x => x.RecordedAt).ThenBy(x => x.Id).ToArray())
             {
                 var remaining = capture.Quantity - allocations.Where(a => a.CaptureId == capture.Id).Sum(a => a.Quantity);
@@ -62,7 +85,7 @@ public sealed partial class ProductionDailyBalanceService
                     if (index < 0) continue;
                     var used = Used(line.Id, stages[index].Id);
                     var input = index == 0 ? line.Quantity : Used(line.Id, stages[index - 1].Id);
-                    var amount = Math.Min(remaining, Math.Max(0, Math.Min(line.Quantity, input) - used));
+                    var amount = Math.Min(remaining, Math.Min(AdmittedRemaining(line, capture.Area, stages[index].Id), Math.Max(0, Math.Min(line.Quantity, input) - used)));
                     if (amount == 0) continue;
                     allocations.Add(new(capture.Id, line.Id, stages[index].Id, capture.EffectiveDate, capture.ShiftId, amount));
                     remaining -= amount;

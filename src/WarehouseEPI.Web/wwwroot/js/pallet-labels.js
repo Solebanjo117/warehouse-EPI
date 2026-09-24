@@ -6,6 +6,7 @@
 
   const form = shell.querySelector("[data-pallet-finder-form]");
   const related = shell.querySelector("[data-pallet-related]");
+  const scanStatus = shell.querySelector("[data-pallet-scan-status]");
   const fields = Object.fromEntries(Array.from(shell.querySelectorAll("[data-pallet-lookup]"))
     .map((field) => [field.dataset.palletLookup, {
       field,
@@ -18,6 +19,13 @@
   let selectedLocationId = shell.dataset.selectedLocationId || "";
   const requests = { product: null, location: null, related: null };
   const timers = { product: 0, location: 0 };
+  const scanIntentKey = "warehouse-pallet-scan-preview";
+  let scanSequence = 0;
+  const setScanStatus = (message) => {
+    if (!scanStatus) return;
+    scanStatus.textContent = message;
+    scanStatus.hidden = !message;
+  };
   const optionUrl = (kind, query = "") => {
     const url = new URL(kind === "product" ? shell.dataset.productOptionsUrl : shell.dataset.locationOptionsUrl,
       window.location.href);
@@ -54,6 +62,121 @@
   const clearResults = () => {
     for (const field of Object.values(fields)) field.results.replaceChildren();
   };
+
+  const resetForScan = () => {
+    for (const kind of ["product", "location"]) {
+      window.clearTimeout(timers[kind]);
+      requests[kind]?.abort();
+      fields[kind].input.value = "";
+    }
+    requests.related?.abort();
+    fields.product.selectedId.value = "";
+    selectedLocationId = "";
+    clearResults();
+    related.replaceChildren();
+    const previousProducts = document.querySelector("[data-pallet-products]");
+    if (previousProducts) previousProducts.hidden = true;
+    setScanStatus("");
+  };
+
+  const requestScanJson = async (url) => {
+    const response = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!response.ok) throw new Error("Scan lookup failed");
+    return response.json();
+  };
+
+  const navigateScan = (kind, item, other = null) => {
+    const url = new URL(form.action || window.location.href, window.location.href);
+    url.search = "";
+    url.hash = "";
+    const product = kind === "product" ? item : other;
+    const location = kind === "location" ? item : other;
+    if (product) url.searchParams.set("productId", product.id);
+    if (location) url.searchParams.set("location", location.code);
+    if (other) {
+      const token = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+      try {
+        window.sessionStorage.setItem(scanIntentKey, JSON.stringify({ token,
+          productId: product.id, locationId: location.id }));
+        url.searchParams.set("scanToken", token);
+      } catch { /* The selected pair remains available for manual printing. */ }
+    }
+    window.location.assign(url.href);
+  };
+
+  const processScan = async (resolution) => {
+    const sequence = ++scanSequence;
+    resetForScan();
+    if (resolution.product && resolution.location) {
+      setScanStatus(shell.dataset.scanAmbiguous);
+      return;
+    }
+    const kind = resolution.product ? "product" : "location";
+    const item = resolution.product || resolution.location;
+    if (!item) {
+      setScanStatus(shell.dataset.scanUnknown);
+      return;
+    }
+    fields[kind].input.value = kind === "product" ? item.sku : item.code;
+    if (kind === "product") fields.product.selectedId.value = item.id;
+    else selectedLocationId = item.id;
+    const otherKind = kind === "product" ? "location" : "product";
+    try {
+      const options = await requestScanJson(optionUrl(otherKind));
+      if (sequence !== scanSequence) return;
+      if (!options.length) {
+        setScanStatus(kind === "product" ? shell.dataset.scanNoLocations : shell.dataset.scanNoProducts);
+        return;
+      }
+      navigateScan(kind, item, options.length === 1 ? options[0] : null);
+    } catch {
+      if (sequence === scanSequence) setScanStatus(shell.dataset.scanError);
+    }
+  };
+
+  const resolveScan = async (code, fallback = null) => {
+    const sequence = ++scanSequence;
+    try {
+      const url = new URL(shell.dataset.resolveCodeUrl, window.location.href);
+      url.searchParams.set("code", code);
+      const resolution = await requestScanJson(url);
+      if (sequence !== scanSequence) return;
+      if (!resolution.product && !resolution.location && fallback) {
+        fallback.click();
+        return;
+      }
+      await processScan(resolution);
+    } catch {
+      if (sequence === scanSequence) setScanStatus(shell.dataset.scanError);
+    }
+  };
+
+  const consumeScanPreview = () => {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get("scanToken");
+    if (!token) return;
+    url.searchParams.delete("scanToken");
+    window.history.replaceState(null, "", url.href);
+    let intent;
+    try {
+      intent = JSON.parse(window.sessionStorage.getItem(scanIntentKey) || "null");
+      window.sessionStorage.removeItem(scanIntentKey);
+    } catch { return; }
+    if (!intent || intent.token !== token || intent.locationId !== selectedLocationId ||
+        intent.productId !== fields.product.selectedId.value) return;
+    const row = document.querySelector("[data-pallet-product-id]");
+    if (row?.dataset.palletProductId !== intent.productId) return;
+    const action = row.querySelector(".pallet-print-action");
+    if (action?.tagName === "FORM") action.requestSubmit();
+    else if (action?.tagName === "A") action.click();
+  };
+
+  consumeScanPreview();
+  window.WarehouseEpiHidCapture?.listen({
+    root: document.body,
+    allowSpaces: true,
+    onScan: (code) => resolveScan(code.trim())
+  });
 
   const submitPair = () => {
     clearResults();
@@ -116,8 +239,19 @@
   for (const kind of ["product", "location"]) {
     const field = fields[kind];
     field.input.addEventListener("input", () => {
+      scanSequence++;
+      setScanStatus("");
       if (kind === "product") field.selectedId.value = "";
-      else selectedLocationId = "";
+      else {
+        selectedLocationId = "";
+        fields.product.input.value = "";
+        fields.product.selectedId.value = "";
+        fields.product.results.replaceChildren();
+        window.clearTimeout(timers.product);
+        requests.product?.abort();
+        requests.related?.abort();
+        related.replaceChildren();
+      }
       window.clearTimeout(timers[kind]);
       const query = field.input.value.trim();
       if (!query) {
@@ -136,9 +270,11 @@
       }
       if (event.key !== "Enter") return;
       const first = field.results.querySelector("button");
-      if (!first) return;
+      const code = field.input.value.trim();
+      if (!code && !first) return;
       event.preventDefault();
-      first.click();
+      if (code) void resolveScan(code, first);
+      else first.click();
     });
   }
 

@@ -268,7 +268,6 @@
   <data name="Recibir entrega" xml:space="preserve"><value>Receive delivery</value></data>
   <data name="Recibir producto terminado en bodega" xml:space="preserve"><value>Receive finished product in warehouse</value></data>
   <data name="Recomendación:" xml:space="preserve"><value>Recommendation:</value></data>
-  <data name="Referencia" xml:space="preserve"><value>Reference</value></data>
   <data name="Referencia externa" xml:space="preserve"><value>External reference</value></data>
   <data name="Referencia externa (opcional)" xml:space="preserve"><value>External reference (optional)</value></data>
   <data name="Registrar avance" xml:space="preserve"><value>Record progress</value></data>
@@ -514,7 +513,7 @@
   <data name="Producción avanzada" xml:space="preserve"><value>Advanced production</value></data>
   <data name="Captura y balance" xml:space="preserve"><value>Entry and balance</value></data>
   <data name="Importar Excel" xml:space="preserve"><value>Import Excel</value></data>
-  <data name="Planea lunes–sábado. Publicar crea todas las órdenes, lotes y solicitudes en una sola transacción." xml:space="preserve"><value>Plan Monday–Saturday. Publishing creates all orders, lots and requests in one transaction.</value></data>
+  <data name="Planea lunes–domingo. Publicar crea todas las órdenes, lotes y solicitudes en una sola transacción." xml:space="preserve"><value>Plan Monday–Sunday. Publishing creates all orders, lots and requests in one transaction.</value></data>
   <data name="Captura piezas buenas; el reparto FIFO, consumo y balance se calculan automáticamente." xml:space="preserve"><value>Enter good pieces; FIFO allocation, consumption and balance are calculated automatically.</value></data>
   <data name="Acciones de producción" xml:space="preserve"><value>Production actions</value></data>
   <data name="Surtimientos" xml:space="preserve"><value>Production supplies</value></data>
@@ -603,7 +602,7 @@
   <data name="Registrar piezas buenas con reparto y balance automáticos." xml:space="preserve"><value>Record good pieces with automatic allocation and balance.</value></data>
   <data name="Consultar plan, arrastre, pendientes y adelantos." xml:space="preserve"><value>View the plan, carryover, pending work and production ahead of schedule.</value></data>
   <data name="Atender merma, retrabajo, diferencias, recepción y diagnóstico." xml:space="preserve"><value>Handle scrap, rework, discrepancies, receipt and diagnostics.</value></data>
-  <data name="Preparar, publicar e importar el programa lunes–sábado." xml:space="preserve"><value>Prepare, publish and import the Monday–Saturday schedule.</value></data>
+  <data name="Preparar, publicar e importar el programa lunes–domingo." xml:space="preserve"><value>Prepare, publish and import the Monday–Sunday schedule.</value></data>
   <data name="Consultar y corregir órdenes desde el flujo avanzado." xml:space="preserve"><value>View and correct orders through the advanced workflow.</value></data>
   <data name="Semana creada en borrador." xml:space="preserve"><value>Week created as a draft.</value></data>
   <data name="Línea guardada con revisión automática." xml:space="preserve"><value>Line saved with an automatic revision.</value></data>
@@ -645,7 +644,7 @@
   <data name="La semana debe iniciar en lunes." xml:space="preserve"><value>The week must start on Monday.</value></data>
   <data name="Ya existe una programación para esa semana." xml:space="preserve"><value>A schedule already exists for that week.</value></data>
   <data name="Reabre la semana antes de modificarla." xml:space="preserve"><value>Reopen the week before changing it.</value></data>
-  <data name="La fecha debe ser un lunes a sábado de la semana seleccionada." xml:space="preserve"><value>The date must be Monday through Saturday of the selected week.</value></data>
+  <data name="La fecha debe estar dentro de la semana seleccionada (lunes a domingo)." xml:space="preserve"><value>The date must be Monday through Sunday of the selected week.</value></data>
   <data name="La cantidad debe ser positiva y admitir hasta cuatro decimales." xml:space="preserve"><value>The quantity must be positive with up to four decimal places.</value></data>
   <data name="La unidad del SKU no permite decimales." xml:space="preserve"><value>The SKU unit does not allow decimals.</value></data>
   <data name="El SKU ya tiene movimientos. Corrige la orden desde Producción avanzada." xml:space="preserve"><value>The SKU already has movements. Correct the order in Advanced production.</value></data>
@@ -664,9 +663,9 @@
   <data name="No se encontró una tabla de programa con encabezados Day, Part Number y Qty." xml:space="preserve"><value>No schedule table with Day, Part Number and Qty headers was found.</value></data>
   <data name="El archivo no es un XLSX válido o está dañado." xml:space="preserve"><value>The file is not a valid XLSX file or is damaged.</value></data>
   <data name="La importación requiere ADMIN." xml:space="preserve"><value>Import requires ADMIN.</value></data>
-  <data name="La fecha del programa no corresponde a lunes-sábado de la hoja." xml:space="preserve"><value>The scheduled date is outside the sheet's Monday–Saturday range.</value></data>
+  <data name="La fecha del programa no corresponde a lunes-domingo de la hoja." xml:space="preserve"><value>The scheduled date is outside the sheet's Monday–Sunday range.</value></data>
   <data name="La cantidad programada debe ser positiva." xml:space="preserve"><value>The scheduled quantity must be positive.</value></data>
-  <data name="La fecha de ejecución no corresponde a lunes-sábado de la hoja." xml:space="preserve"><value>The execution date is outside the sheet's Monday–Saturday range.</value></data>
+  <data name="La fecha de ejecución no corresponde a lunes-domingo de la hoja." xml:space="preserve"><value>The execution date is outside the sheet's Monday–Sunday range.</value></data>
   <data name="Las piezas completadas deben ser positivas." xml:space="preserve"><value>Completed pieces must be positive.</value></data>
   <data name="Usa solo punto decimal, sin miles, con hasta cuatro decimales (ejemplo: 12.5)." xml:space="preserve"><value>Use a decimal point only, no thousands separators, and up to four decimal places (example: 12.5).</value></data>
   <data name="Faltan {0} piezas programadas disponibles para repartir por FIFO." xml:space="preserve"><value>There are {0} scheduled pieces missing for FIFO allocation.</value></data>
@@ -907,6 +906,7 @@
   <data name="Pendiente al cierre" xml:space="preserve"><value>Closing outstanding</value></data>
   <data name="Extras del día" xml:space="preserve"><value>Extras today</value></data>
   <data name="Proyección para una fecha futura; no representa producción realizada." xml:space="preserve"><value>Projection for a future date; it does not represent completed production.</value></data>
+  <data name="La programación futura es una proyección. Las piezas registradas provienen de capturas confirmadas." xml:space="preserve"><value>The future schedule is a projection. Recorded quantities come from confirmed captures.</value></data>
   <data name="Pendiente para T2" xml:space="preserve"><value>Pending for T2</value></data>
   <data name="Pendiente final" xml:space="preserve"><value>Final pending</value></data>
   <data name="El pendiente para T2 es el saldo después de T1. El pendiente final incluye ambos turnos y las entradas del proceso anterior." xml:space="preserve"><value>Pending for T2 is the balance after T1. Final pending includes both shifts and receipts from the previous process.</value></data>
@@ -930,4 +930,65 @@
   <data name="El proceso no aplica a este producto." xml:space="preserve"><value>This process does not apply to this product.</value></data>
   <data name="Usa como máximo 500 caracteres en el motivo." xml:space="preserve"><value>Use no more than 500 characters for the reason.</value></data>
   <data name="La proyección cambió al aplicar la conciliación. No se guardaron los cambios." xml:space="preserve"><value>The projection changed while reconciling production. No changes were saved.</value></data>
+  <data name="Cierre semanal" xml:space="preserve"><value>Weekly close</value></data>
+  <data name="Corte al domingo" xml:space="preserve"><value>Sunday close</value></data>
+  <data name="Semana cerrada" xml:space="preserve"><value>Closed week</value></data>
+  <data name="Cifras provisionales" xml:space="preserve"><value>Provisional figures</value></data>
+  <data name="Programar arrastre en la siguiente semana" xml:space="preserve"><value>Schedule carryover in the next week</value></data>
+  <data name="El pendiente final es el saldo físico después del domingo; programar un arrastre no aumenta ese saldo. Las cifras por conciliar se muestran por separado." xml:space="preserve"><value>The final pending amount is the physical balance after Sunday; scheduling carryover does not increase it. Amounts to reconcile are shown separately.</value></data>
+  <data name="Pendiente para próxima semana" xml:space="preserve"><value>Pending for next week</value></data>
+  <data name="No hay programación ni saldo pendiente al cierre del domingo para los filtros seleccionados." xml:space="preserve"><value>No scheduled products or pending balance remain at Sunday close for these filters.</value></data>
+  <data name="Unidad" xml:space="preserve"><value>Unit</value></data>
+  <data name="Programado nuevo domingo" xml:space="preserve"><value>New Sunday plan</value></data>
+  <data name="Pendiente T2" xml:space="preserve"><value>Pending for shift 2</value></data>
+  <data name="Total filtrado" xml:space="preserve"><value>Filtered total</value></data>
+  <data name="Páginas de pendiente" xml:space="preserve"><value>Pending pages</value></data>
+  <data name="Página" xml:space="preserve"><value>Page</value></data>
+  <data name="de" xml:space="preserve"><value>of</value></data>
+  <data name="Cumplimiento semanal por producto y área" xml:space="preserve"><value>Weekly completion by product and area</value></data>
+  <data name="Porcentaje = piezas completadas ÷ programación nueva de la semana. Si supera 100 %, puede incluir trabajo de arrastres." xml:space="preserve"><value>Percentage = completed pieces ÷ new weekly plan. A value above 100% may include carryover work.</value></data>
+  <data name="Programado nuevo semana" xml:space="preserve"><value>New weekly plan</value></data>
+  <data name="Completado" xml:space="preserve"><value>Completed</value></data>
+  <data name="Cumplimiento %" xml:space="preserve"><value>Completion %</value></data>
+  <data name="Cumplimiento" xml:space="preserve"><value>Completion</value></data>
+  <data name="Sin plan" xml:space="preserve"><value>No plan</value></data>
+  <data name="Páginas de cumplimiento" xml:space="preserve"><value>Completion pages</value></data>
+  <data name="Abre una sección para consultar sus productos y totales." xml:space="preserve"><value>Open a section to view its products and totals.</value></data>
+  <data name="Producción y cumplimiento semanal por SKU" xml:space="preserve"><value>Weekly production and completion by SKU</value></data>
+  <data name="Resumen semanal de producción por SKU" xml:space="preserve"><value>Weekly production summary by SKU</value></data>
+  <data name="Páginas del resumen semanal" xml:space="preserve"><value>Weekly summary pages</value></data>
+  <data name="Modificar programa" xml:space="preserve"><value>Edit plan</value></data>
+  <data name="No hay renglones nuevos para modificar este día." xml:space="preserve"><value>There are no new plan lines to edit for this day.</value></data>
+  <data name="Vista previa sin guardar" xml:space="preserve"><value>Unsaved preview</value></data>
+  <data name="Los cambios de programación requieren NIP ADMIN de la sesión actual." xml:space="preserve"><value>Plan changes require the current session administrator's PIN.</value></data>
+  <data name="Pendiente al iniciar es el saldo previo al día. Arrastre programado indica cuánto se pretende trabajar." xml:space="preserve"><value>Opening pending is the balance before the day. Scheduled carryover indicates how much is intended to be worked.</value></data>
+  <data name="Captura por escaneo" xml:space="preserve"><value>Scan entry</value></data>
+  <data name="Tabla y balance" xml:space="preserve"><value>Table and balance</value></data>
+  <data name="Estas cantidades se agregan a lo ya registrado. Para modificar un total, usa Tabla y balance." xml:space="preserve"><value>These quantities are added to existing records. Use Table and balance to change a total.</value></data>
+  <data name="Selecciona un renglón de programación nueva del día." xml:space="preserve"><value>Select a new plan line for the day.</value></data>
+  <data name="El programa cambió. Revisa nuevamente las cantidades." xml:space="preserve"><value>The plan changed. Review the quantities again.</value></data>
+  <data name="Nueva programación" xml:space="preserve"><value>New scheduled production</value></data>
+  <data name="Selecciona un producto visible en el balance del día." xml:space="preserve"><value>Select a product visible in the daily balance.</value></data>
+  <data name="Contexto de captura" xml:space="preserve"><value>Capture context</value></data>
+  <data name="Sin semana" xml:space="preserve"><value>No week</value></data>
+  <data name="Sin turno" xml:space="preserve"><value>No shift</value></data>
+  <data name="Tanda registrada" xml:space="preserve"><value>Batch recorded</value></data>
+  <data name="Registro" xml:space="preserve"><value>Record</value></data>
+  <data name="Ver registro" xml:space="preserve"><value>View record</value></data>
+  <data name="Escribe las piezas a agregar" xml:space="preserve"><value>Enter pieces to add</value></data>
+  <data name="Forma de captura" xml:space="preserve"><value>Capture mode</value></data>
+  <data name="Lista de pendientes" xml:space="preserve"><value>Pending list</value></data>
+  <data name="Captura rápida" xml:space="preserve"><value>Quick capture</value></data>
+  <data name="Registrado en este día y turno" xml:space="preserve"><value>Recorded this day and shift</value></data>
+  <data name="Piezas a agregar" xml:space="preserve"><value>Pieces to add</value></data>
+  <data name="Total resultante · vista previa" xml:space="preserve"><value>Resulting total · preview</value></data>
+  <data name="Vista previa; se valida al confirmar" xml:space="preserve"><value>Preview; validated on confirmation</value></data>
+  <data name="Referencia" xml:space="preserve"><value>Reference</value></data>
+  <data name="Productos con cantidad" xml:space="preserve"><value>Products with quantities</value></data>
+  <data name="Busca o escanea un SKU para agregarlo a la tanda." xml:space="preserve"><value>Search or scan a SKU to add it to the batch.</value></data>
+  <data name="Días de la semana" xml:space="preserve"><value>Days of the week</value></data>
+  <data name="Comparación de turnos" xml:space="preserve"><value>Shift comparison</value></data>
+  <data name="Acumulado de toda la semana. El total suma trabajo registrado en las áreas; una pieza puede aparecer en varios procesos. Los porcentajes indican la participación de cada turno." xml:space="preserve"><value>Full-week totals. The total adds work recorded across areas; a piece may appear in several processes. Percentages show each shift’s share.</value></data>
+  <data name="Status %" xml:space="preserve"><value>Status %</value></data>
+  <data name="Status % compara lo registrado hoy en Ready to Pack con el programa nuevo y el pendiente al iniciar en esa área." xml:space="preserve"><value>Status % compares today’s Ready to Pack output with new planned work and pending work at the start of the day.</value></data>
 </root>

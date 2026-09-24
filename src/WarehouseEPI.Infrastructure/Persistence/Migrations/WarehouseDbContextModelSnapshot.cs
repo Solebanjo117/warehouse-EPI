@@ -4459,6 +4459,31 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(16)")
                         .HasColumnName("origin");
 
+                    b.Property<string>("OriginalAnnotation1")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("original_annotation_1");
+
+                    b.Property<string>("OriginalAnnotation1Kind")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("original_annotation_1_kind");
+
+                    b.Property<string>("OriginalAnnotation2")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("original_annotation_2");
+
+                    b.Property<string>("OriginalAnnotation2Kind")
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)")
+                        .HasColumnName("original_annotation_2_kind");
+
+                    b.Property<string>("OriginalType")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)")
+                        .HasColumnName("original_type");
+
                     b.Property<DateOnly>("PlannedDate")
                         .HasColumnType("date")
                         .HasColumnName("planned_date");
@@ -4605,6 +4630,10 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("created_by_user_id");
 
+                    b.Property<bool>("ExplicitCarryover")
+                        .HasColumnType("boolean")
+                        .HasColumnName("explicit_carryover");
+
                     b.Property<Guid>("OperationId")
                         .HasColumnType("uuid")
                         .HasColumnName("operation_id");
@@ -4670,7 +4699,7 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("production_schedule_weeks", null, t =>
                         {
-                            t.HasCheckConstraint("ck_production_schedule_week_dates", "week_end = week_start + 5");
+                            t.HasCheckConstraint("ck_production_schedule_week_dates", "week_end = week_start + 6");
                         });
                 });
 
@@ -5209,6 +5238,68 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.ToTable("production_warehouse_reservations", null, t =>
                         {
                             t.HasCheckConstraint("ck_production_warehouse_reservation_quantities", "quantity > 0 AND released_quantity >= 0 AND released_quantity <= quantity");
+                        });
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWeekOpening", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("area");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("product_id");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)")
+                        .HasColumnName("quantity");
+
+                    b.Property<string>("SourceFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("source_fingerprint");
+
+                    b.Property<Guid>("SourceLineId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_line_id");
+
+                    b.Property<Guid>("SourceWeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_week_id");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.Property<Guid>("WeekId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("week_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SourceLineId");
+
+                    b.HasIndex("SourceWeekId");
+
+                    b.HasIndex("WeekId", "SourceWeekId", "SourceLineId", "Area")
+                        .IsUnique();
+
+                    b.ToTable("production_week_openings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_week_opening_quantity", "quantity >= 0");
                         });
                 });
 
@@ -8893,6 +8984,33 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Lot");
 
                     b.Navigation("SupplyRequestLine");
+                });
+
+            modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWeekOpening", b =>
+                {
+                    b.HasOne("WarehouseEPI.Core.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleLine", null)
+                        .WithMany()
+                        .HasForeignKey("SourceLineId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("SourceWeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("WarehouseEPI.Core.Entities.ProductionScheduleWeek", null)
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.ProductionWorkOrder", b =>

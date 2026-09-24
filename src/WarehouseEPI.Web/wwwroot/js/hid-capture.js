@@ -1,7 +1,8 @@
 (() => {
   const editableSelector = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
 
-  const listen = ({ root, isEnabled = () => true, onScan, maxGapMs = 100, resetMs = 250, minLength = 2 }) => {
+  const listen = ({ root, isEnabled = () => true, onScan, maxGapMs = 100, resetMs = 250, minLength = 2,
+    allowSpaces = false }) => {
     if (!(root instanceof Element) || typeof onScan !== "function") return () => {};
 
     let buffer = "";
@@ -48,7 +49,7 @@
       }
 
       if (event.key === "Shift") return;
-      if (event.key === " ") {
+      if (event.key === " " && !allowSpaces) {
         reset();
         return;
       }

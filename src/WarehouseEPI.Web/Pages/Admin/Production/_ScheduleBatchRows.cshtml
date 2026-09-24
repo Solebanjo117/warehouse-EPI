@@ -1,0 +1,19 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using global::System.Globalization
+@for (var index = 0; index < Model.Batch.Rows.Count; index++)
+{
+    var row = Model.Batch.Rows[index];
+    var prefix = $"Batch.Rows[{index}]";
+    <input type="hidden" name="@(prefix).PlannedDate" value="@row.PlannedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" />
+    <input type="hidden" name="@(prefix).ProductId" value="@row.ProductId" />
+    <input type="hidden" name="@(prefix).Quantity" value="@row.Quantity.ToString(CultureInfo.InvariantCulture)" />
+    <input type="hidden" name="@(prefix).OrderReference1" value="@row.OrderReference1" />
+    <input type="hidden" name="@(prefix).OrderReference2" value="@row.OrderReference2" />
+    <input type="hidden" name="@(prefix).OrderReference3" value="@row.OrderReference3" />
+    <input type="hidden" name="@(prefix).Notes" value="@row.Notes" />
+    <input type="hidden" name="@(prefix).OriginalType" value="@row.OriginalType" />
+    <input type="hidden" name="@(prefix).OriginalAnnotation1" value="@row.OriginalAnnotation1" />
+    <input type="hidden" name="@(prefix).OriginalAnnotation2" value="@row.OriginalAnnotation2" />
+    <input type="hidden" name="@(prefix).OriginalAnnotation1Kind" value="@row.OriginalAnnotation1Kind" />
+    <input type="hidden" name="@(prefix).OriginalAnnotation2Kind" value="@row.OriginalAnnotation2Kind" />
+}

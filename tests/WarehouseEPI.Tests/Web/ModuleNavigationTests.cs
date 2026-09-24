@@ -36,8 +36,8 @@ public sealed class ModuleNavigationTests
     {
         string[] expected = [
             "/Operations/Entry", "/Operations/Exit", "/Operations/Transfer", "/Operations/Adjustment",
-            "/Operations/CycleCounts/Index", "/Operations/ProductionSupply/Index", "/Operations/Production/Index",
-            "/Operations/Production/Index", "/Operations/Production/Advanced",
+            "/Operations/CycleCounts/Index", "/Operations/Production/Index",
+            "/Operations/Production/Index",
             "/Admin/Production/Processes",
             "/Admin/Production/Routes", "/Admin/Production/Schedule",
             "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",
@@ -52,7 +52,10 @@ public sealed class ModuleNavigationTests
         Assert.Equal("pending", Assert.Single(actions, action => action.Page == "/Reports/Workload/Index").RouteValues["view"]);
         Assert.Empty(Assert.Single(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Workload/Index").RouteValues);
         Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Locations/Index");
-        Assert.Single(actions, action => action.SupplyCount);
+        Assert.DoesNotContain(actions, action => action.Page == "/Operations/ProductionSupply/Index");
+        Assert.DoesNotContain(actions, action => action.Page == "/Operations/Production/Advanced");
+        var layout = File.ReadAllText(Path.Combine(FindRoot(), "src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
+        Assert.DoesNotContain("data-supply-count-root", layout, StringComparison.Ordinal);
         Assert.DoesNotContain(actions, action => action.Page == "/Admin/Production/Orders");
         Assert.DoesNotContain(actions, action => action.Page.Contains("/Receiving/", StringComparison.Ordinal) ||
             action.Page.Contains("/Trace/", StringComparison.Ordinal));
@@ -64,6 +67,7 @@ public sealed class ModuleNavigationTests
     [InlineData("/Admin/Catalogs/Locations/Map/Edit", "inventory")]
     [InlineData("/Locations/Details", "inventory")]
     [InlineData("/Operations/ProductionSupply/Prepare", "production")]
+    [InlineData("/Operations/ProductionSupply/Index", "production")]
     [InlineData("/Operations/Production/Execution", "production")]
     [InlineData("/Operations/WipReturn", "production")]
     [InlineData("/Admin/Production/ProcessEdit", "production")]
@@ -108,5 +112,13 @@ public sealed class ModuleNavigationTests
         }
         public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource,
             IEnumerable<IAuthorizationRequirement> requirements) => throw new NotSupportedException();
+    }
+
+    private static string FindRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "WarehouseEPI.sln")))
+            directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException("No se encontró la raíz del repositorio.");
     }
 }
