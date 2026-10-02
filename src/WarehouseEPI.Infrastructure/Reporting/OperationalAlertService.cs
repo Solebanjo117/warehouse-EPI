@@ -93,9 +93,9 @@ public sealed class OperationalAlertService(
         var items = new List<OperationalAlertItemDto>
         {
             Item(OperationalAlertCategory.NegativeInventory, OperationalAlertSeverity.Critical, c.Negative,
-                "Saldos negativos", "Posiciones producto-ubicación con saldo neto negativo.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=NegativeInventory" : "/Reports/Inventory?view=exceptions&exception=negative"),
+                "Saldos negativos", "Posiciones producto-ubicación con saldo neto negativo.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=NegativeInventory" : "/Reports/Notifications?category=NegativeInventory"),
             Item(OperationalAlertCategory.BelowMinimum, OperationalAlertSeverity.Warning, c.Minimum,
-                "Productos bajo mínimo", "Productos activos cuya existencia no alcanza el mínimo configurado.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=BelowMinimum" : "/Reports/Inventory?view=exceptions&exception=minimum")
+                "Productos bajo mínimo", "Productos activos cuya existencia no alcanza el mínimo configurado.", audience == OperationalAlertAudience.Admin ? "/Admin/Inventory/Alerts?category=BelowMinimum" : "/Reports/Notifications?category=BelowMinimum")
         };
         if (audience == OperationalAlertAudience.Admin)
         {

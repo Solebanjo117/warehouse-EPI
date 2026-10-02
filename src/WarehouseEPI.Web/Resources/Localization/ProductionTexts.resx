@@ -865,7 +865,6 @@
   <data name="Pendiente registrado" xml:space="preserve"><value>Pendiente registrado</value></data>
   <data name="Piezas realizadas" xml:space="preserve"><value>Piezas realizadas</value></data>
   <data name="Extras" xml:space="preserve"><value>Extras</value></data>
-  <data name="Por conciliar" xml:space="preserve"><value>Por conciliar</value></data>
   <data name="No hay pendientes registrados. Agrega un producto para registrar la producción realizada." xml:space="preserve"><value>No hay pendientes registrados. Agrega un producto para registrar la producción realizada.</value></data>
   <data name="El pendiente es una referencia. Puedes registrar extras o piezas cuya etapa anterior aún no se ha capturado." xml:space="preserve"><value>El pendiente es una referencia. Puedes registrar extras o piezas cuya etapa anterior aún no se ha capturado.</value></data>
   <data name="Las órdenes extra se corrigen mediante el reverso de su captura." xml:space="preserve"><value>Las órdenes extra se corrigen mediante el reverso de su captura.</value></data>
@@ -885,7 +884,6 @@
   <data name="Turno del detalle" xml:space="preserve"><value>Turno del detalle</value></data>
   <data name="Día y turno filtran solo el detalle. El resumen conserva los saldos a la fecha de corte." xml:space="preserve"><value>Día y turno filtran solo el detalle. El resumen conserva los saldos a la fecha de corte.</value></data>
   <data name="Proyección del borrador. La semana todavía no está abierta para capturar." xml:space="preserve"><value>Proyección del borrador. La semana todavía no está abierta para capturar.</value></data>
-  <data name="Programado: semana completa. Arrastre inicial: piezas recibidas al inicio por área; un negativo indica una diferencia por conciliar." xml:space="preserve"><value>Programado: semana completa. Arrastre inicial: piezas recibidas al inicio por área; un negativo indica una diferencia por conciliar.</value></data>
   <data name="Programado de la semana" xml:space="preserve"><value>Programado de la semana</value></data>
   <data name="Arrastre inicial" xml:space="preserve"><value>Arrastre inicial</value></data>
   <data name="Realizado" xml:space="preserve"><value>Realizado</value></data>
@@ -934,7 +932,6 @@
   <data name="Semana cerrada" xml:space="preserve"><value>Semana cerrada</value></data>
   <data name="Cifras provisionales" xml:space="preserve"><value>Cifras provisionales</value></data>
   <data name="Programar arrastre en la siguiente semana" xml:space="preserve"><value>Programar arrastre en la siguiente semana</value></data>
-  <data name="El pendiente final es el saldo físico después del domingo; programar un arrastre no aumenta ese saldo. Las cifras por conciliar se muestran por separado." xml:space="preserve"><value>El pendiente final es el saldo físico después del domingo; programar un arrastre no aumenta ese saldo. Las cifras por conciliar se muestran por separado.</value></data>
   <data name="Pendiente para próxima semana" xml:space="preserve"><value>Pendiente para próxima semana</value></data>
   <data name="No hay programación ni saldo pendiente al cierre del domingo para los filtros seleccionados." xml:space="preserve"><value>No hay programación ni saldo pendiente al cierre del domingo para los filtros seleccionados.</value></data>
   <data name="Unidad" xml:space="preserve"><value>Unidad</value></data>
@@ -991,4 +988,398 @@
   <data name="Acumulado de toda la semana. El total suma trabajo registrado en las áreas; una pieza puede aparecer en varios procesos. Los porcentajes indican la participación de cada turno." xml:space="preserve"><value>Acumulado de toda la semana. El total suma trabajo registrado en las áreas; una pieza puede aparecer en varios procesos. Los porcentajes indican la participación de cada turno.</value></data>
   <data name="Status %" xml:space="preserve"><value>Status %</value></data>
   <data name="Status % compara lo registrado hoy en Ready to Pack con el programa nuevo y el pendiente al iniciar en esa área." xml:space="preserve"><value>Status % compara lo registrado hoy en Ready to Pack con el programa nuevo y el pendiente al iniciar en esa área.</value></data>
+  <data name="Menos de 75 %" xml:space="preserve"><value>Menos de 75 %</value></data>
+  <data name="75 % a menos de 100 %" xml:space="preserve"><value>75 % a menos de 100 %</value></data>
+  <data name="100 % o más" xml:space="preserve"><value>100 % o más</value></data>
+  <data name="Sin base de comparación" xml:space="preserve"><value>Sin base de comparación</value></data>
+  <data name="Ver todas las áreas" xml:space="preserve"><value>Ver todas las áreas</value></data>
+  <data name="Mostrar solo {0}" xml:space="preserve"><value>Mostrar solo {0}</value></data>
+  <data name="Hay cambios sin guardar en otras áreas. Revísalos o descártalos antes de ocultarlas." xml:space="preserve"><value>Hay cambios sin guardar en otras áreas. Revísalos o descártalos antes de ocultarlas.</value></data>
+  <data name="Aplicar" xml:space="preserve"><value>Aplicar</value></data>
+  <data name="Ver balance" xml:space="preserve"><value>Ver balance</value></data>
+  <data name="Cambiar fecha" xml:space="preserve"><value>Cambiar fecha</value></data>
+  <data name="La recuperación temporal no está disponible. Conserva esta pestaña abierta hasta confirmar." xml:space="preserve"><value>La recuperación temporal no está disponible. Conserva esta pestaña abierta hasta confirmar.</value></data>
+  <data name="El borrador temporal no se puede leer. Puedes descartarlo e iniciar otra captura." xml:space="preserve"><value>El borrador temporal no se puede leer. Puedes descartarlo e iniciar otra captura.</value></data>
+  <data name="Captura pendiente" xml:space="preserve"><value>Captura pendiente</value></data>
+  <data name="Hay una captura sin confirmar en esta pestaña." xml:space="preserve"><value>Hay una captura sin confirmar en esta pestaña.</value></data>
+  <data name="Las cantidades pendientes se conservan; esta fecha no permite capturar." xml:space="preserve"><value>Las cantidades pendientes se conservan; esta fecha no permite capturar.</value></data>
+  <data name="Recuperar captura" xml:space="preserve"><value>Recuperar captura</value></data>
+  <data name="Producción registrada" xml:space="preserve"><value>Producción registrada</value></data>
+  <data name="Nueva captura" xml:space="preserve"><value>Nueva captura</value></data>
+  <data name="Hay cantidades sin confirmar. ¿Quieres salir de esta captura?" xml:space="preserve"><value>Hay cantidades sin confirmar. ¿Quieres salir de esta captura?</value></data>
+  <data name="Registrando…" xml:space="preserve"><value>Registrando…</value></data>
+  <data name="Procesando…" xml:space="preserve"><value>Procesando…</value></data>
+  <data name="Busca o escanea un SKU, escribe la cantidad y pulsa Enter para continuar." xml:space="preserve"><value>Busca o escanea un SKU, escribe la cantidad y pulsa Enter para continuar.</value></data>
+  <data name="Buscando productos…" xml:space="preserve"><value>Buscando productos…</value></data>
+  <data name="Ayuda para capturar" xml:space="preserve"><value>Ayuda para capturar</value></data>
+  <data name="Solo con cantidad" xml:space="preserve"><value>Solo con cantidad</value></data>
+  <data name="No hay filas con cantidad. Desactiva el filtro para ver los productos." xml:space="preserve"><value>No hay filas con cantidad. Desactiva el filtro para ver los productos.</value></data>
+  <data name="Cantidad a sumar" xml:space="preserve"><value>Cantidad a sumar</value></data>
+  <data name="Limpiar fila" xml:space="preserve"><value>Limpiar fila</value></data>
+  <data name="Volver a editar" xml:space="preserve"><value>Volver a editar</value></data>
+  <data name="Revisa las cantidades a sumar. El NIP confirma toda la captura." xml:space="preserve"><value>Revisa las cantidades a sumar. El NIP confirma toda la captura.</value></data>
+  <data name="El borrador no es válido. Conserva los datos y vuelve a la captura." xml:space="preserve"><value>El borrador no es válido. Conserva los datos y vuelve a la captura.</value></data>
+  <data name="Esta operación ya fue registrada con otros datos. Consulta el historial; el borrador se conserva." xml:space="preserve"><value>Esta operación ya fue registrada con otros datos. Consulta el historial; el borrador se conserva.</value></data>
+  <data name="El producto ya no está activo. Limpia esta fila para continuar." xml:space="preserve"><value>El producto ya no está activo. Limpia esta fila para continuar.</value></data>
+  <data name="El turno del borrador ya no está disponible. Conserva los datos y consulta al administrador." xml:space="preserve"><value>El turno del borrador ya no está disponible. Conserva los datos y consulta al administrador.</value></data>
+  <data name="La cantidad supera el máximo permitido: 99999999999999.9999." xml:space="preserve"><value>La cantidad supera el máximo permitido: 99999999999999.9999.</value></data>
+  <data name="Escribe las cantidades a sumar; revisa antes de confirmar." xml:space="preserve"><value>Escribe las cantidades a sumar; revisa antes de confirmar.</value></data>
+  <data name="Configuración incompleta" xml:space="preserve"><value>Configuración incompleta</value></data>
+  <data name="Captura pendiente recuperada" xml:space="preserve"><value>Captura pendiente recuperada</value></data>
+  <data name="Área de captura" xml:space="preserve"><value>Área de captura</value></data>
+  <data name="Pendientes y reparto son referencias anteriores al registro. La conciliación se actualiza al confirmar." xml:space="preserve"><value>Pendientes y reparto son referencias anteriores al registro. La conciliación se actualiza al confirmar.</value></data>
+  <data name="Consulta y registra la producción de cada día en una sola tabla." xml:space="preserve"><value>Consulta y registra la producción de cada día en una sola tabla.</value></data>
+  <data name="Escribe el total producido en T1 o T2 y pulsa Revisar cambios." xml:space="preserve"><value>Escribe el total producido en T1 o T2 y pulsa Revisar cambios.</value></data>
+  <data name="Ejemplo: si hay 20 piezas y hiciste 5 más, escribe 25. El sistema agrega la diferencia." xml:space="preserve"><value>Ejemplo: si hay 20 piezas y hiciste 5 más, escribe 25. El sistema agrega la diferencia.</value></data>
+  <data name="Configura las tres áreas y los dos turnos activos para capturar." xml:space="preserve"><value>Configura las tres áreas y los dos turnos activos para capturar.</value></data>
+  <data name="Semana cerrada. Puedes consultar el balance; tus cambios pendientes se conservarán." xml:space="preserve"><value>Semana cerrada. Puedes consultar el balance; tus cambios pendientes se conservarán.</value></data>
+  <data name="Edición administrativa" xml:space="preserve"><value>Edición administrativa</value></data>
+  <data name="Total producido" xml:space="preserve"><value>Total producido</value></data>
+  <data name="Cambios pendientes recuperados; todavía no registrados." xml:space="preserve"><value>Cambios pendientes recuperados; todavía no registrados.</value></data>
+  <data name="Agregado para capturar" xml:space="preserve"><value>Agregado para capturar</value></data>
+  <data name="Cambios pendientes fuera del filtro" xml:space="preserve"><value>Cambios pendientes fuera del filtro</value></data>
+  <data name="Cambios pendientes" xml:space="preserve"><value>Cambios pendientes</value></data>
+  <data name="La recuperación temporal no está disponible. Si sales, puedes perder los cambios. ¿Quieres salir?" xml:space="preserve"><value>La recuperación temporal no está disponible. Si sales, puedes perder los cambios. ¿Quieres salir?</value></data>
+  <data name="El total cambió. Elige qué total usar antes de revisar." xml:space="preserve"><value>El total cambió. Elige qué total usar antes de revisar.</value></data>
+  <data name="Usar total actual" xml:space="preserve"><value>Usar total actual</value></data>
+  <data name="Mantener mi total" xml:space="preserve"><value>Mantener mi total</value></data>
+  <data name="Original" xml:space="preserve"><value>Original</value></data>
+  <data name="Tu total pendiente" xml:space="preserve"><value>Tu total pendiente</value></data>
+  <data name="Registrado" xml:space="preserve"><value>Registrado</value></data>
+  <data name="Pendiente de registrar" xml:space="preserve"><value>Pendiente de registrar</value></data>
+  <data name="No se puede recuperar toda la captura. Conservamos el borrador; revisa el estado de la semana, los productos y tus permisos." xml:space="preserve"><value>No se puede recuperar toda la captura. Conservamos el borrador; revisa el estado de la semana, los productos y tus permisos.</value></data>
+  <data name="No se encontraron productos." xml:space="preserve"><value>No se encontraron productos.</value></data>
+  <data name="Programados" xml:space="preserve"><value>Programados</value></data>
+  <data name="Catálogo activo" xml:space="preserve"><value>Catálogo activo</value></data>
+  <data name="Mostrar más" xml:space="preserve"><value>Mostrar más</value></data>
+  <data name="La recuperación temporal no está disponible. Mantén esta pestaña abierta hasta confirmar." xml:space="preserve"><value>La recuperación temporal no está disponible. Mantén esta pestaña abierta hasta confirmar.</value></data>
+  <data name="Aplicar modo y revisar" xml:space="preserve"><value>Aplicar modo y revisar</value></data>
+  <data name="Capturas conservadas" xml:space="preserve"><value>Capturas conservadas</value></data>
+  <data name="Confirmar reemplazo de programación" xml:space="preserve"><value>Confirmar reemplazo de programación</value></data>
+  <data name="Conserva capturas, arrastres, extras e historial. Ignora la ejecución y los arrastres del Excel. Las semanas nuevas se crean en borrador. Las semanas publicadas o con vínculos operativos requieren ajuste desde Programa semanal." xml:space="preserve"><value>Conserva capturas, arrastres, extras e historial. Ignora la ejecución y los arrastres del Excel. Las semanas nuevas se crean en borrador. Las semanas publicadas o con vínculos operativos requieren ajuste desde Programa semanal.</value></data>
+  <data name="La semana está publicada o tiene órdenes o arrastres vinculados. Ajusta su programa desde Programa semanal; el reemplazo no modifica esos vínculos." xml:space="preserve"><value>La semana está publicada o tiene órdenes o arrastres vinculados. Ajusta su programa desde Programa semanal; el reemplazo no modifica esos vínculos.</value></data>
+  <data name="Las líneas actuales se retirarán del programa y se conservarán en el historial. Solo se afectan las semanas de esta lista." xml:space="preserve"><value>Las líneas actuales se retirarán del programa y se conservarán en el historial. Solo se afectan las semanas de esta lista.</value></data>
+  <data name="Líneas a reemplazar" xml:space="preserve"><value>Líneas a reemplazar</value></data>
+  <data name="Nueva semana" xml:space="preserve"><value>Nueva semana</value></data>
+  <data name="Crear y abrir semana" xml:space="preserve"><value>Crear y abrir semana</value></data>
+  <data name="Programación reemplazada. Se conservaron las capturas, los arrastres y el historial." xml:space="preserve"><value>Programación reemplazada. Se conservaron las capturas, los arrastres y el historial.</value></data>
+  <data name="Reemplazar solo la programación de las semanas del archivo" xml:space="preserve"><value>Reemplazar solo la programación de las semanas del archivo</value></data>
+  <data name="Reemplazo de programación" xml:space="preserve"><value>Reemplazo de programación</value></data>
+  <data name="Revisa las semanas y las líneas a reemplazar. Las capturas registradas se conservarán." xml:space="preserve"><value>Revisa las semanas y las líneas a reemplazar. Las capturas registradas se conservarán.</value></data>
+  <data name="Conserva capturas, arrastres, extras e historial. En semanas publicadas actualiza las líneas del mismo SKU y conserva sus órdenes. Solo bloquea eliminaciones o reducciones incompatibles con la producción y los arrastres existentes." xml:space="preserve"><value>Conserva capturas, arrastres, extras e historial. En semanas publicadas actualiza las líneas del mismo SKU y conserva sus órdenes. Solo bloquea eliminaciones o reducciones incompatibles con la producción y los arrastres existentes.</value></data>
+  <data name="Las líneas vinculadas se actualizan conservando sus órdenes y capturas. Las líneas sustituidas permanecen en el historial. Solo se afectan las semanas de esta lista." xml:space="preserve"><value>Las líneas vinculadas se actualizan conservando sus órdenes y capturas. Las líneas sustituidas permanecen en el historial. Solo se afectan las semanas de esta lista.</value></data>
+  <data name="Conserva capturas, arrastres, extras e historial. Las líneas vinculadas ausentes del Excel quedan fuera del programa sin borrar su producción. Los arrastres comprometidos y las reducciones incompatibles requieren revisión." xml:space="preserve"><value>Conserva capturas, arrastres, extras e historial. Las líneas vinculadas ausentes del Excel quedan fuera del programa sin borrar su producción. Los arrastres comprometidos y las reducciones incompatibles requieren revisión.</value></data>
+  <data name="Estas líneas ya no cuentan como programadas. Sus órdenes, capturas e historial se conservan sin cancelaciones ni reversos." xml:space="preserve"><value>Estas líneas ya no cuentan como programadas. Sus órdenes, capturas e historial se conservan sin cancelaciones ni reversos.</value></data>
+  <data name="Producción conservada fuera del programa" xml:space="preserve"><value>Producción conservada fuera del programa</value></data>
+  <data name="Renglón {0}" xml:space="preserve"><value>Renglón {0}</value></data>
+  <data name="El pendiente es arrastre inicial + programación acumulada − producción efectiva. Un valor negativo indica adelanto. La disponibilidad física se valida por separado." xml:space="preserve"><value>El pendiente es arrastre inicial + programación acumulada − producción efectiva. Un valor negativo indica adelanto. La disponibilidad física se valida por separado.</value></data>
+  <data name="Reportes" xml:space="preserve"><value>Reportes</value></data>
+  <data name="Reportes de producción" xml:space="preserve"><value>Reportes de producción</value></data>
+  <data name="Resumen diario por proceso" xml:space="preserve"><value>Resumen diario por proceso</value></data>
+  <data name="Avance y pendientes por producto" xml:space="preserve"><value>Avance y pendientes por producto</value></data>
+  <data name="Periodo del detalle" xml:space="preserve"><value>Periodo del detalle</value></data>
+  <data name="Día seleccionado" xml:space="preserve"><value>Día seleccionado</value></data>
+  <data name="Semana completa" xml:space="preserve"><value>Semana completa</value></data>
+  <data name="Solo cantidades guardadas" xml:space="preserve"><value>Solo cantidades guardadas</value></data>
+  <data name="Otros turnos" xml:space="preserve"><value>Otros turnos</value></data>
+  <data name="Reporte" xml:space="preserve"><value>Reporte</value></data>
+  <data name="Los totales se separan por proceso y unidad." xml:space="preserve"><value>Los totales se separan por proceso y unidad.</value></data>
+  <data name="El arrastre programado es una referencia separada; no se suma de nuevo al pendiente inicial." xml:space="preserve"><value>El arrastre programado es una referencia separada; no se suma de nuevo al pendiente inicial.</value></data>
+  <data name="Totales de todos los resultados filtrados, separados por unidad." xml:space="preserve"><value>Totales de todos los resultados filtrados, separados por unidad.</value></data>
+  <data name="No hay resultados para los filtros seleccionados." xml:space="preserve"><value>No hay resultados para los filtros seleccionados.</value></data>
+  <data name="El reporte supera 10.000 filas. Usa filtros más específicos." xml:space="preserve"><value>El reporte supera 10.000 filas. Usa filtros más específicos.</value></data>
+  <data name="Paginación de productos" xml:space="preserve"><value>Paginación de productos</value></data>
+  <data name="productos" xml:space="preserve"><value>productos</value></data>
+  <data name="Total semanal" xml:space="preserve"><value>Total semanal</value></data>
+  <data name="Pendiente inicial" xml:space="preserve"><value>Pendiente inicial</value></data>
+  <data name="Lunes" xml:space="preserve"><value>Lunes</value></data>
+  <data name="Martes" xml:space="preserve"><value>Martes</value></data>
+  <data name="Miércoles" xml:space="preserve"><value>Miércoles</value></data>
+  <data name="Jueves" xml:space="preserve"><value>Jueves</value></data>
+  <data name="Viernes" xml:space="preserve"><value>Viernes</value></data>
+  <data name="Sábado" xml:space="preserve"><value>Sábado</value></data>
+  <data name="Domingo" xml:space="preserve"><value>Domingo</value></data>
+  <data name="Imprimir" xml:space="preserve"><value>Imprimir</value></data>
+  <data name="Exportar a Excel" xml:space="preserve"><value>Exportar a Excel</value></data>
+  <data name="Desplazamiento horizontal del reporte" xml:space="preserve"><value>Desplazamiento horizontal del reporte</value></data>
+  <data name="Totales de todos los resultados filtrados, agrupados por día." xml:space="preserve"><value>Totales de todos los resultados filtrados, agrupados por día.</value></data>
+  <data name="Una fila por día, con totales por proceso." xml:space="preserve"><value>Una fila por día, con totales por proceso.</value></data>
+  <data name="Desplazamiento horizontal del balance diario" xml:space="preserve"><value>Desplazamiento horizontal del balance diario</value></data>
+  <data name="Cierre semanal pendiente de actualizar" xml:space="preserve"><value>Cierre semanal pendiente de actualizar</value></data>
+  <data name="producto revisado" xml:space="preserve"><value>producto</value></data>
+  <data name="cambio revisado" xml:space="preserve"><value>cambio</value></data>
+  <data name="cambios" xml:space="preserve"><value>cambios</value></data>
+  <data name="Cambio" xml:space="preserve"><value>Cambio</value></data>
+  <data name="Programación" xml:space="preserve"><value>Programación</value></data>
+  <data name="Anterior → nuevo total. — = sin cambios." xml:space="preserve"><value>Anterior → nuevo total. — = sin cambios.</value></data>
+  <data name="Volver al resumen semanal" xml:space="preserve"><value>Volver al resumen semanal</value></data>
+  <data name="Días de la semana del reporte" xml:space="preserve"><value>Días de la semana del reporte</value></data>
+  <data name="Lun" xml:space="preserve"><value>Lun</value></data>
+  <data name="Mar" xml:space="preserve"><value>Mar</value></data>
+  <data name="Mié" xml:space="preserve"><value>Mié</value></data>
+  <data name="Jue" xml:space="preserve"><value>Jue</value></data>
+  <data name="Vie" xml:space="preserve"><value>Vie</value></data>
+  <data name="Sáb" xml:space="preserve"><value>Sáb</value></data>
+  <data name="Dom" xml:space="preserve"><value>Dom</value></data>
+  <data name="Otras acciones" xml:space="preserve"><value>Otras acciones</value></data>
+  <data name="Áreas y turnos" xml:space="preserve"><value>Áreas y turnos</value></data>
+  <data name="Programa guardado" xml:space="preserve"><value>Programa guardado</value></data>
+  <data name="Preparación sin incorporar" xml:space="preserve"><value>Preparación sin incorporar</value></data>
+  <data name="Guardando…" xml:space="preserve"><value>Guardando…</value></data>
+  <data name="Guardado por comprobar" xml:space="preserve"><value>Guardado por comprobar</value></data>
+  <data name="Preparación pendiente de recuperar" xml:space="preserve"><value>Preparación pendiente de recuperar</value></data>
+  <data name="Prepara el programa antes de habilitar la captura" xml:space="preserve"><value>Prepara el programa antes de habilitar la captura</value></data>
+  <data name="Captura habilitada" xml:space="preserve"><value>Captura habilitada</value></data>
+  <data name="Semana de consulta; captura deshabilitada" xml:space="preserve"><value>Semana de consulta; captura deshabilitada</value></data>
+  <data name="Revisar y abrir semana" xml:space="preserve"><value>Revisar y abrir semana</value></data>
+  <data name="Cerrar semana…" xml:space="preserve"><value>Cerrar semana…</value></data>
+  <data name="Reabrir semana…" xml:space="preserve"><value>Reabrir semana…</value></data>
+  <data name="Revisar apertura de la semana" xml:space="preserve"><value>Revisar apertura de la semana</value></data>
+  <data name="Al confirmar la apertura se habilitará la captura de esta semana." xml:space="preserve"><value>Al confirmar la apertura se habilitará la captura de esta semana.</value></data>
+  <data name="Solo se incorporará el arrastre seleccionado en la preparación." xml:space="preserve"><value>Solo se incorporará el arrastre seleccionado en la preparación.</value></data>
+  <data name="Hay preparación pendiente en este dispositivo. Vuelve a editar para recuperarla, guardarla o descartarla antes de abrir." xml:space="preserve"><value>Hay preparación pendiente en este dispositivo. Vuelve a editar para recuperarla, guardarla o descartarla antes de abrir.</value></data>
+  <data name="Resuelve los bloqueos de la revisión antes de confirmar la apertura." xml:space="preserve"><value>Resuelve los bloqueos de la revisión antes de confirmar la apertura.</value></data>
+  <data name="Confirmar apertura" xml:space="preserve"><value>Confirmar apertura</value></data>
+  <data name="La semana quedará de consulta y se bloquearán nuevas capturas." xml:space="preserve"><value>La semana quedará de consulta y se bloquearán nuevas capturas.</value></data>
+  <data name="Se habilitará nuevamente la captura de esta semana. La reapertura quedará registrada en auditoría." xml:space="preserve"><value>Se habilitará nuevamente la captura de esta semana. La reapertura quedará registrada en auditoría.</value></data>
+  <data name="Confirmar cierre" xml:space="preserve"><value>Confirmar cierre</value></data>
+  <data name="Confirmar reapertura" xml:space="preserve"><value>Confirmar reapertura</value></data>
+  <data name="Reabrir semana" xml:space="preserve"><value>Reabrir semana</value></data>
+  <data name="Guardar cambios" xml:space="preserve"><value>Guardar cambios</value></data>
+  <data name="Guardar y continuar a apertura" xml:space="preserve"><value>Guardar y continuar a apertura</value></data>
+  <data name="Incorpora o descarta la copia o el pegado antes de continuar a apertura." xml:space="preserve"><value>Incorpora o descarta la copia o el pegado antes de continuar a apertura.</value></data>
+  <data name="Recupera o descarta la preparación pendiente antes de continuar." xml:space="preserve"><value>Recupera o descarta la preparación pendiente antes de continuar.</value></data>
+  <data name="Completa las cantidades de los productos preparados antes de continuar." xml:space="preserve"><value>Completa las cantidades de los productos preparados antes de continuar.</value></data>
+  <data name="Descartar preparación ilegible" xml:space="preserve"><value>Descartar preparación ilegible</value></data>
+  <data name="Cómo preparar productos" xml:space="preserve"><value>Cómo preparar productos</value></data>
+  <data name="Forma de agregar productos" xml:space="preserve"><value>Forma de agregar productos</value></data>
+  <data name="Elige un método y revisa los productos antes de guardar." xml:space="preserve"><value>Elige un método y revisa los productos antes de guardar.</value></data>
+  <data name="Escribe o escanea un código para añadirlo." xml:space="preserve"><value>Escribe o escanea un código para añadirlo.</value></data>
+  <data name="Copiar semana" xml:space="preserve"><value>Copiar semana</value></data>
+  <data name="Elige una semana anterior y revisa qué traer." xml:space="preserve"><value>Elige una semana anterior y revisa qué traer.</value></data>
+  <data name="Pegar desde Excel" xml:space="preserve"><value>Pegar desde Excel</value></data>
+  <data name="Pega filas y revisa los datos antes de incorporarlos." xml:space="preserve"><value>Pega filas y revisa los datos antes de incorporarlos.</value></data>
+  <data name="Seleccionado" xml:space="preserve"><value>Seleccionado</value></data>
+  <data name="Formato para pegar datos de Excel" xml:space="preserve"><value>Formato para pegar datos de Excel</value></data>
+  <data name="Vista de la tabla" xml:space="preserve"><value>Vista de la tabla</value></data>
+  <data name="Agregar productos" xml:space="preserve"><value>Agregar productos</value></data>
+  <data name="Copiar otra semana" xml:space="preserve"><value>Copiar otra semana</value></data>
+  <data name="Pegar Excel" xml:space="preserve"><value>Pegar Excel</value></data>
+  <data name="Descartar copia o pegado preparado" xml:space="preserve"><value>Descartar copia o pegado preparado</value></data>
+  <data name="Revisar cambios del programa" xml:space="preserve"><value>Revisar cambios del programa</value></data>
+  <data name="Seguir editando" xml:space="preserve"><value>Seguir editando</value></data>
+  <data name="Preparar copia" xml:space="preserve"><value>Preparar copia</value></data>
+  <data name="Planeación y avance semanal" xml:space="preserve"><value>Planeación y avance semanal</value></data>
+  <data name="Escribe cantidades por día. Revisa y guarda el grupo cuando esté listo." xml:space="preserve"><value>Escribe cantidades por día. Revisa y guarda el grupo cuando esté listo.</value></data>
+  <data name="Semana cerrada: consulta del programa y avance por área." xml:space="preserve"><value>Semana cerrada: consulta del programa y avance por área.</value></data>
+  <data name="Meta por área = plan del día + faltante anterior − adelanto anterior. Los porcentajes corresponden al programa guardado." xml:space="preserve"><value>Meta por área = plan del día + faltante anterior − adelanto anterior. Los porcentajes corresponden al programa guardado.</value></data>
+  <data name="El estado del plan cubre primero las metas más antiguas con toda la producción guardada de la semana. «Hecho ese día» conserva su fecha real." xml:space="preserve"><value>El estado del plan cubre primero las metas más antiguas con toda la producción guardada de la semana. «Hecho ese día» conserva su fecha real.</value></data>
+  <data name="Hay cambios pendientes. Guarda para actualizar las metas y los porcentajes." xml:space="preserve"><value>Hay cambios pendientes. Guarda para actualizar las metas y los porcentajes.</value></data>
+  <data name="Detalle diario y acciones por renglón" xml:space="preserve"><value>Detalle diario y acciones por renglón</value></data>
+  <data name="Cubierto por adelanto" xml:space="preserve"><value>Cubierto por adelanto</value></data>
+  <data name="Sin meta" xml:space="preserve"><value>Sin meta</value></data>
+  <data name="Plan base" xml:space="preserve"><value>Plan base</value></data>
+  <data name="Pedidos y notas" xml:space="preserve"><value>Pedidos y notas</value></data>
+  <data name="Detalle de pedidos debajo" xml:space="preserve"><value>Detalle de pedidos debajo</value></data>
+  <data name="Sin programación nueva" xml:space="preserve"><value>Sin programación nueva</value></data>
+  <data name="renglones de pedidos" xml:space="preserve"><value>renglones de pedidos</value></data>
+  <data name="Inventario" xml:space="preserve"><value>Inventario</value></data>
+  <data name="Sin productos programados ni producción en esta semana." xml:space="preserve"><value>Sin productos programados ni producción en esta semana.</value></data>
+  <data name="Total" xml:space="preserve"><value>Total</value></data>
+  <data name="Desplazamiento horizontal del programa semanal" xml:space="preserve"><value>Desplazamiento horizontal del programa semanal</value></data>
+  <data name="Diario" xml:space="preserve"><value>Diario</value></data>
+  <data name="Estado del plan" xml:space="preserve"><value>Estado del plan</value></data>
+  <data name="Cubierto" xml:space="preserve"><value>Cubierto</value></data>
+  <data name="Hecho ese día" xml:space="preserve"><value>Hecho ese día</value></data>
+  <data name="Pendiente de esta meta" xml:space="preserve"><value>Pendiente de esta meta</value></data>
+  <data name="Sin meta nueva" xml:space="preserve"><value>Sin meta nueva</value></data>
+  <data name="Acumulado" xml:space="preserve"><value>Acumulado</value></data>
+  <data name="Hoy" xml:space="preserve"><value>Hoy</value></data>
+  <data name="Adelanto aplicado" xml:space="preserve"><value>Adelanto aplicado</value></data>
+  <data name="Aún no inicia" xml:space="preserve"><value>Aún no inicia</value></data>
+  <data name="Corte del acumulado y día visible" xml:space="preserve"><value>Corte del acumulado y día visible</value></data>
+  <data name="Acumulado al" xml:space="preserve"><value>Acumulado al</value></data>
+  <data name="El acumulado usa la producción hasta el día seleccionado y el plan acumulado hasta cada columna." xml:space="preserve"><value>El acumulado usa la producción hasta el día seleccionado y el plan acumulado hasta cada columna.</value></data>
+  <data name="Pedidos" xml:space="preserve"><value>Pedidos</value></data>
+  <data name="Tipo original" xml:space="preserve"><value>Tipo original</value></data>
+  <data name="Pedidos y anotaciones" xml:space="preserve"><value>Pedidos y anotaciones</value></data>
+  <data name="Notas y anotaciones" xml:space="preserve"><value>Notas y anotaciones</value></data>
+  <data name="Sección Productos" xml:space="preserve"><value>Productos</value></data>
+  <data name="Resumen" xml:space="preserve"><value>Resumen</value></data>
+  <data name="Secciones del programa" xml:space="preserve"><value>Secciones del programa</value></data>
+  <data name="Cómo interpretar el avance" xml:space="preserve"><value>Cómo interpretar el avance</value></data>
+  <data name="{0} cambios" xml:space="preserve"><value>{0} cambios</value></data>
+  <data name="Buscar o escanear SKU" xml:space="preserve"><value>Buscar o escanear SKU</value></data>
+  <data name="Exportar Excel" xml:space="preserve"><value>Exportar Excel</value></data>
+  <data name="Por día" xml:space="preserve"><value>Por día</value></data>
+  <data name="{0} cambio" xml:space="preserve"><value>{0} cambio</value></data>
+  <data name="Cantidad programada" xml:space="preserve"><value>Cantidad programada</value></data>
+  <data name="Ver desglose" xml:space="preserve"><value>Ver desglose</value></data>
+  <data name="Editar pedidos ({0})" xml:space="preserve"><value>Editar pedidos ({0})</value></data>
+  <data name="Ver pedidos ({0})" xml:space="preserve"><value>Ver pedidos ({0})</value></data>
+  <data name="Pedido 1" xml:space="preserve"><value>Pedido 1</value></data>
+  <data name="Pedido 2" xml:space="preserve"><value>Pedido 2</value></data>
+  <data name="Pedido 3" xml:space="preserve"><value>Pedido 3</value></data>
+  <data name="Acciones" xml:space="preserve"><value>Acciones</value></data>
+  <data name="Detalles" xml:space="preserve"><value>Detalles</value></data>
+  <data name="Ver detalles" xml:space="preserve"><value>Ver detalles</value></data>
+  <data name="Ver día" xml:space="preserve"><value>Ver día</value></data>
+  <data name="Sin pedidos" xml:space="preserve"><value>Sin pedidos</value></data>
+  <data name="Sin especificar en origen" xml:space="preserve"><value>Sin especificar en origen</value></data>
+  <data name="Sin notas" xml:space="preserve"><value>Sin notas</value></data>
+  <data name="Sin anotación" xml:space="preserve"><value>Sin anotación</value></data>
+  <data name="Anotación 1" xml:space="preserve"><value>Anotación 1</value></data>
+  <data name="Anotación 2" xml:space="preserve"><value>Anotación 2</value></data>
+  <data name="Programado nuevo" xml:space="preserve"><value>Programado nuevo</value></data>
+  <data name="Líneas nuevas" xml:space="preserve"><value>Líneas nuevas</value></data>
+  <data name="Líneas cliente" xml:space="preserve"><value>Líneas cliente</value></data>
+  <data name="Líneas inventario" xml:space="preserve"><value>Líneas inventario</value></data>
+  <data name="Apertura importada" xml:space="preserve"><value>Apertura importada</value></data>
+  <data name="Ver conteos y arrastres" xml:space="preserve"><value>Ver conteos y arrastres</value></data>
+  <data name="Distribución diaria" xml:space="preserve"><value>Distribución diaria</value></data>
+  <data name="Todavía no hay cantidades ni renglones para resumir." xml:space="preserve"><value>Todavía no hay cantidades ni renglones para resumir.</value></data>
+  <data name="Resumen del plan" xml:space="preserve"><value>Resumen del plan</value></data>
+  <data name="Revisión de la semana" xml:space="preserve"><value>Revisión de la semana</value></data>
+  <data name="Detalle" xml:space="preserve"><value>Detalle</value></data>
+  <data name="Cliente" xml:space="preserve"><value>Cliente</value></data>
+  <data name="Copiar productos" xml:space="preserve"><value>Copiar productos</value></data>
+  <data name="Evidencia: página {0} de {1} · {2} celdas" xml:space="preserve"><value>Evidencia: página {0} de {1} · {2} celdas</value></data>
+  <data name="Arrastre inicial · consultando pendientes…" xml:space="preserve"><value>Arrastre inicial · consultando pendientes…</value></data>
+  <data name="Selecciona pendientes anteriores para incorporarlos al inicio del lunes. Sin selección, el arrastre inicial es cero. Las áreas no se suman entre sí." xml:space="preserve"><value>Selecciona pendientes anteriores para incorporarlos al inicio del lunes. Sin selección, el arrastre inicial es cero. Las áreas no se suman entre sí.</value></data>
+  <data name="Los orígenes de semanas abiertas son provisionales y se validan nuevamente al guardar y al capturar." xml:space="preserve"><value>Los orígenes de semanas abiertas son provisionales y se validan nuevamente al guardar y al capturar.</value></data>
+  <data name="Consultando pendientes…" xml:space="preserve"><value>Consultando pendientes…</value></data>
+  <data name="Actualizar pendientes y recuperar preparación" xml:space="preserve"><value>Actualizar pendientes y recuperar preparación</value></data>
+  <data name="Motivo de la corrección" xml:space="preserve"><value>Motivo de la corrección</value></data>
+  <data name="Revisar arrastre" xml:space="preserve"><value>Revisar arrastre</value></data>
+  <data name="Confirmar corrección" xml:space="preserve"><value>Confirmar corrección</value></data>
+  <data name="La semana cambió o no admite esta corrección. Actualiza y revisa de nuevo." xml:space="preserve"><value>La semana cambió o no admite esta corrección. Actualiza y revisa de nuevo.</value></data>
+  <data name="Revisa entre 1 y 100 cambios e indica un motivo de hasta 500 caracteres." xml:space="preserve"><value>Revisa entre 1 y 100 cambios e indica un motivo de hasta 500 caracteres.</value></data>
+  <data name="Las capturas cambiaron. Revisa nuevamente la corrección." xml:space="preserve"><value>Las capturas cambiaron. Revisa nuevamente la corrección.</value></data>
+  <data name="La semana no admite cambios de arrastre inicial." xml:space="preserve"><value>La semana no admite cambios de arrastre inicial.</value></data>
+  <data name="Hay arrastres repetidos en el grupo." xml:space="preserve"><value>Hay arrastres repetidos en el grupo.</value></data>
+  <data name="{0} · {1}: el pendiente cambió o la cantidad no es válida. Revisa el origen." xml:space="preserve"><value>{0} · {1}: el pendiente cambió o la cantidad no es válida. Revisa el origen.</value></data>
+  <data name="{0} · {1}: hay {2} consumidas y {3} comprometidas. Corrige primero las capturas [{4}] o las semanas [{5}]." xml:space="preserve"><value>{0} · {1}: hay {2} consumidas y {3} comprometidas. Corrige primero las capturas [{4}] o las semanas [{5}].</value></data>
+  <data name="{0} · {1}: corrige primero las capturas o los arrastres posteriores que comprometen este saldo." xml:space="preserve"><value>{0} · {1}: corrige primero las capturas o los arrastres posteriores que comprometen este saldo.</value></data>
+  <data name="El origen del arrastre {0} · {1} cambió. Revisa Arrastre inicial en Programa semanal." xml:space="preserve"><value>El origen del arrastre {0} · {1} cambió. Revisa Arrastre inicial en Programa semanal.</value></data>
+  <data name="Filtrar productos" xml:space="preserve"><value>Filtrar productos</value></data>
+  <data name="Cómo interpretar el balance" xml:space="preserve"><value>Cómo interpretar el balance</value></data>
+  <data name="Base de comparación" xml:space="preserve"><value>Base de comparación</value></data>
+  <data name="Editar programación ({0})" xml:space="preserve"><value>Editar programación ({0})</value></data>
+  <data name="Pendiente al iniciar es el saldo previo al día. Solo incluye el arrastre admitido en la preparación de esta semana." xml:space="preserve"><value>Pendiente al iniciar es el saldo previo al día. Solo incluye el arrastre admitido en la preparación de esta semana.</value></data>
+  <data name="Status % corresponde al indicador Diario de Ready to Pack. Incluye el adelanto aplicado y la producción del día sobre su base de comparación." xml:space="preserve"><value>Status % corresponde al indicador Diario de Ready to Pack. Incluye el adelanto aplicado y la producción del día sobre su base de comparación.</value></data>
+  <data name="La preparación contiene una acción no válida." xml:space="preserve"><value>La preparación contiene una acción no válida.</value></data>
+  <data name="Ver arrastre incorporado" xml:space="preserve"><value>Ver arrastre incorporado</value></data>
+  <data name="Revisa SKU, día, cantidad y detalles de los productos preparados." xml:space="preserve"><value>Revisa SKU, día, cantidad y detalles de los productos preparados.</value></data>
+  <data name="No se pudo validar la revisión. Reintenta sin perder la preparación." xml:space="preserve"><value>No se pudo validar la revisión. Reintenta sin perder la preparación.</value></data>
+  <data name="Esta semana usa el modelo anterior. Crea una semana nueva para traer arrastre inicial." xml:space="preserve"><value>Esta semana usa el modelo anterior. Crea una semana nueva para traer arrastre inicial.</value></data>
+  <data name="Ver arrastre incorporado ({0})" xml:space="preserve"><value>Ver arrastre incorporado ({0})</value></data>
+  <data name="Un renglón cambió. Actualiza y revisa de nuevo." xml:space="preserve"><value>Un renglón cambió. Actualiza y revisa de nuevo.</value></data>
+  <data name="Revisa la preparación antes de guardar." xml:space="preserve"><value>Revisa la preparación antes de guardar.</value></data>
+  <data name="La semana cambió. Actualiza y revisa de nuevo." xml:space="preserve"><value>La semana cambió. Actualiza y revisa de nuevo.</value></data>
+  <data name="Validar revisión" xml:space="preserve"><value>Validar revisión</value></data>
+  <data name="La preparación o los pendientes cambiaron. Revisa nuevamente antes de guardar." xml:space="preserve"><value>La preparación o los pendientes cambiaron. Revisa nuevamente antes de guardar.</value></data>
+  <data name="La semana origen sigue abierta. Sus pendientes se validarán al guardar." xml:space="preserve"><value>La semana origen sigue abierta. Sus pendientes se validarán al guardar.</value></data>
+  <data name="Indica un motivo de hasta 500 caracteres para cambiar el arrastre de la semana abierta." xml:space="preserve"><value>Indica un motivo de hasta 500 caracteres para cambiar el arrastre de la semana abierta.</value></data>
+  <data name="{0} filas de producto y {1} SKU con arrastre. Revisa y ajusta las cantidades antes de incorporar." xml:space="preserve"><value>{0} filas de producto y {1} SKU con arrastre. Revisa y ajusta las cantidades antes de incorporar.</value></data>
+  <data name="Ver origen ({0})" xml:space="preserve"><value>Ver origen ({0})</value></data>
+  <data name="La semana origen está en borrador; solo se pueden copiar sus productos." xml:space="preserve"><value>La semana origen está en borrador; solo se pueden copiar sus productos.</value></data>
+  <data name="Crear semana" xml:space="preserve"><value>Crear semana</value></data>
+  <data name="La cantidad no puede ser menor que lo ya procesado." xml:space="preserve"><value>La cantidad no puede ser menor que lo ya procesado.</value></data>
+  <data name="Motivo del cambio de arrastre" xml:space="preserve"><value>Motivo del cambio de arrastre</value></data>
+  <data name="El origen del arrastre · {0} ya no está disponible. Prepara de nuevo la copia." xml:space="preserve"><value>El origen del arrastre · {0} ya no está disponible. Prepara de nuevo la copia.</value></data>
+  <data name="{0} · {1}: hay {2} consumidas y {3} comprometidas. Corrige primero las capturas o los arrastres posteriores." xml:space="preserve"><value>{0} · {1}: hay {2} consumidas y {3} comprometidas. Corrige primero las capturas o los arrastres posteriores.</value></data>
+  <data name="Preparar pegado" xml:space="preserve"><value>Preparar pegado</value></data>
+  <data name="Ver origen" xml:space="preserve"><value>Ver origen</value></data>
+  <data name="Incluir arrastre" xml:space="preserve"><value>Incluir arrastre</value></data>
+  <data name="Incluir producto" xml:space="preserve"><value>Incluir producto</value></data>
+  <data name="Incluir producto {0}" xml:space="preserve"><value>Incluir producto {0}</value></data>
+  <data name="Traer arrastre de {0}" xml:space="preserve"><value>Traer arrastre de {0}</value></data>
+  <data name="arrastre de {0}" xml:space="preserve"><value>arrastre de {0}</value></data>
+  <data name="origen inicial {0}" xml:space="preserve"><value>origen inicial {0}</value></data>
+  <data name="Corregir SKU" xml:space="preserve"><value>Corregir SKU</value></data>
+  <data name="La preparación supera el máximo de 100 cambios. Excluye productos o arrastres antes de guardar." xml:space="preserve"><value>La preparación supera el máximo de 100 cambios. Excluye productos o arrastres antes de guardar.</value></data>
+  <data name="Copia preparada en la planeación. Ajusta las cantidades y revisa antes de guardar." xml:space="preserve"><value>Copia preparada en la planeación. Ajusta las cantidades y revisa antes de guardar.</value></data>
+  <data name="Corrige los SKU señalados en la planeación antes de guardar." xml:space="preserve"><value>Corrige los SKU señalados en la planeación antes de guardar.</value></data>
+  <data name="No se pudo consultar la semana origen. Reintenta." xml:space="preserve"><value>No se pudo consultar la semana origen. Reintenta.</value></data>
+  <data name="No se pudo preparar la copia. Reintenta sin perder los ajustes." xml:space="preserve"><value>No se pudo preparar la copia. Reintenta sin perder los ajustes.</value></data>
+  <data name="El origen cambió. Se conservaron tus cantidades; revisa nuevamente antes de guardar." xml:space="preserve"><value>El origen cambió. Se conservaron tus cantidades; revisa nuevamente antes de guardar.</value></data>
+  <data name="Quitar selección de origen no disponible" xml:space="preserve"><value>Quitar selección de origen no disponible</value></data>
+  <data name="Revisa nuevamente los cambios del programa." xml:space="preserve"><value>Revisa nuevamente los cambios del programa.</value></data>
+  <data name="Este renglón no admite eliminación." xml:space="preserve"><value>Este renglón no admite eliminación.</value></data>
+  <data name="¿Eliminar {0} del {1}? Se aplicará al guardar los cambios." xml:space="preserve"><value>¿Eliminar {0} del {1}? Se aplicará al guardar los cambios.</value></data>
+  <data name="Eliminación pendiente de guardar." xml:space="preserve"><value>Eliminación pendiente de guardar.</value></data>
+  <data name="Programación nueva" xml:space="preserve"><value>Programación nueva</value></data>
+  <data name="Incorpora o descarta la preparación antes de continuar a apertura." xml:space="preserve"><value>Incorpora o descarta la preparación antes de continuar a apertura.</value></data>
+  <data name="Copiar de otra semana" xml:space="preserve"><value>Copiar de otra semana</value></data>
+  <data name="Traer arrastre" xml:space="preserve"><value>Traer arrastre</value></data>
+  <data name="Incluir cantidades anteriores de productos" xml:space="preserve"><value>Incluir cantidades anteriores de productos</value></data>
+  <data name="Texto pendiente del pegado anterior" xml:space="preserve"><value>Texto pendiente del pegado anterior</value></data>
+  <data name="Este texto se conserva solo como respaldo. No se incorporará al programa ni impedirá guardar otros cambios." xml:space="preserve"><value>Este texto se conserva solo como respaldo. No se incorporará al programa ni impedirá guardar otros cambios.</value></data>
+  <data name="Descartar texto anterior" xml:space="preserve"><value>Descartar texto anterior</value></data>
+  <data name="Busca un SKU o copia una semana para empezar." xml:space="preserve"><value>Busca un SKU o copia una semana para empezar.</value></data>
+  <data name="Buscar SKU en esta semana" xml:space="preserve"><value>Buscar SKU en esta semana</value></data>
+  <data name="Mostrando {0} de {1} SKU." xml:space="preserve"><value>Mostrando {0} de {1} SKU.</value></data>
+  <data name="Limpiar todo" xml:space="preserve"><value>Limpiar todo</value></data>
+  <data name="Semana a crear" xml:space="preserve"><value>Semana a crear</value></data>
+  <data name="Las semanas comienzan en lunes." xml:space="preserve"><value>Las semanas comienzan en lunes.</value></data>
+  <data name="Mes anterior" xml:space="preserve"><value>Mes anterior</value></data>
+  <data name="Mes siguiente" xml:space="preserve"><value>Mes siguiente</value></data>
+  <data name="Esta semana" xml:space="preserve"><value>Esta semana</value></data>
+  <data name="Próxima semana" xml:space="preserve"><value>Próxima semana</value></data>
+  <data name="Ya creada" xml:space="preserve"><value>Ya creada</value></data>
+  <data name="Ver semana" xml:space="preserve"><value>Ver semana</value></data>
+  <data name="Ver semana: {0}" xml:space="preserve"><value>Ver semana: {0}</value></data>
+  <data name="Selecciona una semana." xml:space="preserve"><value>Selecciona una semana.</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="Lunes {0} – domingo {1}" xml:space="preserve"><value>Lunes {0} – domingo {1}</value></data>
+  <data name="Consultando semanas…" xml:space="preserve"><value>Consultando semanas…</value></data>
+  <data name="Esta semana ya está creada." xml:space="preserve"><value>Esta semana ya está creada.</value></data>
+  <data name="No se pudieron consultar las semanas. Se conserva el mes anterior. Reintenta." xml:space="preserve"><value>No se pudieron consultar las semanas. Se conserva el mes anterior. Reintenta.</value></data>
+  <data name="Prepara el programa antes de confirmar la apertura." xml:space="preserve"><value>Prepara el programa antes de confirmar la apertura.</value></data>
+  <data name="Selecciona una semana disponible para introducir el programa." xml:space="preserve"><value>Selecciona una semana disponible para introducir el programa.</value></data>
+  <data name="Guardar y abrir semana" xml:space="preserve"><value>Guardar y abrir semana</value></data>
+  <data name="Cambios por confirmar" xml:space="preserve"><value>Cambios por confirmar</value></data>
+  <data name="La semana se abrirá sin programación ni arrastre." xml:space="preserve"><value>La semana se abrirá sin programación ni arrastre.</value></data>
+  <data name="No se pudo consultar la semana. Reintenta sin perder la preparación." xml:space="preserve"><value>No se pudo consultar la semana. Reintenta sin perder la preparación.</value></data>
+  <data name="Revisa como máximo 100 cambios antes de confirmar." xml:space="preserve"><value>Revisa como máximo 100 cambios antes de confirmar.</value></data>
+  <data name="La preparación no tiene un formato válido." xml:space="preserve"><value>La preparación no tiene un formato válido.</value></data>
+  <data name="No se guardó ningún cambio." xml:space="preserve"><value>No se guardó ningún cambio.</value></data>
+  <data name="Conservar productos y cantidades como preparación manual" xml:space="preserve"><value>Conservar productos y cantidades como preparación manual</value></data>
+  <data name="Hay arrastres repetidos para el mismo SKU y área." xml:space="preserve"><value>Hay arrastres repetidos para el mismo SKU y área.</value></data>
+  <data name="Revisa SKU, área y cantidad del arrastre inicial." xml:space="preserve"><value>Revisa SKU, área y cantidad del arrastre inicial.</value></data>
+  <data name="El arrastre inicial cambió. Actualiza y revisa de nuevo." xml:space="preserve"><value>El arrastre inicial cambió. Actualiza y revisa de nuevo.</value></data>
+  <data name="La copia precarga el arrastre inicial. Puedes ajustar libremente cada área." xml:space="preserve"><value>La copia precarga el arrastre inicial. Puedes ajustar libremente cada área.</value></data>
+  <data name="{0} · {1}: cantidad no válida." xml:space="preserve"><value>{0} · {1}: cantidad no válida.</value></data>
+  <data name="Selecciona las líneas que deseas copiar." xml:space="preserve"><value>Selecciona las líneas que deseas copiar.</value></data>
+  <data name="Total con arrastre" xml:space="preserve"><value>Total con arrastre</value></data>
+  <data name="Por revisar" xml:space="preserve"><value>Por revisar</value></data>
+  <data name="{0}: elige hasta tres pedidos para empaque." xml:space="preserve"><value>{0}: elige hasta tres pedidos para empaque.</value></data>
+  <data name="Usar estos pedidos" xml:space="preserve"><value>Usar estos pedidos</value></data>
+  <data name="Pedido {0}" xml:space="preserve"><value>Pedido {0}</value></data>
+  <data name="La preparación contiene totales repetidos o cambios incompatibles." xml:space="preserve"><value>La preparación contiene totales repetidos o cambios incompatibles.</value></data>
+  <data name="{0}, {1}: el mínimo permitido es {2} {3}." xml:space="preserve"><value>{0}, {1}: el mínimo permitido es {2} {3}.</value></data>
+  <data name="Programado del día es de solo consulta. Edita la programación en Programa semanal." xml:space="preserve"><value>Programado del día es de solo consulta. Edita la programación en Programa semanal.</value></data>
+  <data name="Ver programación ({0})" xml:space="preserve"><value>Ver programación ({0})</value></data>
+  <data name="Ingresar a Warehouse EPI" xml:space="preserve"><value>Ingresar a Warehouse EPI</value></data>
+  <data name="Introduce tu NIP para abrir las secciones de tu rol." xml:space="preserve"><value>Introduce tu NIP para abrir las secciones de tu rol.</value></data>
+  <data name="NIP inválido o usuario inactivo." xml:space="preserve"><value>NIP inválido o usuario inactivo.</value></data>
+  <data name="Tu rol no tiene permiso para abrir esta sección." xml:space="preserve"><value>Tu rol no tiene permiso para abrir esta sección.</value></data>
+  <data name="Este NIP pertenece a Producción. Para registrar operaciones de almacén usa un NIP de Operador o Administrador." xml:space="preserve"><value>Este NIP pertenece a Producción. Para registrar operaciones de almacén usa un NIP de Operador o Administrador.</value></data>
+  <data name="Este NIP pertenece a Operador. Para registrar producción usa un NIP de Producción o Administrador." xml:space="preserve"><value>Este NIP pertenece a Operador. Para registrar producción usa un NIP de Producción o Administrador.</value></data>
+  <data name="Consulta de solo lectura." xml:space="preserve"><value>Consulta de solo lectura.</value></data>
+  <data name="No hay semanas disponibles." xml:space="preserve"><value>No hay semanas disponibles.</value></data>
+  <data name="Resumen por día y unidad" xml:space="preserve"><value>Resumen por día y unidad</value></data>
+  <data name="Cantidad nueva" xml:space="preserve"><value>Cantidad nueva</value></data>
+  <data name="Sin resultados." xml:space="preserve"><value>Sin resultados.</value></data>
+  <data name="Operador" xml:space="preserve"><value>Operador</value></data>
+  <data name="Consultar el programa semanal." xml:space="preserve"><value>Consultar el programa semanal.</value></data>
+  <data name="Consultar saldos negativos y productos bajo mínimo." xml:space="preserve"><value>Consultar saldos negativos y productos bajo mínimo.</value></data>
+  <data name="Acceso denegado" xml:space="preserve"><value>Acceso denegado</value></data>
+  <data name="Saldo" xml:space="preserve"><value>Saldo</value></data>
+  <data name="Existencias" xml:space="preserve"><value>Existencias</value></data>
+  <data name="Notificaciones" xml:space="preserve"><value>Notificaciones</value></data>
+  <data name="Inicio" xml:space="preserve"><value>Inicio</value></data>
+  <data name="Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Closed" xml:space="preserve"><value>Closed</value></data>
 </root>

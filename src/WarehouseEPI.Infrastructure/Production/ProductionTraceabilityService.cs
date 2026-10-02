@@ -116,14 +116,27 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         return new(true, operationId);
     }
 
-    public async Task<ProductionTraceabilityResult> CreateBatchAsync(CreateProductionBatchCommand command,
-        CancellationToken token = default)
+    public Task<ProductionTraceabilityResult> CreateBatchAsync(CreateProductionBatchCommand command,
+        CancellationToken token = default) => CreateBatchCoreAsync(command, null, token);
+
+    internal Task<ProductionTraceabilityResult> CreateBatchAuthorizedAsync(CreateProductionBatchCommand command,
+        Guid authenticatedAdminId, CancellationToken token) => CreateBatchCoreAsync(command, authenticatedAdminId, token);
+
+    internal Task<ProductionTraceabilityResult> CreateDailyBatchAsync(CreateProductionBatchCommand command, CancellationToken token) =>
+        CreateBatchCoreAsync(command, null, token, dailyCapture: true);
+
+    private async Task<ProductionTraceabilityResult> CreateBatchCoreAsync(CreateProductionBatchCommand command,
+        Guid? authenticatedAdminId, CancellationToken token, bool dailyCapture = false)
     {
+        if (authenticatedAdminId.HasValue && !await db.Users.AnyAsync(x => x.Id == authenticatedAdminId && x.IsActive && x.Role.Code == "ADMIN", token))
+            return Invalid("NIP ADMIN inválido.");
+        var user = authenticatedAdminId.HasValue
+            ? await db.Users.Include(x => x.Role).SingleAsync(x => x.Id == authenticatedAdminId, token)
+            : await pins.AuthenticateAsync(command.Pin, token);
+        if (user is null || !(dailyCapture ? RoleAccess.CanCaptureProduction(user.Role.Code) : RoleAccess.CanOperateWarehouse(user.Role.Code))) return Invalid("NIP inválido.");
         var fp = Fingerprint(command with { Pin = "" });
         var prior = await db.ProductionBatches.AsNoTracking().SingleOrDefaultAsync(x => x.CreateOperationId == command.OperationId, token);
         if (prior is not null) return prior.CreateFingerprint == fp ? new(true, prior.Id) : new(false, Conflict: true);
-        var user = await pins.AuthenticateAsync(command.Pin, token);
-        if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return Invalid("NIP inválido.");
         var order = await db.ProductionWorkOrders.Include(x => x.Batches).Include(x => x.Product).Include(x => x.Unit)
             .SingleOrDefaultAsync(x => x.Id == command.WorkOrderId, token);
         if (order is null || !order.UsesBatchTraceability) return Invalid("La orden no tiene seguimiento por lotes.");
@@ -163,11 +176,17 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
         }
     }
 
-    public async Task<ProductionTraceabilityResult> RecordResultAsync(RecordBatchResultCommand command,
-        CancellationToken token = default)
+    public Task<ProductionTraceabilityResult> RecordResultAsync(RecordBatchResultCommand command,
+        CancellationToken token = default) => RecordResultCoreAsync(command, token);
+
+    internal Task<ProductionTraceabilityResult> RecordDailyResultAsync(RecordBatchResultCommand command,
+        CancellationToken token) => RecordResultCoreAsync(command, token, dailyCapture: true);
+
+    private async Task<ProductionTraceabilityResult> RecordResultCoreAsync(RecordBatchResultCommand command,
+        CancellationToken token, bool dailyCapture = false)
     {
         var user = await pins.AuthenticateAsync(command.Pin, token);
-        if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return Invalid("NIP inválido.");
+        if (user is null || !(dailyCapture ? RoleAccess.CanCaptureProduction(user.Role.Code) : RoleAccess.CanOperateWarehouse(user.Role.Code))) return Invalid("NIP inválido.");
         var administrator = user.Role.Code == "ADMIN" ? user : string.IsNullOrEmpty(command.AdminPin) ? null : await pins.AuthenticateAsync(command.AdminPin, token);
         if (administrator?.Role.Code != "ADMIN") administrator = null;
         var fp = Fingerprint(new { Command = command with { Pin = "", AdminPin = null }, UserId = user.Id, AdminId = administrator?.Id });
@@ -247,9 +266,11 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
             ProductionMaterialOperation? materialOperation = null;
             if (requested.Length > 0)
             {
-                var applied = await materialService.ApplyAsync(new ProductionMaterialCommand(command.OperationId,
+                var materialCommand = new ProductionMaterialCommand(command.OperationId,
                     order.Id, stage.Id, order.Version, ProductionMaterialOperationType.Consumption, requested,
-                    command.Pin, Notes: reasonSnapshot, ReworkCaseId: selectedCase?.Id), token);
+                    command.Pin, Notes: reasonSnapshot, ReworkCaseId: selectedCase?.Id);
+                var applied = dailyCapture ? await materialService.ApplyDailyConsumptionAsync(materialCommand, token)
+                    : await materialService.ApplyAsync(materialCommand, token);
                 if (applied.Status != ProductionMaterialStatus.Success)
                     return await Abort(tx, Invalid(applied.Errors?.FirstOrDefault() ?? "No fue posible consumir los materiales."), token);
                 materialOperation = await db.ProductionMaterialOperations.Include(x => x.Lines)

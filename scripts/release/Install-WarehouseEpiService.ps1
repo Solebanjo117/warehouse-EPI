@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$PackagePath,
-    [string]$ProjectPath = 'src\WarehouseEPI.Web\WarehouseEPI.Web.csproj'
+    [string]$ProjectPath = 'src\WarehouseEPI.Web\WarehouseEPI.Web.csproj',
+    [switch]$CreateAdministrator
 )
 
 Set-StrictMode -Version Latest
@@ -17,7 +18,13 @@ if (-not (Test-Path -LiteralPath $script:WarehouseEpiConfigPath)) {
 }
 
 $release = Expand-WarehouseEpiReleasePackage $PackagePath
-try { Invoke-WarehouseEpiPreflight $release.Executable }
+try {
+    Invoke-WarehouseEpiPreflight $release.Executable
+    if ($CreateAdministrator) {
+        & $release.Executable --environment Production --contentRoot=$($release.Path) --ServiceConfigPath=$script:WarehouseEpiConfigPath --create-admin
+        if ($LASTEXITCODE -ne 0) { throw 'No fue posible crear el primer administrador.' }
+    }
+}
 catch {
     Remove-WarehouseEpiInactiveRelease $release.Path
     throw

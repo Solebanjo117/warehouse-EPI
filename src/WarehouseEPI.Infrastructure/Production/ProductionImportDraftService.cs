@@ -114,13 +114,13 @@ public sealed class ProductionImportDraftService(WarehouseDbContext db, Producti
                 return new(ProductionDailyCommandStatus.IdempotencyConflict);
             var result = await importer.ConfirmAsync(fresh, command.OperationId, command.ActorId, token);
             if (!result.Success) return result;
-            var batch = await db.ProductionScheduleImportBatches.SingleAsync(x => x.OperationId == command.OperationId, token);
+            var batch = fresh.ReplaceProgramming ? null : await db.ProductionScheduleImportBatches.SingleAsync(x => x.OperationId == command.OperationId, token);
             AddRevision(draft, resolutions, fresh, command.ActorId, "Confirmed", command.OperationId);
             draft.Status = ProductionImportDraftStatus.Confirmed;
-            draft.BatchId = batch.Id;
+            draft.BatchId = batch?.Id;
             await db.SaveChangesAsync(token);
             if (transaction is not null) await transaction.CommitAsync(token);
-            return new(ProductionDailyCommandStatus.Success, batch.Id);
+            return new(ProductionDailyCommandStatus.Success, batch?.Id);
         }
         catch (Exception ex) when (IsConflict(ex))
         {
@@ -134,6 +134,7 @@ public sealed class ProductionImportDraftService(WarehouseDbContext db, Producti
     {
         using var stream = new MemoryStream(draft.FileBytes, writable: false);
         var preview = await importer.PreviewAsync(stream, draft.FileName, resolutions, token);
+        if (resolutions.ReplaceProgramming) return preview;
         if (await db.ProductionScheduleImportBatches.AnyAsync(x => x.FileHash == draft.FileHash, token))
             preview = preview with { Issues = preview.Issues.Append(new("Archivo", null, "Este archivo ya fue importado; no se reemplazarán las semanas existentes.")).ToArray() };
         else if (await db.ProductionScheduleWeeks.AnyAsync(x => preview.Weeks.Select(w => w.WeekStart).Contains(x.WeekStart), token))

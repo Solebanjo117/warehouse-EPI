@@ -4913,4 +4913,402 @@
   <data name="Estos procesos se comparten entre las posiciones WIP presentes. Las posiciones de almacenamiento no son destinos WIP."><value>These processes apply to present WIP positions. Storage positions are not WIP destinations.</value></data>
   <data name="Función"><value>Role</value></data>
   <data name="Cambios de función"><value>Role changes</value></data>
+  <data name="Exhibición de filas" xml:space="preserve"><value>Row display</value></data>
+  <data name="Elige qué filas pasan por el monitor, cuántos racks caben en cada pantalla y cuánto dura cada una." xml:space="preserve"><value>Choose which rows appear on the monitor, how many racks fit on each screen, and how long each screen stays visible.</value></data>
+  <data name="Volver a ubicaciones" xml:space="preserve"><value>Back to locations</value></data>
+  <data name="Aún no hay filas físicas para exhibir. Crea posiciones de rack para comenzar." xml:space="preserve"><value>There are no physical rows to display yet. Create rack positions to get started.</value></data>
+  <data name="Filas del carrusel" xml:space="preserve"><value>Carousel rows</value></data>
+  <data name="Cada fila aparece por separado y sus racks siguen el recorrido del croquis en el sentido elegido." xml:space="preserve"><value>Each row appears separately, with its racks following the map in the selected direction.</value></data>
+  <data name="Orientación del monitor" xml:space="preserve"><value>Monitor orientation</value></data>
+  <data name="Automática" xml:space="preserve"><value>Automatic</value></data>
+  <data name="Se adapta al espacio disponible." xml:space="preserve"><value>Fits the available space.</value></data>
+  <data name="Horizontal" xml:space="preserve"><value>Landscape</value></data>
+  <data name="Para un monitor acostado." xml:space="preserve"><value>For a landscape monitor.</value></data>
+  <data name="Vertical" xml:space="preserve"><value>Portrait</value></data>
+  <data name="Un rack y el croquis debajo." xml:space="preserve"><value>One rack with the map below.</value></data>
+  <data name="Fila · Rack" xml:space="preserve"><value>Row · Rack</value></data>
+  <data name="Próximo rack · Controles" xml:space="preserve"><value>Next rack · Controls</value></data>
+  <data name="Vista previa: vertical, un rack y croquis debajo." xml:space="preserve"><value>Preview: portrait, one rack with the map below.</value></data>
+  <data name="Vista previa: horizontal; se adapta a la orientación elegida." xml:space="preserve"><value>Preview: landscape; adjusts to the selected orientation.</value></data>
+  <data name="Racks por pantalla" xml:space="preserve"><value>Racks per screen</value></data>
+  <data name="1 rack" xml:space="preserve"><value>1 rack</value></data>
+  <data name="2 racks" xml:space="preserve"><value>2 racks</value></data>
+  <data name="3 racks" xml:space="preserve"><value>3 racks</value></data>
+  <data name="Posiciones y croquis lado a lado en monitor horizontal." xml:space="preserve"><value>Positions and map side by side on a landscape monitor.</value></data>
+  <data name="Dos racks con el croquis ampliado debajo." xml:space="preserve"><value>Two racks with the enlarged map below.</value></data>
+  <data name="Más posiciones por pantalla y croquis debajo." xml:space="preserve"><value>More positions per screen with the map below.</value></data>
+  <data name="En vertical o en pantallas estrechas se muestra un rack para facilitar la lectura. La cantidad elegida se conserva para horizontal." xml:space="preserve"><value>Portrait and narrow screens show one rack for easier reading. The selected count is kept for landscape.</value></data>
+  <data name="Orden de muestra" xml:space="preserve"><value>Display order</value></data>
+  <data name="Ascendente" xml:space="preserve"><value>Ascending</value></data>
+  <data name="Descendente" xml:space="preserve"><value>Descending</value></data>
+  <data name="Ascendente: filas de A a Z y racks en el orden del croquis. Descendente: recorrido inverso de filas y racks." xml:space="preserve"><value>Ascending: rows A to Z and racks in map order. Descending: reverse row and rack order.</value></data>
+  <data name="Segundos por pantalla" xml:space="preserve"><value>Seconds per screen</value></data>
+  <data name="Entre 5 y 120 segundos. Los datos de la pantalla visible se actualizan cada 2 segundos." xml:space="preserve"><value>Between 5 and 120 seconds. Visible screen data refreshes every 2 seconds.</value></data>
+  <data name="Ubicación del monitor" xml:space="preserve"><value>Monitor location</value></data>
+  <data name="Opcional. Toca en el croquis el lugar donde está el monitor y la exhibición lo marcará como “Esta pantalla”. Con el croquis enfocado, las flechas mueven la marca." xml:space="preserve"><value>Optional. Tap the monitor location on the map to mark it as “This screen”. When the map has focus, use the arrow keys to move the marker.</value></data>
+  <data name="Quitar ubicación" xml:space="preserve"><value>Remove location</value></data>
+  <data name="Abrir exhibición" xml:space="preserve"><value>Open display</value></data>
+  <data name="La selección queda en la dirección para guardarla como favorito del monitor." xml:space="preserve"><value>The selection is included in the address so you can bookmark it on the monitor.</value></data>
+  <data name="+{0} productos más" xml:space="preserve"><value>+{0} more products</value></data>
+  <data name="Fila {0}, {1} {2}, pantalla {3} de {4}" xml:space="preserve"><value>Row {0}, {1} {2}, screen {3} of {4}</value></data>
+  <data name="Fila {0}" xml:space="preserve"><value>Row {0}</value></data>
+  <data name="Fila {0} · Pantalla {1} de {2}" xml:space="preserve"><value>Row {0} · Screen {1} of {2}</value></data>
+  <data name="{0} de {1} posiciones con saldo en la fila" xml:space="preserve"><value>{0} of {1} positions with balance in the row</value></data>
+  <data name="Extremo de la fila" xml:space="preserve"><value>End of row</value></data>
+  <data name="Rack {0}, {1} de {2} posiciones con saldo" xml:space="preserve"><value>Rack {0}, {1} of {2} positions with balance</value></data>
+  <data name="{0} de {1} con saldo" xml:space="preserve"><value>{0} of {1} with balance</value></data>
+  <data name="Croquis del almacén con la fila {0} resaltada" xml:space="preserve"><value>Warehouse map highlighting row {0}</value></data>
+  <data name="Ubicación en el almacén" xml:space="preserve"><value>Location in the warehouse</value></data>
+  <data name="Fila {0} · {1}" xml:space="preserve"><value>Row {0} · {1}</value></data>
+  <data name="Fila actual" xml:space="preserve"><value>Current row</value></data>
+  <data name="Racks en pantalla" xml:space="preserve"><value>Racks on screen</value></data>
+  <data name="Pantalla anterior" xml:space="preserve"><value>Previous screen</value></data>
+  <data name="Pantalla siguiente" xml:space="preserve"><value>Next screen</value></data>
+  <data name="Filas de la exhibición" xml:space="preserve"><value>Display rows</value></data>
+  <data name="Ir a la fila {0}" xml:space="preserve"><value>Go to row {0}</value></data>
+  <data name="Reproduciendo" xml:space="preserve"><value>Playing</value></data>
+  <data name="Actualizado {0}" xml:space="preserve"><value>Updated {0}</value></data>
+  <data name="Pantalla completa" xml:space="preserve"><value>Full screen</value></data>
+  <data name="Configurar" xml:space="preserve"><value>Configure</value></data>
+  <data name="Croquis para marcar dónde está el monitor" xml:space="preserve"><value>Map for marking the monitor location</value></data>
+  <data name="Esta pantalla" xml:space="preserve"><value>This screen</value></data>
+  <data name="Sigue el rack {0}" xml:space="preserve"><value>Next rack: {0}</value></data>
+  <data name="Siguen los racks {0}" xml:space="preserve"><value>Next racks: {0}</value></data>
+  <data name="Sigue la fila {0}" xml:space="preserve"><value>Next row: {0}</value></data>
+  <data name="Rack {0}" xml:space="preserve"><value>Rack {0}</value></data>
+  <data name="Racks {0}" xml:space="preserve"><value>Racks {0}</value></data>
+  <data name="{0} y {1}" xml:space="preserve"><value>{0} and {1}</value></data>
+  <data name="Selecciona al menos una fila para iniciar la exhibición." xml:space="preserve"><value>Select at least one row to start the display.</value></data>
+  <data name="Últimos {0} días" xml:space="preserve"><value>Last {0} days</value></data>
+  <data name="{0} a {1}" xml:space="preserve"><value>{0} to {1}</value></data>
+  <data name="Saldo actual en estantería" xml:space="preserve"><value>Current rack balance</value></data>
+  <data name="No fue posible calcular el mapa de calor. Conserva tus filtros y vuelve a intentarlo." xml:space="preserve"><value>The heatmap could not be calculated. Keep your filters and try again.</value></data>
+  <data name="Identificar pallet" xml:space="preserve"><value>Identify pallet</value></data>
+  <data name="El lienzo solo puede agrandarse; conserva al menos las dimensiones publicadas." xml:space="preserve"><value>The canvas can only grow; keep at least the published dimensions.</value></data>
+  <data name="Todos los elementos arquitectónicos guardados, incluso los archivados, deben conservarse." xml:space="preserve"><value>Keep all saved architectural elements, including archived elements.</value></data>
+  <data name="Todas las referencias guardadas, incluso las archivadas, deben conservarse." xml:space="preserve"><value>Keep all saved references, including archived references.</value></data>
+  <data name="La capa arquitectónica está incompleta. No se modificó el croquis." xml:space="preserve"><value>The architectural layer is incomplete. The map was not changed.</value></data>
+  <data name="La lista de elementos ya no coincide con el croquis actual." xml:space="preserve"><value>The element list no longer matches the current map.</value></data>
+  <data name="El croquis contiene elementos que no existen en el catálogo actual." xml:space="preserve"><value>The map contains elements missing from the current catalog.</value></data>
+  <data name="La lista de capas ya no coincide con el croquis actual." xml:space="preserve"><value>The layer list no longer matches the current map.</value></data>
+  <data name="No se pueden eliminar elementos arquitectónicos que ya fueron guardados." xml:space="preserve"><value>Saved architectural elements cannot be deleted.</value></data>
+  <data name="No se pueden eliminar referencias que ya fueron guardadas." xml:space="preserve"><value>Saved references cannot be deleted.</value></data>
+  <data name="Uno de los elementos del croquis ya no existe." xml:space="preserve"><value>A map element no longer exists.</value></data>
+  <data name="Una de las capas del croquis ya no existe." xml:space="preserve"><value>A map layer no longer exists.</value></data>
+  <data name="Uno de los elementos arquitectónicos ya no existe." xml:space="preserve"><value>An architectural element no longer exists.</value></data>
+  <data name="Una de las referencias del croquis ya no existe." xml:space="preserve"><value>A map reference no longer exists.</value></data>
+  <data name="No fue posible guardar el croquis. Vuelve a intentarlo." xml:space="preserve"><value>The map could not be saved. Try again.</value></data>
+  <data name="La operación y el solicitante son obligatorios." xml:space="preserve"><value>The operation and requester are required.</value></data>
+  <data name="El motivo admite hasta 500 caracteres." xml:space="preserve"><value>The reason allows up to 500 characters.</value></data>
+  <data name="El lienzo debe medir entre 1600 × 900 y 6400 × 3600, en incrementos de 25 unidades." xml:space="preserve"><value>The canvas must be between 1600 × 900 and 6400 × 3600, in increments of 25 units.</value></data>
+  <data name="La colección de elementos no es válida." xml:space="preserve"><value>The element collection is invalid.</value></data>
+  <data name="La geometría debe permanecer dentro del croquis y usar rotaciones de 90°." xml:space="preserve"><value>Geometry must stay within the map and use 90° rotations.</value></data>
+  <data name="La colección de capas no es válida." xml:space="preserve"><value>The layer collection is invalid.</value></data>
+  <data name="La colección arquitectónica no es válida." xml:space="preserve"><value>The architectural collection is invalid.</value></data>
+  <data name="La geometría arquitectónica debe permanecer dentro del croquis y conservar su forma." xml:space="preserve"><value>Architectural geometry must stay within the map and keep its shape.</value></data>
+  <data name="La escala debe ser positiva y pertenecer al rango permitido." xml:space="preserve"><value>The scale must be positive and within the allowed range.</value></data>
+  <data name="El sistema de medición debe ser IMPERIAL o METRIC." xml:space="preserve"><value>The measurement system must be IMPERIAL or METRIC.</value></data>
+  <data name="La colección de referencias del croquis no es válida." xml:space="preserve"><value>The map reference collection is invalid.</value></data>
+  <data name="Los grupos deben contener al menos dos elementos de una misma capa." xml:space="preserve"><value>Groups must contain at least two elements in the same layer.</value></data>
+  <data name="Todos los integrantes de un grupo deben compartir el estado archivado." xml:space="preserve"><value>All group members must share the archived state.</value></data>
+  <data name="Calibra la escala antes de crear cotas." xml:space="preserve"><value>Calibrate the scale before creating dimensions.</value></data>
+  <data name="Cada cota debe contener exactamente una línea y un texto agrupados." xml:space="preserve"><value>Each dimension must contain exactly one grouped line and text.</value></data>
+  <data name="El texto de una cota debe corresponder con su distancia calibrada." xml:space="preserve"><value>Dimension text must match its calibrated distance.</value></data>
+  <data name="Una referencia contiene archivo, geometría o calibración inválidos." xml:space="preserve"><value>A reference contains an invalid file, geometry, or calibration.</value></data>
+  <data name="Los metadatos inmutables de una referencia guardada no pueden cambiar." xml:space="preserve"><value>Immutable metadata of a saved reference cannot change.</value></data>
+  <data name="Desbloquea la referencia antes de modificarla." xml:space="preserve"><value>Unlock the reference before modifying it.</value></data>
+  <data name="Restaura la referencia antes de modificarla." xml:space="preserve"><value>Restore the reference before modifying it.</value></data>
+  <data name="Una referencia calibrada requiere una escala válida." xml:space="preserve"><value>A calibrated reference requires a valid scale.</value></data>
+  <data name="La escala no coincide con la calibración de la referencia activa." xml:space="preserve"><value>The scale does not match the active reference calibration.</value></data>
+  <data name="Un elemento arquitectónico no pertenece a una capa válida." xml:space="preserve"><value>An architectural element does not belong to a valid layer.</value></data>
+  <data name="Los textos arquitectónicos admiten hasta 120 caracteres." xml:space="preserve"><value>Architectural text allows up to 120 characters.</value></data>
+  <data name="Un elemento arquitectónico contiene geometría JSON inválida." xml:space="preserve"><value>An architectural element contains invalid geometry JSON.</value></data>
+  <data name="Un elemento arquitectónico contiene geometría inválida." xml:space="preserve"><value>An architectural element contains invalid geometry.</value></data>
+  <data name="Una polilínea arquitectónica debe contener entre 2 y 64 puntos." xml:space="preserve"><value>An architectural polyline must contain between 2 and 64 points.</value></data>
+  <data name="Solo las polilíneas pueden contener puntos." xml:space="preserve"><value>Only polylines can contain points.</value></data>
+  <data name="Un texto arquitectónico no puede estar vacío." xml:space="preserve"><value>Architectural text cannot be empty.</value></data>
+  <data name="Un elemento arquitectónico no pertenece a una capa editable válida." xml:space="preserve"><value>An architectural element does not belong to a valid editable layer.</value></data>
+  <data name="El tipo arquitectónico no es compatible con su capa." xml:space="preserve"><value>The architectural type is incompatible with its layer.</value></data>
+  <data name="Los textos arquitectónicos son obligatorios y admiten hasta 120 caracteres." xml:space="preserve"><value>Architectural text is required and allows up to 120 characters.</value></data>
+  <data name="Solo los rectángulos pueden tener esquinas redondeadas." xml:space="preserve"><value>Only rectangles can have rounded corners.</value></data>
+  <data name="La capa y el tipo de un elemento guardado no pueden cambiar." xml:space="preserve"><value>The layer and type of a saved element cannot change.</value></data>
+  <data name="Desbloquea la capa antes de modificar sus elementos." xml:space="preserve"><value>Unlock the layer before modifying its elements.</value></data>
+  <data name="Restaura el elemento antes de modificar su geometría o estilo." xml:space="preserve"><value>Restore the element before modifying its geometry or style.</value></data>
+  <data name="Desbloquea la capa antes de dibujar un elemento." xml:space="preserve"><value>Unlock the layer before drawing an element.</value></data>
+  <data name="Dos zonas arquitectónicas se superponen." xml:space="preserve"><value>Two architectural zones overlap.</value></data>
+  <data name="Dos racks se superponen." xml:space="preserve"><value>Two racks overlap.</value></data>
+  <data name="Un rack invade un pasillo." xml:space="preserve"><value>A rack extends into an aisle.</value></data>
+  <data name="Selecciona una imagen PNG, JPEG o WebP." xml:space="preserve"><value>Select a PNG, JPEG, or WebP image.</value></data>
+  <data name="La referencia debe medir entre 1 byte y 2 MiB." xml:space="preserve"><value>The reference must be between 1 byte and 2 MiB.</value></data>
+  <data name="La referencia debe medir como máximo 2 MiB." xml:space="preserve"><value>The reference must be at most 2 MiB.</value></data>
+  <data name="Usa una imagen PNG, JPEG o WebP válida." xml:space="preserve"><value>Use a valid PNG, JPEG, or WebP image.</value></data>
+  <data name="La referencia no puede exceder 4096 × 4096 píxeles." xml:space="preserve"><value>The reference cannot exceed 4096 × 4096 pixels.</value></data>
+  <data name="El estilo arquitectónico de {0} no pertenece al catálogo permitido: trazo '{1}', relleno '{2}', grosor {3}." xml:space="preserve"><value>The architectural style of {0} is outside the allowed catalog: stroke '{1}', fill '{2}', width {3}.</value></data>
+  <data name="El pasillo mide {0} de ancho; 32 in es una referencia editorial, no normativa." xml:space="preserve"><value>The aisle is {0} wide; 32 in is an editorial reference, not a regulatory requirement.</value></data>
+  <data name="Selecciona una métrica válida para el mapa de calor." xml:space="preserve"><value>Select a valid metric for the heatmap.</value></data>
+  <data name=", {0} operaciones" xml:space="preserve"><value>, {0} operations</value></data>
+  <data name=", {0}% ocupado" xml:space="preserve"><value>, {0}% occupied</value></data>
+  <data name="{0} mov." xml:space="preserve"><value>{0} ops.</value></data>
+  <data name="Abrir {0}, {1}, {2}" xml:space="preserve"><value>Open {0}, {1}, {2}</value></data>
+  <data name="Selecciona una métrica válida para exportar el mapa de calor." xml:space="preserve"><value>Select a valid metric to export the heatmap.</value></data>
+  <data name="Consultar rack {0}" xml:space="preserve"><value>View rack {0}</value></data>
+  <data name="Consultar área {0}" xml:space="preserve"><value>View area {0}</value></data>
+  <data name="Cerrar búsqueda" xml:space="preserve"><value>Close search</value></data>
+  <data name="SKU, descripción, referencia o código de barras" xml:space="preserve"><value>SKU, description, reference or barcode</value></data>
+  <data name="Escribe o escanea un producto y pulsa Buscar." xml:space="preserve"><value>Enter or scan a product and press Search.</value></data>
+  <data name="Buscando productos…" xml:space="preserve"><value>Searching products…</value></data>
+  <data name="Cargando ubicaciones…" xml:space="preserve"><value>Loading locations…</value></data>
+  <data name="Consultando ubicación…" xml:space="preserve"><value>Loading location…</value></data>
+  <data name="No se encontraron productos. Prueba otro código o descripción." xml:space="preserve"><value>No products found. Try another code or description.</value></data>
+  <data name="Mostrando hasta cinco productos. Precisa la búsqueda si falta el que necesitas." xml:space="preserve"><value>Showing up to five products. Refine your search if yours is missing.</value></data>
+  <data name="Selecciona un producto." xml:space="preserve"><value>Select a product.</value></data>
+  <data name="Sin ubicaciones con saldo ni asignaciones activas." xml:space="preserve"><value>No locations with stock or active assignments.</value></data>
+  <data name="Ubicación no visible en el croquis" xml:space="preserve"><value>Location not visible on the map</value></data>
+  <data name="No se pudo consultar. Vuelve a intentarlo." xml:space="preserve"><value>Could not load the data. Try again.</value></data>
+  <data name="La ubicación ya no está disponible. Selecciona otra ubicación." xml:space="preserve"><value>The location is no longer available. Select another location.</value></data>
+  <data name="Coincidencias del producto" xml:space="preserve"><value>Product matches</value></data>
+  <data name="Consulta pausada" xml:space="preserve"><value>Display paused for lookup</value></data>
+  <data name="Ubicación seleccionada" xml:space="preserve"><value>Selected location</value></data>
+  <data name="Ubicaciones de {0}" xml:space="preserve"><value>Locations for {0}</value></data>
+  <data name="Última consulta: {0}" xml:space="preserve"><value>Last lookup: {0}</value></data>
+  <data name="Actualizar estado" xml:space="preserve"><value>Refresh status</value></data>
+  <data name="Cifrado con contraseña" xml:space="preserve"><value>Password encrypted</value></data>
+  <data name="Confirmar contraseña" xml:space="preserve"><value>Confirm password</value></data>
+  <data name="Contraseña del respaldo" xml:space="preserve"><value>Backup password</value></data>
+  <data name="Crear respaldo ahora" xml:space="preserve"><value>Create backup now</value></data>
+  <data name="Crear y descargar un respaldo protegido." xml:space="preserve"><value>Create and download a protected backup.</value></data>
+  <data name="Descargar respaldo" xml:space="preserve"><value>Download backup</value></data>
+  <data name="El respaldo contiene los datos de su inicio. Las operaciones posteriores se incluirán en un nuevo respaldo." xml:space="preserve"><value>The backup contains data from the start of generation. Subsequent operations will be included in a new backup.</value></data>
+  <data name="El respaldo está listo para descargar." xml:space="preserve"><value>The backup is ready to download.</value></data>
+  <data name="Entre 12 y 128 caracteres. Usa una frase larga y exclusiva para el respaldo." xml:space="preserve"><value>Between 12 and 128 characters. Use a long phrase exclusively for this backup.</value></data>
+  <data name="Generando respaldo…" xml:space="preserve"><value>Creating backup…</value></data>
+  <data name="Guarda la contraseña en un lugar seguro y entrégala a IT por separado. Si la pierdes, no podrás abrir este respaldo." xml:space="preserve"><value>Keep the password somewhere safe and give it to IT separately. If you lose it, you will not be able to open this backup.</value></data>
+  <data name="Guarda una copia del sistema para recuperación o para entregarla a IT." xml:space="preserve"><value>Save a copy of the system for recovery or to hand over to IT.</value></data>
+  <data name="Incluye la base de datos, el logo, los fondos del croquis y la clave de los NIP. El archivo completo se cifra con la contraseña que elijas." xml:space="preserve"><value>Includes the database, logo, map backgrounds and PIN key. The entire file is encrypted with the password you choose.</value></data>
+  <data name="Inténtalo de nuevo. Si vuelve a fallar, IT debe revisar espacio, permisos, PostgreSQL y archivos del croquis." xml:space="preserve"><value>Try again. If it fails again, IT should check storage space, permissions, PostgreSQL and map files.</value></data>
+  <data name="IT debe configurar la carpeta privada de respaldos manuales." xml:space="preserve"><value>IT must configure the private manual backup folder.</value></data>
+  <data name="IT debe habilitar los permisos de respaldos manuales para el servicio." xml:space="preserve"><value>IT must enable manual backup permissions for the service.</value></data>
+  <data name="IT debe instalar las herramientas de PostgreSQL 18 en el servidor." xml:space="preserve"><value>IT must install the PostgreSQL 18 tools on the server.</value></data>
+  <data name="IT debe revisar la configuración de la clave de los NIP." xml:space="preserve"><value>IT must check the PIN key configuration.</value></data>
+  <data name="IT debe revisar los permisos y la configuración de respaldos manuales." xml:space="preserve"><value>IT must check manual backup permissions and configuration.</value></data>
+  <data name="La estructura del respaldo PostgreSQL se comprueba antes de descargar. IT debe probar una restauración en una base aislada antes de la migración." xml:space="preserve"><value>The PostgreSQL backup structure is checked before download. IT must test a restore in an isolated database before migration.</value></data>
+  <data name="Las contraseñas no coinciden." xml:space="preserve"><value>The passwords do not match.</value></data>
+  <data name="No se pudo completar el respaldo." xml:space="preserve"><value>The backup could not be completed.</value></data>
+  <data name="No se pudo iniciar el respaldo. Inténtalo de nuevo." xml:space="preserve"><value>The backup could not be started. Try again.</value></data>
+  <data name="Puedes seguir usando el programa. Esta página mostrará el resultado al terminar." xml:space="preserve"><value>You can keep using the application. This page will show the result when finished.</value></data>
+  <data name="Respaldos" xml:space="preserve"><value>Backups</value></data>
+  <data name="Respaldos disponibles" xml:space="preserve"><value>Available backups</value></data>
+  <data name="Se conservan los 5 respaldos manuales más recientes en el servidor. Descarga una copia y guárdala fuera del servidor." xml:space="preserve"><value>The server keeps the 5 most recent manual backups. Download a copy and store it outside the server.</value></data>
+  <data name="Todavía no hay respaldos manuales disponibles." xml:space="preserve"><value>No manual backups are available yet.</value></data>
+  <data name="Usa una contraseña de entre 12 y 128 caracteres." xml:space="preserve"><value>Use a password between 12 and 128 characters.</value></data>
+  <data name="Ver huella SHA-256" xml:space="preserve"><value>View SHA-256 fingerprint</value></data>
+  <data name="Ya hay un respaldo en curso. Espera a que termine." xml:space="preserve"><value>A backup is already running. Wait for it to finish.</value></data>
+  <data name="Archivo de respaldo" xml:space="preserve">
+    <value>Backup file</value>
+  </data>
+  <data name="Carga un respaldo completo para recuperar los datos, los NIP, el logo y el croquis. La importación reemplaza la información actual." xml:space="preserve">
+    <value>Upload a full backup to recover the data, PINs, logo, and warehouse map. Importing replaces the current information.</value>
+  </data>
+  <data name="Cargar respaldo" xml:space="preserve">
+    <value>Upload backup</value>
+  </data>
+  <data name="Cargar y validar respaldo" xml:space="preserve">
+    <value>Upload and validate backup</value>
+  </data>
+  <data name="Confirma el reemplazo de los datos y escribe IMPORTAR." xml:space="preserve">
+    <value>Confirm replacement of the data and type IMPORTAR.</value>
+  </data>
+  <data name="Confirmar importación" xml:space="preserve">
+    <value>Confirm import</value>
+  </data>
+  <data name="El archivo no es un respaldo protegido compatible." xml:space="preserve">
+    <value>The file is not a compatible protected backup.</value>
+  </data>
+  <data name="El contenido del respaldo no es compatible." xml:space="preserve">
+    <value>The backup contents are incompatible.</value>
+  </data>
+  <data name="El manifiesto del croquis es demasiado grande." xml:space="preserve">
+    <value>The map manifest is too large.</value>
+  </data>
+  <data name="El manifiesto del respaldo es demasiado grande." xml:space="preserve">
+    <value>The backup manifest is too large.</value>
+  </data>
+  <data name="El manifiesto del respaldo no es compatible." xml:space="preserve">
+    <value>The backup manifest is incompatible.</value>
+  </data>
+  <data name="El respaldo contiene componentes no permitidos." xml:space="preserve">
+    <value>The backup contains unsupported components.</value>
+  </data>
+  <data name="El respaldo contiene rutas o tamaños no permitidos." xml:space="preserve">
+    <value>The backup contains unsupported paths or sizes.</value>
+  </data>
+  <data name="El respaldo está incompleto." xml:space="preserve">
+    <value>The backup is incomplete.</value>
+  </data>
+  <data name="El respaldo no contiene una clave de NIP válida." xml:space="preserve">
+    <value>The backup does not contain a valid PIN key.</value>
+  </data>
+  <data name="El respaldo supera el límite de tamaño." xml:space="preserve">
+    <value>The backup exceeds the size limit.</value>
+  </data>
+  <data name="Entiendo que esta importación reemplaza todos los datos actuales." xml:space="preserve">
+    <value>I understand that this import replaces all current data.</value>
+  </data>
+  <data name="Escribe IMPORTAR para confirmar" xml:space="preserve">
+    <value>Type IMPORTAR to confirm</value>
+  </data>
+  <data name="Falta el manifiesto del croquis." xml:space="preserve">
+    <value>The map manifest is missing.</value>
+  </data>
+  <data name="Falta el manifiesto del respaldo." xml:space="preserve">
+    <value>The backup manifest is missing.</value>
+  </data>
+  <data name="Formato .webackup. Tamaño máximo: 2 GB." xml:space="preserve">
+    <value>.webackup format. Maximum size: 2 GB.</value>
+  </data>
+  <data name="Hay una restauración en curso. Espera a que termine." xml:space="preserve">
+    <value>A restore is in progress. Wait for it to finish.</value>
+  </data>
+  <data name="Hay una tarea de respaldo o restauración en curso. Espera a que termine." xml:space="preserve">
+    <value>A backup or restore task is in progress. Wait for it to finish.</value>
+  </data>
+  <data name="Importación completada" xml:space="preserve">
+    <value>Import completed</value>
+  </data>
+  <data name="Importar respaldo" xml:space="preserve">
+    <value>Import backup</value>
+  </data>
+  <data name="Importar y reemplazar datos" xml:space="preserve">
+    <value>Import and replace data</value>
+  </data>
+  <data name="Inicia sesión con un NIP incluido en el respaldo importado. Se conservaron los datos anteriores para recuperación por IT." xml:space="preserve">
+    <value>Sign in with a PIN included in the imported backup. The previous data was retained for recovery by IT.</value>
+  </data>
+  <data name="Iniciar sesión" xml:space="preserve">
+    <value>Sign in</value>
+  </data>
+  <data name="Introduce el NIP de un ADMIN incluido en el respaldo." xml:space="preserve">
+    <value>Enter the PIN of an ADMIN included in the backup.</value>
+  </data>
+  <data name="IT debe habilitar el servicio local de restauración y comprobar que esté activo." xml:space="preserve">
+    <value>IT must enable the local restore service and check that it is active.</value>
+  </data>
+  <data name="IT debe revisar la recuperación" xml:space="preserve">
+    <value>IT must check recovery</value>
+  </data>
+  <data name="La aplicación está en mantenimiento. Se comprobará la base antes de reemplazar los datos. Espera a que termine para volver a capturar." xml:space="preserve">
+    <value>The application is under maintenance. The database will be checked before replacing the data. Wait for completion before entering new data.</value>
+  </data>
+  <data name="La clave de NIP no corresponde al respaldo." xml:space="preserve">
+    <value>The PIN key does not match the backup.</value>
+  </data>
+  <data name="La contraseña es incorrecta o el respaldo fue alterado." xml:space="preserve">
+    <value>The password is incorrect or the backup was altered.</value>
+  </data>
+  <data name="La importación no se completó" xml:space="preserve">
+    <value>The import did not complete</value>
+  </data>
+  <data name="La información anterior se conserva. Inicia sesión y revisa el respaldo, el NIP del ADMIN y la compatibilidad de la versión antes de intentarlo de nuevo." xml:space="preserve">
+    <value>The previous information is retained. Sign in and check the backup, ADMIN PIN, and version compatibility before trying again.</value>
+  </data>
+  <data name="La integridad de los fondos del croquis no coincide." xml:space="preserve">
+    <value>The integrity of the map backgrounds does not match.</value>
+  </data>
+  <data name="La integridad del respaldo no coincide con su manifiesto." xml:space="preserve">
+    <value>The backup integrity does not match its manifest.</value>
+  </data>
+  <data name="La recuperación automática no terminó. No captures datos; IT debe revisar la copia anterior y el registro de restauración del servidor." xml:space="preserve">
+    <value>Automatic recovery did not finish. Do not enter data; IT must check the previous copy and the server restore log.</value>
+  </data>
+  <data name="La revisión del respaldo venció. Carga y valida el archivo de nuevo." xml:space="preserve">
+    <value>The backup review expired. Upload and validate the file again.</value>
+  </data>
+  <data name="La validación se interrumpió. Carga el respaldo de nuevo." xml:space="preserve">
+    <value>Validation was interrupted. Upload the backup again.</value>
+  </data>
+  <data name="Logo / fondos del croquis" xml:space="preserve">
+    <value>Logo / map backgrounds</value>
+  </data>
+  <data name="Los fondos del croquis están incompletos." xml:space="preserve">
+    <value>The map backgrounds are incomplete.</value>
+  </data>
+  <data name="Los fondos del croquis no son válidos." xml:space="preserve">
+    <value>The map backgrounds are invalid.</value>
+  </data>
+  <data name="NIP de un ADMIN incluido en el respaldo" xml:space="preserve">
+    <value>PIN of an ADMIN included in the backup</value>
+  </data>
+  <data name="No se pudo cargar el respaldo. Vuelve a seleccionarlo." xml:space="preserve">
+    <value>The backup could not be uploaded. Select it again.</value>
+  </data>
+  <data name="No se pudo solicitar la importación. Revisa el estado antes de volver a intentarlo." xml:space="preserve">
+    <value>The import could not be requested. Check its status before trying again.</value>
+  </data>
+  <data name="No se pudo validar el respaldo. Revisa el archivo y vuelve a cargarlo." xml:space="preserve">
+    <value>The backup could not be validated. Check the file and upload it again.</value>
+  </data>
+  <data name="Puedes seguir usando el programa durante la validación. Todavía no se han cambiado los datos." xml:space="preserve">
+    <value>You can keep using the program during validation. No data has been changed yet.</value>
+  </data>
+  <data name="Recupera la base de datos, los NIP, el logo y los fondos del croquis de un respaldo completo." xml:space="preserve">
+    <value>Recover the database, PINs, logo, and map backgrounds from a full backup.</value>
+  </data>
+  <data name="Restauración en curso" xml:space="preserve">
+    <value>Restore in progress</value>
+  </data>
+  <data name="Revisar y confirmar importación" xml:space="preserve">
+    <value>Review and confirm import</value>
+  </data>
+  <data name="Se comprobará antes de reemplazar la base para asegurar el acceso a los datos restaurados." xml:space="preserve">
+    <value>It will be checked before replacing the database to ensure access to the restored data.</value>
+  </data>
+  <data name="Se conservará el estado anterior para recuperación. La revisión vence en 30 minutos." xml:space="preserve">
+    <value>The previous state will be retained for recovery. The review expires in 30 minutes.</value>
+  </data>
+  <data name="Se reemplazarán todos los datos actuales. Las capturas realizadas después del respaldo no estarán en la copia importada. La aplicación entrará en mantenimiento y cerrará las sesiones." xml:space="preserve">
+    <value>All current data will be replaced. Entries made after the backup will not be in the imported copy. The application will enter maintenance and sign everyone out.</value>
+  </data>
+  <data name="Selecciona el archivo .webackup creado en Respaldos. Primero se revisará la contraseña y la integridad; después podrás confirmar la importación." xml:space="preserve">
+    <value>Select the .webackup file created in Backups. The password and integrity will be checked first; you can then confirm the import.</value>
+  </data>
+  <data name="Selecciona el respaldo e introduce su contraseña." xml:space="preserve">
+    <value>Select the backup and enter its password.</value>
+  </data>
+  <data name="Selecciona un respaldo .webackup de hasta 2 GB." xml:space="preserve">
+    <value>Select a .webackup file up to 2 GB.</value>
+  </data>
+  <data name="Si el servicio se reinicia, esta página intentará reconectarse automáticamente." xml:space="preserve">
+    <value>If the service restarts, this page will try to reconnect automatically.</value>
+  </data>
+  <data name="Validando respaldo…" xml:space="preserve">
+    <value>Validating backup…</value>
+  </data>
+  <data name="Versión de la aplicación" xml:space="preserve">
+    <value>Application version</value>
+  </data>
+  <data name="Fecha del respaldo (UTC)" xml:space="preserve">
+    <value>Backup date (UTC)</value>
+  </data>
+  <data name="Ingresar a Warehouse EPI" xml:space="preserve"><value>Sign in to Warehouse EPI</value></data>
+  <data name="Introduce tu NIP para abrir las secciones de tu rol." xml:space="preserve"><value>Enter your PIN to access the sections for your role.</value></data>
+  <data name="NIP inválido o usuario inactivo." xml:space="preserve"><value>Invalid PIN or inactive user.</value></data>
+  <data name="Tu rol no tiene permiso para abrir esta sección." xml:space="preserve"><value>Your role does not have permission to open this section.</value></data>
+  <data name="Este NIP pertenece a Producción. Para registrar operaciones de almacén usa un NIP de Operador o Administrador." xml:space="preserve"><value>This PIN belongs to Production. To record warehouse operations, use an Operator or Administrator PIN.</value></data>
+  <data name="Este NIP pertenece a Operador. Para registrar producción usa un NIP de Producción o Administrador." xml:space="preserve"><value>This PIN belongs to an Operator. To record production, use a Production or Administrator PIN.</value></data>
+  <data name="Consulta de solo lectura." xml:space="preserve"><value>Read-only view.</value></data>
+  <data name="No hay semanas disponibles." xml:space="preserve"><value>No weeks available.</value></data>
+  <data name="Resumen por día y unidad" xml:space="preserve"><value>Summary by day and unit</value></data>
+  <data name="Cantidad nueva" xml:space="preserve"><value>New quantity</value></data>
+  <data name="Arrastre inicial" xml:space="preserve"><value>Opening carryover</value></data>
+  <data name="Arrastre programado" xml:space="preserve"><value>Scheduled carryover</value></data>
+  <data name="Operador" xml:space="preserve"><value>Operator</value></data>
+  <data name="Consultar el programa semanal." xml:space="preserve"><value>View the weekly schedule.</value></data>
+  <data name="Consultar saldos negativos y productos bajo mínimo." xml:space="preserve"><value>View negative balances and products below minimum stock.</value></data>
+  <data name="Acceso denegado" xml:space="preserve"><value>Access denied</value></data>
+  <data name="Notificaciones" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Tabla y balance" xml:space="preserve"><value>Table and balance</value></data>
+  <data name="Programa semanal" xml:space="preserve"><value>Weekly schedule</value></data>
+  <data name="Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Closed" xml:space="preserve"><value>Closed</value></data>
 </root>

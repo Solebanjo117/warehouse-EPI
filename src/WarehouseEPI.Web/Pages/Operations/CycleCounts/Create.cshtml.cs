@@ -27,7 +27,7 @@ public sealed class CreateModel(WarehouseDbContext dbContext, CycleCountService 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         var pin = Input.Pin;
-        Input.Pin = string.Empty;
+        Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         if (!ModelState.IsValid) { await LoadAsync(cancellationToken); return Page(); }
         var result = await cycleCountService.CreateAsync(new(pin, Input.Title, Input.Notes, Input.LocationIds, Input.RowCodes, Input.RackNumbers, Input.OperationId), cancellationToken);
         if (result.Status == CycleCountStatus.Success && result.CampaignId is Guid id) return RedirectToPage("Details", new { id });

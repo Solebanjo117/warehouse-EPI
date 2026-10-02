@@ -1,0 +1,51 @@
+@page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.BackupRestoreProgressModel
+@{
+    Layout = null;
+}
+<!doctype html>
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@CatTexts["Importar respaldo"] · Warehouse EPI</title>
+    <script src="~/js/theme-init.js" asp-append-version="true"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/manual-backups.css" asp-append-version="true" />
+</head>
+<body class="bg-body-tertiary">
+<main class="backup-board p-3 p-md-5" data-backup-running="@(Model.Running ? "true" : "false")" data-backup-status-url="@Url.Page("BackupRestoreProgress", "Status", new { id = Model.Id })">
+    <p class="text-body-secondary">Warehouse EPI</p>
+    <h1 class="h2 mb-4">@CatTexts["Importar respaldo"]</h1>
+    <section class="card"><div class="card-body p-4" role="status" aria-live="polite">
+        @if (Model.Running)
+        {
+            <h2 class="h4">@CatTexts["Restauración en curso"]</h2>
+            <p>@CatTexts["La aplicación está en mantenimiento. Se comprobará la base antes de reemplazar los datos. Espera a que termine para volver a capturar."]</p>
+            <p>@CatTexts["Si el servicio se reinicia, esta página intentará reconectarse automáticamente."]</p>
+            <a asp-page="BackupRestoreProgress" asp-route-id="@Model.Id" class="btn btn-outline-primary">@CatTexts["Actualizar estado"]</a>
+        }
+        else if (Model.State == WarehouseEPI.Web.Backups.RestoreJobState.Succeeded)
+        {
+            <h2 class="h4">@CatTexts["Importación completada"]</h2>
+            <p>@CatTexts["Inicia sesión con un NIP incluido en el respaldo importado. Se conservaron los datos anteriores para recuperación por IT."]</p>
+            <a asp-page="/Admin/Login" class="btn btn-primary">@CatTexts["Iniciar sesión"]</a>
+        }
+        else if (Model.State == WarehouseEPI.Web.Backups.RestoreJobState.RecoveryRequired)
+        {
+            <h2 class="h4">@CatTexts["IT debe revisar la recuperación"]</h2>
+            <p>@CatTexts["La recuperación automática no terminó. No captures datos; IT debe revisar la copia anterior y el registro de restauración del servidor."]</p>
+        }
+        else
+        {
+            <h2 class="h4">@CatTexts["La importación no se completó"]</h2>
+            <p>@CatTexts["La información anterior se conserva. Inicia sesión y revisa el respaldo, el NIP del ADMIN y la compatibilidad de la versión antes de intentarlo de nuevo."]</p>
+            <a asp-page="/Admin/Login" class="btn btn-primary">@CatTexts["Iniciar sesión"]</a>
+        }
+    </div></section>
+</main>
+<script src="~/js/site.js" asp-append-version="true" defer></script>
+<script src="~/js/manual-backups.js" asp-append-version="true" defer></script>
+</body>
+</html>

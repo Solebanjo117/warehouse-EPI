@@ -47,8 +47,9 @@ public sealed partial class ProductionDailyBalanceService
         var intentions = await db.ProductionCarryoverPlans.AsNoTracking().Where(x => x.WeekId == weekId && !explicitCarry)
             .Select(x => new { x.ProductId, x.PlannedDate, x.Area, x.Quantity }).ToListAsync(token);
         if (explicitCarry)
-            intentions.AddRange(await db.ProductionWeekOpenings.AsNoTracking().Where(x => x.WeekId == weekId && x.Quantity > 0)
-                .GroupBy(x => new { x.ProductId, x.Area }).Select(x => new { x.Key.ProductId, PlannedDate = balance.WeekStart, x.Key.Area, Quantity = x.Sum(o => o.Quantity) }).ToListAsync(token));
+            intentions.AddRange(balance.Rows.Where(x => x.Date == balance.WeekStart).SelectMany(row =>
+                new[] { row.Cutting, row.Sewing, row.ReadyToPack }.Select(area => new { row.ProductId,
+                    PlannedDate = balance.WeekStart, area.Area, Quantity = area.SignedPending + area.Completed - area.ProgrammedToday })));
         var grouped = balance.Rows.GroupBy(x => x.ProductId).ToDictionary(x => x.Key, x => x.OrderBy(r => r.Date).ToArray());
         // An intention can remain after its physical balance was consumed; keep it visible without adding stock.
         var missingIds = intentions.Select(x => x.ProductId).Except(grouped.Keys).ToArray();
@@ -75,7 +76,7 @@ public sealed partial class ProductionDailyBalanceService
                 .Select(x => new ProductionWeeklyIntention(x.PlannedDate, x.Area, x.Quantity)).ToArray();
             var areas = new[] { row.Cutting, row.Sewing, row.ReadyToPack };
             if (planned == 0 && work.Length == 0 && days.All(x => x.Carryover == 0) &&
-                areas.All(x => x.Opening == 0 && x.Completed == 0 && x.Pending == 0 && x.ToReconcile == 0 && x.Extra == 0)) continue;
+                areas.All(x => x.Opening == 0 && x.Completed == 0 && x.SignedPending == 0 && x.Extra == 0)) continue;
             products.Add(new(productId, row.Sku, row.Description, planned, row.Cutting, row.Sewing, row.ReadyToPack,
                 days.Select(day => new ProductionWeeklyDay(day.Date, day.NewPlan,
                     shifts.Where(x => x.ProductId == productId && x.EffectiveDate == day.Date)

@@ -656,4 +656,39 @@
   <data name="No fue posible preparar la placa para imprimir."><value>The plate could not be prepared for printing.</value></data>
   <data name="No existe un producto activo con ese código."><value>There is no active product with that code.</value></data>
   <data name="Stock"><value>Stock</value></data>
+  <data name="Consultar" xml:space="preserve"><value>View</value></data>
+  <data name="Stock total" xml:space="preserve"><value>Total stock</value></data>
+  <data name="Peso opcional" xml:space="preserve"><value>Optional weight</value></data>
+  <data name="Ingresar a Warehouse EPI" xml:space="preserve"><value>Sign in to Warehouse EPI</value></data>
+  <data name="Introduce tu NIP para abrir las secciones de tu rol." xml:space="preserve"><value>Enter your PIN to access the sections for your role.</value></data>
+  <data name="NIP inválido o usuario inactivo." xml:space="preserve"><value>Invalid PIN or inactive user.</value></data>
+  <data name="Tu rol no tiene permiso para abrir esta sección." xml:space="preserve"><value>Your role does not have permission to open this section.</value></data>
+  <data name="Este NIP pertenece a Producción. Para registrar operaciones de almacén usa un NIP de Operador o Administrador." xml:space="preserve"><value>This PIN belongs to Production. To record warehouse operations, use an Operator or Administrator PIN.</value></data>
+  <data name="Este NIP pertenece a Operador. Para registrar producción usa un NIP de Producción o Administrador." xml:space="preserve"><value>This PIN belongs to an Operator. To record production, use a Production or Administrator PIN.</value></data>
+  <data name="Consulta de solo lectura." xml:space="preserve"><value>Read-only view.</value></data>
+  <data name="No hay semanas disponibles." xml:space="preserve"><value>No weeks available.</value></data>
+  <data name="Resumen por día y unidad" xml:space="preserve"><value>Summary by day and unit</value></data>
+  <data name="Cantidad nueva" xml:space="preserve"><value>New quantity</value></data>
+  <data name="Arrastre inicial" xml:space="preserve"><value>Opening carryover</value></data>
+  <data name="Arrastre programado" xml:space="preserve"><value>Scheduled carryover</value></data>
+  <data name="Consulta" xml:space="preserve"><value>View</value></data>
+  <data name="Detalle" xml:space="preserve"><value>Details</value></data>
+  <data name="Sin resultados." xml:space="preserve"><value>No results.</value></data>
+  <data name="Paginación" xml:space="preserve"><value>Pagination</value></data>
+  <data name="Referencias" xml:space="preserve"><value>References</value></data>
+  <data name="Operador" xml:space="preserve"><value>Operator</value></data>
+  <data name="Producción" xml:space="preserve"><value>Production</value></data>
+  <data name="Consultar el programa semanal." xml:space="preserve"><value>View the weekly schedule.</value></data>
+  <data name="Consultar saldos negativos y productos bajo mínimo." xml:space="preserve"><value>View negative balances and products below minimum stock.</value></data>
+  <data name="Acceso denegado" xml:space="preserve"><value>Access denied</value></data>
+  <data name="Semana" xml:space="preserve"><value>Week</value></data>
+  <data name="Categoría" xml:space="preserve"><value>Category</value></data>
+  <data name="Existencias" xml:space="preserve"><value>Stock</value></data>
+  <data name="Notificaciones" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Inicio" xml:space="preserve"><value>Home</value></data>
+  <data name="Tabla y balance" xml:space="preserve"><value>Table and balance</value></data>
+  <data name="Programa semanal" xml:space="preserve"><value>Weekly schedule</value></data>
+  <data name="Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Closed" xml:space="preserve"><value>Closed</value></data>
 </root>

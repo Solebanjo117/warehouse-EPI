@@ -1,0 +1,52 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    string Area(ProductionDailyArea area) => T[area switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }];
+    string Qty(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
+    var shift = Model.Shifts.FirstOrDefault(x => x.Id == Model.Group.ShiftId)?.Name;
+}
+<div class="production-entry__list-tools">
+    <span data-list-count>@T["Productos mostrados: {0}", Model.Group.Rows.Select(x => x.ProductId).Distinct().Count()]</span>
+    <label><input asp-for="Group.OnlyWithQuantity" class="form-check-input me-2" data-only-quantity />@T["Solo con cantidad"]</label>
+</div>
+<p class="small text-body-secondary">@T["Vacío o cero no se incluye. Hasta 100 productos por tanda; usa el buscador para acotar."]</p>
+<p data-capture-filter-empty class="alert alert-info" role="status" hidden>@T["No hay filas con cantidad. Desactiva el filtro para ver los productos."]</p>
+<div class="production-entry__rows">
+<table class="table align-middle production-matrix">
+    <thead><tr><th scope="col">SKU</th>@foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th scope="col" class="production-weekly-area-@((int)area)">@Area(area)</th> }</tr></thead>
+    <tbody>
+    @foreach (var product in Model.Group.Rows.GroupBy(x => x.ProductId))
+    {
+        var meta = Model.CaptureProducts.GetValueOrDefault(product.Key);
+        var sku = product.First().Sku ?? product.Key.ToString();
+        <tr data-product-row="@product.Key" data-focus-product="@(Model.FocusProductId == product.Key ? "true" : null)">
+            <th scope="row" class="production-entry__product"><strong>@sku</strong><small class="d-block">@meta?.Unit</small></th>
+            @foreach (var row in product.OrderBy(x => x.Area))
+            {
+                var i = Model.Group.Rows.IndexOf(row);
+                var area = row.Area!.Value;
+                var registered = Model.MatrixRegistered.GetValueOrDefault((row.ProductId, area));
+                var available = Model.MatrixAvailable.GetValueOrDefault((row.ProductId, area));
+                <td class="production-matrix__cell production-weekly-area-@((int)area)" data-capture-cell data-area="@((int)area)" data-area-label="@Area(area)" data-unit="@meta?.Unit" data-inactive="@(meta?.IsActive == true ? "false" : "true")">
+                    <input asp-for="Group.Rows[i].ProductId" type="hidden" /><input asp-for="Group.Rows[i].Area" type="hidden" /><input asp-for="Group.Rows[i].Sku" type="hidden" />
+                    <strong class="production-matrix__area">@Area(area)</strong>
+                    <label asp-for="Group.Rows[i].Quantity" class="form-label">@T["Cantidad a sumar"]<span class="visually-hidden"> @sku · @Area(area) · @shift</span></label>
+                    <div class="input-group"><input asp-for="Group.Rows[i].Quantity" class="form-control form-control-lg" inputmode="decimal" maxlength="128" data-group-quantity aria-describedby="matrix-error-@i" /><span class="input-group-text">@meta?.Unit</span></div>
+                    <span id="matrix-error-@i" asp-validation-for="Group.Rows[i].Quantity" class="text-danger" data-quantity-error aria-live="polite"></span>
+                    <dl class="production-matrix__figures">
+                        <div><dt>@T["Registrado en este día y turno"]</dt><dd data-registered="@Qty(registered)">@Qty(registered)</dd></div>
+                        <div><dt>@T["Total resultante · vista previa"]</dt><dd data-result-total>@Qty(registered)</dd></div>
+                    </dl>
+                    <small>@T["Pendiente registrado"]: @Qty(Model.CapturePending.GetValueOrDefault((row.ProductId, area)))</small>
+                    <details><summary>@T["Notas"]</summary><label asp-for="Group.Rows[i].Notes" class="visually-hidden">@T["Notas"] @sku · @Area(area)</label><input asp-for="Group.Rows[i].Notes" class="form-control" maxlength="500" /></details>
+                    <button type="button" class="btn btn-link btn-sm" data-clear-row aria-label="@T["Limpiar fila"] @sku · @Area(area)">@T["Limpiar fila"]</button>
+                    <button type="button" class="btn btn-link btn-sm" data-undo-row hidden>@T["Deshacer"]</button>
+                </td>
+            }
+        </tr>
+    }
+    </tbody>
+</table>
+</div>

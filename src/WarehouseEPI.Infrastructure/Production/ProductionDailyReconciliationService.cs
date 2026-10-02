@@ -72,6 +72,7 @@ public sealed partial class ProductionDailyCaptureService
 
     private async Task<ProductionDailyCommandResult> ReconcileAsync(Guid productId, Guid actorId, string pin, CancellationToken token)
     {
+        using var measurement = ProductionBalanceDiagnostics.Source.StartActivity("capture.reconciliation");
         // Area order ensures downstream records can use newly materialized upstream results, even when entered first.
         var captures = await db.ProductionDailyCaptures.Include(x => x.Allocations)
             .Where(x => x.ProductId == productId && x.IsFlexible && x.Status == ProductionDailyCaptureStatus.Active)
@@ -110,7 +111,7 @@ public sealed partial class ProductionDailyCaptureService
                 if (materials.Errors.Count > 0)
                     return new(ProductionDailyCommandStatus.ValidationFailed, Errors: materials.Errors);
                 var processOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "result");
-                var result = await traceability.RecordResultAsync(new RecordBatchResultCommand(
+                var result = await traceability.RecordDailyResultAsync(new RecordBatchResultCommand(
                     processOperation, order.Id, allocation.BatchId, allocation.WorkOrderStageId, capture.ShiftId,
                     false, allocation.Quantity, allocation.Quantity, 0, 0, materials.Selections,
                     order.Version, null, pin), token);
@@ -125,7 +126,7 @@ public sealed partial class ProductionDailyCaptureService
                 if (target is not null)
                 {
                     deliveryOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "delivery");
-                    var delivered = await engine.DeliverAsync(new ProductionHandoffCommand(
+                    var delivered = await engine.DeliverDailyAsync(new ProductionHandoffCommand(
                         deliveryOperation.Value, order.Id, source.Id, target.Id, allocation.Quantity,
                         pin, "Entrega automática de captura diaria", allocation.BatchId,
                         ExpectedVersion: order.Version), token);
@@ -135,7 +136,7 @@ public sealed partial class ProductionDailyCaptureService
                         .SingleAsync(x => x.OperationId == deliveryOperation.Value, token);
                     order = await LoadOrderAsync(order.Id, token) ?? throw new InvalidOperationException();
                     receiveOperation = Derive(allocationOperation, allocation.ScheduleLineId, allocation.WorkOrderStageId, "receive");
-                    var received = await engine.ReceiveAsync(new ProductionHandoffCommand(
+                    var received = await engine.ReceiveDailyAsync(new ProductionHandoffCommand(
                         receiveOperation.Value, order.Id, source.Id, target.Id, allocation.Quantity,
                         pin, "Recepción automática de captura diaria", allocation.BatchId,
                         deliveryEvent.Id, order.Version), token);

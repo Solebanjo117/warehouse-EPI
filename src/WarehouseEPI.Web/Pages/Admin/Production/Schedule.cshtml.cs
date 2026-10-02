@@ -51,20 +51,39 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
     public int DayPageCount { get; private set; }
     public IReadOnlyList<ProductionSchedulePlanSummaryRow> PlanSummary { get; private set; } = [];
     public IReadOnlyList<string> PublicationIssues { get; private set; } = [];
+    public IReadOnlyList<ProductionScheduleProductProgress> ScheduleProgress { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken token) => await LoadAsync(token, initialize: true);
 
-    public async Task<IActionResult> OnPostCreateWeekAsync(CancellationToken token)
+    public async Task<IActionResult> OnPostCreateWeekAsync(CancellationToken token, [FromForm] string? payload = null)
     {
         ActionPanel = "new";
+        if (payload is not null) return await CreatePreparedAsync(payload, token);
         if (NewWeek.WeekStart == DateOnly.MinValue)
             ModelState.AddModelError("NewWeek.WeekStart", texts["Selecciona una fecha válida."]);
+        else if (NewWeek.WeekStart.DayOfWeek != DayOfWeek.Monday ||
+                 NewWeek.WeekStart > DateOnly.MaxValue.AddDays(-ProductionWeekCalendar.LastDayOffset))
+            ModelState.AddModelError("NewWeek.WeekStart", texts["La semana debe iniciar en lunes."]);
         var existing = await db.ProductionScheduleWeeks.AsNoTracking().Where(x => x.WeekStart == NewWeek.WeekStart)
             .Select(x => (Guid?)x.Id).FirstOrDefaultAsync(token);
         if (existing.HasValue) return RedirectToPage(new { WeekId = existing.Value, SelectedDay = IsoDay(NewWeek.WeekStart) });
-        if (!ProductionCapture.ValidateOnly(this, nameof(NewWeek))) { await LoadAsync(token); ProductionDailyText.LocalizeErrors(ModelState, texts); return Page(); }
-        var result = await service.CreateWeekAsync(new(NewWeek.OperationId, NewWeek.WeekStart, Actor()), token);
-        return await FinishAsync(result, "Semana creada en borrador.", result.Id, token);
+        if (!ProductionCapture.ValidateOnly(this, nameof(NewWeek)))
+        {
+            var pinError = ModelState.TryGetValue("NewWeek.Pin", out var pinState)
+                ? pinState.Errors.FirstOrDefault()?.ErrorMessage : null;
+            NewWeek.Pin = string.Empty;
+            ProductionCapture.ClearPins(this);
+            if (!string.IsNullOrEmpty(pinError)) ModelState.AddModelError("NewWeek.Pin", pinError);
+            await LoadAsync(token);
+            ProductionDailyText.LocalizeErrors(ModelState, texts);
+            return Page();
+        }
+        var result = await service.CreateOpenWeekAsync(
+            new(NewWeek.OperationId, NewWeek.WeekStart, Actor()), NewWeek.Pin, token);
+        NewWeek.Pin = string.Empty;
+        ProductionCapture.ClearPins(this);
+        if (result.Success) View = "program";
+        return await FinishAsync(result, "Semana abierta para capturar.", result.Id, token);
     }
 
     public async Task<IActionResult> OnPostSaveLineAsync(CancellationToken token)
@@ -91,8 +110,6 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
         AddLine = true;
         SelectedDay = Line.PlannedDate;
         var lineValid = ProductionCapture.ValidateOnly(this, nameof(Line));
-        if (Batch.Rows.Count >= 100)
-            ModelState.AddModelError(string.Empty, "Confirma este grupo antes de agregar más de 100 renglones.");
         var week = await db.ProductionScheduleWeeks.AsNoTracking().Where(x => x.Id == Batch.WeekId)
             .Select(x => new { x.WeekStart, x.WeekEnd, x.Status }).SingleOrDefaultAsync(token);
         if (week is null || week.Status == ProductionScheduleWeekStatus.Closed)
@@ -227,17 +244,20 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
             Publish.ExpectedVersion, Publish.Pin, Actor()), token);
         Publish.Pin = string.Empty;
         ProductionCapture.ClearPins(this);
+        if (result.Success) View = "program";
         return await FinishAsync(result, "Semana abierta para capturar.", Publish.WeekId, token);
     }
 
     public async Task<IActionResult> OnPostCloseAsync(Guid weekId, uint version, CancellationToken token)
     {
+        ActionPanel = "close";
         var result = await service.CloseAsync(new(Guid.NewGuid(), weekId, version, Actor()), token);
         return await FinishAsync(result, "Semana cerrada.", weekId, token);
     }
 
     public async Task<IActionResult> OnPostReopenAsync(Guid weekId, uint version, CancellationToken token)
     {
+        ActionPanel = "reopen";
         var result = await service.ReopenAsync(new(Guid.NewGuid(), weekId, version, Actor()), token);
         return await FinishAsync(result, "Semana reabierta con auditoría.", weekId, token);
     }
@@ -258,7 +278,7 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
         if (result.Success)
         {
             TempData["Success"] = texts[success].Value;
-            return RedirectToPage(new { WeekId = weekId, SelectedDay = IsoDay(SelectedDay ?? (Line.PlannedDate == DateOnly.MinValue ? null : (DateOnly?)Line.PlannedDate)) });
+            return RedirectToPage(new { WeekId = weekId, SelectedDay = IsoDay(SelectedDay ?? (Line.PlannedDate == DateOnly.MinValue ? null : (DateOnly?)Line.PlannedDate)), View });
         }
         var errors = result.Errors is { Count: > 0 } ? result.Errors : [result.Status switch
         {
@@ -307,7 +327,9 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
                 WeekLines = weeklyLines.Skip((PageNumber - 1) * 25).Take(25).ToArray();
             }
             DeletionEligibility = await service.GetDeletionEligibilityAsync(Week.Id,
-                DayLines.Select(x => x.Id).ToArray(), token);
+                (View == "program" ? Week.Lines : DayLines).Select(x => x.Id).ToArray(), token);
+            if (View == "program")
+                ScheduleProgress = await new ProductionDailyBalanceService(db).GetScheduleProgressAsync(Week.Id, token);
             PlanSummary = await service.GetPlanSummaryAsync(Week.Id, token);
             if (View == "review") PublicationIssues = await service.GetPublicationIssuesAsync(Week.Id, token);
             if (initialize || handler is not ("StageLine" or "RemoveStagedLine" or "EditStagedLine" or "SaveBatch"))
@@ -321,7 +343,12 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
             }
         }
         await LoadWorkflowAsync(handler, token);
-        if (initialize || handler != "CreateWeek") NewWeek.WeekStart = ProductionDailySetup.Monday(today);
+        await LoadWeekPickerAsync(today, initialize || handler != "CreateWeek", token);
+        if (IsPreparingNew)
+        {
+            ScheduleProgress = [];
+            NewWeekCopySources = await CopySourcesAsync(NewWeek.WeekStart, token);
+        }
         if (initialize || handler != "Configure")
         Configuration = new()
         {
@@ -371,7 +398,13 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
 
     private static string? IsoDay(DateOnly? day) => day?.ToString("yyyy-MM-dd", global::System.Globalization.CultureInfo.InvariantCulture);
 
-    public sealed class CreateWeekInput { public Guid OperationId { get; set; } = Guid.NewGuid(); [Required(ErrorMessage = "Este campo es obligatorio.")] public DateOnly WeekStart { get; set; } }
+    public sealed class CreateWeekInput
+    {
+        public Guid OperationId { get; set; } = Guid.NewGuid();
+        [Required(ErrorMessage = "Este campo es obligatorio.")] public DateOnly WeekStart { get; set; }
+        [Required(ErrorMessage = "Este campo es obligatorio."), RegularExpression("^[0-9]{4,8}$", ErrorMessage = "Usa un NIP de 4 a 8 dígitos.")]
+        public string Pin { get; set; } = string.Empty;
+    }
     public sealed class DeleteLineInput
     {
         public Guid OperationId { get; set; } = Guid.NewGuid();

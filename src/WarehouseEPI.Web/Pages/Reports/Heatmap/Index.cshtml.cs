@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Infrastructure.Reporting;
@@ -9,7 +11,7 @@ namespace WarehouseEPI.Web.Pages.Reports.Heatmap;
 public sealed class IndexModel(
     HeatmapReportService heatmapService,
     ReportExportService exportService,
-    WarehouseClock clock) : PageModel
+    WarehouseClock clock, IStringLocalizer<CatalogTexts>? texts = null) : PageModel
 {
     [BindProperty(SupportsGet = true)]
     public string? Metric { get; set; }
@@ -56,7 +58,7 @@ public sealed class IndexModel(
 
         var mapMetric = HeatmapQueryNormalizer.NormalizeLegacyMetric(Metric, "activity");
         var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
-            mapMetric, Period, From, To, clock, RowCode, Search, cancellationToken);
+            mapMetric, Period, From, To, clock, RowCode, Search, texts, cancellationToken);
         var exportData = await heatmapService.GetHeatmapExportAsync(heatmapQuery.Filter, cancellationToken);
 
         var dateStamp = exportData.GeneratedAtLocal.ToString("yyyy-MM-dd");

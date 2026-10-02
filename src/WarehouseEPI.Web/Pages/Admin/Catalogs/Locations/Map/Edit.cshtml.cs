@@ -58,7 +58,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var result = await maps.InitializeAsync(Input.OperationId, CurrentUserId(), Input.Pin, Input.Reason, geometry,
             layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem,
             Input.CanvasWidth, Input.CanvasHeight, token); Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
-        return await CompleteAsync(result, "Croquis inicial confirmado.", token);
+        return await CompleteAsync(result, text["Croquis inicial confirmado."].Value, token);
     }
 
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken token)
@@ -90,13 +90,17 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         var review = await maps.ReviewAsync(new(Input.OperationId, CurrentUserId(), string.Empty, Input.Reason,
             geometry, layers, architecture, Input.ScaleUnitsPerInch, Input.MeasurementSystem, references,
             Input.CanvasWidth, Input.CanvasHeight), token);
-        return new JsonResult(review) { StatusCode = review.Errors.Count == 0 ? 200 : 400 };
+        return new JsonResult(review with
+        {
+            Errors = review.Errors.Select(item => WarehouseMapText.Message(text, item)).ToArray(),
+            Warnings = review.Warnings.Select(item => item with { Message = WarehouseMapText.Message(text, item.Message) }).ToArray()
+        }) { StatusCode = review.Errors.Count == 0 ? 200 : 400 };
     }
 
     public async Task<IActionResult> OnPostUploadReferenceAsync(IFormFile? referenceImage, CancellationToken token)
     {
         if (referenceImage is null)
-            return new JsonResult(new { error = "Selecciona una imagen PNG, JPEG o WebP." }) { StatusCode = 400 };
+            return new JsonResult(new { error = text["Selecciona una imagen PNG, JPEG o WebP."].Value }) { StatusCode = 400 };
         try
         {
             var staged = await referenceStorage.StageAsync(referenceImage, CurrentUserId(), token);
@@ -115,7 +119,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         }
         catch (WarehouseMapReferenceValidationException exception)
         {
-            return new JsonResult(new { error = exception.Message }) { StatusCode = 400 };
+            return new JsonResult(new { error = WarehouseMapText.Message(text, exception.Message) }) { StatusCode = 400 };
         }
     }
 
@@ -142,7 +146,7 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
     {
         if (result.Status == WarehouseMapSaveStatus.Success) { Message = message; return RedirectToPage("/Admin/Catalogs/Locations/Index", new { viewMode = "map" }); }
         var error = result.Status switch { WarehouseMapSaveStatus.InvalidPin => "NIP inválido o sin permiso ADMIN.", WarehouseMapSaveStatus.Conflict => "El croquis ya fue inicializado. Vuelve a abrir el editor.", WarehouseMapSaveStatus.IdempotencyConflict => "El UUID ya fue usado con datos diferentes.", WarehouseMapSaveStatus.NotInitialized => "Primero confirma la distribución inicial.", WarehouseMapSaveStatus.Unauthorized => "La sesión ADMIN ya no es válida.", _ => "No fue posible guardar el croquis." };
-        foreach (var item in result.ValidationErrors.DefaultIfEmpty(error)) ModelState.AddModelError(string.Empty, text[item].Value); await ReloadAsync(token); return Page();
+        foreach (var item in result.ValidationErrors.DefaultIfEmpty(error)) ModelState.AddModelError(string.Empty, WarehouseMapText.Message(text, item)); await ReloadAsync(token); return Page();
     }
 
     private async Task ReloadAsync(CancellationToken token)

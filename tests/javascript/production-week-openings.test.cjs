@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { webcrypto } = require('node:crypto');
+const dictionary = require('./localization-dictionary.cjs');
 const code = fs.readFileSync('src/WarehouseEPI.Web/wwwroot/js/production-week-openings.js', 'utf8');
 class Element {
   constructor(tag = 'div') { this.tag = tag; this.children = []; this.events = {}; this.style = {}; this.dataset = {}; this.value = ''; }
@@ -18,12 +19,14 @@ class Element {
 const option = (area, selected = 0) => ({ sourceWeekId: 'source', sourceLineId: 'line', sourceStart: '2026-09-14',
   productId: 'product', sku: 'SKU-A', unit: 'EA', allowsDecimals: false, sequence: 1, area, available: 152,
   selected, provisional: true, fingerprint: 'version' });
-async function setup(options, correction = false, respond) {
+async function setup(options, correction = false, respond, language = 'es') {
   const root = new Element(), nodes = new Map();
   for (const name of ['rows', 'status', 'reason', 'pin', 'preview', 'auth', 'review', 'confirm', 'panel', 'summary']) nodes.set(`[data-opening-${name}]`, new Element());
   root.dataset = { url: '/options', userId: 'admin', weekId: 'week', weekVersion: '2', correction: String(correction), reviewUrl: '/review', confirmUrl: '/confirm', operationUrl: '/operation' };
   root.querySelector = key => nodes.get(key) || (key.startsWith('input[') ? { value: 'antiforgery' } : null);
-  const storage = new Map(), window = { addEventListener() {} }; let reloads = 0;
+  const texts = dictionary(language);
+  const storage = new Map(), window = { addEventListener() {}, warehouseText: (key, ...args) =>
+    (texts[key] || key).replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match) }; let reloads = 0;
   vm.runInNewContext(code, { document: { querySelectorAll: () => [root], createElement: tag => new Element(tag) },
     window, location: { origin: 'https://localhost', reload: () => { reloads++; } }, URL, crypto: webcrypto,
     CustomEvent: class { constructor(type) { this.type = type; } },
@@ -33,6 +36,47 @@ async function setup(options, correction = false, respond) {
   return { api, root, nodes, storage, reloads: () => reloads,
     inputs: () => nodes.get('[data-opening-rows]').querySelectorAll('input') };
 }
+test('English carryover translates dynamic rows, validation and recovery without changing data', async () => {
+  const ui = await setup([option(0)], false, undefined, 'en');
+  assert.match(ui.nodes.get('[data-opening-summary]').textContent, /Opening carryover · 0 selections/);
+  const input = ui.inputs()[0]; input.value = '40'; input.events.input();
+  assert.match(ui.nodes.get('[data-opening-summary]').textContent, /1 selection out of 1 pending items/);
+  const change = ui.api.changes()[0];
+  assert.equal(change.area, 0); assert.equal(change.quantity, '40'); assert.equal(change.sourceLineId, 'line');
+  assert.equal(ui.api.describe(change), 'SKU-A · Cutting · Opening carryover: 0 → 40 EA');
+  input.value = '153'; input.events.input();
+  assert.equal(ui.api.errors()[0], 'SKU-A · Cutting: use a quantity between 0 and 152 EA.');
+  ui.api.restore({ 'missing:line:0': '10' });
+  assert.match(ui.api.errors().join(' '), /A recovered source is no longer available/);
+});
+
+test('changing destination preserves entered carryover and reports roots that are no longer eligible', async () => {
+  const ui = await setup([option(0)], false, async () => ({ ok: true, json: async () => [] }));
+  ui.api.setQuantity('source:line:0', '40');
+  await ui.api.retarget('/earlier-week');
+  assert.deepEqual(Array.from(ui.api.missing()), ['source:line:0']);
+  assert.equal(ui.api.snapshot().values['source:line:0'], '40');
+  assert.ok(ui.api.errors().length > 0);
+  ui.api.removeMissing('source:line:0');
+  assert.equal(ui.api.errors().length, 0);
+});
+
+test('late destination response cannot overwrite carryover options for the latest Monday', async () => {
+  let oldReply;
+  let markStarted;
+  const started = new Promise(resolve => { markStarted = resolve; });
+  const ui = await setup([option(0)], false, async url => url === '/old-week'
+    ? new Promise(resolve => { oldReply = resolve; markStarted(); })
+    : { ok: true, json: async () => [{ ...option(0), fingerprint: 'latest-week' }] });
+  ui.api.setQuantity('source:line:0', '40');
+  const old = ui.api.retarget('/old-week');
+  await started;
+  await ui.api.retarget('/latest-week');
+  oldReply({ ok: true, json: async () => [] }); await old;
+  assert.equal(ui.api.options()[0].fingerprint, 'latest-week');
+  assert.equal(ui.api.snapshot().values['source:line:0'], '40');
+});
+
 test('opening starts unselected and keeps area quantities independent with undo', async () => {
   const ui = await setup([option(0), option(1), option(2)]);
   assert.equal(ui.api.changes().length, 0); assert.equal(ui.inputs().length, 3);
@@ -43,6 +87,42 @@ test('opening starts unselected and keeps area quantities independent with undo'
   assert.equal(ui.inputs()[1].value, ''); assert.equal(ui.api.errors().length, 0);
   ui.nodes.get('[data-opening-rows]').querySelectorAll('button')[0].events.click();
   assert.equal(ui.api.changes().length, 0);
+});
+
+test('product area editing keeps exact decimal totals and roots in stable order', async () => {
+  const options = [{ ...option(1), allowsDecimals: true, available: 0.3 },
+    { ...option(1), sourceLineId: 'second', allowsDecimals: true, available: 0.2 }];
+  const ui = await setup(options);
+  await ui.api.prepare(ui.api.options().map(row => ({ ...row, quantity: String(row.available) })));
+  ui.api.setArea('product', 1, '0.4');
+  assert.deepEqual(Array.from(ui.api.changes(), row => [row.sourceLineId, row.quantity]), [['line', '0.3'], ['second', '0.1']]);
+  assert.equal(ui.api.groups().length, 1);
+  const key = ui.api.options()[0].key;
+  ui.api.setEnabled([key], false); assert.equal(ui.api.changes().length, 1);
+  assert.equal(ui.api.snapshot().values[key], '0.3');
+  ui.api.setEnabled([key], true); assert.equal(ui.api.changes().length, 2);
+});
+
+test('revalidation retains entered amounts and identifies changed or missing origins', async () => {
+  const options = [option(1)]; const ui = await setup(options);
+  await ui.api.prepare(ui.api.options().map(row => ({ ...row, quantity: '60' })));
+  options[0].available = 50; options[0].fingerprint = 'changed';
+  assert.equal(await ui.api.revalidate(), true); assert.equal(ui.api.groups()[0].entries[0].quantity, '60');
+  assert.equal(ui.api.errors().length, 1); ui.api.setArea('product', 1, '40');
+  assert.equal(await ui.api.revalidate(), false); assert.equal(ui.api.errors().length, 0);
+  options.splice(0); assert.equal(await ui.api.revalidate(), true); assert.equal(ui.api.missing().length, 1);
+  ui.api.removeMissing(ui.api.missing()[0]); assert.equal(ui.api.errors().length, 0);
+});
+
+test('excluding a copied root preserves saved carryover and invalid totals remain editable', async () => {
+  const ui = await setup([option(1, 20), { ...option(1), sourceLineId: 'new' }]);
+  await ui.api.prepare(ui.api.options().map(row => ({ ...row, quantity: '30' })));
+  const copiedKey = ui.api.options()[1].key;
+  ui.api.setEnabled([copiedKey], false);
+  assert.equal(ui.api.changes().length, 0); assert.equal(ui.api.groups()[0].entries[0].quantity, '20');
+  ui.api.setEnabled([copiedKey], true); ui.api.setArea('product', 1, 'bad');
+  assert.equal(ui.api.errors().length, 1); assert.equal(ui.api.groups()[0].entries[0].quantity, 'bad');
+  ui.api.setArea('product', 1, '40'); assert.equal(ui.api.errors().length, 0);
 });
 
 test('copy preparation revalidates the source and preserves an existing opening', async () => {

@@ -1,0 +1,28 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using WarehouseEPI.Core.Entities
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@if (Model.Week is { Status: not ProductionScheduleWeekStatus.Draft } week)
+{
+    var closing = week.Status == ProductionScheduleWeekStatus.Open;
+    <div class="modal" id="schedule-status-confirmation" tabindex="-1" aria-labelledby="schedule-status-title" aria-describedby="schedule-status-description"
+         data-schedule-status-modal data-auto-show="@(Model.ActionPanel==(closing?"close":"reopen")?"true":"false")">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="schedule-status-title">@T[closing?"Cerrar semana":"Reabrir semana"]</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Cancelar"]"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold">@week.WeekStart.ToString("dd/MM/yyyy") – @week.WeekEnd.ToString("dd/MM/yyyy")</p>
+                <p id="schedule-status-description">@T[closing?"La semana quedará de consulta y se bloquearán nuevas capturas.":"Se habilitará nuevamente la captura de esta semana. La reapertura quedará registrada en auditoría."]</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">@T["Cancelar"]</button>
+                <form method="post" asp-page-handler="@(closing?"Close":"Reopen")" data-schedule-confirm>
+                    <input name="weekId" type="hidden" value="@week.Id"/><input name="version" type="hidden" value="@week.Version"/>
+                    <input asp-for="SelectedDay" type="hidden"/><input asp-for="View" type="hidden"/>
+                    <button class="btn btn-primary">@T[closing?"Confirmar cierre":"Confirmar reapertura"]</button>
+                </form>
+            </div>
+        </div></div>
+    </div>
+}

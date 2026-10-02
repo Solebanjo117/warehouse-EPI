@@ -1,0 +1,12 @@
+{
+  "name": "warehouse-epi-browser-tools",
+  "private": true,
+  "description": "Herramientas de desarrollo para revisar Warehouse EPI en navegador",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/cli": "0.1.21"
+  }
+}

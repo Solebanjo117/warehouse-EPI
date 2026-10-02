@@ -1,13 +1,13 @@
 # Programa semanal y tandas de producción
 
-Flujo: **Semana → Agregar productos → Abrir semana para capturar → Registrar una tanda**.
+Flujo de una semana creada desde Programa semanal: **Crear y abrir semana → Agregar productos → Registrar una tanda**. Los borradores importados conservan su revisión y apertura explícita.
 
 ## Programa
 
 - Se agrupan las líneas de lunes a sábado. El buscador de SKU conserva selección de catálogo y navegación con Enter; después de guardar se conserva el día.
 - Las referencias y notas están en «Más detalles». Procesos y turnos quedan en una sección secundaria, abierta cuando falta configuración.
 - «Copiar productos de la semana anterior» toma la última semana existente anterior a la seleccionada. Presenta líneas sin cantidades, sin arrastres, referencias ni notas. Se seleccionan hasta 100 líneas por operación; dos líneas del mismo SKU siguen siendo independientes. Se advierten coincidencias de producto/día en el destino. Las líneas no seleccionadas no se guardan.
-- Abrir requiere NIP ADMIN y configuración válida. También se permite abrir sin nuevas líneas si existen pendientes elegibles anteriores.
+- Crear una semana desde Programa semanal exige NIP ADMIN y configuración válida; se guarda directamente como abierta, incluso sin líneas. Los borradores importados requieren apertura explícita.
 - Agregar una línea a una semana abierta requiere NIP del ADMIN autenticado. Línea, orden liberada y lote se guardan en una transacción. Las restricciones de edición con actividad se conservan.
 
 ## Arrastre programado opcional

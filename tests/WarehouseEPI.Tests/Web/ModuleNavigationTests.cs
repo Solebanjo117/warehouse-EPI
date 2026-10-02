@@ -21,7 +21,7 @@ public sealed class ModuleNavigationTests
     {
         Assert.Equal(new[] { "operations", "production", "inventory", "labels", "reports", "catalogs", "administration" },
             ModuleNavigation.GetVisible(true).Select(module => module.Key));
-        Assert.Equal(5, ModuleNavigation.GetVisible(false).Count);
+        Assert.Equal(4, ModuleNavigation.GetVisible(false).Count);
         Assert.All(ModuleNavigationTestSupport.Actions(false), action =>
         {
             Assert.False(action.AdminOnly);
@@ -29,6 +29,10 @@ public sealed class ModuleNavigationTests
         });
         Assert.All(ModuleNavigation.GetVisible(false), module =>
             Assert.All(module.Sections, section => Assert.NotEmpty(section.Actions)));
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Notifications/Index");
+        foreach (var role in new[] { "ADMIN", "OPERATOR", "PRODUCTION" })
+            Assert.Contains(ModuleNavigation.GetVisible(role).SelectMany(module => module.Sections).SelectMany(section => section.Actions),
+                action => action.Page == "/Reports/Notifications/Index");
     }
 
     [Fact]
@@ -37,20 +41,22 @@ public sealed class ModuleNavigationTests
         string[] expected = [
             "/Operations/Entry", "/Operations/Exit", "/Operations/Transfer", "/Operations/Adjustment",
             "/Operations/CycleCounts/Index", "/Operations/Production/Index",
-            "/Operations/Production/Index",
             "/Admin/Production/Processes",
             "/Admin/Production/Routes", "/Admin/Production/Schedule",
-            "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",
+            "/Reports/Notifications/Index", "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",
             "/Admin/Inventory/Lots/Index", "/Admin/Inventory/Alerts", "/Operations/Labels/Index",
             "/Operations/PalletLabels/Index", "/Admin/Labels/Templates/Index", "/Reports/Dashboard/Index",
             "/Reports/Workload/Index", "/Reports/Inventory/Index", "/Reports/Kardex/Index", "/Reports/Wip/Index",
             "/Reports/Production/Index",
             "/Admin/Catalogs/Products/Index", "/Admin/Catalogs/ProductTypes/Index", "/Admin/Catalogs/ProductClasses/Index",
-            "/Admin/Catalogs/Units/Index", "/Admin/Users/Index", "/Admin/System/Index", "/Admin/Settings/Business"];
+            "/Admin/Catalogs/Units/Index", "/Admin/Users/Index", "/Admin/System/Index", "/Admin/System/Backups", "/Admin/Settings/Business"];
         var actions = ModuleNavigationTestSupport.Actions();
+        var production = Assert.Single(actions, action => action.Page == "/Operations/Production/Index");
+        Assert.Equal("Tabla y balance", production.Title);
+        Assert.Empty(production.RouteValues);
         Assert.Equal(expected.Order(), actions.Select(action => action.Page).Order());
         Assert.Equal("pending", Assert.Single(actions, action => action.Page == "/Reports/Workload/Index").RouteValues["view"]);
-        Assert.Empty(Assert.Single(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Workload/Index").RouteValues);
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Workload/Index");
         Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Locations/Index");
         Assert.DoesNotContain(actions, action => action.Page == "/Operations/ProductionSupply/Index");
         Assert.DoesNotContain(actions, action => action.Page == "/Operations/Production/Advanced");

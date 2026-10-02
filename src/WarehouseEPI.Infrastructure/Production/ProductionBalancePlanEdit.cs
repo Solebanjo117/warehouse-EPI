@@ -12,8 +12,7 @@ public sealed partial class ProductionDailyCaptureService
     public async Task<IReadOnlyList<ProductionBalancePlanLine>> GetBalancePlanLinesAsync(Guid weekId,
         DateOnly date, Guid? productId, Guid actorId, CancellationToken token = default)
     {
-        if (!await db.Users.AnyAsync(x => x.Id == actorId && x.IsActive && x.Role.Code == "ADMIN", token) ||
-            date > await clock.GetDateAsync(timeProvider.GetUtcNow(), token)) return [];
+        if (!await db.Users.AnyAsync(x => x.Id == actorId && x.IsActive && x.Role.Code == "ADMIN", token)) return [];
         return await db.ProductionScheduleLines.AsNoTracking()
             .Where(x => x.WeekId == weekId && (productId == null || x.ProductId == productId) && x.PlannedDate == date &&
                 x.Week.Status == ProductionScheduleWeekStatus.Open && !x.IsCancelled && !x.IsCarryover && !x.IsExtra)
@@ -63,7 +62,7 @@ public sealed partial class ProductionDailyCaptureService
         if (changes.Count == 0) return [];
         var admin = command.AdminActorId.HasValue && await db.Users.AnyAsync(x =>
             x.Id == command.AdminActorId && x.IsActive && x.Role.Code == "ADMIN", token);
-        var visible = await new ProductionDailyBalanceService(db).GetDailySummaryAsync(command.WeekId, new(command.Date), token);
+        var visible = await new ProductionDailyBalanceService(db).GetEditableSummaryAsync(command.WeekId, command.Date, changes.Select(x => x.ProductId).ToArray(), token);
         var ids = changes.Select(x => x.ProductId).ToArray();
         var products = await db.Products.AsNoTracking().Include(x => x.BaseUnit).Where(x => ids.Contains(x.Id)).ToDictionaryAsync(x => x.Id, token);
         var existing = await db.ProductionScheduleLines.AsNoTracking().Where(x => x.WeekId == command.WeekId &&

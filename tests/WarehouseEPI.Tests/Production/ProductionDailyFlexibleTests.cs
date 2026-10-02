@@ -11,6 +11,93 @@ namespace WarehouseEPI.Tests.Production;
 
 public sealed class ProductionDailyFlexibleTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reconciliation_never_subtracts_production_twice_from_signed_pending(bool explicitWeek)
+    {
+        await using var db = ProductionOpeningImportTests.Context();
+        await db.Database.EnsureCreatedAsync();
+        var setup = await SeedAsync(db);
+        setup.Week.ExplicitCarryover = explicitWeek;
+        await db.SaveChangesAsync();
+        var balances = new ProductionDailyBalanceService(db);
+        async Task Check(decimal expected, decimal unallocated)
+        {
+            var daily = Assert.Single((await balances.GetDailySummaryAsync(setup.Week.Id, new(setup.Date)))!.Products);
+            Assert.Equal(expected, daily.Sewing.SignedPending);
+            Assert.Equal(unallocated, daily.Sewing.ToReconcile);
+            Assert.Equal(expected, daily.Sewing.PendingAfterShift1);
+            var tomorrow = Assert.Single((await balances.GetDailySummaryAsync(setup.Week.Id, new(setup.Date.AddDays(1))))!.Products);
+            Assert.Equal(expected, tomorrow.Sewing.Opening);
+            Assert.Equal(expected, tomorrow.Sewing.SignedPending);
+            var close = (await balances.GetWeekCloseAsync(setup.Week.Id, new(setup.Week.WeekEnd)))!;
+            Assert.Equal(expected, Assert.Single(close.Products).Sewing.Pending);
+            Assert.Equal(expected, Assert.Single(close.Totals).Sewing.Pending);
+            var reports = new ProductionReportService(db, balances);
+            foreach (var wholeWeek in new[] { false, true })
+            {
+                var report = (await reports.GetAsync(new(setup.Week.Id, setup.Date, Products: true, FullWeek: wholeWeek)))!;
+                Assert.Equal(expected, Assert.Single(report.Rows).Areas.Single(x => x.Area == ProductionDailyArea.Sewing).Pending);
+            }
+        }
+        await Record(db, setup, ProductionDailyArea.Sewing, 130);
+        await Check(-30, 130);
+        await Record(db, setup, ProductionDailyArea.Cutting, 100);
+        await Check(-30, 30);
+        var sewing = await db.ProductionDailyCaptures.SingleAsync(x => x.ProductId == setup.Product.Id && x.Area == ProductionDailyArea.Sewing);
+        var reversal = await Capture(db).ReverseAsync(new(Guid.NewGuid(), sewing.Id, "Correct quantity", "4826"));
+        Assert.True(reversal.Success, string.Join(" | ", reversal.Errors ?? []));
+        await Check(100, 0);
+        await Record(db, setup, ProductionDailyArea.Sewing, 110);
+        await Check(-10, 10);
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Increasing_daily_plan_from_50_to_55_reconciles_all_completed_areas(bool explicitWeek, bool combined)
+    {
+        await using var db = ProductionOpeningImportTests.Context();
+        await db.Database.EnsureCreatedAsync();
+        var setup = await SeedAsync(db);
+        setup.Week.ExplicitCarryover = explicitWeek;
+        await db.SaveChangesAsync();
+        var service = Capture(db);
+        async Task ChangePlan(decimal quantity)
+        {
+            var line = Assert.Single(await service.GetBalancePlanLinesAsync(setup.Week.Id, setup.Date, setup.Product.Id, setup.User.Id));
+            var command = new ProductionBalanceEditCommand(Guid.NewGuid(), setup.Week.Id, setup.Date, [], Pin: "4826",
+                PlanChanges: [new(line.LineId, line.Quantity, quantity, line.LineVersion, line.WeekVersion)], AdminActorId: setup.User.Id);
+            var review = await service.PreviewBalanceEditAsync(command);
+            Assert.True(review.CanConfirm, string.Join(" | ", review.Errors));
+            var result = await service.ConfirmBalanceEditAsync(command with { ReviewedFingerprint = review.Fingerprint });
+            Assert.True(result.Success, string.Join(" | ", result.Errors ?? []));
+        }
+        await ChangePlan(50);
+        var shift2 = (await db.ProductionDailyConfigurations.SingleAsync()).Shift2Id!.Value;
+        foreach (var area in Enum.GetValues<ProductionDailyArea>()) await Record(db, setup with { Shift = shift2 }, area, 50);
+        if (!combined) await ChangePlan(55);
+        var plan = Assert.Single(await service.GetBalancePlanLinesAsync(setup.Week.Id, setup.Date, setup.Product.Id, setup.User.Id));
+        var edit = new ProductionBalanceEditCommand(Guid.NewGuid(), setup.Week.Id, setup.Date,
+            Enum.GetValues<ProductionDailyArea>().Select(area => new ProductionBalanceCell(setup.Product.Id, area, 1, 0, 5)).ToArray(),
+            Pin: "4826", PlanChanges: combined ? [new(plan.LineId, 50, 55, plan.LineVersion, plan.WeekVersion)] : [], AdminActorId: setup.User.Id);
+        var preview = await service.PreviewBalanceEditAsync(edit);
+        Assert.True(preview.CanConfirm, string.Join(" | ", preview.Errors));
+        var projected = Assert.Single(preview.Balance!.Products);
+        Assert.Equal(0, projected.Sewing.ToReconcile);
+        Assert.Equal(0, projected.ReadyToPack.ToReconcile);
+        var saved = await service.ConfirmBalanceEditAsync(edit with { ReviewedFingerprint = preview.Fingerprint });
+        Assert.True(saved.Success, string.Join(" | ", saved.Errors ?? []));
+        var actual = Assert.Single((await new ProductionDailyBalanceService(db).GetDailySummaryAsync(setup.Week.Id, new(setup.Date)))!.Products);
+        Assert.Equal(55, actual.Planned);
+        Assert.Equal(55, actual.ReadyToPack.Completed);
+        Assert.Equal(0, actual.Sewing.ToReconcile);
+        Assert.Equal(0, actual.ReadyToPack.ToReconcile);
+    }
+
     private const string Key = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=";
 
     [Fact]
@@ -26,27 +113,42 @@ public sealed class ProductionDailyFlexibleTests
         var setup = await SeedAsync(db);
         var (week, product, user, shift, date) = setup;
         var service = Capture(db);
+        var beforeProduction = await service.PreviewAsync(new(date, ProductionDailyArea.Sewing, shift, product.Id, 5));
+        Assert.Equal(0, beforeProduction.Available);
+        Assert.Equal(100, beforeProduction.Pending);
+        Assert.Equal(95, beforeProduction.PendingAfterCapture);
         await Record(db, setup, ProductionDailyArea.ReadyToPack, 120);
         await Record(db, setup, ProductionDailyArea.Sewing, 130);
         Assert.Empty(await db.ProductionDailyCaptureAllocations.Where(x => x.Capture.ProductId == product.Id).ToListAsync());
         var row = (await new ProductionDailyBalanceService(db).GetAsync(week.Id))!.Rows.Single(x => x.ProductId == product.Id && x.Date == date);
         Assert.Equal(130, row.Sewing.ToReconcile);
-        Assert.Equal(10, row.ReadyToPack.Pending);
+        Assert.Equal(-30, row.Sewing.SignedPending);
+        var offered = Assert.Single(await service.GetAvailabilityAsync(date, ProductionDailyArea.Sewing), x => x.ProductId == product.Id);
+        Assert.Equal(-30, offered.Pending);
+        Assert.Equal(0, offered.Available);
+        var additional = await service.PreviewAsync(new(date, ProductionDailyArea.Sewing, shift, product.Id, 5));
+        Assert.Equal(-30, additional.Pending);
+        Assert.Equal(-35, additional.PendingAfterCapture);
+        Assert.Equal(0, row.ReadyToPack.Pending);
+        Assert.Equal(-20, row.ReadyToPack.NetPending);
         Assert.Equal(120, row.ReadyToPack.Completed);
         await Record(db, setup, ProductionDailyArea.Cutting, 100);
         row = (await new ProductionDailyBalanceService(db).GetAsync(week.Id))!.Rows.Single(x => x.ProductId == product.Id && x.Date == date);
         Assert.Equal(30, row.Sewing.ToReconcile);
+        Assert.Equal(-30, row.Sewing.SignedPending);
         var weeklyDifference = Assert.Single((await new ProductionDailyBalanceService(db).GetWeeklyAsync(week.Id, new(date)))!.Products, x => x.ProductId == product.Id);
         Assert.Equal(100, weeklyDifference.Planned);
         Assert.Equal(130, weeklyDifference.Sewing.Completed);
         Assert.Equal(30, weeklyDifference.Sewing.ToReconcile);
-        Assert.Equal(10, weeklyDifference.ReadyToPack.Pending);
-        Assert.Equal(10, row.ReadyToPack.Pending);
+        Assert.Equal(-20, weeklyDifference.ReadyToPack.NetPending);
+        Assert.Equal(0, row.ReadyToPack.Pending);
+        Assert.Equal(-20, row.ReadyToPack.NetPending);
         await Record(db, setup, ProductionDailyArea.Cutting, 50);
         row = (await new ProductionDailyBalanceService(db).GetAsync(week.Id))!.Rows.Single(x => x.ProductId == product.Id && x.Date == date);
         Assert.Equal(0, row.Sewing.ToReconcile);
-        Assert.Equal(20, row.Sewing.Pending);
-        Assert.Equal(10, row.ReadyToPack.Pending);
+        Assert.Equal(0, row.Sewing.Pending);
+        Assert.Equal(0, row.ReadyToPack.Pending);
+        Assert.Equal(-20, row.ReadyToPack.NetPending);
         Assert.Equal(50, row.Cutting.Extra);
         Assert.Equal(100, row.NewPlan);
         Assert.Equal(20, (await service.GetAvailabilityAsync(date, ProductionDailyArea.Sewing)).Single(x => x.ProductId == product.Id).Available);
@@ -70,7 +172,10 @@ public sealed class ProductionDailyFlexibleTests
         using var book = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, new(db)).ExportAsync(week.Id))!));
         var exported = book.Worksheet(1).Table("AutomaticBalanceExport").DataRange.Rows().First(x => x.Cell(2).GetString() == product.Sku);
         Assert.Equal((double)row.ReadyToPack.Extra, exported.Cell(15).GetDouble());
-        Assert.Equal((double)row.Sewing.ToReconcile, exported.Cell(17).GetDouble());
+        Assert.Equal((double)row.Sewing.SignedPending, exported.Cell(8).GetDouble());
+        Assert.All(book.Worksheets, sheet => Assert.DoesNotContain(sheet.CellsUsed(), cell =>
+            cell.GetString().Contains("to reconcile", StringComparison.OrdinalIgnoreCase) ||
+            cell.GetString().Contains("por conciliar", StringComparison.OrdinalIgnoreCase)));
         var extra = await db.ProductionScheduleLines.SingleAsync(x => x.ProductId == product.Id && x.IsExtra);
         Assert.Equal(50, extra.Quantity);
         Assert.Single(await db.ProductionBatches.Where(x => x.WorkOrderId == extra.WorkOrderId).ToListAsync());
@@ -159,7 +264,7 @@ public sealed class ProductionDailyFlexibleTests
         await db.Database.EnsureCreatedAsync();
         var setup = await SeedAsync(db, planned: false);
         var pins = new UserPinService(db, new PinProtector(Key));
-        var user = new User { FullName = "Flexible operator", RoleId = 2, PinHash = "", PinLookup = "" };
+        var user = new User { FullName = "Flexible production", RoleId = 3, PinHash = "", PinLookup = "" };
         await pins.AssignAsync(user, "3917"); db.Users.Add(user); await db.SaveChangesAsync();
         var result = await Capture(db).ConfirmAsync(new(Guid.NewGuid(), setup.Date, ProductionDailyArea.Cutting,
             setup.Shift, setup.Product.Id, 25, null, "3917"));
@@ -196,7 +301,7 @@ public sealed class ProductionDailyFlexibleTests
         Assert.Equal(10, row.Cutting.Extra);
         Assert.Equal(0, row.Sewing.Pending);
         Assert.Equal(0, row.Sewing.ToReconcile);
-        Assert.Equal(130, row.ReadyToPack.Pending);
+        Assert.Equal(120, row.ReadyToPack.Pending);
     }
 
     [Fact]
@@ -213,11 +318,11 @@ public sealed class ProductionDailyFlexibleTests
         Assert.Equal(20, row.Cutting.Advance);
         Assert.Equal(0, row.Cutting.ToReconcile);
         Assert.Equal(0, row.Cutting.Extra);
-        Assert.Equal(20, row.Sewing.Pending);
+        Assert.Equal(0, row.Sewing.Pending);
     }
 
     [Fact]
-    public async Task Daily_summary_sums_shifts_transfers_two_pieces_and_keeps_signed_debt()
+    public async Task Daily_summary_sums_shifts_and_keeps_programming_separate_from_physical_debt()
     {
         await using var db = ProductionOpeningImportTests.Context();
         await db.Database.EnsureCreatedAsync();
@@ -226,7 +331,7 @@ public sealed class ProductionDailyFlexibleTests
         await Record(db, setup, ProductionDailyArea.Cutting, 2);
         var monday = Assert.Single((await service.GetDailySummaryAsync(setup.Week.Id, new(setup.Date)))!.Products);
         Assert.Equal(2, monday.Cutting.Completed);
-        Assert.Equal(2, monday.Sewing.Pending);
+        Assert.Equal(100, monday.Sewing.Pending);
         var shift2 = (await db.ProductionDailyConfigurations.SingleAsync()).Shift2Id!.Value;
         await Record(db, setup with { Shift = shift2 }, ProductionDailyArea.Cutting, 3);
         await Record(db, setup, ProductionDailyArea.Sewing, 8);
@@ -235,24 +340,24 @@ public sealed class ProductionDailyFlexibleTests
         Assert.Equal(8, monday.Sewing.Completed);
         Assert.Equal(3, monday.Sewing.ToReconcile);
         Assert.Equal(98, monday.Cutting.PendingAfterShift1);
-        Assert.Equal(-6, monday.Sewing.PendingAfterShift1);
-        Assert.Equal(8, monday.ReadyToPack.PendingAfterShift1);
-        Assert.Equal(-3, monday.Sewing.NetPending);
+        Assert.Equal(92, monday.Sewing.PendingAfterShift1);
+        Assert.Equal(100, monday.ReadyToPack.PendingAfterShift1);
+        Assert.Equal(92, monday.Sewing.NetPending);
         var tuesday = Assert.Single((await service.GetDailySummaryAsync(setup.Week.Id, new(setup.Date.AddDays(1))))!.Products);
-        Assert.Equal(-3, tuesday.Sewing.Opening);
+        Assert.Equal(92, tuesday.Sewing.Opening);
         Assert.Equal(0, tuesday.Sewing.Completed);
         Assert.Equal(3, tuesday.Sewing.ToReconcile);
-        Assert.Equal(8, tuesday.ReadyToPack.Opening);
+        Assert.Equal(100, tuesday.ReadyToPack.Opening);
         await Record(db, setup with { Date = setup.Date.AddDays(1) }, ProductionDailyArea.Cutting, 100);
         tuesday = Assert.Single((await service.GetDailySummaryAsync(setup.Week.Id, new(setup.Date.AddDays(1))))!.Products);
         Assert.Equal(100, tuesday.Cutting.Completed);
         Assert.Equal(5, tuesday.Cutting.Extra);
         Assert.Equal(0, tuesday.Sewing.ToReconcile);
-        Assert.Equal(97, tuesday.Sewing.Pending);
+        Assert.Equal(92, tuesday.Sewing.Pending);
         var wednesday = Assert.Single((await service.GetDailySummaryAsync(setup.Week.Id, new(setup.Date.AddDays(2))))!.Products);
         Assert.Equal(0, wednesday.Cutting.Extra);
         Assert.Equal(0, wednesday.Cutting.Completed);
-        Assert.Equal(97, wednesday.Sewing.Opening);
+        Assert.Equal(92, wednesday.Sewing.Opening);
     }
 
     [Fact]
@@ -275,7 +380,7 @@ public sealed class ProductionDailyFlexibleTests
         Assert.True(preview.CanConfirm, string.Join(" | ", preview.Errors));
         Assert.Equal(before, await db.ProductionDailyCaptures.CountAsync());
         Assert.Equal(5, Assert.Single(preview.Balance!.Products).Cutting.Completed);
-        Assert.Equal(5, Assert.Single(preview.Balance.Products).Sewing.Pending);
+        Assert.Equal(100, Assert.Single(preview.Balance.Products).Sewing.Pending);
         command = command with { ReviewedFingerprint = preview.Fingerprint };
         var result = await service.ConfirmBalanceEditAsync(command);
         Assert.True(result.Success, string.Join(" | ", result.Errors ?? []));
@@ -290,7 +395,7 @@ public sealed class ProductionDailyFlexibleTests
         Assert.True(preview.CanConfirm, string.Join(" | ", preview.Errors));
         Assert.True(preview.RequiresAdmin);
         var editPins = new UserPinService(db, new PinProtector(Key));
-        var editOperator = new User { FullName = "Balance operator", RoleId = 2, PinHash = "", PinLookup = "" };
+        var editOperator = new User { FullName = "Balance production", RoleId = 3, PinHash = "", PinLookup = "" };
         await editPins.AssignAsync(editOperator, "3917"); db.Users.Add(editOperator); await db.SaveChangesAsync();
         Assert.Equal(ProductionDailyCommandStatus.InvalidPin, (await service.ConfirmBalanceEditAsync(command with { ReviewedFingerprint = preview.Fingerprint, Pin = "3917" })).Status);
         Assert.False((await service.ConfirmBalanceEditAsync(command with { ReviewedFingerprint = preview.Fingerprint, Reason = null })).Success);
@@ -302,7 +407,7 @@ public sealed class ProductionDailyFlexibleTests
         Assert.Equal(2, await db.ProductionDailyCaptures.CountAsync(x => x.Status == ProductionDailyCaptureStatus.Reversed));
         Assert.Equal(2, await db.Set<ProductionBalanceEdit>().CountAsync());
         await Record(db, setup, ProductionDailyArea.Cutting, 4);
-        Assert.Equal(5, Assert.Single((await new ProductionDailyBalanceService(db).GetDailySummaryAsync(setup.Week.Id, new(setup.Date)))!.Products).Sewing.Pending);
+        Assert.Equal(100, Assert.Single((await new ProductionDailyBalanceService(db).GetDailySummaryAsync(setup.Week.Id, new(setup.Date)))!.Products).Sewing.Pending);
         Assert.True((await service.ConfirmBalanceEditAsync(command with { ReviewedFingerprint = preview.Fingerprint })).Success);
         var zero = new ProductionBalanceEditCommand(Guid.NewGuid(), setup.Week.Id, setup.Date,
             [new(setup.Product.Id, ProductionDailyArea.Cutting, 1, 5, 0)], Reason: "Remove incorrect production", Pin: "4826");
@@ -406,8 +511,8 @@ public sealed class ProductionDailyFlexibleTests
         Assert.True(saved.Success, string.Join(" | ", saved.Errors ?? []));
         Assert.Equal(captureCount, await db.ProductionDailyCaptures.CountAsync());
         using var exported = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, new(db)).ExportAsync(week.Id))!));
-        Assert.Equal(155, exported.Worksheet("Resumen produccion semanal").Cell(5, 3).GetValue<decimal>());
-        Assert.Equal(35, exported.Worksheet("Resumen produccion semanal").Cell(5, 4).GetValue<decimal>());
+        Assert.Equal(155, exported.Worksheet("Resumen produccion semanal").Cell(5, 2).GetValue<decimal>());
+        Assert.Equal(35, exported.Worksheet("Resumen produccion semanal").Cell(5, 3).GetValue<decimal>());
         lines = await capture.GetBalancePlanLinesAsync(week.Id, setup.Date, setup.Product.Id, setup.User.Id);
         first = lines[0];
         var reduceTogether = new ProductionBalanceEditCommand(Guid.NewGuid(), week.Id, setup.Date,
@@ -516,7 +621,7 @@ public sealed class ProductionDailyFlexibleTests
         Assert.False((await service.PreviewBalanceEditAsync(command with { OperationId = Guid.NewGuid(),
             NewPlans = [command.NewPlans![0] with { ExpectedWeekVersion = latest.Version }] })).CanConfirm);
         using var exported = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, new(db)).ExportAsync(week.Id))!));
-        Assert.Equal(150, exported.Worksheet("Resumen produccion semanal").Cell(5, 3).GetValue<decimal>());
+        Assert.Equal(150, exported.Worksheet("Resumen produccion semanal").Cell(5, 2).GetValue<decimal>());
         if (db.Database.IsNpgsql())
         {
             Assert.StartsWith("warehouse_epi_balance_test_", db.Database.GetDbConnection().Database);
@@ -547,8 +652,8 @@ public sealed class ProductionDailyFlexibleTests
         }
     }
 
-    private sealed record Setup(ProductionScheduleWeek Week, Product Product, User User, Guid Shift, DateOnly Date);
-    private static async Task<Setup> SeedAsync(WarehouseDbContext db, bool planned = true, DateOnly? weekStart = null)
+    internal sealed record Setup(ProductionScheduleWeek Week, Product Product, User User, Guid Shift, DateOnly Date);
+    internal static async Task<Setup> SeedAsync(WarehouseDbContext db, bool planned = true, DateOnly? weekStart = null)
     {
         var pins = new UserPinService(db, new PinProtector(Key));
         var user = await pins.AuthenticateAsync("4826");
@@ -592,7 +697,7 @@ public sealed class ProductionDailyFlexibleTests
         var pins = new UserPinService(db, new PinProtector(Key));
         return new(db, pins, new InventoryMovementService(db, pins, TimeProvider.System), TimeProvider.System);
     }
-    private static ProductionDailyCaptureService Capture(WarehouseDbContext db)
+    internal static ProductionDailyCaptureService Capture(WarehouseDbContext db)
     {
         var pins = new UserPinService(db, new PinProtector(Key));
         return new(db, pins, new InventoryMovementService(db, pins, TimeProvider.System), new WarehouseClock(new WarehouseSettingsService(db)), TimeProvider.System);

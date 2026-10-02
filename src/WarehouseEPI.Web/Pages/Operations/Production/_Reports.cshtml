@@ -1,0 +1,64 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+<section class="production-reports" aria-labelledby="report-title">
+    <form method="get" class="row g-3 align-items-end mb-4">
+        <input type="hidden" name="Tab" value="reports" />
+        <div class="col-sm-6 col-xl-3"><label asp-for="WeekId" class="form-label">@T["Semana"]</label><select asp-for="WeekId" class="form-select">@foreach(var week in Model.Weeks){<option value="@week.Id">@week.WeekStart.ToString("dd/MM/yyyy") – @week.WeekEnd.ToString("dd/MM/yyyy")</option>}</select></div>
+        <div class="col-sm-6 col-xl-4"><label asp-for="ReportKind" class="form-label">@T["Reporte"]</label><select asp-for="ReportKind" class="form-select" data-report-kind><option value="daily">@T["Resumen diario por proceso"]</option><option value="products">@T["Avance y pendientes por producto"]</option></select></div>
+        <div class="col-sm-6 col-xl-3" data-report-detail hidden="@(Model.ReportKind != "products")"><label asp-for="ReportPeriod" class="form-label">@T["Periodo del detalle"]</label><select asp-for="ReportPeriod" class="form-select" data-report-period><option value="day">@T["Día seleccionado"]</option><option value="week">@T["Semana completa"]</option></select></div>
+        <div class="col-sm-6 col-xl-2" data-report-date hidden="@(Model.ReportKind != "products" || Model.ReportPeriod == "week")"><label asp-for="Through" class="form-label">@T["Día seleccionado"]</label><input asp-for="Through" type="date" class="form-control" /></div>
+        <div class="col-sm-6 col-xl-3"><label asp-for="Sku" class="form-label">@T["Producto"]</label><input asp-for="Sku" type="search" class="form-control" placeholder="@T["SKU o descripción"]" /></div>
+        <div class="col-sm-6 col-xl-3"><label asp-for="Reference" class="form-label">@T["Referencia"]</label><input asp-for="Reference" type="search" class="form-control" /></div>
+        <div class="col-sm-6 col-xl-3"><label asp-for="Area" class="form-label">@T["Proceso"]</label><select asp-for="Area" class="form-select"><option value="">@T["Todos"]</option>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<option value="@area">@T[ProductionReportTable.AreaName(area)]</option>}</select></div>
+        <div class="col-sm-6 col-xl-3"><button class="btn btn-primary">@T["Consultar"]</button></div>
+    </form>
+    @if(Model.Report is { } report)
+    {
+        <div class="d-flex flex-wrap gap-3 justify-content-between align-items-start">
+            <h2 id="report-title" class="h4">@T[Model.ReportTitle]</h2>
+            @if(report.CanOutput && report.Rows.Count > 0)
+            {
+                <div class="d-flex gap-2"><a class="btn btn-outline-primary" asp-page-handler="ReportExport" asp-all-route-data="@Model.ReportRoute()">@T["Exportar a Excel"]</a><a class="btn btn-outline-secondary" asp-page-handler="ReportPrint" asp-all-route-data="@Model.ReportRoute()" target="_blank" rel="noopener">@T["Imprimir"]</a></div>
+            }
+        </div>
+        <partial name="_ReportMetadata" model="Model" />
+        @if(report.Filter.Products && !report.Filter.FullWeek)
+        {
+            <nav class="report-day-navigation mb-3" aria-label="@T["Días de la semana del reporte"]" data-report-days>
+                <a class="btn btn-outline-secondary report-summary-link" data-report-back asp-all-route-data="@Model.ReportRoute("daily", report.Filter.Date, 1)"><span aria-hidden="true">← </span>@T["Volver al resumen semanal"]</a>
+                <div class="report-day-links">
+                    @foreach(var date in ProductionWeekCalendar.Days(report.WeekStart))
+                    {
+                        var active = date == report.Filter.Date;
+                        var labels = date.DayOfWeek switch {
+                            DayOfWeek.Monday => ("Lun", "Lunes"),
+                            DayOfWeek.Tuesday => ("Mar", "Martes"),
+                            DayOfWeek.Wednesday => ("Mié", "Miércoles"),
+                            DayOfWeek.Thursday => ("Jue", "Jueves"),
+                            DayOfWeek.Friday => ("Vie", "Viernes"),
+                            DayOfWeek.Saturday => ("Sáb", "Sábado"),
+                            _ => ("Dom", "Domingo")
+                        };
+                        <a class="btn @(active ? "btn-primary" : "btn-outline-primary")" data-report-day="@date.ToString("yyyy-MM-dd")" aria-current="@(active ? "date" : null)" aria-label="@T[labels.Item2] @date.ToString("dd/MM/yyyy")" asp-all-route-data="@Model.ReportRoute("products", date, 1)">@T[labels.Item1] @date.ToString("dd/MM")</a>
+                    }
+                </div>
+            </nav>
+        }
+        @if(!report.CanOutput){<p class="alert alert-warning">@T["El reporte supera 10.000 filas. Usa filtros más específicos."]</p>}
+        @if(report.Rows.Count == 0){<p class="alert alert-info">@T["No hay resultados para los filtros seleccionados."]</p>}
+        else
+        {
+            <partial name="_ReportTable" model="Model" />
+            @if(report.Filter.Products && Model.ReportPages > 1)
+            {
+                <nav class="d-flex gap-3 align-items-center mt-3" aria-label="@T["Paginación de productos"]">
+                    @if(Model.ReportPage > 1){<a class="btn btn-outline-secondary" asp-all-route-data="@Model.ReportRoute(page: Model.ReportPage - 1)">@T["Anterior"]</a>}
+                    <span>@T["Página"] @Model.ReportPage / @Model.ReportPages · @report.Rows.Count @T["productos"]</span>
+                    @if(Model.ReportPage < Model.ReportPages){<a class="btn btn-outline-secondary" asp-all-route-data="@Model.ReportRoute(page: Model.ReportPage + 1)">@T["Siguiente"]</a>}
+                </nav>
+            }
+        }
+    }
+</section>

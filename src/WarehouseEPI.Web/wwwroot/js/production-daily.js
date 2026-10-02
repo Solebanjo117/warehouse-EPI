@@ -173,10 +173,11 @@
   quantities.forEach((input, index) => input.addEventListener("keydown", event => {
     if (event.key === "Enter") {
       event.preventDefault();
+      if (input.dataset?.invalid === 'true') { input.focus(); return; }
       if (form.querySelector('[name="Group.Mode"]')?.value === 'quick')
         document.querySelector('#group-add-product')?.focus();
       else
-        (quantities[index + 1] || form.querySelector('button[formaction*="GroupPreview"]'))?.focus();
+        (quantities.slice(index + 1).find(next => !next.closest?.('[data-product-row]')?.hidden) || form.querySelector('button[formaction*="GroupPreview"]'))?.focus();
     }
   }));
   document.querySelector("#group-search")?.addEventListener("keydown", event => {
@@ -188,18 +189,18 @@
   const context = document.querySelector("[data-context-form]");
   const contextFields = [...document.querySelectorAll("[data-refresh-context]")];
   const originalValues = contextFields.map(input => input.value);
-  const canLeave = () => ![...quantities, ...form.querySelectorAll('input[name$=".Notes"]')].some(input => input.value.trim() !== "" && input.value.trim() !== "0") || window.confirm(form.dataset.unsavedMessage);
+  const canLeave = () => form.dataset.draftSaved === 'true' || ![...quantities, ...form.querySelectorAll('input[name$=".Notes"]')].some(input => input.value.trim() !== "" && input.value.trim() !== "0") || window.confirm(form.dataset.unsavedMessage);
   context?.addEventListener("submit", event => {
     if (!canLeave()) {
       event.preventDefault();
       contextFields.forEach((input, index) => { input.value = originalValues[index]; });
     }
   });
-  contextFields.forEach(input => input.addEventListener("change", () => context.requestSubmit()));
   document.querySelectorAll("[data-capture-context-link]").forEach(link => link.addEventListener("click", event => {
     if (!canLeave()) event.preventDefault();
   }));
   form.addEventListener("submit", event => {
+    if (event.defaultPrevented) return;
     if (form.dataset.submitting) { event.preventDefault(); return; }
     form.dataset.submitting = "true";
   });
@@ -207,14 +208,21 @@
 
 (() => {
   document.querySelectorAll('[data-balance-day]').forEach(button => button.addEventListener('click', () => {
-    const form = button.closest('form');
+    const form = button.form || button.closest('form');
     form.querySelector('[name="Through"]').value = button.dataset.balanceDay;
     form.requestSubmit();
   }));
   const week = document.querySelector('[data-balance-week]');
   week?.addEventListener('change', () => {
-    const form = week.closest('form');
-    form.querySelector('[name="Through"]').value = '';
+    const form = week.form || week.closest('form');
+    const through = form.querySelector('[name="Through"]');
+    const old = new Date(`${through.value}T12:00:00Z`);
+    const start = week.selectedOptions[0]?.dataset.start;
+    if (start) {
+      const next = new Date(`${start}T12:00:00Z`);
+      next.setUTCDate(next.getUTCDate() + (Number.isNaN(old.getTime()) ? 0 : (old.getUTCDay() + 6) % 7));
+      through.value = next.toISOString().slice(0, 10);
+    } else through.value = '';
     form.requestSubmit();
   });
 })();

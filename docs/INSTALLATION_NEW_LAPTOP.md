@@ -1,5 +1,9 @@
 # Implementación de Warehouse EPI en otra laptop
 
+Para entregar la instalación a IT, use primero la
+[guía simplificada de servidor](INSTALLATION_SERVER.md), con paquete compilado
+y un asistente. Este documento conserva el procedimiento avanzado desde código.
+
 Este runbook instala Warehouse EPI en una laptop Windows nueva, desde la
 preparación del código hasta su operación como servicio local HTTPS. Incluye
 dos rutas de base de datos:

@@ -2,9 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const dictionary = require('./localization-dictionary.cjs');
 const script = fs.readFileSync('src/WarehouseEPI.Web/wwwroot/js/warehouse-map-query.js', 'utf8');
 
-function setup({ width = 1000, height = 700, browserWidth = 1366, search = false, mapTop = 100 } = {}) {
+function setup({ width = 1000, height = 700, browserWidth = 1366, search = false, mapTop = 100,
+  language = 'es', heatmap = false, fetchHeatmap = async () => { throw new Error('offline'); } } = {}) {
   const callbacks = [];
   let active, now = 1000;
   function element(tagName = 'DIV') {
@@ -13,6 +15,7 @@ function setup({ width = 1000, height = 700, browserWidth = 1366, search = false
       tagName, dataset: {}, hidden: false, disabled: false, inert: false, attrs: {}, handlers: {}, children: [],
       style: { setProperty(name, value) { this[name] = value; } },
       classList: {
+        [Symbol.iterator]() { return classes[Symbol.iterator](); },
         add(name) { classes.add(name); }, remove(name) { classes.delete(name); }, contains(name) { return classes.has(name); },
         toggle(name, on) { on ??= !classes.has(name); on ? classes.add(name) : classes.delete(name); return on; }
       },
@@ -28,9 +31,16 @@ function setup({ width = 1000, height = 700, browserWidth = 1366, search = false
   }
   const body = element(), page = element(), alreadyInert = element(), frame = element(), root = element(), svg = element('svg');
   const viewport = element(), stage = element(), detail = element(), hint = element();
+  const heatmapForm = element('FORM'), heatmapError = element(), heatmapValue = element(), periodLabel = element();
+  const incidents = element(), metric = { value: 'activity' }, period = { value: '7' };
+  heatmapForm.querySelector = s => ({ "[name='mapMetric']": metric, "[name='period']": period }[s] || null);
   const buttons = Object.fromEntries(['in', 'out', 'fit', 'focus', 'expand', 'close'].map(key => [key, element('BUTTON')]));
   const rack = element('g'), panel = element(), position = element('BUTTON'), positionDetail = element();
   rack.dataset = { mapOpen: 'rack-1', mapKind: 'Rack' };
+  rack.dataset.mapBaseLabel = language === 'en' ? 'Open A-1, Storage, Active' : 'Abrir A-1, Almacenamiento, Activo';
+  rack.querySelector = s => s === '[data-heatmap-value]' ? heatmapValue : null;
+  const heatmapRow = element();
+  heatmapRow.querySelector = s => s === '[data-heatmap-incidents]' ? incidents : null;
   position.dataset.mapPosition = 'position-1';
   positionDetail.dataset.positionDetail = 'position-1';
   panel.dataset.mapDetail = 'rack-1';
@@ -42,9 +52,12 @@ function setup({ width = 1000, height = 700, browserWidth = 1366, search = false
   viewport.scrollLeft = viewport.scrollTop = detail.scrollTop = 0;
   const window = {
     innerWidth: browserWidth, innerHeight: height + 116, scrollX: 0, scrollY: 240, handlers: {},
+    location: { pathname: '/Locations' }, history: { replaceState() {} },
     addEventListener: element().addEventListener,
     scrollTo(x, y) { this.scrollX = typeof x === 'object' ? x.left : x; this.scrollY = typeof x === 'object' ? x.top : y; }
   };
+  const texts = dictionary(language);
+  window.warehouseText = (key, ...args) => (texts[key] || key).replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match);
   Object.defineProperties(viewport, {
     clientWidth: { get: () => width - (!detail.hidden && window.innerWidth >= 1200 ? 320 : 0) },
     clientHeight: { get: () => parseFloat(viewport.style['--map-expanded-viewport-height']) || height }
@@ -58,7 +71,7 @@ function setup({ width = 1000, height = 700, browserWidth = 1366, search = false
     return { left: rect.left + 1400 * scale, top: rect.top + 700 * scale, width: 60 * scale, height: 40 * scale };
   };
   const rootOne = { svg, '[data-map-viewport]': viewport, '[data-map-stage]': stage, '.warehouse-map-detail': detail,
-    '[data-map-detail="rack-1"]': panel };
+    '[data-map-detail="rack-1"]': panel, '[data-map-open="rack-1"]': rack };
   root.querySelector = s => rootOne[s] || null;
   root.querySelectorAll = s => ({ '[data-map-detail]': [panel], '[data-map-position]': [position], '[data-map-close]': [buttons.close] }[s] || []);
   const frameOne = { '[data-map-focus]': buttons.focus, '[data-map-expand]': buttons.expand, '[data-map-hint]': hint,
@@ -69,15 +82,20 @@ function setup({ width = 1000, height = 700, browserWidth = 1366, search = false
   panel.querySelector = s => s === '[data-map-close]' ? buttons.close : s.startsWith('[data-map-position') ? position : null;
   panel.querySelectorAll = s => s === '[data-position-detail]' ? [positionDetail] : s === '[data-map-position]' ? [position] : [];
   position.closest = () => panel;
-  const document = { body, querySelector: s => s === '[data-warehouse-map]' ? root : null, querySelectorAll: () => [], createComment: () => element('COMMENT') };
+  const document = { body, querySelector: s => ({ '[data-warehouse-map]': root, '[data-heatmap-form]': heatmap ? heatmapForm : null,
+    '[data-heatmap-error]': heatmapError, '[data-heatmap-period-label]': periodLabel, '[data-heatmap-rack-row="rack-1"]': heatmapRow }[s] || null),
+    querySelectorAll: () => [], createComment: () => element('COMMENT') };
   vm.runInNewContext(script, {
     document, window, CSS: { escape: value => value }, performance: { now: () => now },
     requestAnimationFrame: callback => { callbacks.push(callback); return callbacks.length; },
-    ResizeObserver: class { observe() {} }
+    ResizeObserver: class { observe() {} },
+    FormData: class extends Map { constructor() { super([['mapMetric', metric.value], ['period', period.value]]); } },
+    URLSearchParams, fetch: fetchHeatmap
   });
   const scale = () => parseFloat(svg.style.width) / 2000;
   const flush = () => callbacks.splice(0).forEach(callback => callback());
   return { root, viewport, svg, stage, detail, panel, positionDetail, hint, buttons, rack, frame, page, alreadyInert, body, window, scale,
+    heatmapForm, heatmapError, heatmapValue, periodLabel, incidents, metric,
     active: () => active, setNow: value => { now = value; }, resize: (nextWidth, nextBrowserWidth = window.innerWidth) => {
       width = nextWidth; window.innerWidth = nextBrowserWidth;
       window.handlers.resize[0].handler();
@@ -91,6 +109,42 @@ function setup({ width = 1000, height = 700, browserWidth = 1366, search = false
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < .001, `${actual} != ${expected}`);
 const touch = (clientX, clientY) => ({ clientX, clientY });
 const event = touches => ({ touches, prevented: false, stopped: false, preventDefault() { this.prevented = true; }, stopPropagation() { this.stopped = true; } });
+
+for (const language of ['es', 'en']) {
+  test(`heatmap refresh localizes accessible values and network failures in ${language}`, async () => {
+    let fail = false, request;
+    const result = { metric: 'activity', period: '7', periodLabel: language === 'en' ? 'Last 7 days' : 'Últimos 7 días',
+      racks: [{ elementId: 'rack-1', accessCount: 12, totalPositions: 9, occupiedPositions: 2,
+        occupancyPercent: 22.22, heatLevel: 3, negativePositions: 1, blockedPositions: 2 }] };
+    const h = setup({ language, heatmap: true, fetchHeatmap: async url => {
+      request = url;
+      if (fail) throw new Error('offline');
+      return { ok: true, json: async () => result };
+    } });
+    const submit = async () => {
+      h.heatmapForm.fire('submit', { preventDefault() {} });
+      await new Promise(resolve => setImmediate(resolve));
+    };
+    await submit();
+    assert.match(request, /mapMetric=activity&period=7&handler=HeatmapData$/);
+    assert.equal(h.periodLabel.textContent, result.periodLabel);
+    assert.match(h.rack.attrs['aria-label'], language === 'en' ? /, 12 operations$/ : /, 12 operaciones$/);
+    assert.equal(h.heatmapValue.textContent, language === 'en' ? '12 ops.' : '12 mov.');
+    assert.equal(h.incidents.textContent, language === 'en' ? '1 negative · 2 blocked' : '1 negativas · 2 bloqueadas');
+    result.metric = 'occupancy'; result.racks[0].totalPositions = 0;
+    h.metric.value = 'occupancy';
+    await submit();
+    assert.match(h.rack.attrs['aria-label'], language === 'en' ? /, no assessable positions$/ : /, sin posiciones evaluables$/);
+    assert.equal(h.heatmapValue.textContent, language === 'en' ? 'N/A' : 'N/D');
+    const lastValue = h.heatmapValue.textContent;
+    fail = true;
+    await submit();
+    assert.equal(h.heatmapValue.textContent, lastValue);
+    assert.equal(h.heatmapError.textContent, dictionary(language)['No fue posible calcular el mapa de calor. Los valores anteriores se conservaron; vuelve a intentarlo.']);
+    assert.equal(h.heatmapError.classList.contains('d-none'), false);
+    assert.equal(h.heatmapForm.attrs['aria-busy'], undefined);
+  });
+}
 
 test('overview fits both dimensions, centers the canvas and leaves no empty detail', () => {
   const h = setup({ width: 1000, height: 320 });

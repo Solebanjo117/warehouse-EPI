@@ -40,6 +40,7 @@ public sealed record ProductionScheduleImportResolutions(
     IReadOnlyDictionary<string, Guid> Products,
     IReadOnlyList<ProductionScheduleImportRowFix> Rows)
 {
+    public bool ReplaceProgramming { get; init; }
     public static ProductionScheduleImportResolutions None { get; } = new(
         new Dictionary<string, ProductionDailyArea>(), new Dictionary<string, int>(), new Dictionary<string, Guid>(), []);
     public bool IsEmpty => Areas.Count == 0 && Shifts.Count == 0 && Products.Count == 0 && Rows.Count == 0 && Opening.Count == 0 && ClosingTable is null;
@@ -65,8 +66,10 @@ public sealed record ProductionScheduleImportPreview(string FileName, string Fil
     IReadOnlyList<ProductionScheduleImportWeek> Weeks, IReadOnlyList<ProductionScheduleImportIssue> Issues,
     IReadOnlyList<string> AppliedResolutions)
 {
+    public bool ReplaceProgramming { get; init; }
+    public IReadOnlyList<ProductionImportReplacementImpact> ReplacementImpact { get; init; } = [];
     public bool CanConfirm => Issues.Count == 0 && Weeks.Count > 0;
-    public int LineCount => Weeks.Sum(x => x.Lines.Count);
+    public int LineCount => ReplaceProgramming ? FinalLineCount : Weeks.Sum(x => x.Lines.Count);
     public int CaptureCount => Weeks.Sum(x => x.Captures.Count);
     public int FinalLineCount => Weeks.Sum(x => x.FinalLines.Count);
     public IReadOnlyList<ProductionOpeningReview> OpeningReview { get; init; } = [];
@@ -76,7 +79,8 @@ public sealed record ProductionScheduleImportPreview(string FileName, string Fil
     public string Fingerprint { get; init; } = "";
 }
 
-public sealed partial class ProductionScheduleImportService(WarehouseDbContext db, TimeProvider timeProvider)
+public sealed partial class ProductionScheduleImportService(WarehouseDbContext db, TimeProvider timeProvider,
+    ProductionDailyScheduleService? scheduleService = null)
 {
     private static readonly DateOnly FirstHistoricalWeek = new(2026, 8, 24);
     private static readonly DateOnly DraftWeek = new(2026, 9, 21);
@@ -118,22 +122,29 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
             using var workbook = new XLWorkbook(new MemoryStream(bytes));
             foreach (var sheet in workbook.Worksheets.Where(x => !IsIgnored(x.Name)))
             {
-                if (!TryWeekStart(sheet.Name, out var weekStart) || weekStart < FirstHistoricalWeek || weekStart > DraftWeek)
+                if (!TryWeekStart(sheet.Name, out var weekStart) ||
+                    (!resolutions.ReplaceProgramming && (weekStart < FirstHistoricalWeek || weekStart > DraftWeek)))
                     continue;
+                if (weekStart.DayOfWeek != DayOfWeek.Monday)
+                {
+                    issues.Add(new(sheet.Name, null, "La semana debe iniciar en lunes."));
+                    continue;
+                }
                 var planTable = sheet.Tables.FirstOrDefault(IsPlanTable);
                 if (planTable is null)
                 {
                     issues.Add(new(sheet.Name, null, "No se encontró una tabla de programa con encabezados Day, Part Number y Qty."));
                     continue;
                 }
-                var lines = ParseLines(sheet.Name, planTable, weekStart, context);
+                var lines = ParseLines(sheet.Name, planTable, weekStart, context, resolutions.ReplaceProgramming);
                 var execution = sheet.Tables.FirstOrDefault(IsExecutionTable);
-                var captures = execution is null
+                var captures = execution is null || resolutions.ReplaceProgramming
                     ? []
                     : ParseCaptures(sheet.Name, execution, weekStart, context);
                 weeks.Add(new(sheet.Name, weekStart, weekStart == DraftWeek, lines, captures, []));
             }
-            opening = await ReconcileOpeningAsync(workbook, weeks, context, resolutions, token);
+            if (!resolutions.ReplaceProgramming)
+                opening = await ReconcileOpeningAsync(workbook, weeks, context, resolutions, token);
         }
         catch (Exception ex) when (ex is InvalidDataException or FormatException or ArgumentException)
         {
@@ -143,8 +154,17 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
                  {
                      new DateOnly(2026, 8, 24), new DateOnly(2026, 8, 31), new DateOnly(2026, 9, 7),
                      new DateOnly(2026, 9, 14), new DateOnly(2026, 9, 21)
-                 }.Where(x => weeks.All(w => w.WeekStart != x)))
+                 }.Where(x => !resolutions.ReplaceProgramming && weeks.All(w => w.WeekStart != x)))
             issues.Add(new("Archivo", null, $"Falta la semana {required:MM-dd} esperada para la carga inicial."));
+        foreach (var duplicate in weeks.GroupBy(x => x.WeekStart).Where(x => x.Count() > 1))
+            issues.Add(new("Archivo", null, $"La semana {duplicate.Key:yyyy-MM-dd} aparece más de una vez."));
+        if (resolutions.ReplaceProgramming)
+        {
+            // Opening balances are operational history, not new programming.
+            for (var i = 0; i < weeks.Count; i++)
+                weeks[i] = weeks[i] with { FinalLines = weeks[i].Lines.Where(x => !x.IsCarryover).ToArray() };
+            issues.AddRange(await ReplacementIssuesAsync(weeks, token));
+        }
         for (var index = 0; index < weeks.Count; index++)
         {
             var week = weeks[index];
@@ -157,8 +177,11 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
         }
         var preview = new ProductionScheduleImportPreview(fileName, hash, weeks.OrderBy(x => x.WeekStart).ToArray(), issues, context.Applied)
         {
+            ReplaceProgramming = resolutions.ReplaceProgramming,
+            ReplacementImpact = resolutions.ReplaceProgramming ? await ReplacementImpactAsync(weeks, token) : [],
             OpeningReview = opening.Reviews, Evidence = opening.Evidence, ClosingCandidates = opening.Candidates,
-            DependencyHash = await GetDependencyHashAsync(weeks, token, opening.Reviews.Select(x => x.ProductId))
+            DependencyHash = resolutions.ReplaceProgramming ? await ReplacementHashAsync(weeks, token)
+                : await GetDependencyHashAsync(weeks, token, opening.Reviews.Select(x => x.ProductId))
         };
         return preview with { Fingerprint = CanonicalHash(new { Algorithm = "opening-v1", Preview = preview, Resolutions = resolutions }) };
     }
@@ -170,6 +193,8 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
             Errors: preview.Issues.Select(x => $"{x.Sheet}{(x.Row.HasValue ? $" fila {x.Row}" : "")}: {x.Message}").ToArray());
         if (!await db.Users.AnyAsync(x => x.Id == actorUserId && x.IsActive && x.Role.Code == "ADMIN", token))
             return new(ProductionDailyCommandStatus.ValidationFailed, Errors: ["La importación requiere ADMIN."]);
+        if (preview.ReplaceProgramming)
+            return await ReplaceProgrammingAsync(preview, operationId, actorUserId, token);
         var existing = await db.ProductionScheduleImportBatches.AsNoTracking()
             .SingleOrDefaultAsync(x => x.FileHash == preview.FileHash || x.OperationId == operationId, token);
         if (existing is not null)
@@ -289,13 +314,15 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
     }
 
     private static List<ProductionScheduleImportLine> ParseLines(string sheet, IXLTable table,
-        DateOnly weekStart, ParseContext context)
+        DateOnly weekStart, ParseContext context, bool programmingOnly = false)
     {
         const ProductionScheduleImportTable Plan = ProductionScheduleImportTable.Plan;
         var result = new List<ProductionScheduleImportLine>();
         var headers = Headers(table);
         foreach (var row in table.DataRange.Rows())
         {
+            var type = Optional(row, headers, "tipo", "type");
+            if (programmingOnly && Normalize(type ?? "").Contains("arrastre", StringComparison.Ordinal)) continue;
             var sku = Text(row.Cell(headers["partnumber"]));
             var sourceQuantity = Decimal(row.Cell(headers["qty"]));
             if (string.IsNullOrWhiteSpace(sku) && sourceQuantity is null) continue;
@@ -318,7 +345,6 @@ public sealed partial class ProductionScheduleImportService(WarehouseDbContext d
                 context.Issue(sheet, number, "La cantidad programada debe ser positiva.",
                     ProductionScheduleImportIssueKind.InvalidQuantity, Plan);
             if (date is null || string.IsNullOrWhiteSpace(sku)) continue;
-            var type = Optional(row, headers, "tipo", "type");
             result.Add(new(date.Value, sku, productId.Value, quantity ?? 0,
                 Optional(row, headers, "ordernumber1", "order1", "order"), Optional(row, headers, "ordernumber2", "order2"),
                 Optional(row, headers, "ordernumber3", "order3"), Optional(row, headers, "notes", "comments"),

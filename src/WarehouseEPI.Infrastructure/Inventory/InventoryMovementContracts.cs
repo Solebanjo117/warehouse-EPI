@@ -44,7 +44,8 @@ public enum InventoryMovementStatus
     ValidationFailed,
     RequiresLocationSharingConfirmation,
     BalanceChanged,
-    IdempotencyConflict
+    IdempotencyConflict,
+    RoleNotAllowed
 }
 
 public sealed record SharedLocationConflict(

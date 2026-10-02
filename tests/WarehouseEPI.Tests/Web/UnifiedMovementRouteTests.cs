@@ -78,7 +78,7 @@ public sealed class UnifiedMovementRouteTests
 
         Assert.Contains("MovementTraceabilityService", detailModel, StringComparison.Ordinal);
         Assert.Contains("WarehouseSettingsService", detailModel, StringComparison.Ordinal);
-        Assert.Contains("[Authorize(Policy = \"AdminOnly\")]", detailModel, StringComparison.Ordinal);
+        Assert.Contains("[Authorize(Policy = \"MovementsRead\")]", detailModel, StringComparison.Ordinal);
         Assert.Contains("data-movement-traceability", detail, StringComparison.Ordinal);
         Assert.Contains("data-print-page", detail, StringComparison.Ordinal);
         Assert.Contains("Eventos relacionados", detail, StringComparison.Ordinal);

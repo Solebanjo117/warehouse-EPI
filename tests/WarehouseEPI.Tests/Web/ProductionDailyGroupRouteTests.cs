@@ -73,7 +73,7 @@ public sealed class ProductionDailyGroupRouteTests
             await db.SaveChangesAsync();
         }
         var page = WebUtility.HtmlDecode(await client.GetStringAsync(
-            $"/Operations/Production?Day={monday:yyyy-MM-dd}&Area=Cutting&ShiftId={shift1}"));
+            $"/Operations/Production?Tab=capture&Day={monday:yyyy-MM-dd}&Area=Cutting&ShiftId={shift1}"));
         Assert.Contains("data-registered=\"100\"", page);
         Assert.DoesNotMatch("<input[^>]*id=\"group-date\"[^>]*max=", page);
         Assert.DoesNotContain("Finished part", page);
@@ -138,7 +138,7 @@ public sealed class ProductionDailyGroupRouteTests
             Assert.True((await schedule.PublishAsync(new(Guid.NewGuid(), weekId, week.Version, "0123", user.Id))).Success);
             shiftId = (await db.ProductionDailyConfigurations.SingleAsync()).Shift1Id!.Value;
         }
-        var page = await client.GetStringAsync($"/Operations/Production?WeekId={weekId}");
+        var page = await client.GetStringAsync($"/Operations/Production?Tab=capture&WeekId={weekId}");
         Assert.Contains("GROUP-WEB", page);
         Assert.Contains("data-daily-product-field", page);
         Assert.DoesNotContain("id=\"group-search\"", page);
@@ -188,14 +188,14 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Contains("production-weekly-product", weeklyPage);
         Assert.Equal(monday.ToString("yyyy-MM-dd"), Input(weeklyPage, "Through"));
 
-        var rtp = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Day={monday:yyyy-MM-dd}&Area=ReadyToPack&ShiftId={shiftId}"));
+        var rtp = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&Day={monday:yyyy-MM-dd}&Area=ReadyToPack&ShiftId={shiftId}"));
         Assert.Contains("No hay pendientes registrados", rtp);
         Assert.Contains("Group.AddProductId", rtp);
         Assert.Contains("Area=Cutting", rtp);
         Assert.DoesNotContain("name=\"Group.Rows[0].Quantity\"", rtp);
-        var noMatch = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?WeekId={weekId}&Area=Cutting&Sku=NO-MATCH"));
+        var noMatch = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&WeekId={weekId}&Area=Cutting&Sku=NO-MATCH"));
         Assert.Contains("Ningún producto coincide", noMatch);
-        var missing = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Day={monday.AddDays(-7):yyyy-MM-dd}"));
+        var missing = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&Day={monday.AddDays(-7):yyyy-MM-dd}"));
         Assert.Contains("No hay una semana programada", missing);
         var fields = new Dictionary<string, string>
         {
@@ -261,7 +261,7 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Equal(monday.ToString("yyyy-MM-dd"), Input(cleared, "Day"));
         Assert.Equal("Cutting", Input(cleared, "Group.Area"));
         Assert.Equal(shiftId.ToString(), Input(cleared, "Group.ShiftId"));
-        Assert.Contains("Tanda registrada", cleared);
+        Assert.Contains("Producción registrada", WebUtility.HtmlDecode(cleared));
         Assert.Contains("Group admin", cleared);
         Assert.Contains("Ver registro", cleared);
         Assert.Contains("data-registered=\"2\"", cleared);
@@ -274,7 +274,7 @@ public sealed class ProductionDailyGroupRouteTests
         var captureService = verify.ServiceProvider.GetRequiredService<ProductionDailyCaptureService>();
         Assert.Equal(18, (await captureService.GetAvailabilityAsync(monday, ProductionDailyArea.Cutting)).Single(x => x.ProductId == productId).Available);
         Assert.Equal(2, (await captureService.GetAvailabilityAsync(monday, ProductionDailyArea.Sewing)).Single(x => x.ProductId == productId).Available);
-        var sewingPage = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Day={monday:yyyy-MM-dd}&Area=Sewing&ShiftId={shiftId}"));
+        var sewingPage = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&Day={monday:yyyy-MM-dd}&Area=Sewing&ShiftId={shiftId}"));
         Assert.Contains("GROUP-WEB", sewingPage);
         Assert.Contains("Pendiente registrado", sewingPage);
         Assert.Single(await context.ProductionCaptureSubmissions.ToListAsync());
@@ -310,7 +310,8 @@ public sealed class ProductionDailyGroupRouteTests
             ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"), ["Input.Pin"] = "0123" }));
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         balanceHtml = await client.GetStringAsync($"/Operations/Production?Tab=balance&WeekId={weekId}&Through={monday:yyyy-MM-dd}");
-        Assert.Contains("data-plan-line=", balanceHtml);
+        Assert.DoesNotContain("data-plan-line=", balanceHtml);
+        Assert.Contains("data-balance-plan>20</span>", balanceHtml);
         Assert.DoesNotContain("data-plan-editor", balanceHtml);
         var planLines = await client.GetFromJsonAsync<JsonElement>($"/Operations/Production?handler=BalancePlanLines&weekId={weekId}&date={monday:yyyy-MM-dd}&productId={productId}");
         Assert.Equal(1, planLines.GetArrayLength());
@@ -325,13 +326,11 @@ public sealed class ProductionDailyGroupRouteTests
             var planResponse = await client.SendAsync(planRequest);
             Assert.Equal(HttpStatusCode.OK, planResponse.StatusCode);
             using var planReview = JsonDocument.Parse(await planResponse.Content.ReadAsStringAsync());
-            Assert.True(planReview.RootElement.GetProperty("canConfirm").GetBoolean(), planReview.RootElement.ToString());
-            Assert.True(planReview.RootElement.GetProperty("requiresAdmin").GetBoolean());
-            Assert.False(planReview.RootElement.GetProperty("requiresReason").GetBoolean());
-            Assert.Contains("part-summary-heading", planReview.RootElement.GetProperty("weeklyHtml").GetString());
+            Assert.False(planReview.RootElement.GetProperty("canConfirm").GetBoolean());
         }
         var zeroHtml = await client.GetStringAsync($"/Operations/Production?Tab=balance&WeekId={weekId}&Through={monday.AddDays(6):yyyy-MM-dd}");
-        Assert.Contains("data-new-plan=", zeroHtml);
+        Assert.DoesNotContain("data-new-plan=", zeroHtml);
+        Assert.Contains("data-balance-plan>0</span>", zeroHtml);
         using (var newPlanRequest = new HttpRequestMessage(HttpMethod.Post, "/Operations/Production?handler=BalanceEditPreview"))
         {
             newPlanRequest.Headers.Add("RequestVerificationToken", Input(zeroHtml, "__RequestVerificationToken"));
@@ -341,10 +340,7 @@ public sealed class ProductionDailyGroupRouteTests
             using var response = await client.SendAsync(newPlanRequest);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            Assert.True(json.RootElement.GetProperty("canConfirm").GetBoolean(), json.RootElement.ToString());
-            Assert.True(json.RootElement.GetProperty("requiresAdmin").GetBoolean());
-            Assert.Equal(1, json.RootElement.GetProperty("newPlans").GetArrayLength());
-            Assert.Equal(15, json.RootElement.GetProperty("balance").GetProperty("products")[0].GetProperty("planned").GetDecimal());
+            Assert.False(json.RootElement.GetProperty("canConfirm").GetBoolean());
         }
         var schedulePage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={weekId}&SelectedDay={monday:yyyy-MM-dd}");
         Assert.Contains("GROUP-WEB", schedulePage);
@@ -358,171 +354,49 @@ public sealed class ProductionDailyGroupRouteTests
         var scheduleService = verify.ServiceProvider.GetRequiredService<ProductionDailyScheduleService>();
         var targetId = (await scheduleService.CreateWeekAsync(new(Guid.NewGuid(), monday.AddDays(7), admin.Id))).Id!.Value;
         var targetPage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&ActionPanel=copy");
+        Assert.Contains("data-request-mode=\"copy\"", targetPage);
+        Assert.DoesNotContain("aria-label=\"Días de la semana\"", targetPage);
+        Assert.True(Regex.Count(targetPage, "<table\\b") == 1);
         foreach (var offset in Enumerable.Range(0, 7))
         {
-            var day = monday.AddDays(7 + offset);
-            var iso = day.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
-            var dayLink = Regex.Matches(targetPage, "<a[^>]*flex-shrink-0[^>]*>")
-                .Select(match => Regex.Match(match.Value, "href=\"([^\"]+)\"").Groups[1].Value)
-                .Select(href => WebUtility.HtmlDecode(href)!)
-                .Single(href => href.Contains($"SelectedDay={iso}", StringComparison.Ordinal));
-            var selectedPage = WebUtility.HtmlDecode(await client.GetStringAsync(dayLink));
-            Assert.Contains($"{day:dd/MM}</h3>", selectedPage);
-            var activeDay = Assert.Single(Regex.Matches(selectedPage, "<a[^>]*aria-current=\"date\"[^>]*>").Cast<Match>());
-            Assert.Contains($"SelectedDay={iso}", activeDay.Value);
+            var selectedPage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&SelectedDay={monday.AddDays(7 + offset):yyyy-MM-dd}");
+            Assert.Contains($"data-selected-day=\"{offset}\"", selectedPage);
+            Assert.Contains("data-request-day=\"true\"", selectedPage);
         }
-        var draftCapture = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?WeekId={targetId}"));
+        var draftCapture = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&WeekId={targetId}"));
         Assert.Contains("Esta semana está en borrador", draftCapture);
         Assert.DoesNotContain("name=\"Group.Rows[0].Quantity\"", draftCapture);
-        Assert.Equal("", Input(targetPage, "Copy.Rows[0].Quantity"));
-        Assert.Equal(monday.AddDays(7).ToString("yyyy-MM-dd"), Input(targetPage, "Copy.Rows[0].Date"));
-        var copyFields = new Dictionary<string, string>();
-        foreach (var name in new[] { "OperationId", "WeekId", "ExpectedVersion", "SourceWeekId", "SourceVersion", "Rows[0].SourceLineId", "Rows[0].Date", "Rows[0].Sku" })
-            copyFields["Copy." + name] = Input(targetPage, "Copy." + name);
-        copyFields["Copy.Rows[0].Selected"] = "true";
-        copyFields["Copy.Rows[0].Quantity"] = "1,5";
-        copyFields["__RequestVerificationToken"] = Input(targetPage, "__RequestVerificationToken");
-        var invalidCopy = await client.PostAsync("/Admin/Production/Schedule?handler=Copy", new FormUrlEncodedContent(copyFields));
-        Assert.Equal(HttpStatusCode.OK, invalidCopy.StatusCode);
-        var copyError = await invalidCopy.Content.ReadAsStringAsync();
-        Assert.Equal("1,5", Input(copyError, "Copy.Rows[0].Quantity"));
+        var sourceJson = await client.GetStringAsync($"/Admin/Production/Schedule?handler=WorkspaceCopy&weekId={targetId}&sourceWeekId={weekId}");
+        Assert.Contains("GROUP-WEB", sourceJson);
+        async Task<HttpResponseMessage> SaveWorkspace(ProductionScheduleDraftChange[] changes) => await client.PostAsync(
+            "/Admin/Production/Schedule?handler=WorkspaceSave", new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["payload"] = JsonSerializer.Serialize(new { operationId = Guid.NewGuid(), weekId = targetId,
+                    expectedWeekVersion = (await scheduleService.GetWeekAsync(targetId))!.Version, changes }, JsonSerializerOptions.Web),
+                ["__RequestVerificationToken"] = Input(targetPage, "__RequestVerificationToken")
+            }));
+        ProductionScheduleDraftChange Add(DateOnly date, decimal quantity) => new("add", null, null, new(date, productId, quantity, null, null, null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, (await SaveWorkspace([Add(monday.AddDays(7), 1.5m)])).StatusCode);
         Assert.False(await context.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId));
-        copyFields["Copy.Rows[0].Quantity"] = "5";
-        copyFields["__RequestVerificationToken"] = Input(copyError, "__RequestVerificationToken");
-        var savedCopy = await client.PostAsync("/Admin/Production/Schedule?handler=Copy", new FormUrlEncodedContent(copyFields));
-        Assert.Equal(HttpStatusCode.Redirect, savedCopy.StatusCode);
-        var copied = await context.ProductionScheduleLines.SingleAsync(x => x.WeekId == targetId);
-        Assert.Equal(5, copied.Quantity);
-        Assert.Null(copied.Notes);
-        Assert.Null(copied.WorkOrderId);
-        var copiedPage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&SelectedDay={monday.AddDays(7):yyyy-MM-dd}");
-        var deleteLink = Regex.Matches(copiedPage, "href=\"([^\"]+)\"").Cast<Match>()
-            .Select(match => WebUtility.HtmlDecode(match.Groups[1].Value)!)
-            .Single(href => href.Contains($"DeleteLineId={copied.Id}", StringComparison.Ordinal));
-        var confirmation = await client.GetStringAsync(deleteLink);
-        Assert.Contains("Confirmar eliminación", confirmation);
-        var deletion = new Dictionary<string, string>
+        Assert.Equal(HttpStatusCode.OK, (await SaveWorkspace([Add(monday.AddDays(7), 5)])).StatusCode);
+        var copied = await context.ProductionScheduleLines.AsNoTracking().SingleAsync(x => x.WeekId == targetId);
+        Assert.Equal(5, copied.Quantity); Assert.Null(copied.Notes); Assert.Null(copied.WorkOrderId);
+        foreach (var action in new[] { "EditLineId", "DeleteLineId" })
         {
-            ["DeleteLine.OperationId"] = Input(confirmation, "DeleteLine.OperationId"),
-            ["DeleteLine.WeekId"] = Input(confirmation, "DeleteLine.WeekId"),
-            ["DeleteLine.LineId"] = Input(confirmation, "DeleteLine.LineId"),
-            ["DeleteLine.ExpectedWeekVersion"] = Input(confirmation, "DeleteLine.ExpectedWeekVersion"),
-            ["DeleteLine.ExpectedLineVersion"] = Input(confirmation, "DeleteLine.ExpectedLineVersion"),
-            ["SelectedDay"] = Input(confirmation, "SelectedDay"),
-            ["PageNumber"] = Input(confirmation, "PageNumber"),
-            ["__RequestVerificationToken"] = Input(confirmation, "__RequestVerificationToken")
-        };
-        var deleted = await client.PostAsync("/Admin/Production/Schedule?handler=CancelLine",
-            new FormUrlEncodedContent(deletion));
-        Assert.Equal(HttpStatusCode.Redirect, deleted.StatusCode);
+            var linked = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&{action}={copied.Id}");
+            Assert.Contains($"data-focus-line=\"{copied.Id}\"", linked);
+            Assert.True(Regex.Count(linked, "<table\\b") == 1);
+        }
+        Assert.Equal(HttpStatusCode.OK, (await SaveWorkspace([new("remove", copied.Id, copied.Version, null)])).StatusCode);
         Assert.True((await context.ProductionScheduleLines.AsNoTracking().SingleAsync(x => x.Id == copied.Id)).IsCancelled);
-
         var addPage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&AddLine=true");
-        Assert.Contains("data-product-resolve-url", addPage);
-        Assert.Contains("data-product-scan-exact=\"true\"", addPage);
-        var stage = new Dictionary<string, string>
-        {
-            ["Batch.OperationId"] = Input(addPage, "Batch.OperationId"),
-            ["Batch.WeekId"] = Input(addPage, "Batch.WeekId"),
-            ["Batch.ExpectedWeekVersion"] = Input(addPage, "Batch.ExpectedWeekVersion"),
-            ["Line.OperationId"] = Input(addPage, "Line.OperationId"),
-            ["Line.WeekId"] = Input(addPage, "Line.WeekId"),
-            ["Line.ExpectedWeekVersion"] = Input(addPage, "Line.ExpectedWeekVersion"),
-            ["Line.ProductId"] = productId.ToString(),
-            ["Line.ProductLabel"] = "GROUP-WEB",
-            ["Line.PlannedDate"] = monday.AddDays(7).ToString("yyyy-MM-dd"),
-            ["Line.Quantity"] = "7",
-            ["__RequestVerificationToken"] = Input(addPage, "__RequestVerificationToken")
-        };
-        var stagedResponse = await client.PostAsync("/Admin/Production/Schedule?handler=StageLine",
-            new FormUrlEncodedContent(stage));
-        Assert.Equal(HttpStatusCode.OK, stagedResponse.StatusCode);
-        var stagedPage = WebUtility.HtmlDecode(await stagedResponse.Content.ReadAsStringAsync());
-        Assert.Contains("Pendiente de confirmar", stagedPage);
-        Assert.Contains("bg-warning-subtle", stagedPage);
+        Assert.Contains("data-request-add=\"true\"", addPage);
+        Assert.Contains("data-workspace-search", addPage);
+        Assert.Equal(HttpStatusCode.BadRequest, (await SaveWorkspace([Add(monday.AddDays(7), 0), Add(monday.AddDays(8), 8)])).StatusCode);
         Assert.False(await context.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId && !x.IsCancelled));
-        var editStaged = new Dictionary<string, string>
-        {
-            ["Batch.OperationId"] = Input(stagedPage, "Batch.OperationId"),
-            ["Batch.WeekId"] = Input(stagedPage, "Batch.WeekId"),
-            ["Batch.ExpectedWeekVersion"] = Input(stagedPage, "Batch.ExpectedWeekVersion"),
-            ["Batch.Rows[0].PlannedDate"] = Input(stagedPage, "Batch.Rows[0].PlannedDate"),
-            ["Batch.Rows[0].ProductId"] = Input(stagedPage, "Batch.Rows[0].ProductId"),
-            ["Batch.Rows[0].Quantity"] = Input(stagedPage, "Batch.Rows[0].Quantity"),
-            ["index"] = "0",
-            ["__RequestVerificationToken"] = Input(stagedPage, "__RequestVerificationToken")
-        };
-        var editStagedResponse = await client.PostAsync("/Admin/Production/Schedule?handler=EditStagedLine",
-            new FormUrlEncodedContent(editStaged));
-        Assert.Equal(HttpStatusCode.OK, editStagedResponse.StatusCode);
-        var editingStagedPage = await editStagedResponse.Content.ReadAsStringAsync();
-        Assert.Equal(7m, decimal.Parse(Input(editingStagedPage, "Line.Quantity"),
-            System.Globalization.CultureInfo.InvariantCulture));
-        stage["Batch.OperationId"] = Input(editingStagedPage, "Batch.OperationId");
-        stage["Batch.WeekId"] = Input(editingStagedPage, "Batch.WeekId");
-        stage["Batch.ExpectedWeekVersion"] = Input(editingStagedPage, "Batch.ExpectedWeekVersion");
-        stage["Line.OperationId"] = Input(editingStagedPage, "Line.OperationId");
-        stage["Line.WeekId"] = Input(editingStagedPage, "Line.WeekId");
-        stage["Line.ExpectedWeekVersion"] = Input(editingStagedPage, "Line.ExpectedWeekVersion");
-        stage["__RequestVerificationToken"] = Input(editingStagedPage, "__RequestVerificationToken");
-        var restagedResponse = await client.PostAsync("/Admin/Production/Schedule?handler=StageLine",
-            new FormUrlEncodedContent(stage));
-        Assert.Equal(HttpStatusCode.OK, restagedResponse.StatusCode);
-        stagedPage = WebUtility.HtmlDecode(await restagedResponse.Content.ReadAsStringAsync());
-        Assert.Contains("Pendiente de confirmar", stagedPage);
-        var secondStage = new Dictionary<string, string>
-        {
-            ["Batch.OperationId"] = Input(stagedPage, "Batch.OperationId"),
-            ["Batch.WeekId"] = Input(stagedPage, "Batch.WeekId"),
-            ["Batch.ExpectedWeekVersion"] = Input(stagedPage, "Batch.ExpectedWeekVersion"),
-            ["Batch.Rows[0].PlannedDate"] = Input(stagedPage, "Batch.Rows[0].PlannedDate"),
-            ["Batch.Rows[0].ProductId"] = Input(stagedPage, "Batch.Rows[0].ProductId"),
-            ["Batch.Rows[0].Quantity"] = Input(stagedPage, "Batch.Rows[0].Quantity"),
-            ["Line.OperationId"] = Input(stagedPage, "Line.OperationId"),
-            ["Line.WeekId"] = Input(stagedPage, "Line.WeekId"),
-            ["Line.ExpectedWeekVersion"] = Input(stagedPage, "Line.ExpectedWeekVersion"),
-            ["Line.ProductId"] = productId.ToString(),
-            ["Line.ProductLabel"] = "GROUP-WEB",
-            ["Line.PlannedDate"] = monday.AddDays(8).ToString("yyyy-MM-dd"),
-            ["Line.Quantity"] = "8",
-            ["__RequestVerificationToken"] = Input(stagedPage, "__RequestVerificationToken")
-        };
-        var secondStagedResponse = await client.PostAsync("/Admin/Production/Schedule?handler=StageLine",
-            new FormUrlEncodedContent(secondStage));
-        Assert.Equal(HttpStatusCode.OK, secondStagedResponse.StatusCode);
-        stagedPage = WebUtility.HtmlDecode(await secondStagedResponse.Content.ReadAsStringAsync());
-        Assert.Contains("Pendientes de confirmar · 2", stagedPage);
-        Assert.False(await context.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId && !x.IsCancelled));
-        var confirmRows = new Dictionary<string, string>
-        {
-            ["Batch.OperationId"] = Input(stagedPage, "Batch.OperationId"),
-            ["Batch.WeekId"] = Input(stagedPage, "Batch.WeekId"),
-            ["Batch.ExpectedWeekVersion"] = Input(stagedPage, "Batch.ExpectedWeekVersion"),
-            ["Batch.Rows[0].PlannedDate"] = Input(stagedPage, "Batch.Rows[0].PlannedDate"),
-            ["Batch.Rows[0].ProductId"] = Input(stagedPage, "Batch.Rows[0].ProductId"),
-            ["Batch.Rows[0].Quantity"] = Input(stagedPage, "Batch.Rows[0].Quantity"),
-            ["Batch.Rows[1].PlannedDate"] = Input(stagedPage, "Batch.Rows[1].PlannedDate"),
-            ["Batch.Rows[1].ProductId"] = Input(stagedPage, "Batch.Rows[1].ProductId"),
-            ["Batch.Rows[1].Quantity"] = Input(stagedPage, "Batch.Rows[1].Quantity"),
-            ["__RequestVerificationToken"] = Input(stagedPage, "__RequestVerificationToken")
-        };
-        var invalidGroup = new Dictionary<string, string>(confirmRows)
-        {
-            ["Batch.Rows[0].Quantity"] = "0"
-        };
-        var invalidGroupResponse = await client.PostAsync("/Admin/Production/Schedule?handler=SaveBatch",
-            new FormUrlEncodedContent(invalidGroup));
-        Assert.Equal(HttpStatusCode.OK, invalidGroupResponse.StatusCode);
-        var invalidGroupPage = WebUtility.HtmlDecode(await invalidGroupResponse.Content.ReadAsStringAsync());
-        Assert.Contains("Pendiente de confirmar", invalidGroupPage);
-        Assert.False(await context.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId && !x.IsCancelled));
-        confirmRows["__RequestVerificationToken"] = Input(invalidGroupPage, "__RequestVerificationToken");
-        var confirmedResponse = await client.PostAsync("/Admin/Production/Schedule?handler=SaveBatch",
-            new FormUrlEncodedContent(confirmRows));
-        Assert.Equal(HttpStatusCode.Redirect, confirmedResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await SaveWorkspace([Add(monday.AddDays(7), 7), Add(monday.AddDays(8), 8)])).StatusCode);
         Assert.Equal([7m, 8m], (await context.ProductionScheduleLines.AsNoTracking()
-            .Where(x => x.WeekId == targetId && !x.IsCancelled)
-            .OrderBy(x => x.PlannedDate).Select(x => x.Quantity).ToArrayAsync()));
+            .Where(x => x.WeekId == targetId && !x.IsCancelled).OrderBy(x => x.PlannedDate).Select(x => x.Quantity).ToArrayAsync()));
 
         async Task<string> Post(string handler, string html, Dictionary<string, string> values)
         {

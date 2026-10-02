@@ -18,32 +18,37 @@ public sealed partial class ProductionDailyCaptureService(
     WarehouseClock clock,
     TimeProvider timeProvider)
 {
+    // Retain the constructor dependency for existing callers; planning is no longer limited to today.
+    private readonly WarehouseClock clock = clock;
+
     public async Task<ProductionDailyCapturePreview> PreviewAsync(
-        PreviewProductionDailyCaptureCommand command, CancellationToken token = default)
+        PreviewProductionDailyCaptureCommand command, CancellationToken token = default) =>
+        await PreviewAsync(command, await ReadCaptureContextAsync(command.EffectiveDate, [command.ProductId], token), token);
+
+    private async Task<ProductionDailyCapturePreview> PreviewAsync(
+        PreviewProductionDailyCaptureCommand command, CaptureReadContext context, CancellationToken token)
     {
+        using var measurement = ProductionBalanceDiagnostics.Source.StartActivity("capture.validation");
         var blockers = new List<string>();
         if (!Enum.IsDefined(command.Area)) blockers.Add("El área seleccionada no está configurada.");
         if (command.Quantity <= 0 || command.Quantity > 99999999999999.9999m || decimal.Round(command.Quantity, 4) != command.Quantity)
             blockers.Add("Indica una cantidad positiva con hasta cuatro decimales.");
-        var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
+        var config = context.Configuration;
         var stageId = Stage(config, command.Area);
-        if (stageId is not null && !await db.ProductionStages.AnyAsync(x => x.Id == stageId && x.IsActive, token))
+        if (stageId is not null && !context.ActiveStages.Contains(stageId.Value))
             blockers.Add("El área seleccionada no está configurada.");
         if (stageId is null) blockers.Add("El área seleccionada no está configurada.");
-        if (!await db.ProductionShifts.AnyAsync(x => x.Id == command.ShiftId && x.IsActive &&
-                (x.Id == config.Shift1Id || x.Id == config.Shift2Id), token))
+        if (!context.ActiveShifts.Contains(command.ShiftId))
             blockers.Add("Selecciona T1 o T2 configurado y activo.");
-        var product = await db.Products.AsNoTracking().Include(x => x.BaseUnit)
-            .SingleOrDefaultAsync(x => x.Id == command.ProductId && x.IsActive, token);
+        var product = context.Products.GetValueOrDefault(command.ProductId);
+        if (product?.IsActive != true) product = null;
         if (product is null) blockers.Add("Selecciona un SKU activo del catálogo.");
         else if (!product.BaseUnit.AllowsDecimals && decimal.Truncate(command.Quantity) != command.Quantity)
             blockers.Add("La unidad del SKU no admite decimales.");
-        var effectiveWeek = await db.ProductionScheduleWeeks.AsNoTracking()
-            .SingleOrDefaultAsync(x => x.Status == ProductionScheduleWeekStatus.Open &&
-                x.WeekStart <= command.EffectiveDate && x.WeekEnd >= command.EffectiveDate, token);
+        var effectiveWeek = context.Week;
         if (effectiveWeek is null) blockers.Add("La fecha debe pertenecer a una semana abierta.");
         else if (effectiveWeek.ExplicitCarryover)
-            blockers.AddRange(await new ProductionWeekOpeningService(db).RevalidateAsync(effectiveWeek.Id, token));
+            blockers.AddRange(context.OpeningErrors);
         if (effectiveWeek is not null && await new ProductionWeekOpeningService(db)
             .CaptureCommitmentErrorAsync(effectiveWeek.Id, command.ProductId, command.Area, command.Quantity, token) is string commitmentError)
             blockers.Add(commitmentError);
@@ -57,8 +62,34 @@ public sealed partial class ProductionDailyCaptureService(
             var materials = await SelectMaterialsAsync(order, allocation.WorkOrderStageId, allocation.Quantity, token);
             blockers.AddRange(materials.Errors.Select(x => $"{allocation.OrderNumber}: {x}"));
         }
-        var available = (await GetAvailabilityAsync(command.EffectiveDate, command.Area, token: token))
-            .FirstOrDefault(x => x.ProductId == command.ProductId)?.Available ?? 0;
+        var availabilityKey = (command.EffectiveDate, command.Area, command.ProductId);
+        if (!context.Availability.TryGetValue(availabilityKey, out var availability))
+        {
+            var selected = context.Products.Keys.ToArray();
+            var availableProducts = (await GetAvailabilityAsync(command.EffectiveDate, command.Area, false, selected, token))
+                .ToDictionary(x => x.ProductId);
+            foreach (var productId in selected)
+                context.Availability[(command.EffectiveDate, command.Area, productId)] = availableProducts.GetValueOrDefault(productId);
+            availability = context.Availability.GetValueOrDefault(availabilityKey);
+        }
+        var available = availability?.Available ?? 0;
+        var pending = availability?.Pending ?? 0;
+        if (availability is null)
+        {
+            if (!context.Pending.TryGetValue(effectiveWeek.Id, out var balance))
+            {
+                balance = await new ProductionDailyBalanceService(db).GetAsync(effectiveWeek.Id, false, false, token,
+                    selectedProducts: context.Products.Keys.ToArray());
+                context.Pending.Add(effectiveWeek.Id, balance);
+            }
+            var row = balance!.Rows.SingleOrDefault(x => x.ProductId == command.ProductId && x.Date == command.EffectiveDate);
+            pending = row is null ? 0 : (command.Area switch
+            {
+                ProductionDailyArea.Cutting => row.Cutting,
+                ProductionDailyArea.Sewing => row.Sewing,
+                _ => row.ReadyToPack
+            }).SignedPending;
+        }
         var allocatedLineIds = allocations.Select(x => x.ScheduleLineId).ToArray();
         var extraLineIds = await db.ProductionScheduleLines.AsNoTracking().Where(x => allocatedLineIds.Contains(x.Id) && x.IsExtra)
             .Select(x => x.Id).ToListAsync(token);
@@ -68,43 +99,56 @@ public sealed partial class ProductionDailyCaptureService(
         return new(blockers.Count == 0, effectiveWeek!.Id, stageId, product?.Sku, command.Quantity,
             allocations, blockers.Distinct().ToArray(), available,
             command.Area == ProductionDailyArea.Cutting ? Math.Max(0, command.Quantity - allocations.Sum(x => x.Quantity)) : assignedExtras,
-            command.Area == ProductionDailyArea.Cutting ? 0 : Math.Max(0, command.Quantity - available), Fingerprint(state));
+            command.Area == ProductionDailyArea.Cutting ? 0 : Math.Max(0, command.Quantity - available), Fingerprint(state), pending);
     }
 
-    public async Task<ProductionDailyCommandResult> ConfirmAsync(
-        ConfirmProductionDailyCaptureCommand command, CancellationToken token = default)
+    public Task<ProductionDailyCommandResult> ConfirmAsync(
+        ConfirmProductionDailyCaptureCommand command, CancellationToken token = default) => ConfirmAsync(command, false, token);
+
+    private async Task<ProductionDailyCommandResult> ConfirmAsync(
+        ConfirmProductionDailyCaptureCommand command, bool validatedBalanceEdit, CancellationToken token)
     {
+        User? user;
+        using (ProductionBalanceDiagnostics.Source.StartActivity("capture.authentication"))
+            user = await pins.AuthenticateAsync(command.Pin, token);
+        if (user is null) return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP inválido."]);
+        if (!RoleAccess.CanCaptureProduction(user.Role.Code)) return new(ProductionDailyCommandStatus.RoleNotAllowed, Errors: [RoleAccess.ProductionWarning]);
         var fingerprint = Fingerprint(command with { Pin = "" });
         var prior = await db.ProductionDailyCaptures.AsNoTracking()
             .SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
         if (prior is not null)
-            return prior.RequestFingerprint == fingerprint
+            return prior.RequestFingerprint == fingerprint && prior.ResponsibleUserId == user.Id
                 ? new(ProductionDailyCommandStatus.Success, prior.Id)
                 : new(ProductionDailyCommandStatus.IdempotencyConflict);
-        var user = await pins.AuthenticateAsync(command.Pin, token);
-        if (user?.Role.Code is not ("ADMIN" or "OPERATOR"))
-            return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP inválido."]);
-        var preview = await PreviewAsync(new(command.EffectiveDate, command.Area, command.ShiftId,
-            command.ProductId, command.Quantity), token);
-        if (!preview.CanConfirm || preview.WeekId is not Guid weekId || preview.StageId is not Guid stageId)
-            return new(ProductionDailyCommandStatus.ValidationFailed, Errors: preview.Blockers);
+        // Only the balance editor can omit the preliminary validation; it has just revalidated
+        // the edit within its serializable transaction. Always validate again at the write point.
+        Guid? preliminaryWeekId = null, preliminaryStageId = null;
+        if (!validatedBalanceEdit)
+        {
+            var preliminary = await PreviewAsync(new(command.EffectiveDate, command.Area, command.ShiftId,
+                command.ProductId, command.Quantity), token);
+            if (!preliminary.CanConfirm || preliminary.WeekId is null || preliminary.StageId is null)
+                return new(ProductionDailyCommandStatus.ValidationFailed, Errors: preliminary.Blockers);
+            preliminaryWeekId = preliminary.WeekId; preliminaryStageId = preliminary.StageId;
+        }
         var ownsTransaction = db.Database.IsRelational() && db.Database.CurrentTransaction is null;
         await using var transaction = ownsTransaction
             ? await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token)
             : null;
         try
         {
-            preview = await PreviewAsync(new(command.EffectiveDate, command.Area, command.ShiftId, command.ProductId, command.Quantity), token);
-            if (!preview.CanConfirm) return await AbortAsync(transaction, new(ProductionDailyCommandStatus.ValidationFailed, Errors: preview.Blockers), token);
+            var preview = await PreviewAsync(new(command.EffectiveDate, command.Area, command.ShiftId, command.ProductId, command.Quantity), token);
+            if (!preview.CanConfirm || preview.WeekId is not Guid weekId || preview.StageId is not Guid stageId)
+                return await AbortAsync(transaction, new(ProductionDailyCommandStatus.ValidationFailed, Errors: preview.Blockers), token);
             var capture = new ProductionDailyCapture
             {
                 IsFlexible = true,
                 OperationId = command.OperationId,
                 RequestFingerprint = fingerprint,
-                WeekId = weekId,
+                WeekId = preliminaryWeekId ?? weekId,
                 EffectiveDate = command.EffectiveDate,
                 Area = command.Area,
-                StageId = stageId,
+                StageId = preliminaryStageId ?? stageId,
                 ShiftId = command.ShiftId,
                 ProductId = command.ProductId,
                 Quantity = command.Quantity,
@@ -139,7 +183,7 @@ public sealed partial class ProductionDailyCaptureService(
             if (transaction is not null) await transaction.RollbackAsync(token);
             db.ChangeTracker.Clear();
             prior = await db.ProductionDailyCaptures.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
-            return prior?.RequestFingerprint == fingerprint
+            return prior?.RequestFingerprint == fingerprint && prior.ResponsibleUserId == user.Id
                 ? new(ProductionDailyCommandStatus.Success, prior.Id)
                 : new(ProductionDailyCommandStatus.IdempotencyConflict);
         }
@@ -183,8 +227,11 @@ public sealed partial class ProductionDailyCaptureService(
             if (capture.Area == ProductionDailyArea.Cutting)
             {
                 var ids = capture.Allocations.Select(x => x.ScheduleLineId).ToArray();
+                var detached = await ProductionScheduleImportService.DetachedLineIdsAsync(db, ids, token);
                 foreach (var line in await db.ProductionScheduleLines.Include(x => x.WorkOrder).Where(x => ids.Contains(x.Id) && x.IsExtra).ToListAsync(token))
                 {
+                    // Retiring a plan never converts its existing order into a disposable capture-created order.
+                    if (detached.Contains(line.Id)) continue;
                     line.IsCancelled = true;
                     line.Version++;
                     var order = line.WorkOrder!;

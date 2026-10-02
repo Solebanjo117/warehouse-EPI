@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
 
@@ -35,8 +37,11 @@ internal static class HeatmapQueryNormalizer
         WarehouseClock clock,
         string? rowCode = null,
         string? search = null,
+        IStringLocalizer<CatalogTexts>? texts = null,
         CancellationToken cancellationToken = default)
     {
+        string Text(string key, params object[] args) => texts is null
+            ? string.Format(System.Globalization.CultureInfo.CurrentCulture, key, args) : texts[key, args].Value;
         if (!IsCanonicalMetric(mapMetric))
             throw new ArgumentOutOfRangeException(nameof(mapMetric));
 
@@ -58,7 +63,7 @@ internal static class HeatmapQueryNormalizer
                 from,
                 to,
                 new HeatmapReportFilter(metric, RowCode: normalizedRow, Search: normalizedSearch, PageSize: 50),
-                "Saldo actual en estantería");
+                Text("Saldo actual en estantería"));
         }
 
         var today = await clock.GetDateAsync(TimeProvider.System.GetUtcNow(), cancellationToken);
@@ -79,8 +84,8 @@ internal static class HeatmapQueryNormalizer
 
         var interval = await clock.GetUtcIntervalAsync(normalizedFrom, normalizedTo, cancellationToken);
         var label = normalizedPeriod == "custom"
-            ? $"{normalizedFrom:dd/MM/yyyy} a {normalizedTo:dd/MM/yyyy}"
-            : $"Últimos {normalizedPeriod} días";
+            ? Text("{0} a {1}", normalizedFrom.ToString("dd/MM/yyyy"), normalizedTo.ToString("dd/MM/yyyy"))
+            : Text("Últimos {0} días", normalizedPeriod);
         return new HeatmapQueryState(
             mapMetric,
             normalizedPeriod,

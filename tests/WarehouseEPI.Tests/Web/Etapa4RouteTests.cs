@@ -158,7 +158,7 @@ public sealed class Etapa4RouteTests
         Assert.Equal("occupancy", HeatmapQueryNormalizer.NormalizeLegacyMetric("occupancy-density", "activity"));
 
         var query = await HeatmapQueryNormalizer.BuildAsync(
-            "activity", "custom", from, to, clock, " A ", " rack ", CancellationToken.None);
+            "activity", "custom", from, to, clock, " A ", " rack ", cancellationToken: CancellationToken.None);
 
         Assert.Equal("activity", query.MapMetric);
         Assert.Equal("custom", query.Period);

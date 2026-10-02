@@ -132,4 +132,310 @@
   <data name="No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico." xml:space="preserve"><value>No se encontró una cámara disponible. Puedes tomar una foto, escribir o usar el lector físico.</value></data>
   <data name="También puedes usar un lector HID como teclado." xml:space="preserve"><value>También puedes usar un lector HID como teclado.</value></data>
   <data name="Validando código…" xml:space="preserve"><value>Validando código…</value></data>
+  <data name="Sigue el rack {0}" xml:space="preserve"><value>Sigue el rack {0}</value></data>
+  <data name="Sigue la fila {0}" xml:space="preserve"><value>Sigue la fila {0}</value></data>
+  <data name="Rack {0}" xml:space="preserve"><value>Rack {0}</value></data>
+  <data name="Fila {0} · Pantalla {1} de {2}" xml:space="preserve"><value>Fila {0} · Pantalla {1} de {2}</value></data>
+  <data name="Fila {0}, rack {1}, pantalla {2} de {3}" xml:space="preserve"><value>Fila {0}, rack {1}, pantalla {2} de {3}</value></data>
+  <data name="{0} de {1}" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="Fila {0} · {1} {2}" xml:space="preserve"><value>Fila {0} · {1} {2}</value></data>
+  <data name="Rack" xml:space="preserve"><value>Rack</value></data>
+  <data name="Racks" xml:space="preserve"><value>Racks</value></data>
+  <data name="Croquis del almacén con la fila {0} resaltada" xml:space="preserve"><value>Croquis del almacén con la fila {0} resaltada</value></data>
+  <data name="Pausado" xml:space="preserve"><value>Pausado</value></data>
+  <data name="Reproduciendo" xml:space="preserve"><value>Reproduciendo</value></data>
+  <data name="Reanudar" xml:space="preserve"><value>Reanudar</value></data>
+  <data name="Pausar" xml:space="preserve"><value>Pausar</value></data>
+  <data name="No se pudo actualizar · se muestra la última consulta" xml:space="preserve"><value>No se pudo actualizar · se muestra la última consulta</value></data>
+  <data name="No se pudo abrir la pantalla completa. Usa la opción del navegador." xml:space="preserve"><value>No se pudo abrir la pantalla completa. Usa la opción del navegador.</value></data>
+  <data name="Salir de pantalla completa" xml:space="preserve"><value>Salir de pantalla completa</value></data>
+  <data name="Pantalla completa" xml:space="preserve"><value>Pantalla completa</value></data>
+  <data name="Selecciona al menos una fila." xml:space="preserve"><value>Selecciona al menos una fila.</value></data>
+  <data name="Vista previa: {0}, {1} y croquis {2}." xml:space="preserve"><value>Vista previa: {0}, {1} y croquis {2}.</value></data>
+  <data name="vertical" xml:space="preserve"><value>vertical</value></data>
+  <data name="horizontal" xml:space="preserve"><value>horizontal</value></data>
+  <data name="un rack" xml:space="preserve"><value>un rack</value></data>
+  <data name="{0} racks" xml:space="preserve"><value>{0} racks</value></data>
+  <data name="al lado" xml:space="preserve"><value>al lado</value></data>
+  <data name="debajo" xml:space="preserve"><value>debajo</value></data>
+  <data name="En vertical se muestra un rack para facilitar la lectura. La cantidad elegida se conserva para horizontal." xml:space="preserve"><value>En vertical se muestra un rack para facilitar la lectura. La cantidad elegida se conserva para horizontal.</value></data>
+  <data name="En vertical o en pantallas estrechas se muestra un rack. La cantidad elegida se conserva para horizontal." xml:space="preserve"><value>En vertical o en pantallas estrechas se muestra un rack. La cantidad elegida se conserva para horizontal.</value></data>
+  <data name="Ubicación del monitor marcada." xml:space="preserve"><value>Ubicación del monitor marcada.</value></data>
+  <data name="Sin ubicación del monitor." xml:space="preserve"><value>Sin ubicación del monitor.</value></data>
+  <data name="No fue posible calcular el mapa de calor. Los valores anteriores se conservaron; vuelve a intentarlo." xml:space="preserve"><value>No fue posible calcular el mapa de calor. Los valores anteriores se conservaron; vuelve a intentarlo.</value></data>
+  <data name="Texto" xml:space="preserve"><value>Texto</value></data>
+  <data name="Bloqueada" xml:space="preserve"><value>Bloqueada</value></data>
+  <data name="Editable" xml:space="preserve"><value>Editable</value></data>
+  <data name="Selección múltiple" xml:space="preserve"><value>Selección múltiple</value></data>
+  <data name="Desbloquear" xml:space="preserve"><value>Desbloquear</value></data>
+  <data name="Bloquear" xml:space="preserve"><value>Bloquear</value></data>
+  <data name="Sin selección" xml:space="preserve"><value>Sin selección</value></data>
+  <data name="{0} elementos" xml:space="preserve"><value>{0} elementos</value></data>
+  <data name="{0} seleccionados" xml:space="preserve"><value>{0} seleccionados</value></data>
+  <data name="{0} seleccionados de arquitectura" xml:space="preserve"><value>{0} seleccionados de arquitectura</value></data>
+  <data name="Elemento arquitectónico {0}" xml:space="preserve"><value>Elemento arquitectónico {0}</value></data>
+  <data name="Restaurar {0}" xml:space="preserve"><value>Restaurar {0}</value></data>
+  <data name="{0} unidades SVG/in" xml:space="preserve"><value>{0} unidades SVG/in</value></data>
+  <data name="Agrega al menos {0} puntos." xml:space="preserve"><value>Agrega al menos {0} puntos.</value></data>
+  <data name="Desbloquea la capa {0} antes de dibujar." xml:space="preserve"><value>Desbloquea la capa {0} antes de dibujar.</value></data>
+  <data name="Herramienta {0}." xml:space="preserve"><value>Herramienta {0}.</value></data>
+  <data name="Lienzo en borrador: {0} × {1}." xml:space="preserve"><value>Lienzo en borrador: {0} × {1}.</value></data>
+  <data name="Lienzo ampliado en borrador a {0} × {1}. Revisa y guarda para publicarlo." xml:space="preserve"><value>Lienzo ampliado en borrador a {0} × {1}. Revisa y guarda para publicarlo.</value></data>
+  <data name="{0} elementos copiados dentro del editor." xml:space="preserve"><value>{0} elementos copiados dentro del editor.</value></data>
+  <data name="{0} Elementos: {1}." xml:space="preserve"><value>{0} Elementos: {1}.</value></data>
+  <data name="Selecciona ubicaciones o marca una capa como Editable para seleccionar su arquitectura." xml:space="preserve"><value>Selecciona ubicaciones o marca una capa como Editable para seleccionar su arquitectura.</value></data>
+  <data name="Selecciona al menos dos racks visibles de la misma fila para usar Ordenar fila." xml:space="preserve"><value>Selecciona al menos dos racks visibles de la misma fila para usar Ordenar fila.</value></data>
+  <data name="Ordenar fila requiere racks visibles, editables y pertenecientes a una sola fila." xml:space="preserve"><value>Ordenar fila requiere racks visibles, editables y pertenecientes a una sola fila.</value></data>
+  <data name="No mezcles ubicaciones operativas y arquitectura en una misma selección." xml:space="preserve"><value>No mezcles ubicaciones operativas y arquitectura en una misma selección.</value></data>
+  <data name="Marca la capa como Editable para modificar la arquitectura seleccionada." xml:space="preserve"><value>Marca la capa como Editable para modificar la arquitectura seleccionada.</value></data>
+  <data name="Elementos bloqueados: usa Desbloquear para volver a editarlos." xml:space="preserve"><value>Elementos bloqueados: usa Desbloquear para volver a editarlos.</value></data>
+  <data name="La selección incluye elementos bloqueados; puedes bloquearlos todos o seleccionar solo elementos editables." xml:space="preserve"><value>La selección incluye elementos bloqueados; puedes bloquearlos todos o seleccionar solo elementos editables.</value></data>
+  <data name="Grupo seleccionado: puedes desagruparlo, duplicarlo, ordenarlo o bloquearlo." xml:space="preserve"><value>Grupo seleccionado: puedes desagruparlo, duplicarlo, ordenarlo o bloquearlo.</value></data>
+  <data name="Puedes duplicar, ordenar o bloquear. Selecciona dos elementos de la misma capa para agrupar." xml:space="preserve"><value>Puedes duplicar, ordenar o bloquear. Selecciona dos elementos de la misma capa para agrupar.</value></data>
+  <data name="Agrupar y Orden requieren elementos arquitectónicos de una sola capa." xml:space="preserve"><value>Agrupar y Orden requieren elementos arquitectónicos de una sola capa.</value></data>
+  <data name="Agrupar requiere elementos editables que todavía no pertenezcan a un grupo." xml:space="preserve"><value>Agrupar requiere elementos editables que todavía no pertenezcan a un grupo.</value></data>
+  <data name="Puedes agrupar, duplicar, ordenar o bloquear los elementos seleccionados." xml:space="preserve"><value>Puedes agrupar, duplicar, ordenar o bloquear los elementos seleccionados.</value></data>
+  <data name="No hay elementos archivados." xml:space="preserve"><value>No hay elementos archivados.</value></data>
+  <data name="Desbloquea la capa y los elementos antes de restaurarlos." xml:space="preserve"><value>Desbloquea la capa y los elementos antes de restaurarlos.</value></data>
+  <data name="Elemento o grupo restaurado. Revisa los cambios antes de guardar." xml:space="preserve"><value>Elemento o grupo restaurado. Revisa los cambios antes de guardar.</value></data>
+  <data name="Sin calibrar" xml:space="preserve"><value>Sin calibrar</value></data>
+  <data name="Trazado finalizado. Guarda la revisión para persistirlo." xml:space="preserve"><value>Trazado finalizado. Guarda la revisión para persistirlo.</value></data>
+  <data name="Operación cancelada." xml:space="preserve"><value>Operación cancelada.</value></data>
+  <data name="Calibra la escala antes de crear cotas." xml:space="preserve"><value>Calibra la escala antes de crear cotas.</value></data>
+  <data name="Arrastra hacia la derecha o abajo para agrandar el lienzo. Escape cancela." xml:space="preserve"><value>Arrastra hacia la derecha o abajo para agrandar el lienzo. Escape cancela.</value></data>
+  <data name="El lienzo alcanzó el tamaño máximo permitido." xml:space="preserve"><value>El lienzo alcanzó el tamaño máximo permitido.</value></data>
+  <data name="Marca el segundo punto de calibración." xml:space="preserve"><value>Marca el segundo punto de calibración.</value></data>
+  <data name="Captura una distancia real válida y marca dos puntos distintos." xml:space="preserve"><value>Captura una distancia real válida y marca dos puntos distintos.</value></data>
+  <data name="Escala calibrada. Revisa los cambios antes de guardar." xml:space="preserve"><value>Escala calibrada. Revisa los cambios antes de guardar.</value></data>
+  <data name="Desbloquea Medidas y calibra la escala antes de crear cotas." xml:space="preserve"><value>Desbloquea Medidas y calibra la escala antes de crear cotas.</value></data>
+  <data name="Marca el segundo extremo de la cota." xml:space="preserve"><value>Marca el segundo extremo de la cota.</value></data>
+  <data name="Los extremos de la cota deben ser distintos." xml:space="preserve"><value>Los extremos de la cota deben ser distintos.</value></data>
+  <data name="Cota creada. Revisa los cambios antes de guardar." xml:space="preserve"><value>Cota creada. Revisa los cambios antes de guardar.</value></data>
+  <data name="Toca para agregar puntos; Enter o Finalizar concluye el trazado." xml:space="preserve"><value>Toca para agregar puntos; Enter o Finalizar concluye el trazado.</value></data>
+  <data name="Elemento nuevo listo para guardar." xml:space="preserve"><value>Elemento nuevo listo para guardar.</value></data>
+  <data name="Desbloquea las capas de destino antes de pegar." xml:space="preserve"><value>Desbloquea las capas de destino antes de pegar.</value></data>
+  <data name="Copia creada con nuevos identificadores." xml:space="preserve"><value>Copia creada con nuevos identificadores.</value></data>
+  <data name="Elementos agrupados." xml:space="preserve"><value>Elementos agrupados.</value></data>
+  <data name="Grupo separado." xml:space="preserve"><value>Grupo separado.</value></data>
+  <data name="Elementos bloqueados." xml:space="preserve"><value>Elementos bloqueados.</value></data>
+  <data name="Elementos desbloqueados." xml:space="preserve"><value>Elementos desbloqueados.</value></data>
+  <data name="Elementos archivados de forma reversible." xml:space="preserve"><value>Elementos archivados de forma reversible.</value></data>
+  <data name="Los elementos guardados no pueden eliminarse en esta fase." xml:space="preserve"><value>Los elementos guardados no pueden eliminarse en esta fase.</value></data>
+  <data name="Objeto nuevo descartado." xml:space="preserve"><value>Objeto nuevo descartado.</value></data>
+  <data name="Selección retirada del plano. Puedes deshacer el cambio." xml:space="preserve"><value>Selección retirada del plano. Puedes deshacer el cambio.</value></data>
+  <data name="Selecciona un estilo arquitectónico válido." xml:space="preserve"><value>Selecciona un estilo arquitectónico válido.</value></data>
+  <data name="El grosor arquitectónico debe estar entre 0 y 12." xml:space="preserve"><value>El grosor arquitectónico debe estar entre 0 y 12.</value></data>
+  <data name="Sistema de presentación actualizado; la escala no cambió." xml:space="preserve"><value>Sistema de presentación actualizado; la escala no cambió.</value></data>
+  <data name="Introduce el NIP ADMIN antes de revisar los cambios." xml:space="preserve"><value>Introduce el NIP ADMIN antes de revisar los cambios.</value></data>
+  <data name="Validando el plano en el servidor…" xml:space="preserve"><value>Validando el plano en el servidor…</value></data>
+  <data name="No fue posible revisar el plano." xml:space="preserve"><value>No fue posible revisar el plano.</value></data>
+  <data name="Ubicaciones modificadas" xml:space="preserve"><value>Ubicaciones modificadas</value></data>
+  <data name="Capas modificadas" xml:space="preserve"><value>Capas modificadas</value></data>
+  <data name="Arquitectura nueva" xml:space="preserve"><value>Arquitectura nueva</value></data>
+  <data name="Arquitectura modificada" xml:space="preserve"><value>Arquitectura modificada</value></data>
+  <data name="Archivados" xml:space="preserve"><value>Archivados</value></data>
+  <data name="Restaurados" xml:space="preserve"><value>Restaurados</value></data>
+  <data name="Fondos nuevos" xml:space="preserve"><value>Fondos nuevos</value></data>
+  <data name="Fondos modificados" xml:space="preserve"><value>Fondos modificados</value></data>
+  <data name="Fondos archivados" xml:space="preserve"><value>Fondos archivados</value></data>
+  <data name="Fondos restaurados" xml:space="preserve"><value>Fondos restaurados</value></data>
+  <data name="Lienzo" xml:space="preserve"><value>Lienzo</value></data>
+  <data name="Escala" xml:space="preserve"><value>Escala</value></data>
+  <data name="Unidades" xml:space="preserve"><value>Unidades</value></data>
+  <data name="Sin cambio" xml:space="preserve"><value>Sin cambio</value></data>
+  <data name="Cambiará" xml:space="preserve"><value>Cambiará</value></data>
+  <data name="Cambiarán" xml:space="preserve"><value>Cambiarán</value></data>
+  <data name="No se pudo completar la revisión. Conservamos el borrador; inténtalo nuevamente." xml:space="preserve"><value>No se pudo completar la revisión. Conservamos el borrador; inténtalo nuevamente.</value></data>
+  <data name="Introduce una distancia real positiva antes de calibrar." xml:space="preserve"><value>Introduce una distancia real positiva antes de calibrar.</value></data>
+  <data name="Escala calibrada y vinculada al fondo." xml:space="preserve"><value>Escala calibrada y vinculada al fondo.</value></data>
+  <data name="Marca el segundo punto sobre el fondo." xml:space="preserve"><value>Marca el segundo punto sobre el fondo.</value></data>
+  <data name="Desbloquea el fondo antes de transformarlo." xml:space="preserve"><value>Desbloquea el fondo antes de transformarlo.</value></data>
+  <data name="Desbloquear fondo" xml:space="preserve"><value>Desbloquear fondo</value></data>
+  <data name="Bloquear fondo" xml:space="preserve"><value>Bloquear fondo</value></data>
+  <data name="Fondo restaurado. Guarda la revisión para confirmarlo." xml:space="preserve"><value>Fondo restaurado. Guarda la revisión para confirmarlo.</value></data>
+  <data name="No hay fondos archivados." xml:space="preserve"><value>No hay fondos archivados.</value></data>
+  <data name="No se pudo preparar la imagen." xml:space="preserve"><value>No se pudo preparar la imagen.</value></data>
+  <data name="Fondo preparado. Revisa sus cambios antes de guardarlo." xml:space="preserve"><value>Fondo preparado. Revisa sus cambios antes de guardarlo.</value></data>
+  <data name="Preparar fondo" xml:space="preserve"><value>Preparar fondo</value></data>
+  <data name="Validando…" xml:space="preserve"><value>Validando…</value></data>
+  <data name="Redimensiona el fondo antes de girarlo para mantenerlo dentro del lienzo." xml:space="preserve"><value>Redimensiona el fondo antes de girarlo para mantenerlo dentro del lienzo.</value></data>
+  <data name="Desbloquea el fondo antes de calibrarlo." xml:space="preserve"><value>Desbloquea el fondo antes de calibrarlo.</value></data>
+  <data name="Marca dos puntos sobre el fondo." xml:space="preserve"><value>Marca dos puntos sobre el fondo.</value></data>
+  <data name="La escala del plano se conserva, pero ya no está vinculada al fondo." xml:space="preserve"><value>La escala del plano se conserva, pero ya no está vinculada al fondo.</value></data>
+  <data name="Desbloquea el fondo antes de archivarlo." xml:space="preserve"><value>Desbloquea el fondo antes de archivarlo.</value></data>
+  <data name="El fondo nuevo se descartó antes de guardarlo." xml:space="preserve"><value>El fondo nuevo se descartó antes de guardarlo.</value></data>
+  <data name="Fondo archivado de forma reversible. Guarda la revisión para publicarlo." xml:space="preserve"><value>Fondo archivado de forma reversible. Guarda la revisión para publicarlo.</value></data>
+  <data name="Corte" xml:space="preserve"><value>Corte</value></data>
+  <data name="Costura" xml:space="preserve"><value>Costura</value></data>
+  <data name="Ready to Pack" xml:space="preserve"><value>Ready to Pack</value></data>
+  <data name="Deshacer" xml:space="preserve"><value>Deshacer</value></data>
+  <data name="Recuperar" xml:space="preserve"><value>Recuperar</value></data>
+  <data name="Descartar" xml:space="preserve"><value>Descartar</value></data>
+  <data name="Espera a que se consulten los pendientes de arrastre." xml:space="preserve"><value>Espera a que se consulten los pendientes de arrastre.</value></data>
+  <data name="No se pudieron consultar los pendientes. Actualiza antes de guardar." xml:space="preserve"><value>No se pudieron consultar los pendientes. Actualiza antes de guardar.</value></data>
+  <data name="Un origen recuperado ya no está disponible. Descarta esa preparación y revisa el arrastre." xml:space="preserve"><value>Un origen recuperado ya no está disponible. Descarta esa preparación y revisa el arrastre.</value></data>
+  <data name="Arrastre inicial · {0} selección de {1} pendientes" xml:space="preserve"><value>Arrastre inicial · {0} selección de {1} pendientes</value></data>
+  <data name="Arrastre inicial · {0} selecciones de {1} pendientes" xml:space="preserve"><value>Arrastre inicial · {0} selecciones de {1} pendientes</value></data>
+  <data name="{0} · {1}: usa una cantidad entre 0 y {2} {3}." xml:space="preserve"><value>{0} · {1}: usa una cantidad entre 0 y {2} {3}.</value></data>
+  <data name="Desde semana {0}" xml:space="preserve"><value>Desde semana {0}</value></data>
+  <data name=" · origen inicial {0}" xml:space="preserve"><value> · origen inicial {0}</value></data>
+  <data name=" · pendiente {0} de {1}" xml:space="preserve"><value> · pendiente {0} de {1}</value></data>
+  <data name=" · Provisional" xml:space="preserve"><value> · Provisional</value></data>
+  <data name="Disponible: {0} {1}" xml:space="preserve"><value>Disponible: {0} {1}</value></data>
+  <data name="Origen actualizado: revisa esta selección." xml:space="preserve"><value>Origen actualizado: revisa esta selección.</value></data>
+  <data name="Origen recuperado no disponible: {0} · Cantidad: {1}. " xml:space="preserve"><value>Origen recuperado no disponible: {0} · Cantidad: {1}. </value></data>
+  <data name="Quitar esta selección recuperada" xml:space="preserve"><value>Quitar esta selección recuperada</value></data>
+  <data name="Solo las cantidades seleccionadas entrarán al saldo inicial." xml:space="preserve"><value>Solo las cantidades seleccionadas entrarán al saldo inicial.</value></data>
+  <data name="No hay pendientes anteriores disponibles. Arrastre inicial: cero." xml:space="preserve"><value>No hay pendientes anteriores disponibles. Arrastre inicial: cero.</value></data>
+  <data name=" {0} · {1}: el origen cambió; disponible anterior {2} → actual {3} {4}. Revisa la selección." xml:space="preserve"><value> {0} · {1}: el origen cambió; disponible anterior {2} → actual {3} {4}. Revisa la selección.</value></data>
+  <data name="No se pudieron consultar los pendientes. Actualiza la página." xml:space="preserve"><value>No se pudieron consultar los pendientes. Actualiza la página.</value></data>
+  <data name="Esta semana no permite preparar arrastres." xml:space="preserve"><value>Esta semana no permite preparar arrastres.</value></data>
+  <data name="No se pudieron revalidar los pendientes. Reintenta." xml:space="preserve"><value>No se pudieron revalidar los pendientes. Reintenta.</value></data>
+  <data name="El pendiente de origen cambió. Prepara de nuevo el arrastre." xml:space="preserve"><value>El pendiente de origen cambió. Prepara de nuevo el arrastre.</value></data>
+  <data name="{0} · {1} · Arrastre inicial: {2} → {3} {4}" xml:space="preserve"><value>{0} · {1} · Arrastre inicial: {2} → {3} {4}</value></data>
+  <data name="La recuperación local no está disponible. No cierres la página." xml:space="preserve"><value>La recuperación local no está disponible. No cierres la página.</value></data>
+  <data name="{0} · Saldo inicial: {1}" xml:space="preserve"><value>{0} · Saldo inicial: {1}</value></data>
+  <data name="{0} · Pendiente al cierre: {1}" xml:space="preserve"><value>{0} · Pendiente al cierre: {1}</value></data>
+  <data name="No se pudo revisar. Se conservan los datos." xml:space="preserve"><value>No se pudo revisar. Se conservan los datos.</value></data>
+  <data name="No se guardó. Revisa nuevamente." xml:space="preserve"><value>No se guardó. Revisa nuevamente.</value></data>
+  <data name="Respuesta pendiente. Reintenta la misma confirmación; no se duplicará el arrastre." xml:space="preserve"><value>Respuesta pendiente. Reintenta la misma confirmación; no se duplicará el arrastre.</value></data>
+  <data name="Preparación local del {0}. " xml:space="preserve"><value>Preparación local del {0}. </value></data>
+  <data name="Comprobando la operación anterior. Reintenta la misma confirmación si sigue pendiente." xml:space="preserve"><value>Comprobando la operación anterior. Reintenta la misma confirmación si sigue pendiente.</value></data>
+  <data name=" Preparación recuperada. Revisa los valores actuales antes de confirmar." xml:space="preserve"><value> Preparación recuperada. Revisa los valores actuales antes de confirmar.</value></data>
+  <data name="No se pudo recuperar la preparación local." xml:space="preserve"><value>No se pudo recuperar la preparación local.</value></data>
+  <data name="Puedes ordenar los racks seleccionados por número dentro de la fila {0}." xml:space="preserve"><value>Puedes ordenar los racks seleccionados por número dentro de la fila {0}.</value></data>
+  <data name=", sin actividad" xml:space="preserve"><value>, sin actividad</value></data>
+  <data name=", sin posiciones evaluables" xml:space="preserve"><value>, sin posiciones evaluables</value></data>
+  <data name=", {0} operaciones" xml:space="preserve"><value>, {0} operaciones</value></data>
+  <data name=", {0}% ocupado" xml:space="preserve"><value>, {0}% ocupado</value></data>
+  <data name="{0} mov." xml:space="preserve"><value>{0} mov.</value></data>
+  <data name="N/D" xml:space="preserve"><value>N/D</value></data>
+  <data name="La preparación contiene una acción no válida." xml:space="preserve"><value>La preparación contiene una acción no válida.</value></data>
+  <data name="Ver arrastre incorporado" xml:space="preserve"><value>Ver arrastre incorporado</value></data>
+  <data name="Revisa SKU, día, cantidad y detalles de los productos preparados." xml:space="preserve"><value>Revisa SKU, día, cantidad y detalles de los productos preparados.</value></data>
+  <data name="No se pudo validar la revisión. Reintenta sin perder la preparación." xml:space="preserve"><value>No se pudo validar la revisión. Reintenta sin perder la preparación.</value></data>
+  <data name="Esta semana usa el modelo anterior. Crea una semana nueva para traer arrastre inicial." xml:space="preserve"><value>Esta semana usa el modelo anterior. Crea una semana nueva para traer arrastre inicial.</value></data>
+  <data name="Ver arrastre incorporado ({0})" xml:space="preserve"><value>Ver arrastre incorporado ({0})</value></data>
+  <data name="Un renglón cambió. Actualiza y revisa de nuevo." xml:space="preserve"><value>Un renglón cambió. Actualiza y revisa de nuevo.</value></data>
+  <data name="Revisa la preparación antes de guardar." xml:space="preserve"><value>Revisa la preparación antes de guardar.</value></data>
+  <data name="Arrastre inicial" xml:space="preserve"><value>Arrastre inicial</value></data>
+  <data name="La semana cambió. Actualiza y revisa de nuevo." xml:space="preserve"><value>La semana cambió. Actualiza y revisa de nuevo.</value></data>
+  <data name="Validar revisión" xml:space="preserve"><value>Validar revisión</value></data>
+  <data name="La preparación o los pendientes cambiaron. Revisa nuevamente antes de guardar." xml:space="preserve"><value>La preparación o los pendientes cambiaron. Revisa nuevamente antes de guardar.</value></data>
+  <data name="La semana origen sigue abierta. Sus pendientes se validarán al guardar." xml:space="preserve"><value>La semana origen sigue abierta. Sus pendientes se validarán al guardar.</value></data>
+  <data name="Indica un motivo de hasta 500 caracteres para cambiar el arrastre de la semana abierta." xml:space="preserve"><value>Indica un motivo de hasta 500 caracteres para cambiar el arrastre de la semana abierta.</value></data>
+  <data name="{0} filas de producto y {1} SKU con arrastre. Revisa y ajusta las cantidades antes de incorporar." xml:space="preserve"><value>{0} filas de producto y {1} SKU con arrastre. Revisa y ajusta las cantidades antes de incorporar.</value></data>
+  <data name="Ver origen ({0})" xml:space="preserve"><value>Ver origen ({0})</value></data>
+  <data name="La semana origen está en borrador; solo se pueden copiar sus productos." xml:space="preserve"><value>La semana origen está en borrador; solo se pueden copiar sus productos.</value></data>
+  <data name="Crear semana" xml:space="preserve"><value>Crear semana</value></data>
+  <data name="La cantidad no puede ser menor que lo ya procesado." xml:space="preserve"><value>La cantidad no puede ser menor que lo ya procesado.</value></data>
+  <data name="Motivo del cambio de arrastre" xml:space="preserve"><value>Motivo del cambio de arrastre</value></data>
+  <data name="No se pudo cargar el editor de arrastre. Actualiza la página antes de preparar la copia." xml:space="preserve"><value>No se pudo cargar el editor de arrastre. Actualiza la página antes de preparar la copia.</value></data>
+  <data name="La semana seleccionada cambió. Prepara la copia de esa semana antes de incorporar." xml:space="preserve"><value>La semana seleccionada cambió. Prepara la copia de esa semana antes de incorporar.</value></data>
+  <data name="Renglón {0}" xml:space="preserve"><value>Renglón {0}</value></data>
+  <data name="{0} · arrastre de {1}" xml:space="preserve"><value>{0} · arrastre de {1}</value></data>
+  <data name="Origen recuperado no disponible · Cantidad: {0}. " xml:space="preserve"><value>Origen recuperado no disponible · Cantidad: {0}. </value></data>
+  <data name="Selección incorporada. Revisa los cambios antes de guardar." xml:space="preserve"><value>Selección incorporada. Revisa los cambios antes de guardar.</value></data>
+  <data name="Programación nueva" xml:space="preserve"><value>Programación nueva</value></data>
+  <data name="Arrastre por área" xml:space="preserve"><value>Arrastre por área</value></data>
+  <data name="Ya preparado: {0} {1}" xml:space="preserve"><value>Ya preparado: {0} {1}</value></data>
+  <data name="Otros días" xml:space="preserve"><value>Otros días</value></data>
+  <data name="Preparar pegado" xml:space="preserve"><value>Preparar pegado</value></data>
+  <data name="Ver origen" xml:space="preserve"><value>Ver origen</value></data>
+  <data name="Incluir arrastre" xml:space="preserve"><value>Incluir arrastre</value></data>
+  <data name="Incluir producto" xml:space="preserve"><value>Incluir producto</value></data>
+  <data name="Incluir producto {0}" xml:space="preserve"><value>Incluir producto {0}</value></data>
+  <data name="Traer arrastre de {0}" xml:space="preserve"><value>Traer arrastre de {0}</value></data>
+  <data name="arrastre de {0}" xml:space="preserve"><value>arrastre de {0}</value></data>
+  <data name="origen inicial {0}" xml:space="preserve"><value>origen inicial {0}</value></data>
+  <data name="Corregir SKU" xml:space="preserve"><value>Corregir SKU</value></data>
+  <data name="La preparación supera el máximo de 100 cambios. Excluye productos o arrastres antes de guardar." xml:space="preserve"><value>La preparación supera el máximo de 100 cambios. Excluye productos o arrastres antes de guardar.</value></data>
+  <data name="Copia preparada en la planeación. Ajusta las cantidades y revisa antes de guardar." xml:space="preserve"><value>Copia preparada en la planeación. Ajusta las cantidades y revisa antes de guardar.</value></data>
+  <data name="Corrige los SKU señalados en la planeación antes de guardar." xml:space="preserve"><value>Corrige los SKU señalados en la planeación antes de guardar.</value></data>
+  <data name="No se pudo consultar la semana origen. Reintenta." xml:space="preserve"><value>No se pudo consultar la semana origen. Reintenta.</value></data>
+  <data name="No se pudo preparar la copia. Reintenta sin perder los ajustes." xml:space="preserve"><value>No se pudo preparar la copia. Reintenta sin perder los ajustes.</value></data>
+  <data name="El origen cambió. Se conservaron tus cantidades; revisa nuevamente antes de guardar." xml:space="preserve"><value>El origen cambió. Se conservaron tus cantidades; revisa nuevamente antes de guardar.</value></data>
+  <data name="Quitar selección de origen no disponible" xml:space="preserve"><value>Quitar selección de origen no disponible</value></data>
+  <data name="Revisa nuevamente los cambios del programa." xml:space="preserve"><value>Revisa nuevamente los cambios del programa.</value></data>
+  <data name="Este renglón no admite eliminación." xml:space="preserve"><value>Este renglón no admite eliminación.</value></data>
+  <data name="¿Eliminar {0} del {1}? Se aplicará al guardar los cambios." xml:space="preserve"><value>¿Eliminar {0} del {1}? Se aplicará al guardar los cambios.</value></data>
+  <data name="Eliminación pendiente de guardar." xml:space="preserve"><value>Eliminación pendiente de guardar.</value></data>
+  <data name="Cantidad no válida." xml:space="preserve"><value>Cantidad no válida.</value></data>
+  <data name="No se pudo descartar el texto anterior. Reintenta." xml:space="preserve"><value>No se pudo descartar el texto anterior. Reintenta.</value></data>
+  <data name="Ajusta los pedidos: total {0}, asignado {1}." xml:space="preserve"><value>Ajusta los pedidos: total {0}, asignado {1}.</value></data>
+  <data name="Quitar día" xml:space="preserve"><value>Quitar día</value></data>
+  <data name="{0}: {1}, {2}" xml:space="preserve"><value>{0}: {1}, {2}</value></data>
+  <data name="Busca un SKU o copia una semana para empezar." xml:space="preserve"><value>Busca un SKU o copia una semana para empezar.</value></data>
+  <data name="¿Descartar todos los cambios sin guardar de esta semana? El programa guardado se conservará." xml:space="preserve"><value>¿Descartar todos los cambios sin guardar de esta semana? El programa guardado se conservará.</value></data>
+  <data name="No se pudieron limpiar los cambios. Reintenta." xml:space="preserve"><value>No se pudieron limpiar los cambios. Reintenta.</value></data>
+  <data name="Semana a crear" xml:space="preserve"><value>Semana a crear</value></data>
+  <data name="Las semanas comienzan en lunes." xml:space="preserve"><value>Las semanas comienzan en lunes.</value></data>
+  <data name="Mes anterior" xml:space="preserve"><value>Mes anterior</value></data>
+  <data name="Mes siguiente" xml:space="preserve"><value>Mes siguiente</value></data>
+  <data name="Esta semana" xml:space="preserve"><value>Esta semana</value></data>
+  <data name="Próxima semana" xml:space="preserve"><value>Próxima semana</value></data>
+  <data name="Ya creada" xml:space="preserve"><value>Ya creada</value></data>
+  <data name="Ver semana" xml:space="preserve"><value>Ver semana</value></data>
+  <data name="Ver semana: {0}" xml:space="preserve"><value>Ver semana: {0}</value></data>
+  <data name="Selecciona una semana." xml:space="preserve"><value>Selecciona una semana.</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="Lunes {0} – domingo {1}" xml:space="preserve"><value>Lunes {0} – domingo {1}</value></data>
+  <data name="Consultando semanas…" xml:space="preserve"><value>Consultando semanas…</value></data>
+  <data name="Esta semana ya está creada." xml:space="preserve"><value>Esta semana ya está creada.</value></data>
+  <data name="No se pudieron consultar las semanas. Se conserva el mes anterior. Reintenta." xml:space="preserve"><value>No se pudieron consultar las semanas. Se conserva el mes anterior. Reintenta.</value></data>
+  <data name="Prepara el programa antes de confirmar la apertura." xml:space="preserve"><value>Prepara el programa antes de confirmar la apertura.</value></data>
+  <data name="Selecciona una semana disponible para introducir el programa." xml:space="preserve"><value>Selecciona una semana disponible para introducir el programa.</value></data>
+  <data name="Guardar y abrir semana" xml:space="preserve"><value>Guardar y abrir semana</value></data>
+  <data name="Cambios por confirmar" xml:space="preserve"><value>Cambios por confirmar</value></data>
+  <data name="La semana se abrirá sin programación ni arrastre." xml:space="preserve"><value>La semana se abrirá sin programación ni arrastre.</value></data>
+  <data name="No se pudo consultar la semana. Reintenta sin perder la preparación." xml:space="preserve"><value>No se pudo consultar la semana. Reintenta sin perder la preparación.</value></data>
+  <data name="Revisa como máximo 100 cambios antes de confirmar." xml:space="preserve"><value>Revisa como máximo 100 cambios antes de confirmar.</value></data>
+  <data name="La preparación no tiene un formato válido." xml:space="preserve"><value>La preparación no tiene un formato válido.</value></data>
+  <data name="No se guardó ningún cambio." xml:space="preserve"><value>No se guardó ningún cambio.</value></data>
+  <data name="Conservar productos y cantidades como preparación manual" xml:space="preserve"><value>Conservar productos y cantidades como preparación manual</value></data>
+  <data name="{0}, {1}: escribe una cantidad positiva." xml:space="preserve"><value>{0}, {1}: escribe una cantidad positiva.</value></data>
+  <data name="{0}, {1}: cantidad no válida." xml:space="preserve"><value>{0}, {1}: cantidad no válida.</value></data>
+  <data name="{0} · {1}: {2} → {3} {4} (nuevo)" xml:space="preserve"><value>{0} · {1}: {2} → {3} {4} (nuevo)</value></data>
+  <data name="{0} · {1}: {2} → {3} {4} (cambio)" xml:space="preserve"><value>{0} · {1}: {2} → {3} {4} (cambio)</value></data>
+  <data name="{0} · {1}: {2} → {3} {4} (quitar)" xml:space="preserve"><value>{0} · {1}: {2} → {3} {4} (quitar)</value></data>
+  <data name="No se recibió la confirmación. Comprueba la conexión y reintenta con esta misma revisión." xml:space="preserve"><value>No se recibió la confirmación. Comprueba la conexión y reintenta con esta misma revisión.</value></data>
+  <data name="Consultar rack {0}" xml:space="preserve"><value>Consultar rack {0}</value></data>
+  <data name="Consultar área {0}" xml:space="preserve"><value>Consultar área {0}</value></data>
+  <data name="Buscar producto" xml:space="preserve"><value>Buscar producto</value></data>
+  <data name="Cerrar búsqueda" xml:space="preserve"><value>Cerrar búsqueda</value></data>
+  <data name="SKU, descripción, referencia o código de barras" xml:space="preserve"><value>SKU, descripción, referencia o código de barras</value></data>
+  <data name="Escribe o escanea un producto y pulsa Buscar." xml:space="preserve"><value>Escribe o escanea un producto y pulsa Buscar.</value></data>
+  <data name="Buscando productos…" xml:space="preserve"><value>Buscando productos…</value></data>
+  <data name="Cargando ubicaciones…" xml:space="preserve"><value>Cargando ubicaciones…</value></data>
+  <data name="Consultando ubicación…" xml:space="preserve"><value>Consultando ubicación…</value></data>
+  <data name="No se encontraron productos. Prueba otro código o descripción." xml:space="preserve"><value>No se encontraron productos. Prueba otro código o descripción.</value></data>
+  <data name="Mostrando hasta cinco productos. Precisa la búsqueda si falta el que necesitas." xml:space="preserve"><value>Mostrando hasta cinco productos. Precisa la búsqueda si falta el que necesitas.</value></data>
+  <data name="Selecciona un producto." xml:space="preserve"><value>Selecciona un producto.</value></data>
+  <data name="Sin ubicaciones con saldo ni asignaciones activas." xml:space="preserve"><value>Sin ubicaciones con saldo ni asignaciones activas.</value></data>
+  <data name="Con saldo" xml:space="preserve"><value>Con saldo</value></data>
+  <data name="Asignado sin saldo" xml:space="preserve"><value>Asignado sin saldo</value></data>
+  <data name="Producto inactivo" xml:space="preserve"><value>Producto inactivo</value></data>
+  <data name="Ubicación no visible en el croquis" xml:space="preserve"><value>Ubicación no visible en el croquis</value></data>
+  <data name="No se pudo consultar. Vuelve a intentarlo." xml:space="preserve"><value>No se pudo consultar. Vuelve a intentarlo.</value></data>
+  <data name="La ubicación ya no está disponible. Selecciona otra ubicación." xml:space="preserve"><value>La ubicación ya no está disponible. Selecciona otra ubicación.</value></data>
+  <data name="Coincidencias del producto" xml:space="preserve"><value>Coincidencias del producto</value></data>
+  <data name="Consulta pausada" xml:space="preserve"><value>Consulta pausada</value></data>
+  <data name="Ubicación seleccionada" xml:space="preserve"><value>Ubicación seleccionada</value></data>
+  <data name="Ubicaciones de {0}" xml:space="preserve"><value>Ubicaciones de {0}</value></data>
+  <data name="Última consulta: {0}" xml:space="preserve"><value>Última consulta: {0}</value></data>
+  <data name="Buscar" xml:space="preserve"><value>Buscar</value></data>
+  <data name="Inactiva" xml:space="preserve"><value>Inactiva</value></data>
+  <data name="Saldo negativo" xml:space="preserve"><value>Saldo negativo</value></data>
+  <data name="Escribe o escanea para ver sugerencias." xml:space="preserve"><value>Escribe o escanea para ver sugerencias.</value></data>
+  <data name="Usa flechas y Enter para elegir." xml:space="preserve"><value>Usa flechas y Enter para elegir.</value></data>
+  <data name="Hay arrastres repetidos para el mismo SKU y área." xml:space="preserve"><value>Hay arrastres repetidos para el mismo SKU y área.</value></data>
+  <data name="Revisa SKU, área y cantidad del arrastre inicial." xml:space="preserve"><value>Revisa SKU, área y cantidad del arrastre inicial.</value></data>
+  <data name="El arrastre inicial cambió. Actualiza y revisa de nuevo." xml:space="preserve"><value>El arrastre inicial cambió. Actualiza y revisa de nuevo.</value></data>
+  <data name="La copia precarga el arrastre inicial. Puedes ajustar libremente cada área." xml:space="preserve"><value>La copia precarga el arrastre inicial. Puedes ajustar libremente cada área.</value></data>
+  <data name="{0} · {1}: cantidad no válida." xml:space="preserve"><value>{0} · {1}: cantidad no válida.</value></data>
+  <data name="{0}: elige hasta tres pedidos para empaque." xml:space="preserve"><value>{0}: elige hasta tres pedidos para empaque.</value></data>
+  <data name="Usar estos pedidos" xml:space="preserve"><value>Usar estos pedidos</value></data>
+  <data name="Pedido {0}" xml:space="preserve"><value>Pedido {0}</value></data>
+  <data name="La preparación contiene totales repetidos o cambios incompatibles." xml:space="preserve"><value>La preparación contiene totales repetidos o cambios incompatibles.</value></data>
+  <data name="{0}, {1}: el mínimo permitido es {2} {3}." xml:space="preserve"><value>{0}, {1}: el mínimo permitido es {2} {3}.</value></data>
 </root>

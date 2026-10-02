@@ -22,12 +22,12 @@ public sealed class ReceiveModel(ReceivingQueryService query, ReceivingService s
     public async Task<IActionResult> OnPostAsync(Guid id, CancellationToken token)
     {
         if (!await LoadAsync(id, token)) return NotFound();
-        if (!ModelState.IsValid) { Input.Pin = string.Empty; EnsureLine(); return Page(); }
+        if (!ModelState.IsValid) { Input.Pin = string.Empty; ModelState.Remove("Input.Pin"); EnsureLine(); return Page(); }
         var result = await service.ConfirmAsync(new(Input.OperationId, id, Input.Pin,
             Input.Lines.Select(item => new ConfirmReceivingLineCommand(item.ProductId, item.Quantity, item.DestinationLocationId, item.ExternalLotReference)).ToArray(),
             Input.DifferenceAcknowledged, Input.DifferenceNotes,
             Input.ApprovedSharedLocationIds.Select(locationId => Input.Lines.Where(line => line.DestinationLocationId == locationId).Select(line => new SharedAssignmentApproval(line.ProductId, locationId))).SelectMany(item => item).ToArray()), token);
-        Input.Pin = string.Empty;
+        Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         if (result.Status == ReceivingCommandStatus.Success && result.MovementId is Guid movementId) { TempData["Success"] = texts["Recepción confirmada y Entrada registrada."]; return RedirectToPage("/Operations/Receipt", new { id = movementId }); }
         if (result.Status == ReceivingCommandStatus.RequiresLocationSharingConfirmation) Conflicts = result.Conflicts;
         ModelState.AddModelError(string.Empty, Message(result)); EnsureLine(); return Page();

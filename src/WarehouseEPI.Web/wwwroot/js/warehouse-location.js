@@ -26,7 +26,7 @@
     status.textContent = message;
   };
   const setButtons = active => {
-    startButton.classList.toggle("d-none", active);
+    startButton.classList.toggle("d-none", active || !calibration?.exists || !calibration.isCurrent);
     centerButton.classList.toggle("d-none", !active);
     stopButton.classList.toggle("d-none", !active);
   };
@@ -35,6 +35,11 @@
     if (!response.ok) throw new Error("calibration");
     return response.json();
   };
+  const calibrationChangedMessage = () => text(!calibration.exists
+    ? "Aún no hay una calibración publicada para este croquis."
+    : !calibration.isCurrent
+      ? "La calibración está pendiente de revisión porque cambió el croquis."
+      : "La calibración cambió. Pulsa Mi ubicación para cargar la revisión actual.");
   const project = position => {
     const transform = calibration.transform;
     const radians = Math.PI / 180;
@@ -85,16 +90,17 @@
     if (!navigator.geolocation) { show(text("Este equipo o navegador no ofrece geolocalización."), "danger"); return; }
     try { calibration = await loadCalibration(); }
     catch { show(text("No se pudo consultar la calibración. Pulsa Mi ubicación para reintentar."), "warning"); return; }
-    if (!calibration.exists) { show(text("Aún no hay una calibración publicada para este croquis."), "warning"); return; }
-    if (!calibration.isCurrent) { show(text("La calibración está pendiente de revisión porque cambió el croquis."), "warning"); return; }
+    if (!calibration.exists) { setButtons(false); show(text("Aún no hay una calibración publicada para este croquis."), "warning"); return; }
+    if (!calibration.isCurrent) { setButtons(false); show(text("La calibración está pendiente de revisión porque cambió el croquis."), "warning"); return; }
     wanted = true; firstPosition = true; setButtons(true); beginWatch();
     clearInterval(revisionTimer);
     revisionTimer = setInterval(async () => {
       try {
         const current = await loadCalibration();
         if (!current.exists || !current.isCurrent || current.revision !== calibration.revision) {
+          calibration = current;
           wanted = false; clearWatch(); setButtons(false); layer.classList.add("d-none");
-          show(text("La calibración cambió. Pulsa Mi ubicación para cargar la revisión actual."), "warning");
+          show(calibrationChangedMessage(), "warning");
         }
       } catch { show(text("No se pudo comprobar la vigencia de la calibración. El marcador usa la última revisión conocida."), "warning"); }
     }, 60000);
@@ -112,11 +118,15 @@
       try {
         const current = await loadCalibration();
         if (current.exists && current.isCurrent && current.revision === calibration.revision) beginWatch();
-        else { stop(); show(text("La calibración cambió. Pulsa Mi ubicación para cargar la revisión actual."), "warning"); }
+        else { calibration = current; stop(); show(calibrationChangedMessage(), "warning"); }
       } catch { show(text("No se pudo comprobar la calibración. Pulsa Detener ubicación o espera para reintentar."), "warning"); }
     }
   });
   window.addEventListener("pagehide", clearWatch);
+  loadCalibration().then(current => {
+    calibration = current;
+    setButtons(false);
+  }).catch(() => setButtons(false));
   setInterval(() => {
     if (!lastPosition) return;
     const age = Math.max(0, Math.round((Date.now() - lastPosition.position.timestamp) / 1000));

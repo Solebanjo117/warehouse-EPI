@@ -1,5 +1,10 @@
 # Contexto del proyecto Warehouse EPI
 
+## Acceso público y roles (2 de octubre de 2026)
+
+La matriz vigente está en [ROLE_ACCESS.md](ROLE_ACCESS.md). Hay tres roles fijos: ADMIN, OPERATOR y PRODUCTION. Operaciones confirma con NIP OPERATOR/ADMIN; Tabla y balance con NIP PRODUCTION/ADMIN. Sus consultas y las demás secciones enumeradas en esa matriz son públicas. Las descripciones históricas de fases que indican dos roles o reportes generales públicos quedan reemplazadas por esta matriz. No se publicó ni se modificó el servicio instalado como parte de este cambio.
+
+
 Actualizado: 31 de agosto de 2026.
 
 Este documento es la fuente de continuidad del proyecto. Antes de trabajar en
@@ -3040,3 +3045,20 @@ dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --no-restore --fi
 - Corrige entregas/recepciones que seguían contando traspasos reversados e impedían recapturar. Migración generada `20260922192755_DailyBalanceCellEditing`; base real, despliegue y servicio intactos. Detalles y evidencia en `docs/PRODUCTION_DAILY_WORKFLOW.md`.
 
 - Verificación del editor: cierre 24/24 y JavaScript 19/19, modelo alineado con migración; PostgreSQL aislado comprueba reversos/sustituciones, concurrencia y rollback de toda la edición. Regresión inicial 115/116 con comparación decimal corregida en el cierre. Visual pendiente por ausencia de instancia compatible.
+
+### Exhibición de filas interactiva (1 de octubre de 2026)
+
+- El croquis de la exhibición permite consultar racks y áreas de todo el almacén,
+  incluso fuera de las filas del recorrido. La consulta pausa la reproducción;
+  Reanudar vuelve a la pantalla anterior y conserva la configuración.
+- Buscar producto admite SKU, descripción, referencia y código de barras. Lista
+  saldos netos y asignaciones sin saldo por separado, conserva estados operativos
+  y resalta ubicaciones/pallets. El contenido completo y las ubicaciones sin
+  representación en el croquis siguen consultables.
+- La consulta conserva la composición del rack individual de la exhibición.
+  El buscador usa el desplegable habitual con sugerencias al escribir y
+  flechas/Enter; mantiene el rack consultado hasta elegir otra ubicación.
+- Handlers GET de solo lectura, sin migración; actualización visible cada dos
+  segundos y descarte de respuestas tardías. Detalles y pruebas en
+  `docs/LOCATION_DISPLAY_INTERACTIVE.md`. Verificación con fixtures en Edge;
+  publicación, reinicio y validación física en tablet/HID pendientes.

@@ -9,7 +9,8 @@ public enum ProductionDailyCommandStatus
     ValidationFailed,
     ConcurrencyConflict,
     IdempotencyConflict,
-    InvalidPin
+    InvalidPin,
+    RoleNotAllowed
 }
 
 public sealed record ProductionDailyCommandResult(
@@ -34,6 +35,11 @@ public sealed record CreateProductionScheduleWeekCommand(
     Guid OperationId,
     DateOnly WeekStart,
     Guid ActorUserId);
+
+public sealed record CreatePreparedProductionScheduleWeekCommand(Guid OperationId, DateOnly WeekStart,
+    IReadOnlyList<ProductionScheduleBatchLine> Lines, Guid ActorUserId,
+    IReadOnlyList<ProductionOpeningChange>? Openings = null, string ReviewedFingerprint = "",
+    IReadOnlyList<ProductionInitialBalanceChange>? InitialBalances = null);
 
 public sealed record SaveProductionScheduleLineCommand(
     Guid OperationId,
@@ -70,7 +76,14 @@ public sealed record ProductionScheduleDraftChange(string Kind, Guid? LineId,
 
 public sealed record SaveProductionScheduleDraftCommand(Guid OperationId, Guid WeekId,
     uint ExpectedWeekVersion, IReadOnlyList<ProductionScheduleDraftChange> Changes,
-    Guid ActorUserId, IReadOnlyList<ProductionOpeningChange>? Openings = null);
+    Guid ActorUserId, IReadOnlyList<ProductionOpeningChange>? Openings = null,
+    string Reason = "", string ReviewedFingerprint = "",
+    IReadOnlyList<ProductionInitialBalanceChange>? InitialBalances = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<ProductionScheduleBatchLine>? SkuTotals = null);
+
+public sealed record ProductionScheduleWorkspaceReview(bool CanConfirm, string Fingerprint,
+    IReadOnlyList<string> Errors);
 
 public sealed record CancelProductionScheduleLineCommand(Guid OperationId, Guid WeekId, Guid LineId,
     uint ExpectedWeekVersion, uint ExpectedLineVersion, Guid ActorUserId, string AdminPin = "");
@@ -111,7 +124,8 @@ public sealed record ProductionScheduleLineView(
     string? OriginalAnnotation1 = null,
     string? OriginalAnnotation2 = null,
     string? OriginalAnnotation1Kind = null,
-    string? OriginalAnnotation2Kind = null);
+    string? OriginalAnnotation2Kind = null,
+    bool AllowsDecimals = true);
 
 public sealed record ProductionScheduleWeekView(
     Guid Id,
@@ -172,7 +186,11 @@ public sealed record ProductionDailyCapturePreview(
     decimal Requested,
     IReadOnlyList<ProductionDailyAllocationPreview> Allocations,
     IReadOnlyList<string> Blockers,
-    decimal Available = 0, decimal Extra = 0, decimal ToReconcile = 0, string StateFingerprint = "");
+    decimal Available = 0, decimal Extra = 0, decimal ToReconcile = 0, string StateFingerprint = "",
+    decimal Pending = 0)
+{
+    public decimal PendingAfterCapture => Pending - Requested;
+}
 
 public sealed record ProductionDailyAreaBalance(
     ProductionDailyArea Area,
@@ -180,7 +198,18 @@ public sealed record ProductionDailyAreaBalance(
     decimal Completed,
     decimal Pending,
     decimal Advance, decimal Extra = 0, decimal ToReconcile = 0, decimal Opening = 0, decimal? NetPending = null,
-    decimal CompletedShift1 = 0, decimal CompletedShift2 = 0, decimal PendingAfterShift1 = 0);
+    decimal CompletedShift1 = 0, decimal CompletedShift2 = 0, decimal PendingAfterShift1 = 0,
+    decimal ProgrammedToday = 0, decimal OpeningToday = 0, decimal CumulativeRequirement = 0,
+    decimal InitialCredit = 0, decimal CumulativeProduced = 0)
+{
+    // Reporting backlog already includes every effective capture. Allocation residuals
+    // must never be subtracted again or treated as additional production.
+    public decimal SignedPending => NetPending ?? Pending;
+    public ProductionAreaCoverage DailyCoverage => ProductionAreaCoverage.Create(
+        Applies, Opening - OpeningToday, OpeningToday, ProgrammedToday, Completed, SignedPending);
+    public ProductionAccumulatedCoverage AccumulatedCoverage => ProductionAccumulatedCoverage.Create(
+        Applies, CumulativeRequirement, CumulativeProduced, InitialCredit);
+}
 
 public sealed record ProductionDailyBalanceRow(
     DateOnly Date,

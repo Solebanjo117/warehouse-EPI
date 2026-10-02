@@ -9,12 +9,14 @@
     }
     var clientTexts = System.Text.Json.JsonSerializer.Serialize(clientTextValues);
     var currentPage = ViewContext.RouteData.Values["page"]?.ToString() ?? string.Empty;
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
     var isAdmin = User.IsInRole("ADMIN");
+    var role = isAuthenticated ? User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value : null;
     var business = await WarehouseSettings.GetAsync();
     var logoUrl = business.LogoFileName is null ? null : $"/branding/logo?v={business.LogoHash}";
-    var modules = WarehouseEPI.Web.Navigation.ModuleNavigation.GetVisible(isAdmin);
+    var modules = WarehouseEPI.Web.Navigation.ModuleNavigation.GetVisible(role);
     var activeModule = WarehouseEPI.Web.Navigation.ModuleNavigation.Active(
-        currentPage, ViewContext.RouteData.Values["module"]?.ToString(), isAdmin);
+        currentPage, ViewContext.RouteData.Values["module"]?.ToString(), role);
 }
 <!DOCTYPE html>
 <html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
@@ -66,9 +68,12 @@
             <span>@business.BusinessName</span>
         </a>
         <span class="app-topbar-page">@ViewData["Title"]</span>
-        <button class="notification-trigger notification-trigger-mobile" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="@SharedTexts["Abrir alertas operativas"]">
-            <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
-        </button>
+        @if (isAuthenticated)
+        {
+            <button class="notification-trigger notification-trigger-mobile" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="@SharedTexts["Abrir alertas operativas"]">
+                <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
+            </button>
+        }
     </header>
 
     <div class="app-backdrop" data-nav-dismiss aria-hidden="true"></div>
@@ -82,9 +87,12 @@
                 <svg class="app-icon" aria-hidden="true"><use href="#icon-chevron" /></svg>
                 <span class="visually-hidden">@SharedTexts["Contraer menú"]</span>
             </button>
-            <button class="notification-trigger notification-trigger-desktop" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="@SharedTexts["Abrir alertas operativas"]">
-                <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
-            </button>
+            @if (isAuthenticated)
+            {
+                <button class="notification-trigger notification-trigger-desktop" type="button" data-notification-trigger data-bs-toggle="offcanvas" data-bs-target="#operational-notifications" aria-controls="operational-notifications" aria-expanded="false" aria-label="@SharedTexts["Abrir alertas operativas"]">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-bell" /></svg><span class="notification-count" data-notification-count hidden>0</span>
+                </button>
+            }
         </div>
 
         <nav class="app-nav" aria-label="@SharedTexts["Módulos"]">
@@ -107,8 +115,8 @@
             @if (User.Identity?.IsAuthenticated == true)
             {
                 <details class="app-account-menu">
-                    <summary class="app-user" title="@User.Identity.Name"><span class="app-user-avatar" aria-hidden="true">@User.Identity.Name?.Substring(0, 1).ToUpperInvariant()</span><span class="app-user-name"><strong>@User.Identity.Name</strong><small>@SharedTexts["Administrador"]</small></span></summary>
-                    <a class="app-nav-link" asp-page="/Admin/Account/Index"><svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>@SharedTexts["Mi cuenta"]</span></a>
+                    <summary class="app-user" title="@User.Identity.Name"><span class="app-user-avatar" aria-hidden="true">@User.Identity.Name?.Substring(0, 1).ToUpperInvariant()</span><span class="app-user-name"><strong>@User.Identity.Name</strong><small>@SharedTexts[WarehouseEPI.Core.Entities.RoleAccess.Name(role)]</small></span></summary>
+                    @if (isAdmin) { <a class="app-nav-link" asp-page="/Admin/Account/Index"><svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>@SharedTexts["Mi cuenta"]</span></a> }
                     <partial name="_ThemeControl" />
                 </details>
                 <form method="post" asp-page="/Admin/Logout"><button type="submit" class="app-nav-link app-logout" title="@SharedTexts["Cerrar sesión"]"><svg class="app-icon" aria-hidden="true"><use href="#icon-logout" /></svg><span>@SharedTexts["Cerrar sesión"]</span></button></form>
@@ -116,8 +124,8 @@
             else
             {
                 <partial name="_ThemeControl" />
-                <a asp-page="/Admin/Login" class="app-nav-link" title="@SharedTexts["Acceso administrativo"]">
-                    <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>@SharedTexts["Acceso administrativo"]</span>
+                <a asp-page="/Admin/Login" class="app-nav-link" title="@SharedTexts["Ingresar a Warehouse EPI"]">
+                    <svg class="app-icon" aria-hidden="true"><use href="#icon-users" /></svg><span>@SharedTexts["Ingresar a Warehouse EPI"]</span>
                 </a>
             }
         </div>
@@ -134,10 +142,13 @@
         <footer class="app-footer">&copy; 2026 Warehouse EPI</footer>
     </div>
 
-    <aside class="offcanvas offcanvas-end operational-notifications" tabindex="-1" id="operational-notifications" aria-labelledby="operational-notifications-title" data-notifications data-snapshot-url="@Url.Page("/Reports/Notifications/Index", "Snapshot")" data-all-url="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">
+    @if (isAuthenticated)
+    {
+    <aside class="offcanvas offcanvas-end operational-notifications" tabindex="-1" id="operational-notifications" aria-labelledby="operational-notifications-title" data-notifications data-snapshot-url="@Url.Page("/Reports/Notifications/Index", "Snapshot")" data-all-url="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Notifications/Index"))">
         <div class="offcanvas-header"><div><span class="eyebrow">@SharedTexts["Operación LAN"]</span><h2 class="offcanvas-title h5" id="operational-notifications-title">@SharedTexts["Alertas operativas"]</h2></div><button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="@SharedTexts["Cerrar alertas"]"></button></div>
-        <div class="offcanvas-body"><div class="notification-summary" data-notification-summary><span>@SharedTexts["Consultando condiciones actuales…"]</span></div><div class="notification-list" data-notification-list></div><div class="notification-empty" data-notification-empty hidden><strong>@SharedTexts["Sin alertas activas."]</strong><span>@SharedTexts["No hay condiciones visibles que requieran atención."]</span></div><div class="notification-actions"><button type="button" class="btn btn-outline-primary" data-notification-refresh>@SharedTexts["Actualizar"]</button><a class="btn btn-primary" href="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Inventory/Index", null, new { view = "exceptions" }))">@SharedTexts["Ver todas"]</a></div><p class="visually-hidden" aria-live="polite" data-notification-live></p></div>
+        <div class="offcanvas-body"><div class="notification-summary" data-notification-summary><span>@SharedTexts["Consultando condiciones actuales…"]</span></div><div class="notification-list" data-notification-list></div><div class="notification-empty" data-notification-empty hidden><strong>@SharedTexts["Sin alertas activas."]</strong><span>@SharedTexts["No hay condiciones visibles que requieran atención."]</span></div><div class="notification-actions"><button type="button" class="btn btn-outline-primary" data-notification-refresh>@SharedTexts["Actualizar"]</button><a class="btn btn-primary" href="@(isAdmin ? Url.Page("/Admin/Inventory/Alerts") : Url.Page("/Reports/Notifications/Index"))">@SharedTexts["Ver todas"]</a></div><p class="visually-hidden" aria-live="polite" data-notification-live></p></div>
     </aside>
+    }
 
     @* Sólo lo que usa cualquier página. jQuery viaja con _ValidationScriptsPartial, y ZXing
        (395 KB) y operations.js con las páginas que capturan o consultan con cámara. *@

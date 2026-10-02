@@ -53,7 +53,7 @@ public sealed class ProductionScheduleDraftBatchTests
     }
 
     [Fact]
-    public async Task Draft_group_prevalidates_all_changes_and_rejects_101_and_open_week()
+    public async Task Draft_group_prevalidates_all_changes_and_rejects_invalid_lines_and_open_week()
     {
         await using var db = Context();
         await db.Database.EnsureCreatedAsync();
@@ -76,8 +76,6 @@ public sealed class ProductionScheduleDraftBatchTests
         Assert.Equal(ProductionDailyCommandStatus.ValidationFailed,
             (await service.SaveDraftChangesAsync(command)).Status);
         Assert.Empty((await service.GetWeekAsync(weekId))!.Lines);
-        Assert.Equal(ProductionDailyCommandStatus.ValidationFailed,
-            (await service.SaveDraftChangesAsync(command with { Changes = Enumerable.Repeat(valid, 101).ToArray() })).Status);
         Assert.True((await service.SaveLineAsync(new(Guid.NewGuid(), weekId, null, week.Version,
             null, monday, product.Id, 10, null, null, null, null, admin.Id))).Success);
         week = (await service.GetWeekAsync(weekId))!;
@@ -88,7 +86,7 @@ public sealed class ProductionScheduleDraftBatchTests
     }
 
     [Fact]
-    public async Task Draft_group_accepts_exactly_100_daily_lines_without_collapsing_repetitions()
+    public async Task Draft_group_accepts_150_daily_lines_without_collapsing_repetitions()
     {
         await using var db = Context();
         await db.Database.EnsureCreatedAsync();
@@ -101,14 +99,14 @@ public sealed class ProductionScheduleDraftBatchTests
         var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
         var monday = new DateOnly(2026, 9, 21);
         var weekId = (await service.CreateWeekAsync(new(Guid.NewGuid(), monday, admin.Id))).Id!.Value;
-        var changes = Enumerable.Range(1, 100).Select(index => new ProductionScheduleDraftChange("add", null, null,
+        var changes = Enumerable.Range(1, 150).Select(index => new ProductionScheduleDraftChange("add", null, null,
             new(monday, product.Id, index, $"ORDER-{index}", null, null, null))).ToArray();
         var result = await service.SaveDraftChangesAsync(new(Guid.NewGuid(), weekId, 0, changes, admin.Id));
         Assert.True(result.Success, string.Join("; ", result.Errors ?? []));
         var lines = (await service.GetWeekAsync(weekId))!.Lines;
-        Assert.Equal(100, lines.Count);
-        Assert.Equal(100, lines.Select(x => x.Id).Distinct().Count());
-        Assert.Equal(100, lines.Select(x => x.OrderReference1).Distinct().Count());
+        Assert.Equal(150, lines.Count);
+        Assert.Equal(150, lines.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(150, lines.Select(x => x.OrderReference1).Distinct().Count());
     }
 
     private static WarehouseDbContext Context() => new(new DbContextOptionsBuilder<WarehouseDbContext>()

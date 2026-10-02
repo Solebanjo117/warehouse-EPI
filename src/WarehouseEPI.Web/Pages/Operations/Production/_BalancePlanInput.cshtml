@@ -1,0 +1,7 @@
+@model (string Sku, WarehouseEPI.Infrastructure.Production.ProductionBalancePlanLine Line, bool Multiple)
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+<div class="balance-plan-line">
+    <span class="balance-cell-label d-block">@if (Model.Multiple) { <span>@Model.Line.Sequence · @Model.Line.Unit · @string.Join(" / ", new[] { Model.Line.Reference1, Model.Line.Reference2, Model.Line.Reference3 }.Where(x => !string.IsNullOrWhiteSpace(x)))</span> } else { @T["Programado del día"] }</span>
+    <span class="fw-semibold">@Model.Line.Quantity.ToString("0.####", CultureInfo.InvariantCulture)</span>
+</div>

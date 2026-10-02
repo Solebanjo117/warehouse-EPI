@@ -43,6 +43,10 @@ public sealed class ProductionBlockAPostTests
         Assert.Equal(ProductionCommandStatus.Success, (await production.ReleaseAsync(new(Guid.NewGuid(), order.Id, order.Version, "6724"))).Status);
         var batch = await trace.CreateBatchAsync(new(Guid.NewGuid(),order.Id,5,order.Version,"6724"));
         Assert.True(batch.Success);
+        var login = await client.GetStringAsync("/Admin/Login");
+        var loginToken = ProductionCaptureRecoveryTests.Input(login, "__RequestVerificationToken");
+        await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        { ["Input.Pin"] = "6724", ["__RequestVerificationToken"] = loginToken }));
         var page = $"/Operations/Production/Work?id={order.Id}&BatchId={batch.Id}";
         var initial = await client.GetAsync(page);
         var html = await initial.Content.ReadAsStringAsync();

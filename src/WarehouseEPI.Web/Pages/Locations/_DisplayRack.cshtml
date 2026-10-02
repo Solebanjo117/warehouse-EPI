@@ -1,0 +1,69 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Locations.DisplayRackView
+@using WarehouseEPI.Web.Pages.Locations
+@{
+    var rack = Model.Rack;
+    void Cell(DisplayPosition position)
+    {
+        var products = position.Products;
+        var flag = position.State switch
+        {
+            "negative" => CatTexts["Saldo negativo"].Value,
+            "blocked" => CatTexts["Bloqueada"].Value,
+            "inactive" => CatTexts["Inactiva"].Value,
+            _ => null
+        };
+        <div class="display-cell is-@position.State @(products.Count > 1 ? "has-list" : "")" data-display-location="@position.LocationId">
+            <p class="display-cell-code"><span>@(position.Code ?? rack.Label + "-" + position.PalletNumber)</span>@if (position.IsWip) {<span class="display-cell-tag">WIP</span>}</p>
+            @if (flag is not null) { <p class="display-cell-flag">@flag</p> }
+            @if (Model.Detailed && !position.IsActive && position.State != "inactive") { <p class="display-cell-flag">@CatTexts["Inactiva"]</p> }
+            @if (Model.Detailed && position.IsBlocked && position.State != "blocked") { <p class="display-cell-flag">@CatTexts["Bloqueada"]</p> }
+            @if (position.State == "missing") { <p class="display-cell-note">@CatTexts["No existe"]</p> }
+            else if (products.Count == 0) { <p class="display-cell-note">@CatTexts["Sin saldo"]</p> }
+            else if (Model.Detailed)
+            {
+                <ul class="display-cell-details">
+                @foreach (var product in products)
+                {
+                    <li data-display-product="@product.ProductId">
+                        <strong class="display-cell-sku">@product.Sku</strong>
+                        <span class="display-cell-description">@(product.Description ?? CatTexts["Sin descripción"].Value)</span>
+                        <p class="display-cell-qty @(product.Quantity < 0 ? "text-danger" : "")"><strong>@product.Quantity.ToString("#,0.####")</strong> <span>@product.Unit</span></p>
+                        @if (!product.HasNonZeroBalance) { <small>@CatTexts["Asignado sin saldo"]</small> }
+                        @if (product.Quantity < 0) { <small>@CatTexts["Saldo negativo"]</small> }
+                        @if (!product.IsActive) { <small>@CatTexts["Producto inactivo"]</small> }
+                    </li>
+                }
+                </ul>
+            }
+            else if (products.Count == 1)
+            {
+                var product = products[0];
+                <p class="display-cell-sku" data-display-product="@product.ProductId">@product.Sku</p>
+                <p class="display-cell-qty"><strong>@product.Quantity.ToString("#,0.####")</strong> <span>@product.Unit</span></p>
+            }
+            else
+            {
+                var shown = products.Count > 4 ? 3 : products.Count;
+                <ul class="display-cell-list">
+                @foreach (var product in products.Take(shown))
+                {
+                    <li data-display-product="@product.ProductId"><span class="display-cell-list-sku">@product.Sku</span><span class="display-cell-list-qty"><strong>@product.Quantity.ToString("#,0.####")</strong> @product.Unit</span></li>
+                }
+                @if (products.Count > shown) { <li class="display-cell-more">@CatTexts["+{0} productos más", products.Count - shown]</li> }
+                </ul>
+            }
+        </div>
+    }
+}
+<article class="display-rack" data-display-rack="@rack.Label" aria-label="@CatTexts["Rack {0}, {1} de {2} posiciones con saldo", rack.Label, rack.OccupiedCount, rack.PositionCount]">
+    <header class="display-rack-head"><h2>@(Model.ShowLabel ? rack.Label : CatTexts["Posiciones"].Value)</h2><p>@CatTexts["{0} de {1} con saldo", rack.OccupiedCount, rack.PositionCount]</p></header>
+    <div class="display-rack-frame">
+    @foreach (var level in rack.Positions.Chunk(3))
+    {
+        <div class="display-rack-level">
+        @foreach (var position in level) { Cell(position); }
+        </div>
+    }
+    </div>
+</article>

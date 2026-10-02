@@ -19,7 +19,8 @@ public enum WipDispositionStatus
     InvalidPin,
     ValidationFailed,
     RequiresLocationSharingConfirmation,
-    IdempotencyConflict
+    IdempotencyConflict,
+    RoleNotAllowed
 }
 
 public sealed record WipDispositionResult(

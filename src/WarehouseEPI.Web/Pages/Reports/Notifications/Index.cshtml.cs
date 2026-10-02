@@ -14,9 +14,20 @@ public sealed class IndexModel(
 {
     private static readonly TimeSpan CacheDuration = TimeSpan.FromSeconds(30);
 
-    public IActionResult OnGet() => User.IsInRole("ADMIN")
-        ? RedirectToPage("/Admin/Inventory/Alerts")
-        : RedirectToPage("/Reports/Inventory/Index", new { view = "exceptions" });
+    [BindProperty(SupportsGet = true)] public OperationalAlertCategory Category { get; set; } = OperationalAlertCategory.NegativeInventory;
+    [BindProperty(SupportsGet = true)] public string? Search { get; set; }
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
+    public OperationalAlertPageDto Results { get; private set; } = new([], 0, 1, 25);
+    public int PageCount => Math.Max(1, (int)Math.Ceiling(Results.TotalCount / 25d));
+
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
+    {
+        if (User.IsInRole("ADMIN")) return RedirectToPage("/Admin/Inventory/Alerts");
+        if (Category is not (OperationalAlertCategory.NegativeInventory or OperationalAlertCategory.BelowMinimum)) return BadRequest();
+        Results = await alerts.GetPageAsync(Category, Search, PageNumber, 25, cancellationToken);
+        PageNumber = Results.PageNumber;
+        return Page();
+    }
 
     public async Task<IActionResult> OnGetSnapshotAsync(bool refresh = false, CancellationToken cancellationToken = default)
     {

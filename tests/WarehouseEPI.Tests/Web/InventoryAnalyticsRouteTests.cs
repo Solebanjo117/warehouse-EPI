@@ -68,8 +68,8 @@ public sealed class InventoryAnalyticsRouteTests
         Assert.Contains("/Admin/Catalogs/Products/Details", page, StringComparison.Ordinal);
         Assert.Contains("/Admin/Inventory/Alerts", page, StringComparison.Ordinal);
         Assert.Contains("/Admin/Catalogs/Locations/Index", page, StringComparison.Ordinal);
-        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Inventory/Index" && action.Title == "Analítica de inventario");
-        Assert.Contains("ModuleNavigation.GetVisible(isAdmin)", layout, StringComparison.Ordinal);
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Page == "/Reports/Inventory/Index" && action.Title == "Analítica de inventario");
+        Assert.Contains("ModuleNavigation.GetVisible(role)", layout, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Reports/Inventory/Index\"", dashboard, StringComparison.Ordinal);
     }
 

@@ -98,7 +98,7 @@ public class LocationIndexPageModel(
             if (MapMetric != "normal")
             {
                 var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
-                    MapMetric, period, from, to, clock, cancellationToken: cancellationToken);
+                    MapMetric, period, from, to, clock, cancellationToken: cancellationToken, texts: localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>());
                 ApplyHeatmapQuery(heatmapQuery);
                 try
                 {
@@ -108,7 +108,7 @@ public class LocationIndexPageModel(
                 }
                 catch (Exception)
                 {
-                    HeatmapError = "No fue posible calcular el mapa de calor. Conserva tus filtros y vuelve a intentarlo.";
+                    HeatmapError = (localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>())["No fue posible calcular el mapa de calor. Conserva tus filtros y vuelve a intentarlo."].Value;
                 }
             }
             var filteredLocationIds = (await query.Select(location => location.Id).ToListAsync(cancellationToken)).ToHashSet();
@@ -167,7 +167,8 @@ public class LocationIndexPageModel(
             return BadRequest((localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>())["Selecciona una métrica válida para exportar el mapa de calor."]);
 
         var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
-            mapMetric, period, from, to, clock, rowCode, search, cancellationToken);
+            mapMetric, period, from, to, clock, rowCode, search,
+            localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>(), cancellationToken);
         ApplyHeatmapQuery(heatmapQuery);
         var export = await heatmapReportService.GetHeatmapExportAsync(heatmapQuery.Filter, cancellationToken);
         var stamp = export.GeneratedAtLocal.ToString("yyyy-MM-dd");
@@ -190,7 +191,8 @@ public class LocationIndexPageModel(
             return BadRequest(new { error = (localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>())["Selecciona una métrica válida para el mapa de calor."].Value });
 
         var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
-            mapMetric, period, from, to, clock, cancellationToken: cancellationToken);
+            mapMetric, period, from, to, clock, cancellationToken: cancellationToken,
+            texts: localizer ?? HttpContext.RequestServices.GetRequiredService<IStringLocalizer<CatalogTexts>>());
         ApplyHeatmapQuery(heatmapQuery);
         var report = await heatmapReportService.GetHeatmapPageAsync(
             heatmapQuery.Filter, heatmapQuery.PeriodLabel, cancellationToken);

@@ -103,6 +103,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductionScheduleRevision> ProductionScheduleRevisions => Set<ProductionScheduleRevision>();
     public DbSet<ProductionCaptureSubmission> ProductionCaptureSubmissions => Set<ProductionCaptureSubmission>();
     public DbSet<ProductionCarryoverPlan> ProductionCarryoverPlans => Set<ProductionCarryoverPlan>();
+    public DbSet<ProductionInitialBalance> ProductionInitialBalances => Set<ProductionInitialBalance>();
     public DbSet<ProductionWeekOpening> ProductionWeekOpenings => Set<ProductionWeekOpening>();
     public DbSet<ProductionDailyCapture> ProductionDailyCaptures => Set<ProductionDailyCapture>();
     public DbSet<ProductionDailyCaptureAllocation> ProductionDailyCaptureAllocations => Set<ProductionDailyCaptureAllocation>();
@@ -377,7 +378,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 Code = "OPERATOR",
                 Name = "Operador",
                 CreatedAt = DateTimeOffset.UnixEpoch
-            });
+            },
+            new Role { Id = 3, Code = RoleAccess.Production, Name = "Producción", CreatedAt = DateTimeOffset.UnixEpoch });
     }
 
     private static void ConfigureUser(ModelBuilder modelBuilder)

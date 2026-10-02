@@ -34,6 +34,42 @@
     @if(Model.Preview is not null)
     {
         var applied = Model.AppliedDescriptions().ToArray();
+        @if (Model.CanEdit)
+        {
+            <section class="card mb-3"><div class="card-body">
+                <form method="post" asp-page-handler="Mode">
+                    <input asp-for="PreviewToken" type="hidden"/><partial name="_ImportRevisionFields" model="Model"/>
+                    <div class="form-check mb-2"><input asp-for="ReplaceProgramming" class="form-check-input" aria-describedby="replace-programming-help"/>
+                        <label asp-for="ReplaceProgramming" class="form-check-label">@ProdTexts["Reemplazar solo la programación de las semanas del archivo"]</label></div>
+                    <p id="replace-programming-help" class="form-text">@ProdTexts["Conserva capturas, arrastres, extras e historial. Las líneas vinculadas ausentes del Excel quedan fuera del programa sin borrar su producción. Los arrastres comprometidos y las reducciones incompatibles requieren revisión."]</p>
+                    <button type="submit" class="btn btn-outline-primary btn-lg">@ProdTexts["Aplicar modo y revisar"]</button>
+                </form>
+            </div></section>
+        }
+        @if (Model.Preview.ReplaceProgramming)
+        {
+            <section class="card mb-3" data-import-replacement><div class="card-body">
+                <h2 class="h5">@ProdTexts["Reemplazo de programación"]</h2>
+                <p>@ProdTexts["Las líneas vinculadas se actualizan conservando sus órdenes y capturas. Las líneas sustituidas permanecen en el historial. Solo se afectan las semanas de esta lista."]</p>
+                <div class="table-responsive"><table class="table"><thead><tr>
+                    <th scope="col">@ProdTexts["Semana"]</th><th scope="col">@ProdTexts["Líneas a reemplazar"]</th>
+                    <th scope="col">@ProdTexts["Líneas nuevas"]</th><th scope="col">@ProdTexts["Capturas conservadas"]</th>
+                </tr></thead><tbody>@foreach (var impact in Model.Preview.ReplacementImpact)
+                {<tr><th scope="row">@impact.WeekStart.ToString("dd/MM/yyyy") @if (impact.WeekId is null) { <span class="badge text-bg-secondary">@ProdTexts["Nueva semana"]</span> }</th><td>@impact.ReplacedLines</td><td>@impact.IncomingLines</td><td>@impact.PreservedCaptures</td></tr>}
+                </tbody></table></div>
+                @if (Model.Preview.ReplacementImpact.Any(x => x.OffProgramLines.Count > 0))
+                {
+                    <div class="alert alert-info" data-import-off-program>
+                        <strong>@ProdTexts["Producción conservada fuera del programa"]</strong>
+                        <p>@ProdTexts["Estas líneas ya no cuentan como programadas. Sus órdenes, capturas e historial se conservan sin cancelaciones ni reversos."]</p>
+                        <ul class="mb-0">@foreach (var impact in Model.Preview.ReplacementImpact)
+                        { @foreach (var line in impact.OffProgramLines)
+                          { <li>@impact.WeekStart.ToString("dd/MM/yyyy") · @line.Sku · @ProdTexts["Renglón {0}", line.Sequence]</li> }
+                        }</ul>
+                    </div>
+                }
+            </div></section>
+        }
         <section class="card"><div class="card-body"><div class="d-flex flex-wrap justify-content-between gap-3"><div><h2 class="h4">@ProdTexts["Resultado de validación"]</h2><p class="mb-0">@ProdTexts["{0} semanas · {1} líneas · {2} capturas · {3} paquetes de apertura", Model.Preview.Weeks.Count, Model.Preview.LineCount, Model.Preview.CaptureCount, Model.Preview.Weeks.Sum(x => x.OpeningCarryovers.Count)]</p></div><span class="badge @(Model.Draft?.Status == ProductionImportDraftStatus.Confirmed ? "text-bg-success" : Model.Draft?.Status == ProductionImportDraftStatus.Discarded ? "text-bg-secondary" : Model.CanConfirm ? "text-bg-success" : "text-bg-danger") align-self-start">@(Model.Draft?.Status == ProductionImportDraftStatus.Confirmed ? ProdTexts["Confirmed"] : Model.Draft?.Status == ProductionImportDraftStatus.Discarded ? ProdTexts["Discarded"] : Model.CanConfirm ? ProdTexts["Lista para confirmar"] : ProdTexts["Requiere corrección"])</span></div>
             @if (Model.Preview.Issues.Count > 0)
             {
@@ -117,8 +153,8 @@
                     </form></section>
             }
             <partial name="_ImportOpening" model="Model"/>
-            <div class="table-responsive mt-3"><table class="table table-sm"><thead><tr><th>@ProdTexts["Hoja"]</th><th>@ProdTexts["Semana"]</th><th>@ProdTexts["Estado"]</th><th class="text-end">@ProdTexts["Programa"]</th><th class="text-end">@ProdTexts["Capturas"]</th><th class="text-end">@ProdTexts["Arrastre de apertura"]</th></tr></thead><tbody>@foreach(var week in Model.Preview.Weeks){<tr><td>@week.Sheet</td><td>@week.WeekStart.ToString("dd/MM")–@week.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset).ToString("dd/MM")</td><td>@(week.IsDraft?ProdTexts["Borrador"]:ProdTexts["Cerrada · solo lectura"])</td><td class="text-end">@week.Lines.Count</td><td class="text-end">@week.Captures.Count</td><td class="text-end">@week.OpeningCarryovers.Count</td></tr>}</tbody></table></div>
-            @if(Model.CanConfirm){<form method="post" asp-page-handler="Confirm"><input asp-for="PreviewToken" type="hidden"/><partial name="_ImportRevisionFields" model="Model"/><input asp-for="OperationId" type="hidden"/><div class="alert alert-warning">@ProdTexts["Confirma sólo después de revisar los mapeos. La importación es idempotente por huella del archivo."]</div><button class="btn btn-success btn-lg">@ProdTexts["Confirmar importación y arrastre"]</button></form>}
+            @if (!Model.Preview.ReplaceProgramming) { <div class="table-responsive mt-3"><table class="table table-sm"><thead><tr><th>@ProdTexts["Hoja"]</th><th>@ProdTexts["Semana"]</th><th>@ProdTexts["Estado"]</th><th class="text-end">@ProdTexts["Programa"]</th><th class="text-end">@ProdTexts["Capturas"]</th><th class="text-end">@ProdTexts["Arrastre de apertura"]</th></tr></thead><tbody>@foreach(var week in Model.Preview.Weeks){<tr><td>@week.Sheet</td><td>@week.WeekStart.ToString("dd/MM")–@week.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset).ToString("dd/MM")</td><td>@(week.IsDraft?ProdTexts["Borrador"]:ProdTexts["Cerrada · solo lectura"])</td><td class="text-end">@week.Lines.Count</td><td class="text-end">@week.Captures.Count</td><td class="text-end">@week.OpeningCarryovers.Count</td></tr>}</tbody></table></div> }
+            @if(Model.CanConfirm){<form method="post" asp-page-handler="Confirm"><input asp-for="PreviewToken" type="hidden"/><partial name="_ImportRevisionFields" model="Model"/><input asp-for="OperationId" type="hidden"/><div class="alert alert-warning">@ProdTexts[Model.Preview.ReplaceProgramming ? "Revisa las semanas y las líneas a reemplazar. Las capturas registradas se conservarán." : "Confirma sólo después de revisar los mapeos. La importación es idempotente por huella del archivo."]</div><button class="btn btn-success btn-lg">@ProdTexts[Model.Preview.ReplaceProgramming ? "Confirmar reemplazo de programación" : "Confirmar importación y arrastre"]</button></form>}
         </div></section>
     }
 </div>

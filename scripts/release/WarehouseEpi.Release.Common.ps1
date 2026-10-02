@@ -186,10 +186,24 @@ function Grant-WarehouseEpiServiceResources([string]$ReleasePath) {
     $brandingPath = Resolve-WarehouseEpiChildPath $brandingDirectory $script:WarehouseEpiRoot
     $referenceDirectory = if ($null -ne $configuration.PSObject.Properties['WarehouseMap'] -and -not [string]::IsNullOrWhiteSpace($configuration.WarehouseMap.ReferenceStorageDirectory)) { $configuration.WarehouseMap.ReferenceStorageDirectory } else { 'C:\ProgramData\WarehouseEPI\WarehouseMapReferences' }
     $referencePath = Resolve-WarehouseEpiChildPath $referenceDirectory $script:WarehouseEpiRoot
+    $manualBackupPath = Resolve-WarehouseEpiChildPath 'C:\ProgramData\WarehouseEPI\ManualBackups' $script:WarehouseEpiRoot
     if (-not (Test-Path -LiteralPath $brandingPath -PathType Container)) { New-Item -ItemType Directory -Force -Path $brandingPath | Out-Null }
     if (-not (Test-Path -LiteralPath $referencePath -PathType Container)) { New-Item -ItemType Directory -Force -Path $referencePath | Out-Null }
-    foreach ($directory in @($keysPath, $logsPath, $brandingPath, $referencePath)) {
+    if (-not (Test-Path -LiteralPath $manualBackupPath -PathType Container)) { New-Item -ItemType Directory -Force -Path $manualBackupPath | Out-Null }
+    foreach ($directory in @($keysPath, $logsPath, $brandingPath, $referencePath, $manualBackupPath)) {
         if (-not (Test-Path -LiteralPath $directory -PathType Container)) { throw 'Falta un directorio requerido por el servicio.' }
+        if ($directory -ceq $manualBackupPath) {
+            $privateAcl = [Security.AccessControl.DirectorySecurity]::new()
+            $privateAcl.SetAccessRuleProtection($true, $false)
+            foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
+                $privateAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+                    [Security.Principal.SecurityIdentifier]::new($sid), 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+            }
+            $privateAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new(
+                $script:WarehouseEpiServiceIdentity, 'Modify', 'ContainerInherit,ObjectInherit', 'None', 'Allow'))
+            [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($directory), $privateAcl)
+            continue
+        }
         & icacls $directory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' "${script:WarehouseEpiServiceIdentity}:(OI)(CI)M" | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'No fue posible proteger un directorio del servicio.' }
     }

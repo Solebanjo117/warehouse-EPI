@@ -184,4 +184,44 @@
   <data name="y reiniciando la aplicación." xml:space="preserve"><value>and restarting the app.</value></data>
   <data name="Turnos" xml:space="preserve"><value>Shifts</value></data>
   <data name="Registrar turnos para la producción diaria." xml:space="preserve"><value>Register shifts for daily production.</value></data>
+  <data name="Tabla y balance" xml:space="preserve"><value>Table and balance</value></data>
+  <data name="Consultar y registrar la producción de cada día." xml:space="preserve"><value>View and record production for each day.</value></data>
+  <data name="Crear y descargar un respaldo protegido." xml:space="preserve"><value>Create and download a protected backup.</value></data>
+  <data name="Respaldos" xml:space="preserve"><value>Backups</value></data>
+  <data name="Ingresar a Warehouse EPI" xml:space="preserve"><value>Sign in to Warehouse EPI</value></data>
+  <data name="Introduce tu NIP para abrir las secciones de tu rol." xml:space="preserve"><value>Enter your PIN to access the sections for your role.</value></data>
+  <data name="NIP inválido o usuario inactivo." xml:space="preserve"><value>Invalid PIN or inactive user.</value></data>
+  <data name="Tu rol no tiene permiso para abrir esta sección." xml:space="preserve"><value>Your role does not have permission to open this section.</value></data>
+  <data name="Este NIP pertenece a Producción. Para registrar operaciones de almacén usa un NIP de Operador o Administrador." xml:space="preserve"><value>This PIN belongs to Production. To record warehouse operations, use an Operator or Administrator PIN.</value></data>
+  <data name="Este NIP pertenece a Operador. Para registrar producción usa un NIP de Producción o Administrador." xml:space="preserve"><value>This PIN belongs to an Operator. To record production, use a Production or Administrator PIN.</value></data>
+  <data name="Consulta de solo lectura." xml:space="preserve"><value>Read-only view.</value></data>
+  <data name="No hay semanas disponibles." xml:space="preserve"><value>No weeks available.</value></data>
+  <data name="Resumen por día y unidad" xml:space="preserve"><value>Summary by day and unit</value></data>
+  <data name="Cantidad nueva" xml:space="preserve"><value>New quantity</value></data>
+  <data name="Arrastre inicial" xml:space="preserve"><value>Opening carryover</value></data>
+  <data name="Arrastre programado" xml:space="preserve"><value>Scheduled carryover</value></data>
+  <data name="Detalle" xml:space="preserve"><value>Details</value></data>
+  <data name="Sin resultados." xml:space="preserve"><value>No results.</value></data>
+  <data name="Paginación" xml:space="preserve"><value>Pagination</value></data>
+  <data name="Referencias" xml:space="preserve"><value>References</value></data>
+  <data name="Operador" xml:space="preserve"><value>Operator</value></data>
+  <data name="Consultar el programa semanal." xml:space="preserve"><value>View the weekly schedule.</value></data>
+  <data name="Consultar saldos negativos y productos bajo mínimo." xml:space="preserve"><value>View negative balances and products below minimum stock.</value></data>
+  <data name="Acceso denegado" xml:space="preserve"><value>Access denied</value></data>
+  <data name="Semana" xml:space="preserve"><value>Week</value></data>
+  <data name="Estado" xml:space="preserve"><value>Status</value></data>
+  <data name="Fecha" xml:space="preserve"><value>Date</value></data>
+  <data name="Descripción" xml:space="preserve"><value>Description</value></data>
+  <data name="Cantidad" xml:space="preserve"><value>Quantity</value></data>
+  <data name="Unidad" xml:space="preserve"><value>Unit</value></data>
+  <data name="Categoría" xml:space="preserve"><value>Category</value></data>
+  <data name="Saldo" xml:space="preserve"><value>Balance</value></data>
+  <data name="Producto" xml:space="preserve"><value>Product</value></data>
+  <data name="Anterior" xml:space="preserve"><value>Previous</value></data>
+  <data name="Siguiente" xml:space="preserve"><value>Next</value></data>
+  <data name="Buscar" xml:space="preserve"><value>Search</value></data>
+  <data name="Notificaciones" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Draft" xml:space="preserve"><value>Draft</value></data>
+  <data name="Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Closed" xml:space="preserve"><value>Closed</value></data>
 </root>

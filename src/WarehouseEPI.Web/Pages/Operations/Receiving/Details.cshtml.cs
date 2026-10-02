@@ -20,10 +20,10 @@ public sealed class DetailsModel(ReceivingQueryService query, ReceivingService s
     public async Task<IActionResult> OnPostCancelAsync(Guid id, CancellationToken token) => await CompleteAsync(id, true, token);
     private async Task<IActionResult> CompleteAsync(Guid id, bool cancel, CancellationToken token)
     {
-        if (!ModelState.IsValid) { Input.Pin = string.Empty; await LoadAsync(id, token); return Page(); }
+        if (!ModelState.IsValid) { Input.Pin = string.Empty; ModelState.Remove("Input.Pin"); await LoadAsync(id, token); return Page(); }
         var command = new CompleteReceivingDocumentCommand(Input.OperationId, id, Input.Pin, Input.Reason);
         var result = cancel ? await service.CancelAsync(command, token) : await service.CloseAsync(command, token);
-        Input.Pin = string.Empty;
+        Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         if (result.Status == ReceivingCommandStatus.Success) { TempData["Success"] = cancel ? texts["Documento cancelado."] : texts["Documento cerrado con diferencias."]; return RedirectToPage(new { id }); }
         ModelState.AddModelError(string.Empty, result.Status == ReceivingCommandStatus.InvalidPin ? texts["NIP inválido o usuario sin permiso operativo."] : texts[result.ValidationErrors.FirstOrDefault() ?? "No fue posible actualizar el documento."]);
         await LoadAsync(id, token); return Page();

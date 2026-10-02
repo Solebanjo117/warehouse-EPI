@@ -20,14 +20,15 @@ public sealed class ReceivingService(
     {
         var normalized = Normalize(command);
         var fingerprint = Fingerprint(normalized);
+        var user = await AuthenticateAsync(command.Pin, token);
+        if (user is null) return new(ReceivingCommandStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(ReceivingCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var existing = await db.ReceivingDocuments.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == command.OperationId, token);
         if (existing is not null)
             return existing.RequestFingerprint == fingerprint
                 ? new(ReceivingCommandStatus.Success, existing.Id, DocumentStatus: existing.Status)
                 : new(ReceivingCommandStatus.IdempotencyConflict);
 
-        var user = await AuthenticateAsync(command.Pin, token);
-        if (user is null) return new(ReceivingCommandStatus.InvalidPin);
         var errors = ValidateOpen(normalized);
         var productIds = normalized.Lines.Select(item => item.ProductId).Distinct().ToArray();
         var products = await db.Products.AsNoTracking().Include(item => item.BaseUnit)
@@ -86,6 +87,7 @@ public sealed class ReceivingService(
                 : new(ReceivingCommandStatus.IdempotencyConflict);
         var user = await AuthenticateAsync(command.Pin, token);
         if (user is null) return new(ReceivingCommandStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(ReceivingCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var errors = ValidateConfirmation(normalized);
         if (errors.Count > 0) return new(ReceivingCommandStatus.ValidationFailed, Errors: errors);
 
@@ -188,11 +190,12 @@ public sealed class ReceivingService(
     {
         var reason = command.Reason?.Trim() ?? string.Empty;
         var fingerprint = Hash($"{command.DocumentId:N}|{cancel}|{reason}");
+        var user = await AuthenticateAsync(command.Pin, token);
+        if (user is null) return new(ReceivingCommandStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(ReceivingCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var existing = await db.ReceivingDocumentEvents.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == command.OperationId, token);
         if (existing is not null)
             return existing.RequestFingerprint == fingerprint ? new(ReceivingCommandStatus.Success, existing.ReceivingDocumentId) : new(ReceivingCommandStatus.IdempotencyConflict);
-        var user = await AuthenticateAsync(command.Pin, token);
-        if (user is null) return new(ReceivingCommandStatus.InvalidPin);
         if (command.OperationId == Guid.Empty || reason.Length is 0 or > 500)
             return new(ReceivingCommandStatus.ValidationFailed, Errors: ["La operación y un motivo de hasta 500 caracteres son obligatorios."]);
 
@@ -266,7 +269,7 @@ public sealed class ReceivingService(
     private async Task<User?> AuthenticateAsync(string pin, CancellationToken token)
     {
         var user = await pins.AuthenticateAsync(pin, token);
-        return user?.Role.Code is "ADMIN" or "OPERATOR" ? user : null;
+        return user;
     }
 
     private static OpenReceivingDocumentCommand Normalize(OpenReceivingDocumentCommand command) => command with
@@ -337,6 +340,7 @@ public sealed class ReceivingService(
 
     private static ReceivingCommandResult MapMovementResult(InventoryMovementResult result, Guid documentId) => result.Status switch
     {
+        InventoryMovementStatus.RoleNotAllowed => new(ReceivingCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]),
         InventoryMovementStatus.InvalidPin => new(ReceivingCommandStatus.InvalidPin, documentId),
         InventoryMovementStatus.RequiresLocationSharingConfirmation => new(ReceivingCommandStatus.RequiresLocationSharingConfirmation, documentId, SharingConflicts: result.Conflicts),
         InventoryMovementStatus.BalanceChanged => new(ReceivingCommandStatus.BalanceChanged, documentId, Errors: result.ValidationErrors),

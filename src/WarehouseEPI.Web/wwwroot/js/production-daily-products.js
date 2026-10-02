@@ -30,9 +30,12 @@
     if (row) {
       row.hidden = false;
       row.dataset.focusProduct = 'true';
+      const only = form.querySelector('[data-only-quantity]');
+      if (only) only.checked = false;
       const table = row.closest?.('.production-entry__rows');
       if (table) table.hidden = false;
-      row.querySelector('[data-group-quantity]')?.focus();
+      const area = form.querySelector('[name="Group.FocusArea"]')?.value || '0';
+      (row.querySelector(`[data-capture-cell][data-area="${area}"] [data-group-quantity]`) || row.querySelector('[data-group-quantity]'))?.focus();
     }
     else form.requestSubmit(add);
   };
@@ -107,6 +110,11 @@
     url.searchParams.set('q', input.value.trim());
     if (group !== undefined) { url.searchParams.set('category', group); url.searchParams.set('offset', offset); }
     input.setAttribute('aria-busy', 'true');
+    if (group === undefined && field.dataset.loading) {
+      results.replaceChildren(); options = []; active = -1;
+      message(field.dataset.loading);
+      input.setAttribute('aria-expanded', 'true');
+    }
     try {
       const response = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
       if (!response.ok) throw new Error();
@@ -142,6 +150,7 @@
     } else if (event.key === 'Enter') {
       event.preventDefault();
       if (form.querySelector('[name="Group.Mode"]')?.value === 'quick' && field.dataset.resolveUrl) {
+        if (active >= 0 && options[active]) { options[active].click(); return; }
         if (resolving) return;
         resolving = true;
         const code = input.value.trim();

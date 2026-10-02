@@ -12,11 +12,13 @@ using Microsoft.Extensions.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.Production;
 
+[RequestFormLimits(ValueCountLimit = 1800)]
 public sealed partial class IndexModel(
     ProductionDailyScheduleService schedules,
     ProductionDailyCaptureService captures,
     ProductionDailyBalanceService balances,
     ProductionDailyExportService exports,
+    ProductionReportService reports,
     WarehouseDbContext db,
     WarehouseClock clock,
     TimeProvider timeProvider, IStringLocalizer<ProductionTexts> texts) : PageModel
@@ -55,12 +57,16 @@ public sealed partial class IndexModel(
     public IReadOnlyList<ProductionDailyCaptureDetail> Details { get; private set; } = [];
     public ProductionDailyCapturePreview? Preview { get; private set; }
     public DateOnly Today { get; private set; }
+    public bool RoleWarning { get; private set; }
     public bool ConfigurationReady { get; private set; }
 
     public async Task OnGetAsync(CancellationToken token) => await LoadAsync(token);
 
     public async Task<IActionResult> OnPostPreviewAsync(CancellationToken token)
     {
+        Tab = "capture";
+        Capture.Pin = string.Empty;
+        ProductionCapture.ClearPins(this);
         if (!await RequireConfigurationAsync(token)) { await LoadAsync(token, true); ProductionDailyText.LocalizeErrors(ModelState, texts); return Page(); }
         if (ProductionCapture.ValidateOnly(this, nameof(Capture)))
             Preview = await captures.PreviewAsync(new(Capture.EffectiveDate, Capture.Area, Capture.ShiftId,
@@ -71,6 +77,7 @@ public sealed partial class IndexModel(
 
     public async Task<IActionResult> OnPostConfirmAsync(CancellationToken token)
     {
+        Tab = "capture";
         if (!await RequireConfigurationAsync(token)) { await LoadAsync(token, true); ProductionDailyText.LocalizeErrors(ModelState, texts); return Page(); }
         if (!ProductionCapture.ValidateOnly(this, nameof(Capture)))
         {
@@ -79,6 +86,7 @@ public sealed partial class IndexModel(
         }
         var result = await captures.ConfirmAsync(new(Capture.OperationId, Capture.EffectiveDate, Capture.Area,
             Capture.ShiftId, Capture.ProductId, Capture.Quantity, Capture.Notes, Capture.Pin), token);
+        RoleWarning = result.Status == ProductionDailyCommandStatus.RoleNotAllowed;
         Capture.Pin = string.Empty;
         ProductionCapture.ClearPins(this);
         if (result.Success)
@@ -96,7 +104,6 @@ public sealed partial class IndexModel(
     public async Task<IActionResult> OnPostReverseAsync(CancellationToken token)
     {
         Tab = "history";
-        if (!User.IsInRole("ADMIN")) return Forbid();
         if (!ProductionCapture.ValidateOnly(this, nameof(Reverse)))
         {
             await LoadAsync(token, preserveCapture: true);
@@ -130,11 +137,21 @@ public sealed partial class IndexModel(
 
     private async Task LoadAsync(CancellationToken token, bool preserveCapture = false)
     {
-        if (Tab is not ("capture" or "balance" or "history")) Tab = "capture";
+        if (Tab is not ("capture" or "balance" or "history" or "reports")) Tab = "balance";
         if (WeeklySection is not ("pending" or "completion" or "summary")) WeeklySection = null;
         Today = await clock.GetDateAsync(timeProvider.GetUtcNow(), token);
         Weeks = await schedules.ListWeeksAsync(token);
+        if (Tab is "balance" or "reports" && Day.HasValue && HttpMethods.IsGet(Request.Method))
+        {
+            Through ??= Day;
+            WeekId ??= Weeks.FirstOrDefault(x => x.WeekStart <= Day.Value && x.WeekEnd >= Day.Value)?.Id;
+        }
         WeekId ??= ProductionDailySetup.DefaultWeek(Weeks, Today);
+        if (Tab == "reports")
+        {
+            await LoadReportAsync(token);
+            return;
+        }
         if (Tab == "capture" && Day.HasValue && HttpMethods.IsGet(Request.Method))
             WeekId = Weeks.FirstOrDefault(x => x.WeekStart <= Day.Value && x.WeekEnd >= Day.Value)?.Id;
         if (WeekId is Guid id)
@@ -146,7 +163,7 @@ public sealed partial class IndexModel(
             {
                 if (Tab == "balance")
                 {
-                    var filter = new ProductionWeeklyFilter(Through ?? DefaultThrough(balance.WeekStart, balance.WeekEnd, Today), Sku, Reference, Area);
+                    var filter = new ProductionWeeklyFilter(Through ?? (Today >= balance.WeekStart && Today <= balance.WeekStart.AddDays(6) ? Today : balance.WeekStart), Sku, Reference, Area);
                     Daily = await balances.GetDailySummaryAsync(id, filter, token);
                     if (Daily is not null && BalanceAdminActor() is Guid actor)
                     {
@@ -180,6 +197,9 @@ public sealed partial class IndexModel(
         }
         var setup = await ProductionDailySetup.LoadAsync(schedules, db, token);
         ConfigurationReady = setup.IsReady;
+        BalanceShift1Name = setup.Shifts.FirstOrDefault(x => x.Id == setup.Configuration.Shift1Id)?.Name ?? "—";
+        BalanceShift2Name = setup.Shifts.FirstOrDefault(x => x.Id == setup.Configuration.Shift2Id)?.Name ?? "—";
+        if (Daily is not null) await LoadBalanceMetadataAsync(token);
         Shifts = setup.CaptureShifts;
         await LoadGroupAsync(token);
         if (!preserveCapture)

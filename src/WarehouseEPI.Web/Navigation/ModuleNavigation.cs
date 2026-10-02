@@ -1,7 +1,7 @@
 namespace WarehouseEPI.Web.Navigation;
 
 public sealed record ModuleAction(string Title, string Description, string Icon, string Page,
-    bool AdminOnly = false, bool SupplyCount = false, string? View = null)
+    bool AdminOnly = false, bool SupplyCount = false, string? View = null, bool SignedInOnly = false)
 {
     public Dictionary<string, string> RouteValues =>
         View is null ? [] : new() { ["view"] = View };
@@ -13,22 +13,31 @@ public sealed record NavigationModule(string Key, string Title, string Descripti
 
 public static class ModuleNavigation
 {
-    public static IReadOnlyList<NavigationModule> GetVisible(bool isAdmin) =>
-        GetAll(isAdmin).Where(module => !module.AdminOnly || isAdmin)
-            .Select(module => module with
+    public static IReadOnlyList<NavigationModule> GetVisible(bool isAdmin) => GetVisible(isAdmin ? "ADMIN" : null);
+
+    public static IReadOnlyList<NavigationModule> GetVisible(string? role) =>
+        GetAll(role == "ADMIN").Select(module => module with
+        {
+            Title = module.Key == "catalogs" && role == "PRODUCTION" ? "Productos" : module.Title,
+            Description = module.Key == "catalogs" && role == "PRODUCTION" ? "Consultar fichas, existencias y recetas." : module.Description,
+            Sections = module.Sections.Select(section => section with
             {
-                Sections = module.Sections.Select(section => section with
-                {
-                    Actions = section.Actions.Where(action => !action.AdminOnly || isAdmin).ToArray()
-                }).Where(section => section.Actions.Count > 0).ToArray()
-            }).ToArray();
+                Title = section.Title == "Administración" && role == "PRODUCTION" ? "Consulta" : section.Title,
+                Actions = section.Actions.Select(action => role == "PRODUCTION" && action.Page == "/Admin/Production/Schedule"
+                    ? action with { Page = "/Production/Schedule", Description = "Consultar el programa semanal.", AdminOnly = false } : action)
+                    .Where(action => (!action.SignedInOnly || role is not null) && WarehouseEPI.Web.Security.PageAccess.Allows(
+                        WarehouseEPI.Web.Security.PageAccess.PolicyFor(action.Page), role)).ToArray()
+            }).Where(section => section.Actions.Count > 0).ToArray()
+        }).Where(module => module.Sections.Count > 0).ToArray();
 
     public static NavigationModule? Find(string key, bool isAdmin) =>
         GetAll(isAdmin).FirstOrDefault(module => module.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
 
-    public static NavigationModule? Active(string page, string? moduleKey, bool isAdmin)
+    public static NavigationModule? Active(string page, string? moduleKey, bool isAdmin) => Active(page, moduleKey, isAdmin ? "ADMIN" : null);
+
+    public static NavigationModule? Active(string page, string? moduleKey, string? role)
     {
-        var visible = GetVisible(isAdmin);
+        var visible = GetVisible(role);
         if (page.Equals("/Modules/Index", StringComparison.OrdinalIgnoreCase))
             return visible.FirstOrDefault(module => module.Key.Equals(moduleKey, StringComparison.OrdinalIgnoreCase));
 
@@ -77,8 +86,7 @@ public static class ModuleNavigation
         new("production", "Producción", "Surte materiales y da seguimiento a la producción.", "movements", false,
         [
             new("Operación", [
-                new("Captura diaria", "Registrar piezas buenas con reparto y balance automáticos.", "movements", "/Operations/Production/Index", View: "capture"),
-                new("Balance", "Consultar plan, arrastre, pendientes y adelantos.", "dashboard", "/Operations/Production/Index", View: "balance")]),
+                new("Tabla y balance", "Consultar y registrar la producción de cada día.", "dashboard", "/Operations/Production/Index")]),
             new("Administración", [
                 new("Programa semanal", "Preparar, publicar e importar el programa lunes–domingo.", "products", "/Admin/Production/Schedule", true),
                 new("Procesos", "Configurar los procesos de producción.", "adjust", "/Admin/Production/Processes", true),
@@ -87,6 +95,7 @@ public static class ModuleNavigation
         new("inventory", "Inventario", "Consulta existencias, ubicaciones y trazabilidad.", "inventory", false,
         [
             new("Consulta", [
+                new("Notificaciones", "Consultar saldos negativos y productos bajo mínimo.", "alert", "/Reports/Notifications/Index", SignedInOnly: true),
                 new("Existencias", "Buscar el saldo de productos por ubicación.", "inventory", "/Inventory/Index"),
                 new("Ubicaciones", "Explorar ubicaciones y el croquis del almacén.", "location", isAdmin ? "/Admin/Catalogs/Locations/Index" : "/Locations/Index")]),
             new("Control de inventario", [
@@ -126,6 +135,7 @@ public static class ModuleNavigation
             new("Sistema", [
                 new("Usuarios", "Administrar usuarios y accesos.", "users", "/Admin/Users/Index", true),
                 new("Estado del sistema", "Revisar el estado de la instalación.", "system", "/Admin/System/Index", true),
+                new("Respaldos", "Crear y descargar un respaldo protegido.", "system", "/Admin/System/Backups", true),
                 new("Datos del negocio", "Configurar la identidad del negocio y almacén.", "system", "/Admin/Settings/Business", true)])
         ])
     ];

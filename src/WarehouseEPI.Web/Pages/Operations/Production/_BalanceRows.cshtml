@@ -1,0 +1,86 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    string Qty(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
+    string AreaName(ProductionDailyArea area) => T[area switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }];
+    string StatusPercent(decimal ratio) => (ratio is >= .9995m and < 1m ? .999m : ratio).ToString("P1", CultureInfo.CurrentCulture);
+    string Band(decimal? ratio) => ratio is not decimal value ? "no-base" : value < .75m ? "low" : value < 1m ? "mid" : "high";
+    string StatusBand(ProductionDailyProductSummary product) => !product.ReadyToPack.Applies ? "none" : Band(product.StatusRatio);
+    string StatusLabel(ProductionDailyProductSummary product) => T[StatusBand(product) switch
+    {
+        "no-base" => "Sin base de comparación", "low" => "Menos de 75 %",
+        "mid" => "75 % a menos de 100 %", _ => "100 % o más"
+    }].Value;
+    var weekly = Model.Daily;
+}
+@foreach (var product in weekly!.Products)
+{
+    <tbody>
+    <tr class="production-weekly-product" data-balance-product="@product.ProductId">
+        <th scope="row" class="production-weekly-sku">
+            <strong>@product.Sku</strong><small class="d-block">@Model.BalanceUnits.GetValueOrDefault(product.ProductId)</small>
+            <details class="balance-breakdown" data-balance-disclosure="breakdown">
+                <summary>@T["Ver desglose"]</summary>
+                @foreach (var area in new[] { product.Cutting, product.Sewing, product.ReadyToPack })
+                {
+                    <section class="balance-breakdown__area" aria-label="@AreaName(area.Area)">
+                        <h3 class="h6">@AreaName(area.Area)</h3>
+                        @if (!area.Applies) { <p>@T["No aplica"]</p> }
+                        else
+                        {
+                            var daily = area.DailyCoverage;
+                            var accumulated = area.AccumulatedCoverage;
+                            <dl>
+                                <dt>@T["Diario"]</dt><dd data-balance-breakdown="daily" data-area="@((int)area.Area)">@T["Cubierto"]: @Qty(daily.Covered) · @T["Base de comparación"]: @Qty(daily.BeforeAdvance) · @T["Meta"]: @Qty(daily.Target) · @T["Adelanto aplicado"]: @Qty(daily.AdvanceApplied)</dd>
+                                <dt>@T["Acumulado"]</dt><dd data-balance-breakdown="accumulated" data-area="@((int)area.Area)">@T["Cubierto"]: @Qty(accumulated.Covered) · @T["Meta"]: @Qty(accumulated.Target)</dd>
+                            </dl>
+                        }
+                        @foreach(var intention in product.Intentions.Where(x => x.Area == area.Area))
+                        { <p>@T[weekly.ExplicitCarryover ? "Arrastre inicial" : "Arrastre programado"]: @Qty(intention.Quantity)</p> }
+                    </section>
+                }
+            </details>
+        </th>
+        <td class="production-weekly-plan" data-label="@T["Programado del día"]">
+            <span data-balance-plan>@Qty(product.Planned)</span>
+            @{ var planLines = Model.BalancePlanLines.Where(x => x.ProductId == product.ProductId).ToArray(); }
+            @if (planLines.Length > 1)
+            {
+                <details class="balance-plan-details" data-balance-disclosure="program">
+                    <summary>@T["Ver programación ({0})", planLines.Length]</summary>
+                    @foreach (var line in planLines) { <partial name="_BalancePlanInput" model="(product.Sku, line, true)" /> }
+                </details>
+            }
+        </td>
+        @foreach (var area in new[] { product.Cutting, product.Sewing, product.ReadyToPack })
+        {
+            var index = (int)area.Area;
+            <td class="production-weekly-area-@index balance-value balance-value--opening" data-label="@($"{AreaName(area.Area)} · {T["Pendiente al iniciar"]}")" data-short-label="@T["Pendiente al iniciar"]"><span data-balance-field="opening" data-area="@index">@(area.Applies ? Qty(area.Opening) : T["No aplica"])</span></td>
+            <td class="production-weekly-area-@index balance-value balance-value--shift1" data-label="@($"{AreaName(area.Area)} · T1 · {Model.BalanceShift1Name}")" data-area-label="@AreaName(area.Area)" data-short-label="@($"T1 · {Model.BalanceShift1Name}")">
+                @if (area.Applies && weekly.Status == ProductionScheduleWeekStatus.Open && Model.ConfigurationReady)
+                {
+                    <label for="balance-produced-@product.ProductId-@index-1" class="balance-cell-label">@T["Total producido"]</label>
+                    <input id="balance-produced-@product.ProductId-@index-1" class="form-control balance-edit-cell" inputmode="decimal" autocomplete="off" aria-label="@($"{product.Sku} · {AreaName(area.Area)} · T1 · {Model.BalanceShift1Name}")" data-edit-area="@index" data-edit-shift="1" data-original="@Qty(area.CompletedShift1)" value="@Qty(area.CompletedShift1)"/><button type="button" class="btn btn-sm btn-link balance-edit-undo" hidden>@T["Deshacer"]</button>
+                }
+                else { @(area.Applies ? Qty(area.CompletedShift1) : T["No aplica"]) }
+            </td>
+            <td class="production-weekly-area-@index balance-value balance-value--intermediate" data-label="@($"{AreaName(area.Area)} · {T["Pendiente para T2"]}")" data-short-label="@T["Pendiente para T2"]"><span data-balance-field="pendingAfterShift1" data-area="@index">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</span></td>
+            <td class="production-weekly-total production-weekly-area-@index balance-value balance-value--shift2" data-label="@($"{AreaName(area.Area)} · T2 · {Model.BalanceShift2Name}")" data-short-label="@($"T2 · {Model.BalanceShift2Name}")">
+                @if (area.Applies && weekly.Status == ProductionScheduleWeekStatus.Open && Model.ConfigurationReady)
+                {
+                    <label for="balance-produced-@product.ProductId-@index-2" class="balance-cell-label">@T["Total producido"]</label>
+                    <input id="balance-produced-@product.ProductId-@index-2" class="form-control balance-edit-cell" inputmode="decimal" autocomplete="off" aria-label="@($"{product.Sku} · {AreaName(area.Area)} · T2 · {Model.BalanceShift2Name}")" data-edit-area="@index" data-edit-shift="2" data-original="@Qty(area.CompletedShift2)" value="@Qty(area.CompletedShift2)"/><button type="button" class="btn btn-sm btn-link balance-edit-undo" hidden>@T["Deshacer"]</button>
+                }
+                else { @(area.Applies ? Qty(area.CompletedShift2) : T["No aplica"]) }
+            </td>
+            <td class="production-weekly-close production-weekly-area-@index balance-value balance-value--final" data-label="@($"{AreaName(area.Area)} · {T["Pendiente final"]}")" data-short-label="@T["Pendiente final"]">
+                <span data-balance-field="netPending" data-area="@index">@(area.Applies ? Qty(area.SignedPending) : T["No aplica"])</span>
+            </td>
+        }
+        <td class="production-weekly-status" data-label="@T["Status %"]" data-status-band="@StatusBand(product)"><span data-balance-status>@(product.StatusRatio.HasValue ? StatusPercent(product.StatusRatio.Value) : T[product.ReadyToPack.Applies ? "Sin meta" : "No aplica"].Value)</span>@if (product.ReadyToPack.Applies) { <span class="production-weekly-status-label" data-balance-status-label>@StatusLabel(product)</span> }</td>
+    </tr>
+    </tbody>
+}

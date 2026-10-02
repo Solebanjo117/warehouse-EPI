@@ -235,6 +235,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         if (command.OperationId == Guid.Empty || command.PlanIds.Count == 0) return new(CycleCountStatus.ValidationFailed, Errors: ["Selecciona al menos un conteo programado."]);
         var existing = await dbContext.CycleCountCampaigns.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == command.OperationId, cancellationToken);
         if (existing is not null) return new(CycleCountStatus.Success, CampaignId: existing.Id);
@@ -270,6 +271,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         if (command.OperationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
         var existingCampaign = await dbContext.CycleCountCampaigns.AsNoTracking()
             .Where(item => item.OperationId == command.OperationId)
@@ -315,6 +317,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var duplicate = await GetActionResultAsync(operationId, campaignId, cancellationToken);
         if (duplicate is not null) return duplicate;
         var campaign = await dbContext.CycleCountCampaigns.Include(item => item.Locations).SingleOrDefaultAsync(item => item.Id == campaignId, cancellationToken);
@@ -338,6 +341,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         if (operationId == Guid.Empty) return new(CycleCountStatus.ValidationFailed, Errors: ["El identificador de operación es obligatorio."]);
         var existing = await dbContext.CycleCountAttempts.AsNoTracking().SingleOrDefaultAsync(item => item.OperationId == operationId, cancellationToken);
         if (existing is not null) return existing.CycleCountLocationId == locationId ? new(CycleCountStatus.Success, AttemptId: existing.Id, LocationId: locationId) : new(CycleCountStatus.IdempotencyConflict);
@@ -386,6 +390,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         return await SubmitCoreAsync(command.AttemptId, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
     }
 
@@ -393,6 +398,7 @@ public sealed class CycleCountService(
     {
         var user = await FindAuthorizedUserAsync(command.ResponsibleUserId, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         return await SubmitCoreAsync(command.AttemptId, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
     }
 
@@ -492,6 +498,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         return await SubmitPreparedCoreAsync(command.Preparation, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
     }
 
@@ -499,6 +506,7 @@ public sealed class CycleCountService(
     {
         var user = await FindAuthorizedUserAsync(command.ResponsibleUserId, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         return await SubmitPreparedCoreAsync(command.Preparation, command.OperationId, user, command.Entries, command.IsLocationEmpty, cancellationToken);
     }
 
@@ -555,6 +563,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin, null, [], ["NIP no válido."]);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, null, [], [RoleAccess.WarehouseWarning]);
         if (command.OperationId == Guid.Empty || command.Decisions.Count == 0 || command.Decisions.Any(item => item.OperationId == Guid.Empty))
             return new(CycleCountStatus.ValidationFailed, null, [], ["La revisión final no contiene identificadores de operación válidos."]);
         if (command.Decisions.Any(item => item.Decision == CycleCountReviewDecision.Approve && item.Reason is null))
@@ -611,6 +620,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var location = await dbContext.CycleCountLocations.Include(item => item.Campaign).Include(item => item.Attempts)
             .SingleOrDefaultAsync(item => item.Id == command.LocationId, cancellationToken);
         if (location is null) return new(CycleCountStatus.NotFound);
@@ -632,6 +642,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(command.Pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var location = await dbContext.CycleCountLocations.Include(item => item.Campaign).Include(item => item.Attempts).ThenInclude(item => item.Entries)
             .SingleOrDefaultAsync(item => item.Id == command.LocationId, cancellationToken);
         if (location is null) return new(CycleCountStatus.NotFound);
@@ -792,6 +803,7 @@ public sealed class CycleCountService(
     {
         var user = await AuthenticateAsync(pin, cancellationToken);
         if (user is null) return new(CycleCountStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(CycleCountStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var duplicate = await GetActionResultAsync(operationId, campaignId, cancellationToken);
         if (duplicate is not null) return duplicate;
         var campaign = await dbContext.CycleCountCampaigns.SingleOrDefaultAsync(item => item.Id == campaignId, cancellationToken);
@@ -1007,7 +1019,7 @@ public sealed class CycleCountService(
     private async Task<User?> AuthenticateAsync(string pin, CancellationToken cancellationToken)
     {
         var user = await userPinService.AuthenticateAsync(pin, cancellationToken);
-        return user?.Role.Code is "ADMIN" or "OPERATOR" ? user : null;
+        return user;
     }
 
     private Task<User?> FindAuthorizedUserAsync(Guid userId, CancellationToken cancellationToken) =>

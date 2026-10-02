@@ -121,11 +121,12 @@ test('batch entry advances with Enter, invalidates review and prevents duplicate
   assert.equal(confirm.disabled, true);
   assert.equal(pin.value, '');
   area.value = 'Sewing';
-  area.events.change();
+  assert.equal(area.events.change, undefined, 'changing a selector waits for Apply');
+  context.requestSubmit();
   assert.equal(contextSubmissions, 1);
   first.value = '3';
   area.value = 'ReadyToPack';
-  area.events.change();
+  context.requestSubmit();
   assert.equal(contextSubmissions, 1);
   assert.equal(area.value, 'Cutting');
   let blocked = false;
@@ -176,20 +177,22 @@ for (const hasError of [false, true]) {
   });
 }
 
-test('balance tabs submit all seven days and changing week clears the date', () => {
+test('balance tabs submit all seven days and changing week preserves weekday', () => {
   const submitted = [];
   const through = { value: '2026-09-28' };
   const days = ['2026-09-28', '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04'];
   const buttons = days.map(day => ({ dataset: { balanceDay: day }, events: {},
     addEventListener(name, fn) { this.events[name] = fn; }, closest() { return form; } }));
-  const week = { events: {}, addEventListener(name, fn) { this.events[name] = fn; }, closest() { return form; } };
+  const week = { selectedOptions: [{ dataset: { start: '2026-10-05' } }], events: {}, addEventListener(name, fn) { this.events[name] = fn; }, closest() { return form; } };
   const form = { requestSubmit() { submitted.push(through.value); }, querySelector() { return through; } };
+  week.form = form;
+  week.closest = () => null; // The selector is visually outside its associated GET form.
   const document = { querySelectorAll(selector) { return selector === '[data-balance-day]' ? buttons : []; },
     querySelector(selector) { return selector === '[data-balance-week]' ? week : null; } };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../../src/WarehouseEPI.Web/wwwroot/js/production-daily.js'), 'utf8'), { document });
   buttons.forEach(button => button.events.click());
   assert.deepEqual(submitted, days);
   week.events.change();
-  assert.equal(through.value, '');
-  assert.equal(submitted.at(-1), '');
+  assert.equal(through.value, '2026-10-11');
+  assert.equal(submitted.at(-1), '2026-10-11');
 });

@@ -15,6 +15,9 @@ public sealed class ProductionBalanceEditPostgreSqlTests
     [InlineData(4)]
     [InlineData(5)]
     [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
     public async Task Migration_and_balance_edits_work_on_isolated_postgresql(int scenario)
     {
         var config = new ConfigurationBuilder().AddUserSecrets<Program>(optional: true).AddEnvironmentVariables().Build();
@@ -32,7 +35,9 @@ public sealed class ProductionBalanceEditPostgreSqlTests
             await using var db = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>()
                 .UseNpgsql(testBuilder.ConnectionString).Options);
             await db.Database.MigrateAsync();
-            if (scenario == 6) await ProductionExplicitCarryoverTests.VerifyMigrationAsync(db);
+            if (scenario == 9) await VerifyConcurrentConfirmationsAsync(db, testBuilder.ConnectionString);
+            else if (scenario is 7 or 8) await ProductionBalanceOptimizationTests.VerifyTargetedReadsAsync(db, scenario == 8);
+            else if (scenario == 6) await ProductionExplicitCarryoverTests.VerifyMigrationAsync(db);
             else if (scenario == 5) await ProductionExplicitCarryoverTests.VerifyAsync(db);
             else if (scenario >= 3) await ProductionDailyFlexibleTests.VerifyNewBalancePlansAsync(db, scenario == 3 ? 0 : 6, true);
             else if (scenario == 2) await ProductionDailyFlexibleTests.VerifyCombinedBalanceEditsAsync(db);
@@ -44,5 +49,25 @@ public sealed class ProductionBalanceEditPostgreSqlTests
             await using var drop = new NpgsqlCommand($"DROP DATABASE \"{database}\" WITH (FORCE)", admin);
             await drop.ExecuteNonQueryAsync();
         }
+    }
+
+    private static async Task VerifyConcurrentConfirmationsAsync(WarehouseDbContext db, string connection)
+    {
+        var seed = await ProductionDailyFlexibleTests.SeedAsync(db);
+        var first = new WarehouseEPI.Infrastructure.Production.ProductionBalanceEditCommand(Guid.NewGuid(), seed.Week.Id, seed.Date,
+            [new(seed.Product.Id, WarehouseEPI.Core.Entities.ProductionDailyArea.Cutting, 1, 0, 5)], Pin: "4826");
+        var second = first with { OperationId = Guid.NewGuid() };
+        var service = ProductionDailyFlexibleTests.Capture(db);
+        first = first with { ReviewedFingerprint = (await service.PreviewBalanceEditAsync(first)).Fingerprint };
+        second = second with { ReviewedFingerprint = (await service.PreviewBalanceEditAsync(second)).Fingerprint };
+        var options = new DbContextOptionsBuilder<WarehouseDbContext>().UseNpgsql(connection).Options;
+        await using var firstDb = new WarehouseDbContext(options);
+        await using var secondDb = new WarehouseDbContext(options);
+        var results = await Task.WhenAll(ProductionDailyFlexibleTests.Capture(firstDb).ConfirmBalanceEditAsync(first),
+            ProductionDailyFlexibleTests.Capture(secondDb).ConfirmBalanceEditAsync(second));
+        Assert.Single(results, x => x.Success);
+        Assert.Equal(1, await db.ProductionDailyCaptures.CountAsync());
+        Assert.Equal(5, await db.ProductionDailyCaptures.SumAsync(x => x.Quantity));
+        Assert.Equal(1, await db.Set<WarehouseEPI.Core.Entities.ProductionBalanceEdit>().CountAsync());
     }
 }

@@ -1,0 +1,75 @@
+@page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Admin.System.RestoreModel
+@{
+    ViewData["Title"] = CatTexts["Importar respaldo"].Value;
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/manual-backups.css" asp-append-version="true" />
+}
+<div class="backup-board" data-backup-running="@(Model.Validating ? "true" : "false")" data-backup-status-url="@Url.Page("Restore", "Status", new { id = Model.Job?.Id })">
+    <header class="mb-4">
+        <a asp-page="Backups" class="d-inline-block mb-3">@CatTexts["Respaldos"]</a>
+        <h1 class="h2">@CatTexts["Importar respaldo"]</h1>
+        <p class="text-body-secondary">@CatTexts["Recupera la base de datos, los NIP, el logo y los fondos del croquis de un respaldo completo."]</p>
+    </header>
+    @if (Model.Error is not null) { <div class="alert alert-danger" role="alert">@Model.Error</div> }
+    @if (Model.UnavailableReason is not null) { <div class="alert alert-warning" role="status">@CatTexts[Model.UnavailableReason]</div> }
+    @if (Model.Job is { State: WarehouseEPI.Web.Backups.RestoreJobState.Validating })
+    {
+        <div class="alert alert-info" role="status" aria-live="polite">
+            <strong>@CatTexts["Validando respaldo…"]</strong>
+            <p>@CatTexts["Puedes seguir usando el programa durante la validación. Todavía no se han cambiado los datos."]</p>
+            <a asp-page="Restore" asp-route-id="@Model.Job.Id" class="btn btn-outline-primary">@CatTexts["Actualizar estado"]</a>
+        </div>
+    }
+    else if (Model.Job is { State: WarehouseEPI.Web.Backups.RestoreJobState.Ready, Summary: not null } job)
+    {
+        <section class="card mb-4" aria-labelledby="restore-review-title"><div class="card-body p-4">
+            <h2 class="h4" id="restore-review-title">@CatTexts["Revisar y confirmar importación"]</h2>
+            <dl class="row">
+                <dt class="col-sm-5">@CatTexts["Fecha del respaldo (UTC)"]</dt><dd class="col-sm-7"><time datetime="@job.Summary.CreatedAtUtc.ToString("o")">@job.Summary.CreatedAtUtc.ToString("yyyy-MM-dd HH:mm") UTC</time></dd>
+                <dt class="col-sm-5">@CatTexts["Versión de la aplicación"]</dt><dd class="col-sm-7">@(job.Summary.ApplicationVersion ?? "—")</dd>
+                <dt class="col-sm-5">@CatTexts["Base de datos"]</dt><dd class="col-sm-7">@((job.Summary.DatabaseBytes / 1048576d).ToString("N1")) MB</dd>
+                <dt class="col-sm-5">@CatTexts["Logo / fondos del croquis"]</dt><dd class="col-sm-7">@job.Summary.Logos / @job.Summary.References</dd>
+            </dl>
+            <details class="mb-3"><summary>@CatTexts["Ver huella SHA-256"]</summary><code class="backup-hash">@job.Summary.PackageSha256</code></details>
+            <div class="alert alert-warning">@CatTexts["Se reemplazarán todos los datos actuales. Las capturas realizadas después del respaldo no estarán en la copia importada. La aplicación entrará en mantenimiento y cerrará las sesiones."]</div>
+            <p>@CatTexts["Se conservará el estado anterior para recuperación. La revisión vence en 30 minutos."]</p>
+            <form method="post" asp-page-handler="Confirm" autocomplete="off">
+                <input type="hidden" name="id" value="@job.Id" />
+                <fieldset disabled="@(Model.UnavailableReason is not null)">
+                    <legend class="visually-hidden">@CatTexts["Confirmar importación"]</legend>
+                    <div class="mb-3">
+                        <label for="restore-pin" class="form-label">@CatTexts["NIP de un ADMIN incluido en el respaldo"]</label>
+                        <input id="restore-pin" name="adminPin" type="password" inputmode="numeric" pattern="[0-9]{4,8}" required minlength="4" maxlength="8" class="form-control" autocomplete="off" aria-describedby="restore-pin-help" />
+                        <div id="restore-pin-help" class="form-text">@CatTexts["Se comprobará antes de reemplazar la base para asegurar el acceso a los datos restaurados."]</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="restore-confirmation" class="form-label">@CatTexts["Escribe IMPORTAR para confirmar"]</label>
+                        <input id="restore-confirmation" name="confirmation" required pattern="IMPORTAR" maxlength="8" class="form-control" autocomplete="off" />
+                    </div>
+                    <div class="form-check mb-3"><input id="restore-accepted" type="checkbox" name="replaceAccepted" value="true" required class="form-check-input" /><label for="restore-accepted" class="form-check-label">@CatTexts["Entiendo que esta importación reemplaza todos los datos actuales."]</label></div>
+                    <button class="btn btn-danger" type="submit">@CatTexts["Importar y reemplazar datos"]</button>
+                </fieldset>
+            </form>
+        </div></section>
+    }
+    else if (Model.Job is { State: WarehouseEPI.Web.Backups.RestoreJobState.Failed } failed)
+    { <div class="alert alert-danger" role="alert">@CatTexts[failed.Error ?? "No se pudo validar el respaldo. Revisa el archivo y vuelve a cargarlo."]</div> }
+    <section class="card" aria-labelledby="restore-upload-title"><div class="card-body p-4">
+        <h2 class="h4" id="restore-upload-title">@CatTexts["Cargar respaldo"]</h2>
+        <p>@CatTexts["Selecciona el archivo .webackup creado en Respaldos. Primero se revisará la contraseña y la integridad; después podrás confirmar la importación."]</p>
+        <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" autocomplete="off">
+            <fieldset disabled="@Model.Validating">
+                <legend class="visually-hidden">@CatTexts["Cargar respaldo"]</legend>
+                <div class="mb-3"><label for="restore-file" class="form-label">@CatTexts["Archivo de respaldo"]</label><input id="restore-file" type="file" name="backup" accept=".webackup" required class="form-control" aria-describedby="restore-file-help" /><div id="restore-file-help" class="form-text">@CatTexts["Formato .webackup. Tamaño máximo: 2 GB."]</div></div>
+                <div class="mb-3"><label for="restore-password" class="form-label">@CatTexts["Contraseña del respaldo"]</label><input id="restore-password" type="password" name="password" required minlength="12" maxlength="128" autocomplete="off" class="form-control" /></div>
+                <button class="btn btn-primary" type="submit">@CatTexts["Cargar y validar respaldo"]</button>
+            </fieldset>
+        </form>
+    </div></section>
+</div>
+@section Scripts {
+    <script src="~/js/manual-backups.js" asp-append-version="true" defer></script>
+}

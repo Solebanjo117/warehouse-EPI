@@ -72,14 +72,14 @@ public sealed class ProductionDailyExportService(
         var balanceHeaders = new[]
         {
             "Day", "Part Number", "New Plan", "Carryover", "Cutting Completed", "Cutting Pending",
-            "Sewing Completed", "Sewing Pending", "Ready to Pack Completed", "Ready to Pack Pending", "Advance", "Progress %", "Cutting extra", "Sewing extra", "RTP extra", "Cutting to reconcile", "Sewing to reconcile", "RTP to reconcile"
+            "Sewing Completed", "Sewing Pending", "Ready to Pack Completed", "Ready to Pack Pending", "Advance", "Progress %", "Cutting extra", "Sewing extra", "RTP extra"
         };
         WriteHeaders(sheet, balanceRow, 1, balanceHeaders);
         var balanceStart = balanceRow;
         balanceRow++;
         foreach (var row in balance?.Rows.Where(x => x.NewPlan != 0 || x.Carryover != 0 ||
                      x.Cutting.Completed != 0 || x.Sewing.Completed != 0 || x.ReadyToPack.Completed != 0 ||
-                     x.Cutting.Pending != 0 || x.Sewing.Pending != 0 || x.ReadyToPack.Pending != 0).Take(10_000) ?? [])
+                     (x.Cutting.SignedPending) != 0 || (x.Sewing.SignedPending) != 0 || (x.ReadyToPack.SignedPending) != 0).Take(10_000) ?? [])
         {
             sheet.Cell(balanceRow, 1).Value = row.Date.ToDateTime(TimeOnly.MinValue);
             sheet.Cell(balanceRow, 1).Style.DateFormat.Format = "yyyy-MM-dd";
@@ -87,20 +87,17 @@ public sealed class ProductionDailyExportService(
             sheet.Cell(balanceRow, 3).Value = row.NewPlan;
             sheet.Cell(balanceRow, 4).Value = row.Carryover;
             sheet.Cell(balanceRow, 5).Value = row.Cutting.Applies ? row.Cutting.Completed : "N/A";
-            sheet.Cell(balanceRow, 6).Value = row.Cutting.Applies ? row.Cutting.Pending : "N/A";
+            sheet.Cell(balanceRow, 6).Value = row.Cutting.Applies ? (row.Cutting.SignedPending) : "N/A";
             sheet.Cell(balanceRow, 7).Value = row.Sewing.Applies ? row.Sewing.Completed : "N/A";
-            sheet.Cell(balanceRow, 8).Value = row.Sewing.Applies ? row.Sewing.Pending : "N/A";
+            sheet.Cell(balanceRow, 8).Value = row.Sewing.Applies ? (row.Sewing.SignedPending) : "N/A";
             sheet.Cell(balanceRow, 9).Value = row.ReadyToPack.Applies ? row.ReadyToPack.Completed : "N/A";
-            sheet.Cell(balanceRow, 10).Value = row.ReadyToPack.Applies ? row.ReadyToPack.Pending : "N/A";
+            sheet.Cell(balanceRow, 10).Value = row.ReadyToPack.Applies ? (row.ReadyToPack.SignedPending) : "N/A";
             sheet.Cell(balanceRow, 11).Value = Math.Max(row.Cutting.Advance, Math.Max(row.Sewing.Advance, row.ReadyToPack.Advance));
             sheet.Cell(balanceRow, 12).Value = row.ProgressPercent / 100m;
             sheet.Cell(balanceRow, 12).Style.NumberFormat.Format = "0.0%";
             sheet.Cell(balanceRow, 13).Value = row.Cutting.Extra;
             sheet.Cell(balanceRow, 14).Value = row.Sewing.Extra;
             sheet.Cell(balanceRow, 15).Value = row.ReadyToPack.Extra;
-            sheet.Cell(balanceRow, 16).Value = row.Cutting.ToReconcile;
-            sheet.Cell(balanceRow, 17).Value = row.Sewing.ToReconcile;
-            sheet.Cell(balanceRow, 18).Value = row.ReadyToPack.ToReconcile;
             balanceRow++;
         }
         if (balanceRow > balanceStart + 1)
@@ -115,27 +112,20 @@ public sealed class ProductionDailyExportService(
         var close = await balances.GetWeekCloseAsync(weekId, weeklyFilter ?? new(week.WeekEnd), token);
         if (close is not null) WriteWeekClose(workbook, close);
         await WritePlanSummaryAsync(workbook, week, token);
-        if (week.ExplicitCarryover)
+        var openingSheet = workbook.Worksheets.Add("Arrastre inicial");
+        openingSheet.Cell(1, 1).Value = "Arrastre inicial del lunes. Las áreas no se suman entre sí.";
+        WriteHeaders(openingSheet, 3, 1, ["SKU", "Unidad", "Área", "Cantidad", "Versión"]);
+        var initials = await new ProductionInitialBalanceService(db).GetAsync(week.Id, token);
+        var openingIndex = 4;
+        foreach (var total in initials.OrderBy(x => x.Sku).ThenBy(x => x.Area))
         {
-            var openingSheet = workbook.Worksheets.Add("Arrastre inicial");
-            openingSheet.Cell(1, 1).Value = "Arrastre seleccionado para el lunes. Las áreas no se suman entre sí.";
-            WriteHeaders(openingSheet, 3, 1, ["SKU", "Unidad", "Área", "Cantidad", "Semana origen", "Renglón origen", "Versión origen revisada"]);
-            var admitted = await (from o in db.ProductionWeekOpenings.AsNoTracking()
-                join p in db.Products on o.ProductId equals p.Id
-                join source in db.ProductionScheduleWeeks on o.SourceWeekId equals source.Id
-                where o.WeekId == week.Id && o.Quantity > 0
-                orderby p.Sku, source.WeekStart, o.Area
-                select new { p.Sku, Unit = p.BaseUnit.Code, o.Area, o.Quantity, source.WeekStart, o.SourceLineId, o.SourceFingerprint }).ToListAsync(token);
-            var index = 4;
-            foreach (var o in admitted)
-            {
-                openingSheet.Cell(index, 1).Value = Safe(o.Sku); openingSheet.Cell(index, 2).Value = Safe(o.Unit);
-                openingSheet.Cell(index, 3).Value = Area(o.Area); openingSheet.Cell(index, 4).Value = o.Quantity;
-                openingSheet.Cell(index, 5).Value = o.WeekStart.ToString("yyyy-MM-dd");
-                openingSheet.Cell(index, 6).Value = o.SourceLineId.ToString(); openingSheet.Cell(index++, 7).Value = o.SourceFingerprint;
-            }
-            openingSheet.SheetView.FreezeRows(3); openingSheet.ColumnsUsed().AdjustToContents(12, 48);
+            openingSheet.Cell(openingIndex, 1).Value = Safe(total.Sku);
+            openingSheet.Cell(openingIndex, 2).Value = Safe(total.Unit);
+            openingSheet.Cell(openingIndex, 3).Value = Area(total.Area);
+            openingSheet.Cell(openingIndex, 4).Value = total.Quantity;
+            openingSheet.Cell(openingIndex++, 5).Value = total.Version;
         }
+        openingSheet.SheetView.FreezeRows(3); openingSheet.ColumnsUsed().AdjustToContents(12, 48);
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
         return stream.ToArray();
@@ -188,8 +178,9 @@ public sealed class ProductionDailyExportService(
         sheet.Cell(2, 3).Value = summary.Status.ToString();
         var headers = new List<string> { "SKU", "Daily plan" };
         foreach (var area in Enum.GetValues<ProductionDailyArea>())
-            headers.AddRange(new[] { "Opening", "Completed today", "Closing pending", summary.ExplicitCarryover ? "Cumulative extra" : "Extra today", "To reconcile", summary.ExplicitCarryover ? "Admitted opening" : "Scheduled carryover (intention)", "T1", "T2", "Pending for T2" }.Select(x => $"{Area(area)} {x}"));
+            headers.AddRange(new[] { "Opening", "Completed today", "Closing pending", summary.ExplicitCarryover ? "Cumulative extra" : "Extra today", summary.ExplicitCarryover ? "Admitted opening" : "Scheduled carryover (intention)", "T1", "T2", "Pending for T2" }.Select(x => $"{Area(area)} {x}"));
         headers.Add("Status %");
+        headers.AddRange(new[] { "Cutting accumulated %", "Sewing accumulated %", "Ready to Pack accumulated %" });
         WriteHeaders(sheet, 4, 1, headers);
         var index = 5;
         foreach (var product in summary.Products)
@@ -199,7 +190,7 @@ public sealed class ProductionDailyExportService(
             var column = 3;
             foreach (var area in new[] { product.Cutting, product.Sewing, product.ReadyToPack })
             {
-                foreach (var quantity in new[] { area.Opening, area.Completed, area.NetPending ?? area.Pending, area.Extra, area.ToReconcile })
+                foreach (var quantity in new[] { area.Opening, area.Completed, area.SignedPending, area.Extra })
                 {
                     sheet.Cell(index, column).Value = area.Applies ? quantity : "N/A";
                     sheet.Cell(index, column++).Style.NumberFormat.Format = "0.####";
@@ -214,7 +205,19 @@ public sealed class ProductionDailyExportService(
                 sheet.Cell(index, column).Value = ratio;
                 sheet.Cell(index, column).Style.NumberFormat.Format = "0.0%";
             }
-            else sheet.Cell(index, column).Value = "N/A";
+            else sheet.Cell(index, column).Value = product.ReadyToPack.Applies ? "No target" : "N/A";
+            column++;
+            foreach (var area in new[] { product.Cutting, product.Sewing, product.ReadyToPack })
+            {
+                var accumulated = area.AccumulatedCoverage;
+                if (accumulated.Ratio is decimal accumulatedRatio)
+                {
+                    sheet.Cell(index, column).Value = accumulatedRatio;
+                    sheet.Cell(index, column).Style.NumberFormat.Format = "0.0%";
+                }
+                else sheet.Cell(index, column).Value = area.Applies ? "No target" : "N/A";
+                column++;
+            }
             index++;
         }
         if (index > 5) sheet.Range(4, 1, index - 1, headers.Count).CreateTable("DailyProductionSummary");
@@ -234,7 +237,7 @@ public sealed class ProductionDailyExportService(
         sheet.Cell(2, 6).Value = summary.Status.ToString();
         var headers = new List<string> { "SKU", "Description", "Weekly plan" };
         foreach (var area in Enum.GetValues<ProductionDailyArea>())
-            headers.AddRange(new[] { "Opening", "Completed", "Pending", "Extra", "To reconcile" }.Select(x => $"{Area(area)} {x}"));
+            headers.AddRange(new[] { "Opening", "Completed", "Pending", "Extra" }.Select(x => $"{Area(area)} {x}"));
         WriteHeaders(sheet, 4, 1, headers);
         var index = 5;
         foreach (var product in summary.Products)
@@ -244,7 +247,7 @@ public sealed class ProductionDailyExportService(
             sheet.Cell(index, 3).Value = product.Planned;
             var column = 4;
             foreach (var area in new[] { product.Cutting, product.Sewing, product.ReadyToPack })
-                foreach (var quantity in new[] { area.Opening, area.Completed, area.NetPending ?? area.Pending, area.Extra, area.ToReconcile })
+                foreach (var quantity in new[] { area.Opening, area.Completed, area.SignedPending, area.Extra })
                 {
                     sheet.Cell(index, column).Value = area.Applies ? quantity : "N/A";
                     sheet.Cell(index, column++).Style.NumberFormat.Format = "0.####";
@@ -264,21 +267,20 @@ public sealed class ProductionDailyExportService(
         pending.Cell(2, 1).Value = close.WeekEnd.ToDateTime(TimeOnly.MinValue);
         pending.Cell(2, 1).Style.DateFormat.Format = "yyyy-MM-dd";
         pending.Cell(2, 3).Value = close.Status == ProductionScheduleWeekStatus.Closed ? "Cierre" : "Provisional";
-        var pendingHeaders = new List<string> { "SKU", "Unidad", "Programado nuevo domingo" };
+        var pendingHeaders = new List<string> { "SKU", "Programado nuevo domingo" };
         foreach (var area in Enum.GetValues<ProductionDailyArea>())
-            pendingHeaders.AddRange(new[] { "Arrastre", "T1", "Pendiente T2", "T2", "Pendiente final", "Por conciliar" }
+            pendingHeaders.AddRange(new[] { "Arrastre", "T1", "Pendiente T2", "T2", "Pendiente final" }
                 .Select(x => $"{Area(area)} {x}"));
         WriteHeaders(pending, 4, 1, pendingHeaders);
         var row = 5;
         foreach (var product in close.PendingProducts)
         {
             pending.Cell(row, 1).Value = Safe(product.Sku);
-            pending.Cell(row, 2).Value = Safe(product.Unit);
-            pending.Cell(row, 3).Value = product.SundayPlan;
-            var column = 4;
+            pending.Cell(row, 2).Value = product.SundayPlan;
+            var column = 3;
             foreach (var area in product.Areas)
                 foreach (var value in new[] { area.Opening, area.Shift1, area.PendingAfterShift1,
-                             area.Shift2, area.Pending, area.ToReconcile })
+                             area.Shift2, area.Pending })
                     WriteAreaQuantity(pending, row, column++, area.Applies, value);
             row++;
         }
@@ -287,18 +289,17 @@ public sealed class ProductionDailyExportService(
         foreach (var total in close.Totals)
         {
             pending.Cell(row, 1).Value = "Total filtrado";
-            pending.Cell(row, 2).Value = Safe(total.Unit);
-            pending.Cell(row, 3).Value = total.SundayPlan;
-            var column = 4;
+            pending.Cell(row, 2).Value = total.SundayPlan;
+            var column = 3;
             foreach (var area in total.Areas)
                 foreach (var value in new[] { area.Opening, area.Shift1, area.PendingAfterShift1,
-                             area.Shift2, area.Pending, area.ToReconcile })
+                             area.Shift2, area.Pending })
                     WriteAreaQuantity(pending, row, column++, area.Applies, value);
             pending.Range(row, 1, row, pendingHeaders.Count).Style.Font.Bold = true;
             row++;
         }
         pending.SheetView.FreezeRows(4);
-        pending.SheetView.FreezeColumns(2);
+        pending.SheetView.FreezeColumns(1);
         pending.ColumnsUsed().AdjustToContents(10, 36);
 
         var partSummary = workbook.Worksheets.Add("Resumen produccion semanal");
@@ -306,32 +307,31 @@ public sealed class ProductionDailyExportService(
         partSummary.Cell(2, 1).Value = close.WeekEnd.ToDateTime(TimeOnly.MinValue);
         partSummary.Cell(2, 1).Style.DateFormat.Format = "yyyy-MM-dd";
         partSummary.Cell(2, 3).Value = close.Status == ProductionScheduleWeekStatus.Closed ? "Cierre" : "Provisional";
-        var partHeaders = new[] { "SKU", "Unidad", "Programado", "Corte completado",
+        var partHeaders = new[] { "SKU", "Programado", "Corte completado",
             "Costura completado", "Ready to Pack completado" };
         WriteHeaders(partSummary, 4, 1, partHeaders);
         row = 5;
         foreach (var product in close.Products)
         {
             partSummary.Cell(row, 1).Value = Safe(product.Sku);
-            partSummary.Cell(row, 2).Value = Safe(product.Unit);
-            partSummary.Cell(row, 3).Value = product.WeeklyPlan;
-            WriteAreaQuantity(partSummary, row, 4, product.Cutting.Applies, product.Cutting.Completed);
-            WriteAreaQuantity(partSummary, row, 5, product.Sewing.Applies, product.Sewing.Completed);
-            WriteAreaQuantity(partSummary, row, 6, product.ReadyToPack.Applies, product.ReadyToPack.Completed);
+            partSummary.Cell(row, 2).Value = product.WeeklyPlan;
+            WriteAreaQuantity(partSummary, row, 3, product.Cutting.Applies, product.Cutting.Completed);
+            WriteAreaQuantity(partSummary, row, 4, product.Sewing.Applies, product.Sewing.Completed);
+            WriteAreaQuantity(partSummary, row, 5, product.ReadyToPack.Applies, product.ReadyToPack.Completed);
             row++;
         }
         if (row > 5) partSummary.Range(4, 1, row - 1, partHeaders.Length).CreateTable("WeeklyPartProduction");
         row++;
         var summaryTotal = close.SummaryTotal;
         partSummary.Cell(row, 1).Value = "Total filtrado";
-        partSummary.Range(row, 1, row, 2).Merge();
-        partSummary.Cell(row, 3).Value = summaryTotal.WeeklyPlan;
-        partSummary.Cell(row, 4).Value = summaryTotal.Cutting;
-        partSummary.Cell(row, 5).Value = summaryTotal.Sewing;
-        partSummary.Cell(row, 6).Value = summaryTotal.ReadyToPack;
+
+        partSummary.Cell(row, 2).Value = summaryTotal.WeeklyPlan;
+        partSummary.Cell(row, 3).Value = summaryTotal.Cutting;
+        partSummary.Cell(row, 4).Value = summaryTotal.Sewing;
+        partSummary.Cell(row, 5).Value = summaryTotal.ReadyToPack;
         partSummary.Range(row, 1, row, partHeaders.Length).Style.Font.Bold = true;
         partSummary.SheetView.FreezeRows(4);
-        partSummary.SheetView.FreezeColumns(2);
+        partSummary.SheetView.FreezeColumns(1);
         partSummary.ColumnsUsed().AdjustToContents(10, 36);
 
         var completion = workbook.Worksheets.Add("Cumplimiento semanal");
@@ -339,7 +339,7 @@ public sealed class ProductionDailyExportService(
         completion.Cell(2, 1).Value = close.WeekEnd.ToDateTime(TimeOnly.MinValue);
         completion.Cell(2, 1).Style.DateFormat.Format = "yyyy-MM-dd";
         completion.Cell(2, 3).Value = close.Status == ProductionScheduleWeekStatus.Closed ? "Cierre" : "Provisional";
-        var completionHeaders = new List<string> { "SKU", "Unidad", "Programado nuevo semana" };
+        var completionHeaders = new List<string> { "SKU", "Programado nuevo semana" };
         foreach (var area in Enum.GetValues<ProductionDailyArea>())
             completionHeaders.AddRange(new[] { $"{Area(area)} completado", $"{Area(area)} cumplimiento %" });
         WriteHeaders(completion, 4, 1, completionHeaders);
@@ -347,9 +347,8 @@ public sealed class ProductionDailyExportService(
         foreach (var product in close.Products)
         {
             completion.Cell(row, 1).Value = Safe(product.Sku);
-            completion.Cell(row, 2).Value = Safe(product.Unit);
-            completion.Cell(row, 3).Value = product.WeeklyPlan;
-            var column = 4;
+            completion.Cell(row, 2).Value = product.WeeklyPlan;
+            var column = 3;
             foreach (var area in product.Areas)
             {
                 WriteAreaQuantity(completion, row, column++, area.Applies, area.Completed);
@@ -362,9 +361,8 @@ public sealed class ProductionDailyExportService(
         foreach (var total in close.Totals)
         {
             completion.Cell(row, 1).Value = "Total filtrado";
-            completion.Cell(row, 2).Value = Safe(total.Unit);
-            completion.Cell(row, 3).Value = total.WeeklyPlan;
-            var column = 4;
+            completion.Cell(row, 2).Value = total.WeeklyPlan;
+            var column = 3;
             foreach (var area in total.Areas)
             {
                 WriteAreaQuantity(completion, row, column++, area.Applies, area.Completed);
@@ -374,14 +372,14 @@ public sealed class ProductionDailyExportService(
             row++;
         }
         completion.SheetView.FreezeRows(4);
-        completion.SheetView.FreezeColumns(2);
+        completion.SheetView.FreezeColumns(1);
         completion.ColumnsUsed().AdjustToContents(10, 36);
 
         var shifts = workbook.Worksheets.Add("Comparacion de turnos");
         shifts.Cell(1, 1).Value = "COMPARACIÓN SEMANAL DE TURNOS";
         shifts.Cell(2, 1).Value = $"{close.WeekStart:yyyy-MM-dd} / {close.WeekEnd:yyyy-MM-dd}";
         shifts.Cell(3, 1).Value = "El total suma trabajo de las áreas; una pieza puede aparecer en varios procesos.";
-        WriteHeaders(shifts, 5, 1, ["Unidad", "Área", "T1", "T2", "Total", "% T1", "% T2"]);
+        WriteHeaders(shifts, 5, 1, ["Área", "T1", "T2", "Total", "% T1", "% T2"]);
         row = 6;
         foreach (var unit in close.ShiftComparison)
         {
@@ -393,36 +391,36 @@ public sealed class ProductionDailyExportService(
                     ProductionDailyArea.Sewing => "Costura",
                     _ => "Ready to Pack"
                 };
-                WriteShiftComparisonRow(shifts, row++, unit.Unit, areaName, area.Shift1, area.Shift2);
+                WriteShiftComparisonRow(shifts, row++, areaName, area.Shift1, area.Shift2);
             }
-            WriteShiftComparisonRow(shifts, row, unit.Unit, "Total", unit.Shift1, unit.Shift2);
-            shifts.Range(row, 1, row, 7).Style.Font.Bold = true;
+            WriteShiftComparisonRow(shifts, row, "Total", unit.Shift1, unit.Shift2);
+            shifts.Range(row, 1, row, 6).Style.Font.Bold = true;
             row++;
         }
         shifts.SheetView.FreezeRows(5);
         shifts.ColumnsUsed().AdjustToContents(10, 60);
     }
 
-    private static void WriteShiftComparisonRow(IXLWorksheet sheet, int row, string unit, string area,
+    private static void WriteShiftComparisonRow(IXLWorksheet sheet, int row, string area,
         decimal shift1, decimal shift2)
     {
-        sheet.Cell(row, 1).Value = Safe(unit);
-        sheet.Cell(row, 2).Value = area;
-        sheet.Cell(row, 3).Value = shift1;
-        sheet.Cell(row, 4).Value = shift2;
-        sheet.Cell(row, 5).Value = shift1 + shift2;
+
+        sheet.Cell(row, 1).Value = area;
+        sheet.Cell(row, 2).Value = shift1;
+        sheet.Cell(row, 3).Value = shift2;
+        sheet.Cell(row, 4).Value = shift1 + shift2;
         if (shift1 + shift2 == 0)
         {
+            sheet.Cell(row, 5).Value = "—";
             sheet.Cell(row, 6).Value = "—";
-            sheet.Cell(row, 7).Value = "—";
         }
         else
         {
-            sheet.Cell(row, 6).Value = shift1 / (shift1 + shift2);
-            sheet.Cell(row, 7).Value = shift2 / (shift1 + shift2);
-            sheet.Range(row, 6, row, 7).Style.NumberFormat.Format = "0.0%";
+            sheet.Cell(row, 5).Value = shift1 / (shift1 + shift2);
+            sheet.Cell(row, 6).Value = shift2 / (shift1 + shift2);
+            sheet.Range(row, 5, row, 6).Style.NumberFormat.Format = "0.0%";
         }
-        sheet.Range(row, 3, row, 5).Style.NumberFormat.Format = "0.####";
+        sheet.Range(row, 2, row, 4).Style.NumberFormat.Format = "0.####";
     }
 
     private static void WriteAreaQuantity(IXLWorksheet sheet, int row, int column, bool applies, decimal value)

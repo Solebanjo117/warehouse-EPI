@@ -8,7 +8,7 @@ using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.Movements;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "MovementsRead")]
 public sealed class DetailsModel(
     InventoryHistoryService history,
     MovementTraceabilityService traceability,

@@ -1,0 +1,81 @@
+.production-week-picker {
+  max-width: 52rem;
+}
+
+.production-week-picker__navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+
+.production-week-picker [hidden] {
+  display: none !important;
+}
+
+.production-week-picker .btn,
+.production-week-picker .form-control {
+  min-height: 44px;
+}
+
+.production-week-picker__options {
+  display: grid;
+  gap: .5rem;
+}
+
+.production-week-picker__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.production-week-picker__choice {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  flex: 1 1 20rem;
+  min-width: 0;
+  min-height: 52px;
+  padding: .75rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  cursor: pointer;
+}
+
+.production-week-picker__choice .form-check-input {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.production-week-picker__choice.is-selected {
+  background: var(--bs-primary-bg-subtle);
+  border-color: var(--bs-primary);
+  font-weight: 600;
+}
+
+.production-week-picker__choice:focus-within {
+  outline: 3px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+
+.production-week-picker__row--existing .production-week-picker__choice {
+  background: var(--bs-tertiary-bg);
+  cursor: default;
+}
+
+@media (max-width: 900px) {
+  .production-schedule:has(.production-week-picker:focus-within) .production-schedule__context {
+    position: static;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .production-week-picker__navigation h2 {
+    order: -1;
+    flex-basis: 100%;
+    text-align: center;
+  }
+}

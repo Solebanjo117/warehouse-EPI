@@ -4,6 +4,7 @@ param(
     [string]$PgPassFile = 'C:\ProgramData\WarehouseEPI\BackupCredentials\postgresql-backup.pgpass',
     [string]$TaskFolder = '\WarehouseEPI\',
     [string]$ServiceIdentity = 'SYSTEM',
+    [string]$MaintenanceDirectory,
     [switch]$Force
 )
 
@@ -32,8 +33,18 @@ catch {
     $null = $scheduler.GetFolder('\').CreateFolder($taskFolderName)
 }
 
-$backupScript = Join-Path $PSScriptRoot 'Invoke-WarehouseEpiBackup.ps1'
-$validationScript = Join-Path $PSScriptRoot 'Invoke-WarehouseEpiRecoveryValidation.ps1'
+$taskScriptDirectory = $PSScriptRoot
+if (-not [string]::IsNullOrWhiteSpace($MaintenanceDirectory)) {
+    $taskScriptDirectory = [IO.Path]::GetFullPath($MaintenanceDirectory).TrimEnd('\')
+    if ($taskScriptDirectory -ine 'C:\ProgramData\WarehouseEPI\Maintenance') {
+        throw 'MaintenanceDirectory debe ser C:\ProgramData\WarehouseEPI\Maintenance.'
+    }
+}
+$backupScript = Join-Path $taskScriptDirectory 'Invoke-WarehouseEpiBackup.ps1'
+$validationScript = Join-Path $taskScriptDirectory 'Invoke-WarehouseEpiRecoveryValidation.ps1'
+foreach ($taskScript in @($backupScript, $validationScript)) {
+    if (-not (Test-Path -LiteralPath $taskScript -PathType Leaf)) { throw 'Falta un script permanente de respaldo o validación.' }
+}
 $taskNames = @('WarehouseEPI-DailyBackup', 'WarehouseEPI-WeeklyRestoreValidation')
 foreach ($taskName in $taskNames) {
     $existing = Get-ScheduledTask -TaskPath $TaskFolder -TaskName $taskName -ErrorAction SilentlyContinue

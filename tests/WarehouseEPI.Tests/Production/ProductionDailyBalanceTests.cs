@@ -52,37 +52,37 @@ public sealed class ProductionDailyBalanceTests
     {
         var setup = await SeedAsync(db);
         var balance = new ProductionDailyBalanceService(db);
-        var draft = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var draft = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(5, draft.Cutting.Pending);
         Assert.True(draft.Sewing.Applies);
         Assert.Equal(3, draft.Sewing.Pending);
         await PublishAsync(db, setup);
-        var published = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var published = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(draft, published with { References = draft.References });
 
         await CaptureAsync(db, setup, ProductionDailyArea.Cutting, 2);
-        var partial = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var partial = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(3, partial.Cutting.Pending);
         Assert.Equal(3, partial.Sewing.Pending);
         Assert.Equal(2, partial.ReadyToPack.Pending);
         await CaptureAsync(db, setup, ProductionDailyArea.Cutting, 3);
-        var cut = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var cut = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(0, cut.Cutting.Pending);
         Assert.Equal(3, cut.Sewing.Pending);
         Assert.Equal(5, cut.ReadyToPack.Pending);
         await CaptureAsync(db, setup, ProductionDailyArea.Sewing, 3);
-        var sewn = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var sewn = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(0, sewn.Sewing.Pending);
         Assert.Equal(8, sewn.ReadyToPack.Pending);
 
         var finalCapture = await CaptureAsync(db, setup, ProductionDailyArea.ReadyToPack, 6);
         Assert.Equal(2, await db.ProductionDailyCaptureAllocations.CountAsync(x => x.CaptureId == finalCapture));
-        var finished = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var finished = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(2, finished.ReadyToPack.Pending);
         Assert.Equal(75, finished.ProgressPercent);
         var reversed = await Captures(db).ReverseAsync(new(Guid.NewGuid(), finalCapture, "Corrección", "4826"));
         Assert.True(reversed.Success, string.Join(" | ", reversed.Errors ?? []));
-        var restored = Monday((await balance.GetAsync(setup.Week.Id))!);
+        var restored = Monday((await balance.GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(8, restored.ReadyToPack.Pending);
         Assert.Equal(0, restored.ReadyToPack.Completed);
         Assert.Equal(0, restored.ProgressPercent);
@@ -91,13 +91,13 @@ public sealed class ProductionDailyBalanceTests
         Assert.Equal(5, summary.Cutting.Completed);
         Assert.Equal(3, summary.Sewing.Opening);
         Assert.Equal(3, summary.Sewing.Completed);
-        Assert.Equal(8, summary.ReadyToPack.Pending);
+        Assert.Equal(5, summary.ReadyToPack.Pending); // Report follows the plan; physical availability remains 8.
         Assert.Equal(0, summary.ReadyToPack.Completed);
 
         using var workbook = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, balance).ExportAsync(setup.Week.Id))!));
         var exported = workbook.Worksheet(1).Table("AutomaticBalanceExport").DataRange.FirstRow();
         Assert.Equal((double)restored.Sewing.Pending, exported.Cell(8).GetDouble());
-        Assert.Equal((double)restored.ReadyToPack.Pending, exported.Cell(10).GetDouble());
+        Assert.Equal(5d, exported.Cell(10).GetDouble());
         Assert.Equal((double)restored.ReadyToPack.Completed, exported.Cell(9).GetDouble());
     }
 
@@ -110,7 +110,7 @@ public sealed class ProductionDailyBalanceTests
         var setup = await SeedAsync(db);
         await PublishAsync(db, setup);
         await CaptureAsync(db, setup, ProductionDailyArea.Cutting, 5);
-        var before = Monday((await new ProductionDailyBalanceService(db).GetAsync(setup.Week.Id))!);
+        var before = Monday((await new ProductionDailyBalanceService(db).GetPhysicalAsync(setup.Week.Id))!);
         var route = await db.ProductionRoutes.Include(x => x.Stages).SingleAsync();
         if (deactivate) route.IsActive = false;
         else
@@ -122,7 +122,7 @@ public sealed class ProductionDailyBalanceTests
         }
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
-        var after = Monday((await new ProductionDailyBalanceService(db).GetAsync(setup.Week.Id))!);
+        var after = Monday((await new ProductionDailyBalanceService(db).GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(before, after with { References = before.References });
     }
 
@@ -175,7 +175,7 @@ public sealed class ProductionDailyBalanceTests
         await db.SaveChangesAsync();
         var currentSetup = setup with { Week = next };
         var capture = await CaptureAsync(db, currentSetup, ProductionDailyArea.ReadyToPack, 6, next.WeekStart.AddDays(1));
-        var rows = (await new ProductionDailyBalanceService(db).GetAsync(next.Id))!.Rows;
+        var rows = (await new ProductionDailyBalanceService(db).GetPhysicalAsync(next.Id))!.Rows;
         var weekly = Assert.Single((await new ProductionDailyBalanceService(db).GetWeeklyAsync(next.Id, new(next.WeekEnd)))!.Products);
         Assert.Equal(8, weekly.ReadyToPack.Opening);
         Assert.Equal(6, weekly.ReadyToPack.Completed);
@@ -189,10 +189,10 @@ public sealed class ProductionDailyBalanceTests
         Assert.Equal(0, rows[1].ReadyToPack.Advance);
         Assert.Equal(75, rows[1].ProgressPercent);
         // A capture in the following week cannot change the prior week's closing.
-        Assert.Equal(8, Monday((await new ProductionDailyBalanceService(db).GetAsync(prior.Id))!).ReadyToPack.Pending);
+        Assert.Equal(8, Monday((await new ProductionDailyBalanceService(db).GetPhysicalAsync(prior.Id))!).ReadyToPack.Pending);
         var reversed = await Captures(db).ReverseAsync(new(Guid.NewGuid(), capture, "Corrección", "4826"));
         Assert.True(reversed.Success, string.Join(" | ", reversed.Errors ?? []));
-        Assert.All((await new ProductionDailyBalanceService(db).GetAsync(next.Id))!.Rows, row => Assert.Equal(8, row.ReadyToPack.Pending));
+        Assert.All((await new ProductionDailyBalanceService(db).GetPhysicalAsync(next.Id))!.Rows, row => Assert.Equal(8, row.ReadyToPack.Pending));
     }
 
     [Fact]
@@ -226,7 +226,7 @@ public sealed class ProductionDailyBalanceTests
             Origin = ProductionScheduleOrigin.ExcelImport
         });
         await db.SaveChangesAsync();
-        var row = Monday((await new ProductionDailyBalanceService(db).GetAsync(setup.Week.Id))!);
+        var row = Monday((await new ProductionDailyBalanceService(db).GetPhysicalAsync(setup.Week.Id))!);
         Assert.Equal(9, row.Cutting.Completed);
         Assert.Equal(0, row.Cutting.Pending);
         Assert.Equal(3, row.Sewing.Pending);

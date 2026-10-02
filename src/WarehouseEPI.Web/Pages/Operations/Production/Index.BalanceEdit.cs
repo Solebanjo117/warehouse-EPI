@@ -15,6 +15,9 @@ public sealed partial class IndexModel
     public sealed record BalanceEditInput(Guid OperationId, Guid WeekId, DateOnly Date, List<BalanceCellInput>? Cells,
         string? Reason, string? Fingerprint, string? Pin, List<BalancePlanInput>? PlanChanges = null, List<BalanceNewPlanInput>? NewPlans = null);
 
+    private static bool HasBalancePlanning(BalanceEditInput? input) =>
+        (input?.PlanChanges?.Count ?? 0) > 0 || (input?.NewPlans?.Count ?? 0) > 0;
+
     private ProductionBalanceEditCommand? BalanceCommand(BalanceEditInput? input)
     {
         // Validate the JSON body here; unrelated capture forms share this PageModel.
@@ -58,6 +61,8 @@ public sealed partial class IndexModel
 
     public async Task<IActionResult> OnPostBalanceEditPreviewAsync([FromBody] BalanceEditInput? input, CancellationToken token)
     {
+        if (HasBalancePlanning(input)) return new JsonResult(new { canConfirm = false,
+            errors = new[] { texts["Programado del día es de solo consulta. Edita la programación en Programa semanal."].Value } });
         var command = BalanceCommand(input);
         if (command is null) return new JsonResult(new { canConfirm = false, errors = new[] { texts["Indica una cantidad válida. Solo punto decimal."].Value } });
         if ((command.PlanChanges?.Count > 0 || command.NewPlans?.Count > 0) && command.AdminActorId is null) return Forbid();
@@ -83,11 +88,13 @@ public sealed partial class IndexModel
 
     public async Task<IActionResult> OnPostBalanceEditConfirmAsync([FromBody] BalanceEditInput? input, CancellationToken token)
     {
+        if (HasBalancePlanning(input)) return BadRequest();
         var command = BalanceCommand(input);
         if (command is null) return BadRequest();
         if ((command.PlanChanges?.Count > 0 || command.NewPlans?.Count > 0) && command.AdminActorId is null) return Forbid();
         var result = await captures.ConfirmBalanceEditAsync(command, token);
-        return new JsonResult(new { result.Success, Errors = result.Errors?.Select(BalanceError).ToArray(), status = result.Status.ToString() });
+        return new JsonResult(new { result.Success, operationId = command.OperationId, recordId = result.Id,
+            Errors = result.Errors?.Select(BalanceError).ToArray(), status = result.Status.ToString() });
     }
 
     private async Task<string> RenderWeeklyPreviewAsync()

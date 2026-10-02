@@ -22,18 +22,34 @@ public sealed class InventoryMovementService(
         CancellationToken cancellationToken = default)
     {
         var user = await userPinService.AuthenticateAsync(command.Pin, cancellationToken);
-        if (user is null || user.Role.Code is not ("ADMIN" or "OPERATOR"))
+        if (user is null)
             return new(InventoryMovementStatus.InvalidPin);
+
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code))
+            return new(InventoryMovementStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
 
         return await ConfirmAuthorizedAsync(command, user, cancellationToken: cancellationToken);
     }
 
-    internal async Task<InventoryMovementResult> ConfirmAuthorizedAsync(
+    internal Task<InventoryMovementResult> ConfirmAuthorizedAsync(
         InventoryMovementCommand command, User user, bool allowReservedWip = false,
-        Guid? productionSupplyLineId = null, CancellationToken cancellationToken = default)
+        Guid? productionSupplyLineId = null, CancellationToken cancellationToken = default) =>
+        ConfirmAuthorizedCoreAsync(command, user, allowReservedWip, productionSupplyLineId, false, cancellationToken);
+
+    // Only the daily-production reconciliation calls this path, for linked material consumption.
+    internal Task<InventoryMovementResult> ConfirmDailyConsumptionAsync(
+        InventoryMovementCommand command, User user, CancellationToken cancellationToken) =>
+        ConfirmAuthorizedCoreAsync(command, user, true, null, true, cancellationToken);
+
+    private async Task<InventoryMovementResult> ConfirmAuthorizedCoreAsync(
+        InventoryMovementCommand command, User user, bool allowReservedWip,
+        Guid? productionSupplyLineId, bool dailyConsumption, CancellationToken cancellationToken)
     {
-        if (user.Role.Code is not ("ADMIN" or "OPERATOR"))
-            return new(InventoryMovementStatus.InvalidPin);
+        if (!user.IsActive) return new(InventoryMovementStatus.InvalidPin);
+        if (!(dailyConsumption ? RoleAccess.CanCaptureProduction(user.Role.Code) : RoleAccess.CanOperateWarehouse(user.Role.Code)))
+            return new(InventoryMovementStatus.RoleNotAllowed, Errors: [dailyConsumption ? RoleAccess.ProductionWarning : RoleAccess.WarehouseWarning]);
+        if (dailyConsumption && (command.Type != InventoryMovementType.Exit || command.Purpose != InventoryMovementPurpose.WipConsumption ||
+            command.Lines.Any(line => line.MaterialIssueLinkId is null))) return new(InventoryMovementStatus.ValidationFailed);
         var normalized = InventoryMovementRules.Normalize(command);
         var structuralErrors = InventoryMovementRules.ValidateStructure(normalized);
         if (structuralErrors.Count > 0)

@@ -1,0 +1,45 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    var table = Model.ReportTable!;
+    var products = Model.Report!.Filter.Products;
+    var identifying = 2;
+    string Display(object value, int column, bool total) => value switch {
+        decimal quantity => quantity.ToString("#,##0.####", CultureInfo.CurrentCulture),
+        DateOnly date => date.ToString("dd/MM/yyyy"),
+        string label when label == "No aplica" || (column == 0 && (!products || total)) => T[label].Value,
+        _ => value.ToString() ?? ""
+    };
+}
+@if (!Model.ReportPrint)
+{
+    <div class="report-scroll-top" data-report-scroll-top tabindex="0" role="region" aria-label="@T["Desplazamiento horizontal del reporte"]" aria-controls="production-report-scroll" hidden><div data-report-scroll-width aria-hidden="true"></div></div>
+}
+<div id="production-report-scroll" class="report-scroll" data-report-scroll tabindex="0" role="region" aria-label="@T[Model.ReportTitle]">
+<table class="table table-bordered table-sm report-table @(products ? "report-products" : "report-daily")">
+    <caption>@T[products ? "Totales de todos los resultados filtrados, separados por unidad." : "Totales de todos los resultados filtrados, agrupados por día."]</caption>
+    <thead>
+        <tr>
+            @for(var i=0; i<identifying; i++){<th scope="col" rowspan="2">@T[table.Columns[i].Label]</th>}
+            @foreach(var group in table.Columns.Skip(identifying).GroupBy(x=>x.Group)){<th scope="colgroup" colspan="@group.Count()">@T[group.Key!]</th>}
+        </tr>
+        <tr>@foreach(var column in table.Columns.Skip(identifying)){<th scope="col">@T[column.Label]</th>}</tr>
+    </thead>
+    <tbody>
+        @foreach(var row in Model.ReportRows)
+        {
+            <tr>
+                @for(var i=0; i<row.Cells.Count; i++)
+                {
+                    <td class="@(row.Cells[i] is decimal ? "text-end" : "")">
+                        @if(i==0 && !products && !Model.ReportPrint && row.Date is {} date){<a asp-all-route-data="@Model.ReportRoute("products", date, 1)">@Display(row.Cells[i],i,false)</a>}
+                        else { @Display(row.Cells[i],i,false) }
+                    </td>
+                }
+            </tr>
+        }
+    </tbody>
+    <tfoot>@foreach(var row in table.Totals){<tr>@for(var i=0; i<row.Cells.Count; i++){<td class="@(row.Cells[i] is decimal ? "text-end" : "")">@Display(row.Cells[i],i,true)</td>}</tr>}</tfoot>
+</table>
+</div>

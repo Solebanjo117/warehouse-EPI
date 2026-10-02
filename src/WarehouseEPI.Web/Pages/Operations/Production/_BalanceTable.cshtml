@@ -1,0 +1,14 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    string AreaName(ProductionDailyArea area) => T[area switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }];
+}
+            <div class="balance-scroll-top" data-balance-scroll-top tabindex="0" role="region" aria-label="@T["Desplazamiento horizontal del balance diario"]" aria-controls="balance-table-scroll" hidden><div data-balance-scroll-width aria-hidden="true"></div></div>
+            <div id="balance-table-scroll" class="production-weekly-scroll" data-balance-scroll tabindex="0" aria-label="@T["Balance diario"]">
+            <table id="production-balance-table" class="table production-weekly-table">
+                <colgroup><col class="balance-column--sku"/><col class="balance-column--plan"/>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<col class="balance-column--calculated"/><col class="balance-column--input"/><col class="balance-column--calculated"/><col class="balance-column--input"/><col class="balance-column--final"/>}<col class="balance-column--status"/></colgroup>
+                <thead><tr><th rowspan="2" scope="col">@T["Producto"]</th><th rowspan="2" scope="col">@T["Programado del día"]</th>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<th colspan="5" scope="colgroup" class="production-weekly-area-@((int)area)">@AreaName(area)</th>}<th rowspan="2" scope="col">@T["Status %"]</th></tr>
+                <tr>@foreach(var area in Enum.GetValues<ProductionDailyArea>()){<th scope="col" class="production-weekly-area-@((int)area)">@T["Pendiente al iniciar"]</th><th scope="col" class="production-weekly-area-@((int)area)" title="@Model.BalanceShift1Name">T1 · @Model.BalanceShift1Name</th><th scope="col" class="production-weekly-area-@((int)area)">@T["Pendiente para T2"]</th><th scope="col" class="production-weekly-area-@((int)area)" title="@Model.BalanceShift2Name">T2 · @Model.BalanceShift2Name</th><th scope="col" class="production-weekly-area-@((int)area)">@T["Pendiente final"]</th>}</tr></thead>
+                <partial name="_BalanceRows" model="Model"/>
+            </table></div>

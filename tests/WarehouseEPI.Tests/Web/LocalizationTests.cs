@@ -92,11 +92,17 @@ public sealed class LocalizationTests
         }
 
         var scriptPath = Path.Combine(directory.FullName, "src", "WarehouseEPI.Web", "wwwroot", "js");
-        var literalKey = new Regex(@"(?:text|translate)\(\s*[""'](?<key>[^""']+)[""']", RegexOptions.CultureInvariant);
+        var literalKey = new Regex(@"(?<helper>text|translate)\(\s*[""'](?<key>[^""']+)[""']", RegexOptions.CultureInvariant);
         var missing = Directory.GetFiles(scriptPath, "*.js")
-            .SelectMany(file => literalKey.Matches(File.ReadAllText(file))
-                .Cast<Match>()
-                .Select(match => $"{Path.GetFileName(file)}: {match.Groups["key"].Value}"))
+            .SelectMany(file =>
+            {
+                var source = File.ReadAllText(file);
+                // A locally declared text(tag, value) creates DOM nodes; translate still needs catalog keys.
+                var domBuilder = Regex.IsMatch(source, @"const text\s*=\s*\(tag,\s*value");
+                return literalKey.Matches(source).Cast<Match>()
+                    .Where(match => !domBuilder || match.Groups["helper"].Value == "translate")
+                    .Select(match => $"{Path.GetFileName(file)}: {match.Groups["key"].Value}");
+            })
             .Where(candidate => !keys.Contains(candidate[(candidate.IndexOf(": ", StringComparison.Ordinal) + 2)..]))
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
@@ -218,7 +224,7 @@ public sealed class LocalizationRouteTests : IClassFixture<AdminRouteTests.Wareh
     [InlineData("/Operations/Production", "en", "Production")]
     [InlineData("/Operations/ProductionSupply", "en", "Production supplies")]
     [InlineData("/Inventory", "en", "Stock")]
-    [InlineData("/Admin/Login", "en", "Administrative access")]
+    [InlineData("/Admin/Login", "en", "Sign in to Warehouse EPI")]
     public async Task Pages_render_requested_language_and_keep_local_navigation(string path, string language, string expected)
     {
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

@@ -1,0 +1,1 @@
+-bl:"%MSBuildThisFileDirectory%.binlogs/{}.binlog"

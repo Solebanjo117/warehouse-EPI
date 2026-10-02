@@ -27,7 +27,7 @@
             <h1>@product.Sku</h1>
             <p class="product-sheet-description">@(product.Description ?? CatTexts["Sin descripción"].Value)</p>
         </div>
-        <a asp-page="Edit" asp-route-id="@product.Id" class="btn btn-primary product-sheet-edit">@CatTexts["Editar producto"]</a>
+        @if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@product.Id" class="btn btn-primary product-sheet-edit">@CatTexts["Editar producto"]</a> }
     </header>
 
     <section class="product-sheet-metrics" aria-label="@CatTexts["Resumen de inventario"]">
@@ -73,8 +73,8 @@
         <a href="#product-summary">@CatTexts["Resumen"]</a>
         <a href="#product-locations">@CatTexts["Ubicaciones"]</a>
         <a href="#product-production-summary">@CatTexts["Producción"]</a>
-        <a href="#product-lots">@CatTexts["Lotes"]</a>
-        <a href="#product-movements">@CatTexts["Movimientos"]</a>
+        @if (User.IsInRole("ADMIN")) { <a href="#product-lots">@CatTexts["Lotes"]</a> }
+        @if (User.IsInRole("ADMIN")) { <a href="#product-movements">@CatTexts["Movimientos"]</a> }
     </nav>
 
     <section id="product-summary" class="card product-sheet-panel" aria-labelledby="product-summary-heading">
@@ -115,7 +115,7 @@
 <span class="product-sheet-eyebrow">@CatTexts["Inventario"]</span>
 <h2 id="product-locations-heading">@CatTexts["Distribución por ubicación"]</h2>
 </div>
-<a asp-page="/Admin/Catalogs/Locations/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">@CatTexts["Croquis y ubicaciones →"]</a>
+<a asp-page="/Locations/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">@CatTexts["Croquis y ubicaciones →"]</a>
 </div>
 <div class="table-responsive">
 <table class="table align-middle mb-0">
@@ -131,7 +131,7 @@
 <td colspan="4" class="text-center text-body-secondary">@CatTexts["Sin asignaciones ni saldos."]</td>
 </tr>}@foreach(var item in Model.Product.Locations){<tr>
 <td>
-<a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@item.Id" class="fw-semibold">@item.Code</a>
+<a asp-page="/Locations/Details" asp-route-id="@item.Id" class="fw-semibold">@item.Code</a>
 <div class="small">@item.Description</div>
 </td>
 <td>@(item.IsAssigned ? CatTexts["Asignación activa"].Value : CatTexts["Saldo sin asignación"].Value)</td>
@@ -149,7 +149,7 @@
 <span class="eyebrow">@CatTexts["Producción"]</span>
 <h2 id="product-production-summary-heading" class="h4 mb-1">@CatTexts["Receta y materiales"]</h2>
 </div>
-<a asp-page="Edit" asp-route-id="@Model.Product.Id" asp-fragment="product-production" class="btn btn-outline-primary">@(Model.Production.ActiveRecipe is null ? CatTexts["Configurar receta"].Value : Model.Production.ActiveRecipe.IsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a>
+@if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@Model.Product.Id" asp-fragment="product-production" class="btn btn-outline-primary">@(Model.Production.ActiveRecipe is null ? CatTexts["Configurar receta"].Value : Model.Production.ActiveRecipe.IsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a> }
 </div>@if(Model.Production.RouteId is null){<div class="product-editor-empty mt-3">
 <strong class="d-block">@CatTexts["La ruta de producción está pendiente."]</strong>
 <span>@CatTexts["Puedes definir los materiales antes de crear y ordenar los procesos."]</span>
@@ -192,27 +192,27 @@
 <div class="product-sheet-wip">
 <partial name="_ProductionWipDefaultsSummary" model="Model" />
 </div>
-<section id="product-lots" class="card product-sheet-panel" aria-labelledby="product-lots-heading">
+@if (User.IsInRole("ADMIN")) { <section id="product-lots" class="card product-sheet-panel" aria-labelledby="product-lots-heading">
 <div class="card-body">
 <div class="product-sheet-section-heading">
 <div>
 <span class="product-sheet-eyebrow">@CatTexts["Trazabilidad"]</span>
 <h2 id="product-lots-heading">@CatTexts["Lotes internos"]</h2>
 </div>
-<a asp-page="/Admin/Inventory/Lots/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">@CatTexts["Consultar lotes →"]</a>
+@if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Inventory/Lots/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">@CatTexts["Consultar lotes →"]</a> } else { <span>@CatTexts["Consultar lotes →"]</span> }
 </div>@if(Model.Product.Lots.Count == 0){<p class="text-body-secondary">@CatTexts["Sin lotes internos."]</p>}else{<ul class="list-group list-group-flush">@foreach(var item in Model.Product.Lots){<li class="list-group-item d-flex justify-content-between">
-<a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@item.Id">@item.Number</a>
+@if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@item.Id">@item.Number</a> } else { <span>@item.Number</span> }
 <span>@item.Quantity.ToString("0.####") @Model.Product.Unit</span>
 </li>}</ul>}</div>
-</section>
-<section id="product-movements" class="card product-sheet-panel" aria-labelledby="product-movements-heading">
+</section> }
+@if (User.IsInRole("ADMIN")) { <section id="product-movements" class="card product-sheet-panel" aria-labelledby="product-movements-heading">
 <div class="card-body">
 <div class="product-sheet-section-heading">
 <div>
 <span class="product-sheet-eyebrow">@CatTexts["Actividad"]</span>
 <h2 id="product-movements-heading">@CatTexts["Movimientos recientes"]</h2>
 </div>
-<a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">@CatTexts["Consultar movimientos →"]</a>
+@if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Inventory/Movements/Index" asp-route-search="@Model.Product.Sku" class="product-sheet-section-link">@CatTexts["Consultar movimientos →"]</a> } else { <span>@CatTexts["Consultar movimientos →"]</span> }
 </div>
 <div class="table-responsive">
 <table class="table mb-0">
@@ -229,7 +229,7 @@
 <td colspan="5" class="text-center text-body-secondary">@CatTexts["Sin movimientos."]</td>
 </tr>}@foreach(var item in Model.Product.Movements){<tr>
 <td>
-<a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@item.Id">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</a>
+@if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@item.Id">@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</a> } else { <span>@item.OccurredAt.ToString("yyyy-MM-dd HH:mm")</span> }
 </td>
 <td>@item.Type</td>
 <td>@item.Route</td>
@@ -239,5 +239,5 @@
 </table>
 </div>
 </div>
-</section>
+</section> }
 </div>

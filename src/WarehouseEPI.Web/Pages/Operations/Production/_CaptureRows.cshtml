@@ -1,0 +1,41 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+<div class="production-entry__list-tools">
+    <span data-list-count>@T["Productos mostrados: {0}", Model.Group.Rows.Count]</span>
+    <label class="form-check-label"><input asp-for="Group.OnlyWithQuantity" class="form-check-input me-2" data-only-quantity />@T["Solo con cantidad"]</label>
+</div>
+<p class="small text-body-secondary">@T["Vacío o cero no se incluye. Hasta 100 productos por tanda; usa el buscador para acotar."]</p>
+<p data-capture-filter-empty class="alert alert-info" role="status" hidden>@T["No hay filas con cantidad. Desactiva el filtro para ver los productos."]</p>
+@if (Model.Group.Rows.Count > 0)
+{
+    <div class="production-entry__rows">
+        <table class="table align-middle production-entry__table" role="table">
+            <thead><tr role="row"><th>SKU</th><th>@T["Cantidad a sumar"]</th><th>@T["Registrado en este día y turno"]</th><th>@T["Total resultante · vista previa"]</th><th>@T["Referencia"]</th></tr></thead>
+            <tbody role="rowgroup">
+                @for (var i = 0; i < Model.Group.Rows.Count; i++)
+                {
+                    var row = Model.Group.Rows[i];
+                    var available = Model.Available.FirstOrDefault(x => x.ProductId == row.ProductId);
+                    var registered = Model.RegisteredInShift.GetValueOrDefault(row.ProductId);
+                    var meta = Model.CaptureProducts.GetValueOrDefault(row.ProductId);
+                    <tr role="row" data-product-row="@row.ProductId" data-unit="@meta?.Unit" data-inactive="@(meta?.IsActive == true ? "false" : "true")" data-focus-product="@(Model.FocusProductId == row.ProductId ? "true" : null)">
+                        <td role="cell" class="production-entry__product"><input asp-for="Group.Rows[i].ProductId" type="hidden" /><input asp-for="Group.Rows[i].Sku" type="hidden" /><strong>@(available?.Sku ?? row.Sku ?? row.ProductId.ToString())</strong></td>
+                        <td role="cell" class="production-entry__quantity" data-label="@T["Cantidad a sumar"]">
+                            <label asp-for="Group.Rows[i].Quantity" class="visually-hidden">@T["Cantidad a sumar"] @row.Sku</label>
+                            <div class="input-group"><input asp-for="Group.Rows[i].Quantity" class="form-control form-control-lg" inputmode="decimal" maxlength="128" aria-describedby="quantity-error-@i" data-group-quantity /><span class="input-group-text">@meta?.Unit</span></div>
+                            <span id="quantity-error-@i" asp-validation-for="Group.Rows[i].Quantity" class="text-danger" data-quantity-error aria-live="polite"></span>
+                            <div class="d-flex flex-wrap gap-1"><button type="button" class="btn btn-link btn-sm" data-clear-row aria-label="@T["Limpiar fila"] @row.Sku">@T["Limpiar fila"]</button><button type="button" class="btn btn-link btn-sm" data-undo-row hidden>@T["Deshacer"]</button></div>
+                        </td>
+                        <td role="cell" class="production-entry__registered" data-label="@T["Registrado en este día y turno"]" data-registered="@registered.ToString("0.####", CultureInfo.InvariantCulture)">@registered.ToString("0.####", CultureInfo.InvariantCulture) <small>@meta?.Unit</small></td>
+                        <td role="cell" data-label="@T["Total resultante · vista previa"]"><strong data-result-total>@registered.ToString("0.####", CultureInfo.InvariantCulture)</strong> <small>@meta?.Unit</small></td>
+                        <td role="cell" class="production-entry__reference" data-label="@T["Referencia"]">
+                            <small>@T["Pendiente registrado"]: @(Model.CapturePending.GetValueOrDefault((row.ProductId, Model.Group.Area)).ToString("0.####", CultureInfo.InvariantCulture))</small>
+                            <details class="production-entry__notes"><summary>@T["Notas"]</summary><label asp-for="Group.Rows[i].Notes" class="visually-hidden">@T["Notas"] @row.Sku</label><input asp-for="Group.Rows[i].Notes" class="form-control" maxlength="500" /></details>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

@@ -26,12 +26,12 @@ public sealed class DetailsModel(CycleCountService cycleCountService, CycleCount
     public async Task<IActionResult> OnPostStartOperatorSessionAsync(Guid id, CancellationToken cancellationToken)
     {
         var pin = OperatorPin;
-        OperatorPin = string.Empty;
+        OperatorPin = string.Empty; ModelState.Remove("OperatorPin");
         Campaign = await cycleCountService.GetCampaignAsync(id, cancellationToken);
         if (Campaign is null) return NotFound();
         OperatorSession = await operatorSessions.StartAsync(HttpContext, id, pin, cancellationToken);
         if (OperatorSession is not null) return RedirectToPage(new { id, scanNext = true });
-        Error = texts["No fue posible validar el NIP."];
+        Error = texts[operatorSessions.RoleNotAllowed ? WarehouseEPI.Core.Entities.RoleAccess.WarehouseWarning : "No fue posible validar el NIP."];
         return Page();
     }
 
@@ -63,7 +63,7 @@ public sealed class DetailsModel(CycleCountService cycleCountService, CycleCount
         };
     }
     private async Task<IActionResult> ExecuteAsync(Guid id, Func<Task<CycleCountResult>> action, CancellationToken cancellationToken)
-    { var result = await action(); Pin = string.Empty; if (result.Status == CycleCountStatus.Success) return RedirectToPage(new { id }); await LoadAsync(id, renewOperatorSession: false, cancellationToken); Error = result.Status == CycleCountStatus.InvalidPin ? texts["NIP no válido."] : string.Join(' ', result.ValidationErrors.Select(error => texts[error].Value)); return Page(); }
+    { var result = await action(); Pin = string.Empty; ModelState.Remove("Pin"); if (result.Status == CycleCountStatus.Success) return RedirectToPage(new { id }); await LoadAsync(id, renewOperatorSession: false, cancellationToken); Error = result.Status == CycleCountStatus.InvalidPin ? texts["NIP no válido."] : string.Join(' ', result.ValidationErrors.Select(error => texts[error].Value)); return Page(); }
 
     private async Task LoadAsync(Guid id, bool renewOperatorSession, CancellationToken cancellationToken)
     {

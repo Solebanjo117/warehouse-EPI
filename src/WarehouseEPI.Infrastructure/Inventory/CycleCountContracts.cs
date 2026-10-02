@@ -83,7 +83,8 @@ public enum CycleCountStatus
     InvalidState,
     BalanceChanged,
     RequiresLocationSharingConfirmation,
-    IdempotencyConflict
+    IdempotencyConflict,
+    RoleNotAllowed
 }
 
 public sealed record CycleCountResult(

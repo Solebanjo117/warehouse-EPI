@@ -1,0 +1,59 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using WarehouseEPI.Core.Entities
+@using global::System.Globalization
+@using WarehouseEPI.Web.Production
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    var selectedDay = Model.SelectedDay?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+    var programActive = Model.View is "program" or "review";
+}
+<header class="production-daily__header production-schedule__title">
+    <h1 class="h2 mb-0">@T["Programa semanal"]</h1>
+    <div class="d-flex flex-wrap align-items-start gap-2 production-schedule-actions">
+        <a class="btn btn-outline-secondary" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="@Model.View" asp-route-ActionPanel="new">@T["Nueva semana"]</a>
+        <details class="dropdown"><summary class="btn btn-outline-secondary">@T["Otras acciones"]</summary><div class="d-grid gap-1 mt-2">
+            @if(!Model.IsPreparingNew && Model.Week?.Status == ProductionScheduleWeekStatus.Open){<a class="btn btn-outline-secondary" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="@Model.View" asp-route-ActionPanel="copy">@T["Copiar productos"]</a>}
+            <a asp-page="ScheduleImport" class="btn btn-outline-secondary">@T["Importar Excel"]</a>
+            @if(!Model.IsPreparingNew && Model.Week is not null){<a asp-page="/Operations/Production/Index" asp-page-handler="Export" asp-route-WeekId="@Model.Week.Id" class="btn btn-outline-secondary">@T["Exportar Excel"]</a>}
+            <a class="btn btn-outline-secondary" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="@Model.View" asp-route-ActionPanel="config">@T["Áreas y turnos"]</a>
+        </div></details>
+    </div>
+</header>
+<div class="production-schedule__context">
+    @if(!Model.IsPreparingNew){
+    <form method="get" class="production-schedule__week-selector">
+        <label asp-for="WeekId" class="form-label mb-1">@T["Semana"]</label>
+        <select asp-for="WeekId" class="form-select production-daily__week" data-schedule-week-select disabled="@(Model.Weeks.Count == 0)">
+            <option value="">@T[Model.Weeks.Count == 0 ? "Todavía no hay semanas programadas" : "Selecciona una semana"]</option>
+            @foreach(var item in Model.Weeks){<option value="@item.Id">@item.WeekStart.ToString("dd/MM/yyyy") – @item.WeekEnd.ToString("dd/MM/yyyy")</option>}
+        </select>
+    </form>
+    } else { <span data-schedule-preparation-status data-preparation-state="prepared" role="status" aria-live="polite">@T["Preparación sin incorporar"]</span> }
+    @if(!Model.IsPreparingNew && Model.Week is { } week)
+    {
+        <div class="production-schedule__states">
+            <span class="badge @(week.Status == ProductionScheduleWeekStatus.Open ? "text-bg-success" : "text-bg-secondary")" data-schedule-week-status>@ProductionDailyText.WeekStatus(T, week.Status)</span>
+            @if(week.Status != ProductionScheduleWeekStatus.Closed){<span class="production-schedule__preparation small" data-schedule-preparation-status data-preparation-state="saved" role="status" aria-live="polite">@T["Programa guardado"]</span>}
+        </div>
+        <div class="d-flex flex-wrap gap-2 production-schedule-actions production-schedule__primary">
+            @if(week.Status == ProductionScheduleWeekStatus.Draft)
+            {
+                @if(Model.View == "review"){<a class="btn btn-outline-secondary" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="program">@T["Volver a editar"]</a>}
+                else {<a class="btn btn-primary" data-schedule-open-review asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="review">@T["Revisar y abrir semana"]</a>}
+            }
+            else
+            {
+                <a asp-page="/Operations/Production/Index" asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@selectedDay" class="btn btn-primary">@T[week.Status == ProductionScheduleWeekStatus.Open ? "Tabla y balance" : "Ver balance"]</a>
+                <button type="button" class="btn btn-outline-secondary" data-schedule-status-trigger data-bs-toggle="modal" data-bs-target="#schedule-status-confirmation">@T[week.Status == ProductionScheduleWeekStatus.Open ? "Cerrar semana…" : "Reabrir semana…"]</button>
+            }
+        </div>
+    }
+</div>
+@if(!Model.IsPreparingNew && Model.Week is not null)
+{
+    <nav class="nav production-schedule-sections" aria-label="@T["Secciones del programa"]">
+        <a class="nav-link @(programActive ? "active" : "")" aria-current="@(programActive ? "page" : null)" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="program">@T["Programa"]</a>
+        <a class="nav-link @(Model.View == "week" ? "active" : "")" aria-current="@(Model.View == "week" ? "page" : null)" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="week">@T["Sección Productos"]</a>
+        <a class="nav-link @(Model.View == "summary" ? "active" : "")" aria-current="@(Model.View == "summary" ? "page" : null)" asp-route-WeekId="@Model.WeekId" asp-route-SelectedDay="@selectedDay" asp-route-View="summary">@T["Resumen"]</a>
+    </nav>
+}

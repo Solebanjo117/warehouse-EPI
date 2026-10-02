@@ -286,13 +286,13 @@
         element.classList.add(unavailable ? "map-heat-unavailable" : `map-heat-${rack.heatLevel}`);
         element.dataset.heatLevel = `${rack.heatLevel}`;
         const valueLabel = metric === "activity"
-          ? rack.accessCount === 0 ? ", sin actividad" : `, ${rack.accessCount} operaciones`
-          : unavailable ? ", sin posiciones evaluables" : `, ${rack.occupancyPercent}% ocupado`;
+          ? rack.accessCount === 0 ? text(", sin actividad") : text(", {0} operaciones", rack.accessCount)
+          : unavailable ? text(", sin posiciones evaluables") : text(", {0}% ocupado", rack.occupancyPercent);
         element.setAttribute("aria-label", `${element.dataset.mapBaseLabel}${valueLabel}`);
         const visibleValue = element.querySelector("[data-heatmap-value]");
         if (visibleValue) visibleValue.textContent = metric === "activity"
-          ? `${rack.accessCount} mov.`
-          : unavailable ? "N/D" : `${rack.occupancyPercent}%`;
+          ? text("{0} mov.", rack.accessCount)
+          : unavailable ? text("N/D") : `${rack.occupancyPercent}%`;
       }
       const row = document.querySelector(`[data-heatmap-rack-row="${CSS.escape(rack.elementId)}"]`);
       if (row) {
@@ -339,7 +339,7 @@
         query.delete("handler");
         window.history.replaceState(null, "", `${window.location.pathname}?${query}`);
       } catch {
-        setError("No fue posible calcular el mapa de calor. Los valores anteriores se conservaron; vuelve a intentarlo.");
+        setError(text("No fue posible calcular el mapa de calor. Los valores anteriores se conservaron; vuelve a intentarlo."));
       } finally {
         heatmapForm.removeAttribute("aria-busy");
       }

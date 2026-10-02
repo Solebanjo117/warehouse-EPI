@@ -33,6 +33,7 @@ public sealed class WipDispositionService(
         var user = await userPinService.AuthenticateAsync(normalized.Pin, cancellationToken);
         if (user is null)
             return new(WipDispositionStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(WipDispositionStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
 
         var fingerprint = CreateFingerprint(normalized, user.Id);
         var existing = await ExistingAsync(normalized.OperationId, fingerprint, cancellationToken);

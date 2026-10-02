@@ -39,9 +39,15 @@ Consulta [la arquitectura](docs/ARCHITECTURE.md) y la
 la laptop servidor y la operación diaria, consulta el
 [manual operativo](docs/OPERATIONS.md).
 Para preparar otra laptop desde cero o migrar la instalación completa, sigue
-la [guía de implementación en una laptop nueva](docs/INSTALLATION_NEW_LAPTOP.md).
+la [instalación simplificada en servidor Windows](docs/INSTALLATION_SERVER.md):
+IT recibe un paquete compilado y ejecuta `Install.ps1`. La
+[guía de implementación desde código](docs/INSTALLATION_NEW_LAPTOP.md) se
+conserva para configuraciones avanzadas.
 
-## Requisitos
+## Requisitos para desarrollar
+
+Para instalar un servidor con el paquete compilado, usa los requisitos de la
+[guía simplificada](docs/INSTALLATION_SERVER.md).
 
 - Windows con .NET SDK 10.0.400.
 - PostgreSQL 18 accesible localmente.
@@ -183,3 +189,5 @@ El estado operativo, las decisiones confirmadas y el roadmap se mantienen en
 
 ## Desarrollador principal
 Castilla Orta Juan Antonio
+
+La matriz de acceso público, roles y requisitos de activación está en [docs/ROLE_ACCESS.md](docs/ROLE_ACCESS.md).

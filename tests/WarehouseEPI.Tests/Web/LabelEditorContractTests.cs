@@ -9,7 +9,8 @@ public sealed class LabelEditorContractTests
         var script = Read("src", "WarehouseEPI.Web", "wwwroot", "js", "label-template-editor.js");
         var program = Read("src", "WarehouseEPI.Web", "Program.cs");
 
-        Assert.Contains("AuthorizeFolder(\"/Admin/Labels\", \"AdminOnly\")", program, StringComparison.Ordinal);
+        Assert.Contains("PageAccess.ConfigurePages(options)", program, StringComparison.Ordinal);
+        Assert.Equal("AdminOnly", WarehouseEPI.Web.Security.PageAccess.PolicyFor("/Admin/Labels/Templates/Edit"));
         Assert.Contains("aria-label=\"@CatTexts[\"Lienzo de etiqueta", page, StringComparison.Ordinal);
         Assert.Contains("data-command=\"align-left\"", page, StringComparison.Ordinal);
         Assert.Contains("data-command=\"distribute-x\"", page, StringComparison.Ordinal);

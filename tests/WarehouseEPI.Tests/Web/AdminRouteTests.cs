@@ -111,7 +111,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.True(
             login.StatusCode == System.Net.HttpStatusCode.OK,
             $"Login devolvió {login.StatusCode}: {loginBody}");
-        Assert.Contains("Acceso administrativo", loginBody);
+        Assert.Contains("Ingresar a Warehouse EPI", loginBody);
         Assert.Equal(System.Net.HttpStatusCode.Redirect, users.StatusCode);
         Assert.Equal("/Admin/Login", users.Headers.Location?.AbsolutePath);
         Assert.Equal(HttpStatusCode.Redirect, products.StatusCode);
@@ -499,6 +499,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
                 {
                     ["Security:PinLookupKey"] =
                         "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+                    ["AllowedHosts"] = "localhost",
                     ["ConnectionStrings:Warehouse"] = "Host=unused;Database=unused"
                 });
             });

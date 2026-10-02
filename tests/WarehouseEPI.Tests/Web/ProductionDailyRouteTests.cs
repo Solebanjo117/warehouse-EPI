@@ -14,10 +14,10 @@ namespace WarehouseEPI.Tests.Web;
 public sealed class ProductionDailyRouteTests
 {
     [Theory]
-    [InlineData("en", "Weekly schedule", "No weeks have been scheduled yet", "The week must start on Monday.")]
-    [InlineData("es", "Programa semanal", "Todavía no hay semanas programadas", "La semana debe iniciar en lunes.")]
+    [InlineData("en", "Weekly schedule", "The week must start on Monday.")]
+    [InlineData("es", "Programa semanal", "La semana debe iniciar en lunes.")]
     public async Task Admin_setup_and_week_creation_are_explicit_localized_and_preserve_failed_dates(
-        string language, string title, string empty, string dateError)
+        string language, string title, string dateError)
     {
         using var original = new AdminRouteTests.WarehouseApplicationFactory();
         using var factory = original.WithWebHostBuilder(builder =>
@@ -49,9 +49,11 @@ public sealed class ProductionDailyRouteTests
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         var html = WebUtility.HtmlDecode(await client.GetStringAsync("/Admin/Production/Schedule"));
         Assert.Contains(title, html, StringComparison.Ordinal);
-        Assert.Contains(empty, html, StringComparison.Ordinal);
+        Assert.Contains("data-week-picker", html, StringComparison.Ordinal);
+        Assert.Contains(language == "en" ? "Review and open week" : "Revisar y abrir semana", html, StringComparison.Ordinal);
+        Assert.Matches("<fieldset[^>]*data-workspace-controls[^>]*disabled", html);
         Assert.Equal("2026-09-21", Input(html, "NewWeek.WeekStart")); // UTC Monday is still Sunday at the warehouse.
-        Assert.Contains("disabled", Select(html, "WeekId"), StringComparison.Ordinal);
+        Assert.DoesNotContain("data-schedule-week-select", html);
         Assert.True(Regex.IsMatch(Select(html, "Configuration.Shift1Id"), "<option(?=[^>]*selected=\"selected\")[^>]*>Z shift</option>"), Select(html, "Configuration.Shift1Id"));
         using (var scope = factory.Services.CreateScope())
         {
@@ -60,18 +62,52 @@ public sealed class ProductionDailyRouteTests
             Assert.Null((await db.ProductionDailyConfigurations.SingleAsync()).Shift1Id);
         }
         var invalid = await Post(client, "/Admin/Production/Schedule?handler=CreateWeek", html,
-            new() { ["NewWeek.OperationId"] = Guid.NewGuid().ToString(), ["NewWeek.WeekStart"] = "2026-09-22" });
+            new() { ["NewWeek.OperationId"] = Guid.NewGuid().ToString(), ["NewWeek.WeekStart"] = "2026-09-22", ["NewWeek.Pin"] = "0123" });
         var failedHtml = WebUtility.HtmlDecode(await invalid.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, invalid.StatusCode);
         Assert.Contains(dateError, failedHtml, StringComparison.Ordinal);
-        Assert.Equal("2026-09-22", Input(failedHtml, "NewWeek.WeekStart"));
+        Assert.Empty(Input(failedHtml, "NewWeek.WeekStart"));
+        Assert.DoesNotContain("value=\"2026-09-22\"", failedHtml);
         Assert.DoesNotContain("0001-01-01", failedHtml, StringComparison.Ordinal);
-        var created = await Post(client, "/Admin/Production/Schedule?handler=CreateWeek", failedHtml,
-            new() { ["NewWeek.OperationId"] = Guid.NewGuid().ToString(), ["NewWeek.WeekStart"] = "2026-09-21" });
+        var blocked = await Post(client, "/Admin/Production/Schedule?handler=CreateWeek", failedHtml,
+            new() { ["NewWeek.OperationId"] = Guid.NewGuid().ToString(), ["NewWeek.WeekStart"] = "2026-09-21", ["NewWeek.Pin"] = "0123" });
+        Assert.Equal(HttpStatusCode.OK, blocked.StatusCode);
+        using (var scope = factory.Services.CreateScope())
+            Assert.Empty(await scope.ServiceProvider.GetRequiredService<WarehouseDbContext>().ProductionScheduleWeeks.ToListAsync());
+        var blockedHtml = WebUtility.HtmlDecode(await blocked.Content.ReadAsStringAsync());
+        var configuration = new Dictionary<string, string>
+        {
+            ["Configuration.OperationId"] = Input(blockedHtml, "Configuration.OperationId"),
+            ["Configuration.ExpectedVersion"] = Input(blockedHtml, "Configuration.ExpectedVersion")
+        };
+        foreach (var field in new[] { "CuttingStageId", "SewingStageId", "ReadyToPackStageId", "Shift1Id", "Shift2Id" })
+            configuration["Configuration." + field] = Regex.Match(Select(blockedHtml, "Configuration." + field), "<option(?=[^>]*selected=\"selected\")[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        var configured = await Post(client, "/Admin/Production/Schedule?handler=Configure", blockedHtml, configuration);
+        Assert.Equal(HttpStatusCode.Redirect, configured.StatusCode);
+        var readyHtml = WebUtility.HtmlDecode(await client.GetStringAsync(configured.Headers.Location));
+        Assert.DoesNotMatch("<button[^>]*disabled[^>]*>" + (language == "en" ? "Review and open week" : "Revisar y abrir semana"), readyHtml);
+        var rejectedPin = await Post(client, "/Admin/Production/Schedule?handler=CreateWeek", readyHtml,
+            new() { ["NewWeek.OperationId"] = Guid.NewGuid().ToString(), ["NewWeek.WeekStart"] = "2026-09-21", ["NewWeek.Pin"] = "0000" });
+        Assert.Equal(HttpStatusCode.OK, rejectedPin.StatusCode);
+        using (var scope = factory.Services.CreateScope())
+            Assert.Empty(await scope.ServiceProvider.GetRequiredService<WarehouseDbContext>().ProductionScheduleWeeks.ToListAsync());
+        var rejectedHtml = WebUtility.HtmlDecode(await rejectedPin.Content.ReadAsStringAsync());
+        Assert.Equal(string.Empty, Input(rejectedHtml, "NewWeek.Pin"));
+        var created = await Post(client, "/Admin/Production/Schedule?handler=CreateWeek", rejectedHtml,
+            new() { ["NewWeek.OperationId"] = Guid.NewGuid().ToString(), ["NewWeek.WeekStart"] = "2026-09-21", ["NewWeek.Pin"] = "0123" });
         Assert.Equal(HttpStatusCode.Redirect, created.StatusCode);
         Assert.Contains("WeekId=", created.Headers.Location!.OriginalString, StringComparison.Ordinal);
         var selected = WebUtility.HtmlDecode(await client.GetStringAsync(created.Headers.Location));
         Assert.Matches("<option(?=[^>]*selected=\"selected\")[^>]*>21/09", Select(selected, "WeekId"));
+        Assert.Contains("data-week-status=\"Open\"", selected);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            var week = await db.ProductionScheduleWeeks.SingleAsync();
+            Assert.Equal(ProductionScheduleWeekStatus.Open, week.Status);
+            Assert.NotNull(week.PublishedAt);
+            Assert.Single(await db.ProductionScheduleRevisions.Where(x => x.WeekId == week.Id && x.Action == "published").ToListAsync());
+        }
         var import = WebUtility.HtmlDecode(await client.GetStringAsync("/Admin/Production/ScheduleImport"));
         Assert.Contains(language == "en" ? "Import Excel" : "Importar Excel", import, StringComparison.Ordinal);
         using var upload = new MultipartFormDataContent
@@ -83,21 +119,11 @@ public sealed class ProductionDailyRouteTests
         Assert.Equal(HttpStatusCode.OK, invalidImport.StatusCode);
         var invalidImportHtml = WebUtility.HtmlDecode(await invalidImport.Content.ReadAsStringAsync());
         Assert.Contains(language == "en" ? "The file is not a valid XLSX file or is damaged." : "El archivo no es un XLSX válido o está dañado.", invalidImportHtml, StringComparison.Ordinal);
-        Assert.Contains(language == "en" ? "Daily configuration" : "Configuración diaria", invalidImportHtml, StringComparison.Ordinal);
         var menu = WebUtility.HtmlDecode(await client.GetStringAsync("/Modules/production"));
         Assert.DoesNotContain("/Operations/Production/Advanced", menu, StringComparison.Ordinal);
-        var configuration = new Dictionary<string, string>
-        {
-            ["Configuration.OperationId"] = Input(html, "Configuration.OperationId"),
-            ["Configuration.ExpectedVersion"] = Input(html, "Configuration.ExpectedVersion")
-        };
-        foreach (var field in new[] { "CuttingStageId", "SewingStageId", "ReadyToPackStageId", "Shift1Id", "Shift2Id" })
-            configuration["Configuration." + field] = Regex.Match(Select(html, "Configuration." + field), "<option(?=[^>]*selected=\"selected\")[^>]*value=\"([^\"]+)\"").Groups[1].Value;
-        var configured = await Post(client, "/Admin/Production/Schedule?handler=Configure", selected, configuration);
-        Assert.Equal(HttpStatusCode.Redirect, configured.StatusCode);
-        var capture = WebUtility.HtmlDecode(await client.GetStringAsync("/Operations/Production"));
-        // Configuration is complete, but the week is still a draft: capture remains disabled.
-        Assert.Matches("<fieldset[^>]*disabled", capture);
+        var capture = WebUtility.HtmlDecode(await client.GetStringAsync("/Operations/Production?Tab=capture"));
+        Assert.Contains("data-context-state=\"Open\"", capture);
+        Assert.Contains("data-group-preview", capture);
         var shiftSelect = Select(capture, "ShiftId");
         Assert.True(shiftSelect.IndexOf("Z shift", StringComparison.Ordinal) < shiftSelect.IndexOf("A shift", StringComparison.Ordinal));
         using (var scope = factory.Services.CreateScope())
@@ -106,8 +132,9 @@ public sealed class ProductionDailyRouteTests
             (await db.ProductionShifts.SingleAsync(x => x.Code == "T2")).IsActive = false;
             await db.SaveChangesAsync();
         }
-        var inactive = WebUtility.HtmlDecode(await client.GetStringAsync("/Operations/Production"));
-        Assert.Matches("<fieldset[^>]*disabled", inactive);
+        var inactive = WebUtility.HtmlDecode(await client.GetStringAsync("/Operations/Production?Tab=capture"));
+        Assert.Contains("data-context-state=\"ConfigurationIncomplete\"", inactive);
+        Assert.DoesNotContain("data-group-preview", inactive);
         Assert.Contains("#daily-configuration", inactive, StringComparison.Ordinal);
     }
 
@@ -121,10 +148,11 @@ public sealed class ProductionDailyRouteTests
             config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Add("Cookie", $"{UiLanguage.CookieName}={language}");
-        var html = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?WeekId={Guid.NewGuid()}"));
+        var html = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&WeekId={Guid.NewGuid()}"));
         Assert.Contains(warning, html, StringComparison.Ordinal);
         Assert.Contains(missing, html, StringComparison.Ordinal);
-        Assert.Matches("<fieldset[^>]*disabled", html);
+        Assert.Contains("data-context-state=\"ConfigurationIncomplete\"", html);
+        Assert.DoesNotContain("data-group-preview", html);
         var result = await Post(client, "/Operations/Production?handler=Preview", html, new());
         Assert.Equal(HttpStatusCode.OK, result.StatusCode);
         Assert.Contains(warning, WebUtility.HtmlDecode(await result.Content.ReadAsStringAsync()), StringComparison.Ordinal);
@@ -135,7 +163,11 @@ public sealed class ProductionDailyRouteTests
         fields["__RequestVerificationToken"] = Input(html, "__RequestVerificationToken");
         return await client.PostAsync(url, new FormUrlEncodedContent(fields));
     }
-    private static string Input(string html, string name) => WebUtility.HtmlDecode(Regex.Match(html, "<input[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);
+    private static string Input(string html, string name)
+    {
+        var checkedAttribute = name == "NewWeek.WeekStart" ? "(?=[^>]*checked)" : "";
+        return WebUtility.HtmlDecode(Regex.Match(html, "<input" + checkedAttribute + "[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);
+    }
     private static string Select(string html, string name) => Regex.Match(html, "<select[^>]*name=\"" + Regex.Escape(name) + "\"[^>]*>[\\s\\S]*?</select>").Value;
     private sealed class SundayClock : TimeProvider
     {

@@ -1,0 +1,12 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Infrastructure.Production
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{ var report = Model.Report!; }
+<div class="report-metadata my-3">
+    <p class="mb-1"><strong>@report.WeekStart.ToString("dd/MM/yyyy") – @report.WeekEnd.ToString("dd/MM/yyyy")</strong> · @(report.Filter.Products && !report.Filter.FullWeek ? report.Filter.Date.ToString("dd/MM/yyyy") : T["Semana completa"].Value) · @T[report.Status == ProductionScheduleWeekStatus.Closed ? "Semana cerrada" : "Cifras provisionales"]</p>
+    <p class="mb-1">@T["Producto"]: @(report.Filter.Sku ?? T["Todos"].Value) · @T["Referencia"]: @(report.Filter.Reference ?? T["Todas"].Value) · @T["Proceso"]: @(report.Filter.Area is {} area ? T[ProductionReportTable.AreaName(area)].Value : T["Todos"].Value)</p>
+    <p class="mb-1">T1: @report.Shift1Name / T2: @report.Shift2Name · @T["Consulta"]: @Model.ReportGeneratedAt.ToString("dd/MM/yyyy HH:mm:ss zzz")</p>
+    <p class="small text-body-secondary mb-1">@T["Solo cantidades guardadas"] · @T[report.Filter.Products ? "Los totales se separan por proceso y unidad." : "Una fila por día, con totales por proceso."]</p>
+    @if(report.Filter.Products){<p class="small text-body-secondary mb-0">@T["El arrastre programado es una referencia separada; no se suma de nuevo al pendiente inicial."]</p>}
+</div>

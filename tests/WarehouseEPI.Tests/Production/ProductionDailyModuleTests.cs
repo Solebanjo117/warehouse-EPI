@@ -78,12 +78,16 @@ public sealed class ProductionDailyModuleTests
         db.Add(week);
         await db.SaveChangesAsync();
 
-        var view = await new ProductionDailyBalanceService(db).GetAsync(week.Id);
+        var view = await new ProductionDailyBalanceService(db).GetPhysicalAsync(week.Id);
         var monday = Assert.Single(view!.Rows, x => x.Date == week.WeekStart);
         Assert.Equal(0, monday.Cutting.Pending);
         Assert.Equal(20, monday.Cutting.Advance);
         Assert.False(monday.Sewing.Applies);
         Assert.Equal(40, monday.ReadyToPack.Pending);
+        var reported = (await new ProductionDailyBalanceService(db).GetAsync(week.Id))!.Rows.First();
+        Assert.Equal(-20, reported.Cutting.NetPending);
+        Assert.Equal(20, reported.ReadyToPack.NetPending);
+        Assert.False(reported.Sewing.Applies);
         Assert.Equal(80, monday.ProgressPercent);
         var exported = await new ProductionDailyExportService(db, new ProductionDailyBalanceService(db)).ExportAsync(week.Id);
         using var exportedWorkbook = new XLWorkbook(new MemoryStream(exported!));

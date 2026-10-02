@@ -4,7 +4,7 @@
 @inject WarehouseSettingsService WarehouseSettings
 @model WarehouseEPI.Web.Pages.Admin.LoginModel
 @{
-    ViewData["Title"] = CatTexts["Acceso administrativo"].Value;
+    ViewData["Title"] = CatTexts["Ingresar a Warehouse EPI"].Value;
     var business = await WarehouseSettings.GetAsync();
 }
 
@@ -13,8 +13,8 @@
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <p class="eyebrow mb-1">@business.BusinessName · @business.WarehouseName</p>
-                <h1 class="h3 mb-3">@CatTexts["Acceso administrativo"]</h1>
-                <p class="text-muted">@CatTexts["Introduce tu NIP para administrar usuarios y catálogos."]</p>
+                <h1 class="h3 mb-3">@CatTexts["Ingresar a Warehouse EPI"]</h1>
+                <p class="text-muted">@CatTexts["Introduce tu NIP para abrir las secciones de tu rol."]</p>
 
                 <form method="post">
                     <input type="hidden" asp-for="ReturnUrl" />

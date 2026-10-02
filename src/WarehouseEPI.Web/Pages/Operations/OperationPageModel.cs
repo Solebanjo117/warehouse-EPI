@@ -26,6 +26,7 @@ public abstract class OperationPageModel(
     public InventoryBalanceSnapshot? DestinationBalance { get; private set; }
     public InventoryBalanceSnapshot? LocationBalance { get; private set; }
     public IReadOnlyList<SharedLocationConflict> SharingConflicts { get; private set; } = [];
+    public bool RoleWarning { get; private set; }
     public string? PrefillWarning { get; private set; }
     public bool NeedsSharingApproval => SharingConflicts.Count > 0;
     public abstract InventoryMovementType MovementType { get; }
@@ -111,6 +112,10 @@ public abstract class OperationPageModel(
 
         switch (result.Status)
         {
+            case InventoryMovementStatus.RoleNotAllowed:
+                RoleWarning = true;
+                ModelState.AddModelError(string.Empty, T(RoleAccess.WarehouseWarning));
+                break;
             case InventoryMovementStatus.InvalidPin:
                 ModelState.AddModelError(string.Empty, T("No fue posible validar el NIP o el usuario."));
                 break;

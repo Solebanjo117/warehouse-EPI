@@ -10,7 +10,9 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Infrastructure.Production;
 
-public enum ProductionMaterialStatus { Success, InvalidPin, ValidationFailed, ConcurrencyConflict, IdempotencyConflict }
+public enum ProductionMaterialStatus { Success, InvalidPin, ValidationFailed, ConcurrencyConflict, IdempotencyConflict,
+    RoleNotAllowed
+}
 public sealed record ProductionMaterialResult(ProductionMaterialStatus Status, Guid? OperationId = null,
     IReadOnlyList<Guid>? MovementIds = null, IReadOnlyList<string>? Errors = null);
 public sealed record ProductionMaterialSelection(Guid IssueLinkId, decimal Quantity, IReadOnlyList<PalletSelection>? Plates = null);
@@ -129,11 +131,12 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
         try
         {
             var movementUser = await pins.AuthenticateAsync(command.Pin, token);
-            if (movementUser is null || movementUser.Role.Code is not ("ADMIN" or "OPERATOR"))
+            if (movementUser is null)
             {
                 if (transaction is not null) await transaction.RollbackAsync(token);
                 return new(InventoryMovementStatus.InvalidPin);
             }
+            if (!RoleAccess.CanOperateWarehouse(movementUser.Role.Code)) return new(InventoryMovementStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
             var result = await movements.ConfirmAuthorizedAsync(command, movementUser,
                 productionSupplyLineId: supplyLine?.Id, cancellationToken: token);
             if (result.Status != InventoryMovementStatus.Success || result.MovementId is not Guid movementId)
@@ -213,11 +216,20 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                 x.Type != ProductionMaterialOperationType.Reversal && !reversed.Contains(x.Id))).ToListAsync(token);
     }
 
-    public async Task<ProductionMaterialResult> ApplyAsync(ProductionMaterialCommand command,
-        CancellationToken token = default)
+    public Task<ProductionMaterialResult> ApplyAsync(ProductionMaterialCommand command,
+        CancellationToken token = default) => ApplyCoreAsync(command, token);
+
+    internal Task<ProductionMaterialResult> ApplyDailyConsumptionAsync(ProductionMaterialCommand command, CancellationToken token) =>
+        ApplyCoreAsync(command, token, dailyCapture: true);
+
+    private async Task<ProductionMaterialResult> ApplyCoreAsync(ProductionMaterialCommand command,
+        CancellationToken token, bool dailyCapture = false)
     {
         var user = await pins.AuthenticateAsync(command.Pin, token);
-        if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return new(ProductionMaterialStatus.InvalidPin);
+        if (user is null) return new(ProductionMaterialStatus.InvalidPin);
+        if (!(dailyCapture ? RoleAccess.CanCaptureProduction(user.Role.Code) : RoleAccess.CanOperateWarehouse(user.Role.Code)))
+            return new(ProductionMaterialStatus.RoleNotAllowed, Errors: [dailyCapture ? RoleAccess.ProductionWarning : RoleAccess.WarehouseWarning]);
+        if (dailyCapture && command.Type != ProductionMaterialOperationType.Consumption) return new(ProductionMaterialStatus.ValidationFailed);
         if (command.Type is not (ProductionMaterialOperationType.Consumption or ProductionMaterialOperationType.WarehouseReturn or ProductionMaterialOperationType.SupplierReturn or ProductionMaterialOperationType.Scrap)) return Invalid("Tipo de operación no válido.");
         if (command.Type == ProductionMaterialOperationType.Scrap && string.IsNullOrWhiteSpace(command.Notes)) return Invalid("La merma requiere motivo.");
         if (command.OperationId == Guid.Empty || command.Lines.Count == 0 || command.Lines.Any(x => x.Quantity <= 0))
@@ -307,8 +319,8 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                         ? group.Select(link => new SharedAssignmentApproval(link.ProductId, destinationId)).ToArray()
                         : [],
                     Purpose: purpose, OperationalAreaId: group.Key);
-                var movementResult = await movements.ConfirmAuthorizedAsync(movementCommand, user,
-                    allowReservedWip: true, cancellationToken: token);
+                var movementResult = dailyCapture ? await movements.ConfirmDailyConsumptionAsync(movementCommand, user, token)
+                    : await movements.ConfirmAuthorizedAsync(movementCommand, user, allowReservedWip: true, cancellationToken: token);
                 if (movementResult.Status != InventoryMovementStatus.Success || movementResult.MovementId is not Guid movementId)
                     return await Abort(transaction, Invalid(movementResult.ValidationErrors.FirstOrDefault() ?? "No fue posible mover el material WIP."), token);
                 movementIds.Add(movementId);

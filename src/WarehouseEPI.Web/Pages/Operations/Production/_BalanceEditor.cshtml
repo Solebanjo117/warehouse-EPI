@@ -1,26 +1,74 @@
 @model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
 @inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
 <form id="balance-editor" method="post" data-week="@Model.Daily!.WeekId" data-date="@Model.Daily.Through.ToString("yyyy-MM-dd")"
-      data-operation="@Guid.NewGuid()" data-preview-url="@Url.Page(null, "BalanceEditPreview", new { Model.Sku, Model.Reference, Model.Area, Model.PendingPage, Model.CompletionPage, Model.SummaryPage })" data-confirm-url="@Url.Page(null, "BalanceEditConfirm")"
+      data-restore-url="@Url.Page(null, "BalanceEditRestore")" data-rows-url="@Url.Page(null, "BalanceRows")" data-search-url="@Url.Page(null, "BalanceProducts")"
+      data-editable="@((Model.ConfigurationReady && Model.Daily.Status == WarehouseEPI.Core.Entities.ProductionScheduleWeekStatus.Open) ? "true" : "false")"
+      data-recovered="@T["Cambios pendientes recuperados; todavía no registrados."]" data-added="@T["Agregado para capturar"]"
+      data-outside="@T["Cambios pendientes fuera del filtro"]" data-counter="@T["Cambios pendientes"]"
+      data-storage-error="@T["La recuperación temporal no está disponible. Si sales, puedes perder los cambios. ¿Quieres salir?"]"
+      data-storage-warning="@T["La recuperación temporal no está disponible. Mantén esta pestaña abierta hasta confirmar."]"
+      data-registered="@T["Producción registrada"]" data-conflict="@T["El total cambió. Elige qué total usar antes de revisar."]"
+      data-use-current="@T["Usar total actual"]" data-use-mine="@T["Mantener mi total"]" data-current="@T["Actual"]"
+      data-original-label="@T["Original"]" data-mine="@T["Tu total pendiente"]" data-recorded="@T["Registrado"]"
+      data-cell-pending="@T["Pendiente de registrar"]" data-blocked="@T["No se puede recuperar toda la captura. Conservamos el borrador; revisa el estado de la semana, los productos y tus permisos."]"
+      data-searching="@T["Buscando productos…"]" data-no-results="@T["No se encontraron productos."]"
+      data-programmed="@T["Programados"]" data-previous="@T["Pendientes anteriores"]" data-catalog="@T["Catálogo activo"]"
+      data-more="@T["Mostrar más"]" data-operation="@Guid.NewGuid()" data-preview-url="@Url.Page(null, "BalanceEditPreview", new { Model.Sku, Model.Reference, Model.Area, Model.PendingPage, Model.CompletionPage, Model.SummaryPage })" data-confirm-url="@Url.Page(null, "BalanceEditConfirm")"
       data-preview-label="@T["Vista previa sin guardar"]" data-not-applicable="@T["No aplica"]"
+      data-weekly-pending="@T["Cierre semanal pendiente de actualizar"]"
+      data-review-product="@T["producto revisado"]" data-review-products="@T["productos"]"
+      data-review-change="@T["cambio revisado"]" data-review-changes="@T["cambios"]" data-review-delta="@T["Cambio"]"
+      data-review-process="@T["Proceso"]" data-review-area0="@T["Corte"]" data-review-area1="@T["Costura"]" data-review-area2="@T["Ready to Pack"]"
+      data-review-schedule="@T["Programación"]" data-review-line="@T["Renglón {0}"]"
+      data-status-low="@T["Menos de 75 %"]" data-status-mid="@T["75 % a menos de 100 %"]" data-status-high="@T["100 % o más"]"
+      data-status-no-base="@T["Sin base de comparación"]"
+      data-daily-label="@T["Diario"]" data-accumulated-label="@T["Acumulado"]"
+      data-no-target="@T["Sin meta"]" data-covered-advance="@T["Cubierto por adelanto"]"
+      data-applied-advance="@T["Adelanto aplicado"]"
+      data-covered-label="@T["Cubierto"]" data-target-label="@T["Meta"]" data-base-label="@T["Base de comparación"]"
       data-new-plan-label="@T["Nueva programación"]" data-plan-admin="@T["Los cambios de programación requieren NIP ADMIN de la sesión actual."]"
+      data-planning-read-only="@T["Programado del día es de solo consulta. Edita la programación en Programa semanal."]"
       data-unsaved="@T["Hay cambios sin guardar. ¿Quieres descartarlos?"]" data-invalid="@T["Indica una cantidad válida. Solo punto decimal."]"
       data-error="@T["No se pudo completar la operación. Conservamos tus cambios; vuelve a revisar."]" data-pending="@T["Cambios sin guardar"]"
       data-review="@T["Revisa los totales y confirma con NIP."]" data-admin="@T["Las reducciones requieren motivo y NIP ADMIN."]"
-      class="border rounded p-3 mb-3">
+      class="mb-3">
     @Html.AntiForgeryToken()
-    <p class="small mb-2">@T["Edita el total del SKU, área y turno del día. Los filtros no limitan ese total. La exportación solo incluye datos guardados."]</p>
-    <p class="small mb-2">@(Model.Daily!.ExplicitCarryover ? "Pendiente al iniciar es el saldo previo al día. Solo incluye el arrastre admitido en la preparación de esta semana." : T["Pendiente al iniciar es el saldo previo al día. Arrastre programado indica cuánto se pretende trabajar."].Value)</p>
-    <div data-edit-status role="status" aria-live="polite"></div>
+    <div class="balance-tools">
+    <div data-workspace-status role="status" aria-live="polite"></div>
+    <div data-workspace-conflicts role="alert"></div>
+    <div class="balance-help-group">
+        <details class="balance-help"><summary>@T["Cómo interpretar el balance"]</summary>
+            <p>@T["El pendiente es arrastre inicial + programación acumulada − producción efectiva. Un valor negativo indica adelanto. La disponibilidad física se valida por separado."]</p>
+            <p>@T["Status % corresponde al indicador Diario de Ready to Pack. Incluye el adelanto aplicado y la producción del día sobre su base de comparación."]</p>
+        </details>
+        <details class="balance-help"><summary>@T["Ayuda para capturar"]</summary>
+            <p><strong>@T["Escribe el total producido en T1 o T2 y pulsa Revisar cambios."]</strong></p>
+            <p>@T["Ejemplo: si hay 20 piezas y hiciste 5 más, escribe 25. El sistema agrega la diferencia."]</p>
+            <p>@T["Edita el total del SKU, área y turno del día. Los filtros no limitan ese total. La exportación solo incluye datos guardados."]</p>
+            <p>@T["Programado del día es de solo consulta. Edita la programación en Programa semanal."]</p>
+            <p>@T[Model.Daily!.ExplicitCarryover ? "Pendiente al iniciar es el saldo previo al día. Solo incluye el arrastre admitido en la preparación de esta semana." : "Pendiente al iniciar es el saldo previo al día. Arrastre programado indica cuánto se pretende trabajar."]</p>
+        </details>
+    </div>
+    </div>
+    <partial name="_BalanceTable" model="Model"/>
+    <div class="balance-review-panel">
     <div data-edit-errors role="alert" tabindex="-1"></div>
-    <div data-edit-review hidden class="table-responsive my-2"><table class="table table-sm"><thead><tr><th>SKU</th><th>@T["Área / turno"]</th><th>@T["Actual"]</th><th>@T["Nuevo total"]</th><th>@T["Diferencia"]</th></tr></thead><tbody></tbody></table></div>
+    <div data-edit-review hidden class="balance-review my-3">
+        <p data-review-summary class="fw-semibold mb-1"></p>
+        <p class="small text-body-secondary">@T["Anterior → nuevo total. — = sin cambios."]</p>
+        <div data-review-products></div>
+    </div>
     <div data-edit-auth hidden class="row g-2 my-2">
-        <div class="col-md-8"><label for="balance-edit-reason" class="form-label">@T["Motivo"]</label><input id="balance-edit-reason" maxlength="500" class="form-control" autocomplete="off"/></div>
+        <div class="col-md-8" data-edit-reason-field hidden><label for="balance-edit-reason" class="form-label">@T["Motivo"]</label><input id="balance-edit-reason" maxlength="500" class="form-control" autocomplete="off"/></div>
         <div class="col-md-4"><label for="balance-edit-pin" class="form-label">@T["NIP"]</label><input id="balance-edit-pin" required type="password" inputmode="numeric" autocomplete="off" class="form-control"/></div>
     </div>
-    <div class="d-flex flex-wrap gap-2 mt-2">
+    </div>
+    <div class="balance-actions" data-balance-actions hidden="@(Model.Daily.Status != WarehouseEPI.Core.Entities.ProductionScheduleWeekStatus.Open || !Model.ConfigurationReady)">
+        <div class="balance-actions__state"><div data-edit-counter role="status">@T["Cambios pendientes"]: 0 / 100</div><div data-edit-status role="status" aria-live="polite"></div></div>
+    <div class="balance-actions__buttons">
         <button type="button" class="btn btn-primary" data-edit-review-button disabled>@T["Revisar cambios"]</button>
         <button type="submit" class="btn btn-success" data-edit-confirm hidden>@T["Confirmar cambios"]</button>
         <button type="button" class="btn btn-outline-secondary" data-edit-discard disabled>@T["Descartar cambios"]</button>
+    </div>
     </div>
 </form>

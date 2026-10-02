@@ -9,9 +9,17 @@ public sealed record ProductionProductSuggestionGroup(int Group, int Offset, boo
 
 public sealed partial class ProductionDailyCaptureService
 {
-    public async Task<IReadOnlyList<ProductionProductSuggestionGroup>> SearchDailyProductsAsync(
+    public Task<IReadOnlyList<ProductionProductSuggestionGroup>> SearchDailyProductsAsync(
+        DateOnly date, ProductionDailyArea area, string? text, int? group = null, int offset = 0, CancellationToken token = default) =>
+        SearchDailyProductsCoreAsync(date, area, text, group, offset, false, token);
+
+    public Task<IReadOnlyList<ProductionProductSuggestionGroup>> SearchMatrixProductsAsync(
+        DateOnly date, string? text, int? group = null, int offset = 0, CancellationToken token = default) =>
+        SearchDailyProductsCoreAsync(date, ProductionDailyArea.Cutting, text, group, offset, true, token);
+
+    private async Task<IReadOnlyList<ProductionProductSuggestionGroup>> SearchDailyProductsCoreAsync(
         DateOnly date, ProductionDailyArea area, string? text, int? group = null, int offset = 0,
-        CancellationToken token = default)
+        bool allAreas = false, CancellationToken token = default)
     {
         if (!Enum.IsDefined(area) || group is < 0 or > 2) return [];
         var monday = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
@@ -19,10 +27,13 @@ public sealed partial class ProductionDailyCaptureService
         if (week is null) return [];
         var planned = await db.ProductionScheduleLines.AsNoTracking()
             .Where(x => x.WeekId == week.Id && !x.IsCancelled && !x.IsExtra).Select(x => x.ProductId)
+            .Union(db.ProductionInitialBalances.AsNoTracking().Where(x => x.WeekId == week.Id).Select(x => x.ProductId))
             .Union(db.ProductionCarryoverPlans.AsNoTracking().Where(x => x.WeekId == week.Id).Select(x => x.ProductId))
             .ToArrayAsync(token);
-        var pending = (await GetAvailabilityAsync(date, area, priorOnly: true, token: token))
-            .Select(x => x.ProductId).Except(planned).ToArray();
+        var pendingIds = new HashSet<Guid>();
+        foreach (var pendingArea in allAreas ? Enum.GetValues<ProductionDailyArea>() : new[] { area })
+            foreach (var item in await GetAvailabilityAsync(date, pendingArea, priorOnly: true, token: token)) pendingIds.Add(item.ProductId);
+        var pending = pendingIds.Except(planned).ToArray();
         var term = text?.Trim().ToUpperInvariant() ?? "";
         var result = new List<ProductionProductSuggestionGroup>();
         foreach (var category in group.HasValue ? new[] { group.Value } : new[] { 0, 1, 2 })

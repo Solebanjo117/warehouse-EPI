@@ -14,10 +14,10 @@ public sealed class NewModel(ReceivingService service, IStringLocalizer<Operatio
     public void OnGet() => Input = new() { OperationId = Guid.NewGuid(), Lines = [new()] };
     public async Task<IActionResult> OnPostAsync(CancellationToken token)
     {
-        if (!ModelState.IsValid) { Input.Pin = string.Empty; EnsureLine(); return Page(); }
+        if (!ModelState.IsValid) { Input.Pin = string.Empty; ModelState.Remove("Input.Pin"); EnsureLine(); return Page(); }
         var result = await service.OpenAsync(new(Input.OperationId, Input.Type, Input.Number, Input.Origin, Input.DocumentDate, Input.Notes, Input.Pin,
             Input.Lines.Select(item => new OpenReceivingDocumentLineCommand(item.ProductId, item.ExpectedQuantity)).ToArray()), token);
-        Input.Pin = string.Empty;
+        Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         if (result.Status == ReceivingCommandStatus.Success && result.DocumentId is Guid id) { TempData["Success"] = texts["Documento abierto; las cantidades esperadas quedaron congeladas."]; return RedirectToPage("Details", new { id }); }
         ModelState.AddModelError(string.Empty, Message(result)); EnsureLine(); return Page();
     }

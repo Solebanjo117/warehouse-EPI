@@ -1,0 +1,48 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using global::System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@if (Model.NewWeekMonth is { } month)
+{
+    <section class="card mb-3"><div class="card-body">
+        <div class="production-week-picker"
+              data-week-picker data-options-url="@Url.Page("Schedule", "WeekOptions")"
+              data-month="@month.Month" data-previous-month="@month.PreviousMonth" data-next-month="@month.NextMonth"
+              data-current-week="@Model.CurrentWeekStart" data-next-week="@Model.NextWeekStart"
+              data-configuration-ready="@(Model.ConfigurationReady ? "true" : "false")">
+            <fieldset aria-describedby="new-week-help new-week-error">
+                <legend class="h5">@T["Semana a crear"]</legend>
+                <p id="new-week-help" class="form-text mt-0">@T["Las semanas comienzan en lunes."]</p>
+                <div class="production-week-picker__navigation" data-week-picker-navigation hidden>
+                    <button type="button" class="btn btn-outline-secondary" data-week-picker-previous disabled="@(month.PreviousMonth is null)">@T["Mes anterior"]</button>
+                    <h2 class="h5 mb-0 text-capitalize" data-week-picker-month>@month.Label</h2>
+                    <button type="button" class="btn btn-outline-secondary" data-week-picker-next disabled="@(month.NextMonth is null)">@T["Mes siguiente"]</button>
+                </div>
+                <noscript><p class="fw-semibold text-capitalize">@month.Label</p></noscript>
+                <div class="d-flex flex-wrap gap-2 mb-3" data-week-picker-shortcuts hidden>
+                    <button type="button" class="btn btn-outline-secondary" data-week-picker-current>@T["Esta semana"]</button>
+                    <button type="button" class="btn btn-outline-secondary" data-week-picker-upcoming disabled="@(Model.NextWeekStart.Length == 0)">@T["Próxima semana"]</button>
+                </div>
+                <div class="production-week-picker__options" data-week-picker-options>
+                    @foreach (var option in month.Options)
+                    {
+                        var selected = option.ViewUrl is null && option.WeekStart == Model.NewWeek.WeekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                        <div class="production-week-picker__row @(option.ViewUrl is null ? "" : "production-week-picker__row--existing")">
+                            <label class="production-week-picker__choice @(selected ? "is-selected" : "")">
+                                <input type="radio" name="NewWeek.WeekStart" form="week-workspace-form" value="@option.WeekStart" class="form-check-input" required
+                                       checked="@selected" disabled="@(option.ViewUrl is not null)" data-week-picker-option data-label="@option.Label"/>
+                                <span>@option.Label @if(option.ViewUrl is not null){<span class="badge text-bg-secondary ms-1">@T["Ya creada"]</span>}</span>
+                            </label>
+                            @if(option.ViewUrl is not null){<a href="@option.ViewUrl" class="btn btn-outline-secondary" aria-label="@T["Ver semana: {0}", option.Label]">@T["Ver semana"]</a>}
+                        </div>
+                    }
+                </div>
+                <span id="new-week-error" asp-validation-for="NewWeek.WeekStart" class="text-danger" role="alert"></span>
+            </fieldset>
+            <p class="fw-semibold mt-3 mb-2" data-week-picker-summary role="status" aria-live="polite">@(Model.NewWeekSelection is { ViewUrl: null } selection ? selection.Label : T["Selecciona una semana."].Value)</p>
+            <div data-week-picker-status role="status" aria-live="polite"></div>
+            <a href="@Model.NewWeekSelection?.ViewUrl" class="btn btn-outline-secondary mb-2" data-week-picker-existing hidden="@(Model.NewWeekSelection?.ViewUrl is null)">@T["Ver semana"]</a>
+            <button type="button" class="btn btn-outline-secondary mb-2" data-week-picker-retry hidden>@T["Reintentar"]</button>
+            @if(!Model.ConfigurationReady){<p class="alert alert-warning mt-3 mb-0">@T["Configura las tres áreas y los dos turnos activos para capturar."] <a href="#daily-configuration">@T["Configurar áreas y turnos"]</a></p>}
+        </div>
+    </div></section>
+}

@@ -170,9 +170,15 @@ public sealed class ProductionService(WarehouseDbContext db, UserPinService pins
         new ProductionExecutionService(db, pins, timeProvider).ApplyAsync(new(command.OperationId, command.WorkOrderId,
             command.ExpectedVersion ?? uint.MaxValue, "definitive", command.Pin,
             ProductionModelConfiguration.ReasonId(ProductionReasonCategory.Difference), command.Reason), token);
-    private async Task<ProductionCommandResult> HandoffAsync(ProductionHandoffCommand command,ProductionEventType type,CancellationToken token,bool admin=false,bool lost=false)
+    internal Task<ProductionCommandResult> DeliverDailyAsync(ProductionHandoffCommand command, CancellationToken token) =>
+        HandoffAsync(command, ProductionEventType.Delivered, token, dailyCapture: true);
+    internal Task<ProductionCommandResult> ReceiveDailyAsync(ProductionHandoffCommand command, CancellationToken token) =>
+        HandoffAsync(command, ProductionEventType.Received, token, dailyCapture: true);
+
+    private async Task<ProductionCommandResult> HandoffAsync(ProductionHandoffCommand command,ProductionEventType type,CancellationToken token,bool admin=false,bool lost=false,bool dailyCapture=false)
     {
-        var user=admin?await AdminAsync(command.Pin,token):await OperatorAsync(command.Pin,token);if(user is null)return new(ProductionCommandStatus.InvalidPin);
+        var user=dailyCapture ? await pins.AuthenticateAsync(command.Pin,token) : admin?await AdminAsync(command.Pin,token):await OperatorAsync(command.Pin,token);
+        if(user is null || (dailyCapture && !RoleAccess.CanCaptureProduction(user.Role.Code)))return new(ProductionCommandStatus.InvalidPin);
         if(command.Quantity<=0 || ((type is ProductionEventType.DifferenceReturned or ProductionEventType.DifferenceLost)&&string.IsNullOrWhiteSpace(command.Reason)))return Invalid("Indica una cantidad positiva y el motivo cuando concilies una diferencia.");var fp=Fingerprint(command with{Pin=""});
         return await MutateAsync(command.OperationId,command.WorkOrderId,fp,async order=>{
             if(command.ExpectedVersion.HasValue&&order.Version!=command.ExpectedVersion)return new(ProductionCommandStatus.ConcurrencyConflict);

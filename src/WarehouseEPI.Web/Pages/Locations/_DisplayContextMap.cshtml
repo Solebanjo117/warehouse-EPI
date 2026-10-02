@@ -1,0 +1,77 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Locations.DisplayMapView
+@using WarehouseEPI.Web.Pages.Locations
+@{
+    var map = Model.Map;
+    var racks = Model.CurrentRacks ?? [];
+    var placeText = DisplayModel.Format(map.Height * .05);
+    var rowText = DisplayModel.Format(map.Height * .056);
+    var currentRowText = DisplayModel.Format(map.Height * .09);
+    var pin = map.Height * .03;
+    var viewBox = map.ViewBox.Split(' ');
+    var middle = double.Parse(viewBox[0], System.Globalization.CultureInfo.InvariantCulture) + map.Width / 2;
+    var here = Model.Here;
+    var labelOnLeft = here is not null && (double)here.X > middle;
+}
+@* Every SVG <text> sits inside a <g>: a leading <text> would be read as Razor's own text tag. *@
+<svg class="display-map-svg" viewBox="@map.ViewBox" data-display-map-svg
+     role="@(Model.Picker ? null : "group")" aria-label="@Model.Label" tabindex="@(Model.Picker ? "0" : null)"
+     data-display-here-map="@(Model.Picker ? "" : null)"
+     style="--display-map-place: @(placeText)px; --display-map-row: @(rowText)px; --display-map-current-row: @(currentRowText)px; aspect-ratio: @DisplayModel.Format(map.Width) / @DisplayModel.Format(map.Height)">
+    <g class="display-map-architecture" aria-hidden="true">
+    @foreach (var item in map.Architecture)
+    {
+        var transform = $"translate({DisplayModel.Format(item.X)} {DisplayModel.Format(item.Y)}) rotate({item.Rotation})";
+        if (item.Kind == "Rectangle" && item.StrokeToken != "None")
+        {
+            <rect class="display-map-wall @(item.IsDashed ? "is-dashed" : "")" transform="@transform"
+                  width="@DisplayModel.Format(item.Width)" height="@DisplayModel.Format(item.Height)" rx="@DisplayModel.Format(item.CornerRadius)" />
+        }
+        else if (item.Kind == "Polyline" && item.StrokeToken != "None")
+        {
+            <polyline class="display-map-wall @(item.IsDashed ? "is-dashed" : "")" transform="@transform"
+                      points="@(string.Join(" ", item.Points.Select(point => DisplayModel.Format(point.X) + "," + DisplayModel.Format(point.Y))))" />
+        }
+        else if (item.Kind != "Rectangle" && item.Kind != "Polyline" && !string.IsNullOrWhiteSpace(item.Label))
+        {
+            <g transform="@transform"><text class="display-map-place" dominant-baseline="hanging">@item.Label</text></g>
+        }
+    }
+    </g>
+    <g class="display-map-elements" aria-hidden="@(Model.Picker ? "true" : null)">
+    @foreach (var element in map.Elements)
+    {
+        var isRack = element.Kind == "Rack";
+        var inRow = isRack && element.RowCode is not null && element.RowCode == Model.RowCode;
+        var current = inRow && racks.Contains(element.Label);
+        <g class="display-map-element @(isRack ? "is-rack" : "is-area") @(inRow ? "is-row" : "") @(current ? "is-current" : "")"
+           transform="translate(@DisplayModel.Format(element.X) @DisplayModel.Format(element.Y)) rotate(@element.Rotation)"
+           data-map-row="@(isRack ? element.RowCode : null)" data-map-rack="@(isRack ? element.Label : null)"
+           data-map-rack-number="@(isRack ? element.RackNumber : null)" data-map-location="@element.LocationId"
+           data-display-map-select="@(Model.Picker ? null : "")" role="@(Model.Picker ? null : "button")"
+           tabindex="@(Model.Picker ? null : "0")" aria-label="@(Model.Picker ? null : isRack ? CatTexts["Consultar rack {0}", element.Label].Value : CatTexts["Consultar área {0}", element.Label].Value)">
+            <rect width="@DisplayModel.Format(element.Width)" height="@DisplayModel.Format(element.Height)" rx="3" />
+            @if (!isRack)
+            {
+                <g transform="translate(@DisplayModel.Format(element.Width / 2) @DisplayModel.Format(element.Height / 2)) rotate(@(-element.Rotation))"><text class="display-map-place" text-anchor="middle" dominant-baseline="central">@element.Label</text></g>
+            }
+        </g>
+    }
+    </g>
+    <g class="display-map-row-labels" aria-hidden="true">
+    @foreach (var label in map.RowLabels)
+    {
+        <g class="display-map-row-label @(label.Text == Model.RowCode ? "is-row" : "")" data-map-row="@label.Text"><text x="@DisplayModel.Format(label.X)" y="@DisplayModel.Format(label.Y)" text-anchor="@(label.Vertical ? "middle" : "end")" dominant-baseline="@(label.Vertical ? "auto" : "central")">@label.Text</text></g>
+    }
+    </g>
+    @if (here is not null || Model.Picker)
+    {
+        <g class="display-map-here @(here is null ? "is-empty" : "") @(labelOnLeft ? "is-label-left" : "")" data-display-here-pin
+           transform="translate(@(here is null ? "0 0" : DisplayModel.Format(here.X) + " " + DisplayModel.Format(here.Y)))"
+           data-pin-radius="@DisplayModel.Format(pin)" data-map-middle="@DisplayModel.Format(middle)" aria-hidden="true">
+            <circle class="display-map-here-ring" r="@DisplayModel.Format(pin)" />
+            <circle class="display-map-here-dot" r="@DisplayModel.Format(pin * .4)" />
+            <g class="display-map-here-label"><text x="@DisplayModel.Format(labelOnLeft ? -pin * 1.5 : pin * 1.5)" text-anchor="@(labelOnLeft ? "end" : "start")" dominant-baseline="central">@CatTexts["Esta pantalla"]</text></g>
+        </g>
+    }
+</svg>

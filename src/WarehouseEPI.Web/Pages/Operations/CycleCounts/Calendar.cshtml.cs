@@ -32,7 +32,7 @@ public sealed class CalendarModel(CycleCountService cycleCounts, WarehouseClock 
     public async Task<IActionResult> OnPostReleaseAsync(string? month, string? view, int pageNumber = 1, CancellationToken cancellationToken = default)
     {
         var result = await cycleCounts.ReleaseScheduledAsync(new(Pin, PlanIds, OperationId == Guid.Empty ? Guid.NewGuid() : OperationId), cancellationToken);
-        Pin = string.Empty;
+        Pin = string.Empty; ModelState.Remove("Pin");
         if (result.Status == CycleCountStatus.Success && result.CampaignId is Guid campaignId)
             return RedirectToPage("Details", new { id = campaignId });
         await LoadAsync(month, view, pageNumber, cancellationToken);

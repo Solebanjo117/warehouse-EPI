@@ -10,7 +10,7 @@ using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "ProductsRead")]
 public sealed class IndexModel(ProductCatalogQueryService catalog, WarehouseDbContext dbContext,
     ProductionPlanningService planning) : PageModel
 {

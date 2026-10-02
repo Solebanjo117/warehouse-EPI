@@ -17,8 +17,8 @@
         <p class="text-body-secondary mb-0">@CatTexts["Existencias, ubicaciones y recetas de producción."]</p>
     </div>
     <div class="product-catalog-header-actions">
-        <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a>
-        <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a>
+        @if (User.IsInRole("ADMIN")) { <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a> }
+        @if (User.IsInRole("ADMIN")) { <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a> }
     </div>
 </header>
 
@@ -262,8 +262,8 @@
             <h2 id="empty-products-title" class="h5 mb-0">@CatTexts["El catálogo está vacío"]</h2>
             <p class="mb-0">@CatTexts["Importa el archivo de productos o crea el primer SKU para comenzar."]</p>
             <div class="product-catalog-empty-actions">
-                <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a>
-                <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a>
+                @if (User.IsInRole("ADMIN")) { <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a> }
+                @if (User.IsInRole("ADMIN")) { <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a> }
             </div>
         }
     </section>
@@ -298,16 +298,16 @@ else
                                 <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                                     <span class="pc-chip is-static">Receta v@(recipeVersion)</span>
                                     <span class="pc-chip @(item.ActiveRecipeIsComplete ? "is-ok" : "is-warning")">@(item.ActiveRecipeIsComplete ? CatTexts["Lista completa"].Value : CatTexts["Lista incompleta"].Value)</span>
-                                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
-                                       class="btn btn-sm btn-outline-secondary product-recipe-action">@(item.ActiveRecipeIsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a>
+                                    @if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                                       class="btn btn-sm btn-outline-secondary product-recipe-action">@(item.ActiveRecipeIsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a> }
                                 </div>
                             }
                             else
                             {
                                 <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
                                     <span class="pc-chip is-inactive">@CatTexts["Sin receta activa"]</span>
-                                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
-                                       class="btn btn-sm btn-outline-primary product-recipe-action">@CatTexts["Configurar receta"]</a>
+                                    @if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                                       class="btn btn-sm btn-outline-primary product-recipe-action">@CatTexts["Configurar receta"]</a> }
                                 </div>
                             }
                         </td>
@@ -321,7 +321,7 @@ else
                                 @foreach (var badge in StatusBadges(item)) { <span class="@badge.Css">@badge.Text</span> }
                             </div>
                         </td>
-                        <td><div class="product-catalog-row-actions"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">@CatTexts["Ficha"]</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">@CatTexts["Editar"]</a></div></td>
+                        <td><div class="product-catalog-row-actions"><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">@CatTexts["Ficha"]</a>@if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">@CatTexts["Editar"]</a> }</div></td>
                     </tr>
                     @if (item.ActiveRecipeVersion is not null)
                     {
@@ -363,18 +363,18 @@ else
                     </div>
                     <section id="product-recipe-mobile-@item.Id" class="product-recipe-panel mt-2" hidden
                              aria-label="Receta de @item.Sku" data-product-recipe-panel data-product-recipe-content></section>
-                    <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
-                       class="btn btn-outline-secondary product-recipe-action w-100 mt-2">@(item.ActiveRecipeIsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a>
+                    @if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                       class="btn btn-outline-secondary product-recipe-action w-100 mt-2">@(item.ActiveRecipeIsComplete ? CatTexts["Editar receta"].Value : CatTexts["Completar receta"].Value)</a> }
                 }
                 else
                 {
                     <div class="d-grid gap-2">
                         <span class="pc-chip is-inactive">@CatTexts["Sin receta activa"]</span>
-                        <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
-                           class="btn btn-outline-primary product-recipe-action">@CatTexts["Configurar receta"]</a>
+                        @if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@item.Id" asp-fragment="product-production"
+                           class="btn btn-outline-primary product-recipe-action">@CatTexts["Configurar receta"]</a> }
                     </div>
                 }
-                <footer><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">@CatTexts["Ficha"]</a><a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">@CatTexts["Editar"]</a></footer>
+                <footer><a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-primary">@CatTexts["Ficha"]</a>@if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-secondary">@CatTexts["Editar"]</a> }</footer>
             </article>
         }
     </div>

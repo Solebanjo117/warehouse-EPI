@@ -22,6 +22,12 @@ public sealed record WarehouseMapReferenceImageState(Guid Id, string OriginalFil
     decimal? CalibrationAY, decimal? CalibrationBX, decimal? CalibrationBY, decimal? CalibrationDistanceInches);
 public sealed record WarehouseMapView(int Version, uint RowVersion, bool IsInitialized, IReadOnlyList<WarehouseMapElementView> Elements, IReadOnlyList<WarehouseMapElementView> Unplaced, int Available, int Blocked, int Inactive, int WithInventory, int Negative, IReadOnlyList<WarehouseMapLayerView> Layers, IReadOnlyList<WarehouseMapArchitecturalElementView> Architecture, IReadOnlyList<WarehouseMapArchitecturalElementView> ArchivedArchitecture, bool UsesLegacyArchitecture, decimal? ScaleUnitsPerInch, string MeasurementSystem, WarehouseMapReferenceImageState? ActiveReference = null, IReadOnlyList<WarehouseMapReferenceImageState>? ArchivedReferences = null, decimal CanvasWidth = 1600m, decimal CanvasHeight = 900m);
 public sealed record WarehouseMapGeometry(Guid Id, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible);
+public sealed record WarehouseMapDisplayRack(string RowCode, short RackNumber, decimal X, decimal Y,
+    decimal Width, decimal Height, short Rotation, bool IsPlaced);
+public sealed record WarehouseMapDisplayElement(string Kind, string Label, string? RowCode, short? RackNumber,
+    decimal X, decimal Y, decimal Width, decimal Height, short Rotation, Guid? LocationId = null);
+public sealed record WarehouseMapDisplayContext(decimal CanvasWidth, decimal CanvasHeight,
+    IReadOnlyList<WarehouseMapDisplayElement> Elements, IReadOnlyList<WarehouseMapArchitecturalElementView> Architecture);
 public sealed record WarehouseMapSaveCommand(Guid OperationId, Guid RequestedByUserId, string Pin, string? Reason, IReadOnlyList<WarehouseMapGeometry> Elements, IReadOnlyList<WarehouseMapLayerState> Layers, IReadOnlyList<WarehouseMapArchitectureItem> Architecture, decimal? ScaleUnitsPerInch = null, string MeasurementSystem = "IMPERIAL", IReadOnlyList<WarehouseMapReferenceImageState>? References = null, decimal CanvasWidth = 1600m, decimal CanvasHeight = 900m);
 public enum WarehouseMapSaveStatus { Success, InvalidPin, Unauthorized, ValidationFailed, Conflict, IdempotencyConflict, NotInitialized }
 public sealed record WarehouseMapSaveResult(WarehouseMapSaveStatus Status, int Version = 0, IReadOnlyList<string>? Errors = null) { public IReadOnlyList<string> ValidationErrors => Errors ?? []; }
@@ -40,6 +46,72 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
 
     public Task<WarehouseMapView> GetAsync(bool includeProposal, CancellationToken token = default) =>
         GetAsync(includeProposal, includeReferences: true, token);
+
+    public async Task<IReadOnlyList<WarehouseMapDisplayRack>> GetDisplayRacksAsync(
+        IReadOnlyCollection<string> rows, CancellationToken token = default)
+    {
+        var selectedRows = rows.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (selectedRows.Length == 0) return [];
+
+        var rackKeys = await dbContext.Locations.AsNoTracking()
+            .Where(item => item.Kind == LocationKind.Rack && item.IsPhysicallyPresent &&
+                item.RowCode != null && item.RackNumber != null && selectedRows.Contains(item.RowCode))
+            .Select(item => new { item.RowCode, item.RackNumber }).Distinct()
+            .OrderBy(item => item.RowCode).ThenBy(item => item.RackNumber).ToListAsync(token);
+        var hasStoredMap = await dbContext.WarehouseMapElements.AsNoTracking()
+            .AnyAsync(item => item.LayoutId == 1, token);
+        var storedRacks = hasStoredMap
+            ? await dbContext.WarehouseMapElements.AsNoTracking()
+                .Where(item => item.LayoutId == 1 && item.Kind == WarehouseMapElementKind.Rack &&
+                    item.RowCode != null && selectedRows.Contains(item.RowCode))
+                .ToListAsync(token)
+            : [];
+        var storedByKey = storedRacks.Where(item => item.RackNumber.HasValue)
+            .ToDictionary(item => (item.RowCode!, item.RackNumber!.Value));
+        var result = new List<WarehouseMapDisplayRack>();
+        foreach (var row in rackKeys.GroupBy(item => item.RowCode!))
+        {
+            var racks = row.Select(item => item.RackNumber!.Value).ToArray();
+            for (var index = 0; index < racks.Length; index++)
+            {
+                var proposal = CreateRackProposal(row.Key, racks, index, 0);
+                var placed = storedByKey.TryGetValue((row.Key, racks[index]), out var saved);
+                var geometry = placed ? saved! : proposal;
+                result.Add(new(row.Key, racks[index], geometry.X, geometry.Y, geometry.Width,
+                    geometry.Height, geometry.Rotation, placed ? geometry.IsVisible : !hasStoredMap && proposal.IsVisible));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>Whole published layout for orientation displays, without positions or balances.</summary>
+    public async Task<WarehouseMapDisplayContext> GetDisplayContextAsync(CancellationToken token = default)
+    {
+        var layout = await dbContext.WarehouseMapLayouts.AsNoTracking().SingleOrDefaultAsync(item => item.Id == 1, token);
+        var stored = layout is null ? [] : await dbContext.WarehouseMapElements.AsNoTracking()
+            .Where(item => item.LayoutId == 1).OrderBy(item => item.ZIndex).ToListAsync(token);
+        var elements = (stored.Count == 0 ? await BuildProposalAsync(token) : stored)
+            .Where(item => item.IsVisible).ToArray();
+        var areaIds = elements.Where(item => item.Kind == WarehouseMapElementKind.Area && item.LocationId != null)
+            .Select(item => item.LocationId!.Value).ToArray();
+        var areaCodes = await dbContext.Locations.AsNoTracking().Where(item => areaIds.Contains(item.Id))
+            .ToDictionaryAsync(item => item.Id, item => item.Code, token);
+        var storedLayers = layout is null ? [] : await dbContext.WarehouseMapLayers.AsNoTracking()
+            .Where(item => item.LayoutId == 1).ToListAsync(token);
+        var storedArchitecture = layout is null ? [] : await dbContext.WarehouseMapArchitecturalElements.AsNoTracking()
+            .Where(item => item.LayoutId == 1).ToListAsync(token);
+        var usesLegacyArchitecture = storedLayers.Count == 0 || storedArchitecture.Count == 0;
+        var layers = usesLegacyArchitecture ? WarehouseMapArchitectureCatalog.CreateLayers() : storedLayers;
+        var architecture = usesLegacyArchitecture ? WarehouseMapArchitectureCatalog.CreateElements(layers) : storedArchitecture;
+        var layerCodes = layers.ToDictionary(item => item.Id, item => WarehouseMapArchitectureCatalog.Code(item.Code));
+        var views = elements.Select(item => new WarehouseMapDisplayElement(item.Kind.ToString(),
+            item.Kind == WarehouseMapElementKind.Rack ? $"{item.RowCode}-{item.RackNumber}"
+                : item.LocationId is Guid id && areaCodes.TryGetValue(id, out var code) ? code : "Área",
+            item.RowCode, item.RackNumber, item.X, item.Y, item.Width, item.Height, item.Rotation, item.LocationId)).ToArray();
+        return new(layout?.CanvasWidth ?? DefaultCanvasWidth, layout?.CanvasHeight ?? DefaultCanvasHeight, views,
+            architecture.Where(item => !item.IsArchived).OrderBy(item => item.ZIndex)
+                .Select(item => WarehouseMapArchitectureCatalog.ToView(item, layerCodes[item.LayerId])).ToArray());
+    }
 
     public async Task<WarehouseMapView> GetAsync(bool includeProposal, bool includeReferences,
         CancellationToken token = default)
@@ -589,11 +661,9 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var result = new List<WarehouseMapElement>(); var z = 10;
         var rows = rackKeys.GroupBy(item => item.RowCode!).ToDictionary(item => item.Key,
             item => item.Select(value => value.RackNumber!.Value).OrderBy(value => value).ToArray());
-        foreach (var (row, racks) in rows) foreach (var rack in racks)
+        foreach (var (row, racks) in rows) for (var index = 0; index < racks.Length; index++)
         {
-            var placed = TryRowAnchor(row, out var anchor);
-            var index = Array.IndexOf(racks, rack); var x = anchor.X + (anchor.Reverse ? racks.Length - 1 - index : index) * anchor.Step;
-            result.Add(new WarehouseMapElement { Id = StableId($"RACK|{row}|{rack}"), Kind = WarehouseMapElementKind.Rack, RowCode = row, RackNumber = rack, X = placed ? x : 40 + index * 62, Y = placed ? anchor.Y : 830, Width = anchor.Width, Height = anchor.Height, Rotation = anchor.Rotation, ZIndex = z++, IsVisible = placed });
+            result.Add(CreateRackProposal(row, racks, index, z++));
         }
         var unknownAreaIndex = 0;
         foreach (var area in areas)
@@ -602,6 +672,18 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
             result.Add(new WarehouseMapElement { Id = StableId($"AREA|{area.Id:N}"), Kind = WarehouseMapElementKind.Area, LocationId = area.Id, X = geometry.X, Y = geometry.Y, Width = geometry.Width, Height = geometry.Height, Rotation = geometry.Rotation, ZIndex = z++, IsVisible = geometry.Placed });
         }
         return result;
+    }
+
+    private static WarehouseMapElement CreateRackProposal(string row, short[] racks, int index, int zIndex)
+    {
+        var rack = racks[index];
+        var placed = TryRowAnchor(row, out var anchor);
+        var x = anchor.X + (anchor.Reverse ? racks.Length - 1 - index : index) * anchor.Step;
+        return new WarehouseMapElement { Id = StableId($"RACK|{row}|{rack}"),
+            Kind = WarehouseMapElementKind.Rack, RowCode = row, RackNumber = rack,
+            X = placed ? x : 40 + index * 62, Y = placed ? anchor.Y : 830,
+            Width = anchor.Width, Height = anchor.Height, Rotation = anchor.Rotation,
+            ZIndex = zIndex, IsVisible = placed };
     }
 
     private async Task<Dictionary<Guid, WarehouseMapPosition>> LoadPositionsAsync(CancellationToken token)

@@ -108,8 +108,65 @@ public sealed partial class ProductionDailyScheduleService(
         return new(ProductionDailyCommandStatus.Success, week.Id);
     }
 
-    public async Task<ProductionDailyCommandResult> SaveLineAsync(
-        SaveProductionScheduleLineCommand command, CancellationToken token = default)
+    public async Task<ProductionDailyCommandResult> CreateOpenWeekAsync(
+        CreateProductionScheduleWeekCommand command, string adminPin, CancellationToken token = default)
+    {
+        var fingerprint = Fingerprint(command);
+        var prior = await db.ProductionScheduleWeeks.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
+        if (prior is not null)
+            return prior.RequestFingerprint == fingerprint && prior.Status != ProductionScheduleWeekStatus.Draft
+                ? new(ProductionDailyCommandStatus.Success, prior.Id)
+                : new(ProductionDailyCommandStatus.IdempotencyConflict);
+        if (!await IsAdminAsync(command.ActorUserId, token))
+            return Invalid("La programación requiere un usuario ADMIN autenticado.");
+        if (command.WeekStart.DayOfWeek != DayOfWeek.Monday)
+            return Invalid("La semana debe iniciar en lunes.");
+        if (await db.ProductionScheduleWeeks.AnyAsync(x => x.WeekStart == command.WeekStart, token))
+            return Invalid("Ya existe una programación para esa semana.");
+
+        var pinUser = await pins.AuthenticateAsync(adminPin, token);
+        if (pinUser?.Role.Code != "ADMIN" || pinUser.Id != command.ActorUserId)
+            return new(ProductionDailyCommandStatus.InvalidPin,
+                Errors: ["El NIP ADMIN no corresponde a la sesión actual."]);
+
+        var now = timeProvider.GetUtcNow();
+        var week = new ProductionScheduleWeek
+        {
+            OperationId = command.OperationId,
+            RequestFingerprint = fingerprint,
+            WeekStart = command.WeekStart,
+            WeekEnd = command.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset),
+            Status = ProductionScheduleWeekStatus.Open,
+            ExplicitCarryover = true,
+            CreatedByUserId = command.ActorUserId,
+            CreatedAt = now,
+            PublishedByUserId = command.ActorUserId,
+            PublishedAt = now,
+            Version = 1
+        };
+        var validation = await ValidateForPublicationAsync(week, token);
+        if (validation.Count > 0)
+            return new(ProductionDailyCommandStatus.ValidationFailed, Errors: validation);
+
+        db.ProductionScheduleWeeks.Add(week);
+        db.ProductionScheduleRevisions.Add(Revision(
+            Derive(command.OperationId, week.Id, "publish"), fingerprint, week.Id, null,
+            "published", JsonSerializer.Serialize(new { Status = ProductionScheduleWeekStatus.Draft }),
+            JsonSerializer.Serialize(new { Status = week.Status, Orders = 0 }), command.ActorUserId));
+        await db.SaveChangesAsync(token);
+        return new(ProductionDailyCommandStatus.Success, week.Id);
+    }
+
+    public Task<ProductionDailyCommandResult> SaveLineAsync(
+        SaveProductionScheduleLineCommand command, CancellationToken token = default) => SaveLineCoreAsync(command, false, token);
+
+    // The importer authenticates its ADMIN session and never supplies or persists a PIN.
+    internal Task<ProductionDailyCommandResult> SaveImportedLineAsync(
+        SaveProductionScheduleLineCommand command, CancellationToken token) => SaveLineCoreAsync(command, true, token);
+
+    private async Task<ProductionDailyCommandResult> SaveLineCoreAsync(
+        SaveProductionScheduleLineCommand command, bool imported, CancellationToken token)
     {
         var fp = Fingerprint(command with { AdminPin = "" });
         var prior = await db.ProductionScheduleRevisions.AsNoTracking()
@@ -123,7 +180,7 @@ public sealed partial class ProductionDailyScheduleService(
         var week = await db.ProductionScheduleWeeks.Include(x => x.Lines).ThenInclude(x => x.Product)
             .SingleOrDefaultAsync(x => x.Id == command.WeekId, token);
         if (week is null) return new(ProductionDailyCommandStatus.NotFound);
-        if (week.Status == ProductionScheduleWeekStatus.Closed)
+        if (week.Status == ProductionScheduleWeekStatus.Closed && !imported)
             return Invalid("Reabre la semana antes de modificarla.");
         if (week.Version != command.ExpectedWeekVersion)
             return new(ProductionDailyCommandStatus.ConcurrencyConflict);
@@ -138,9 +195,12 @@ public sealed partial class ProductionDailyScheduleService(
             return Invalid("La unidad del SKU no permite decimales.");
         if (week.Status == ProductionScheduleWeekStatus.Open && command.LineId is null)
         {
-            var actor = await pins.AuthenticateAsync(command.AdminPin, token);
-            if (actor?.Role.Code != "ADMIN" || actor.Id != command.ActorUserId)
-                return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["El NIP ADMIN no corresponde a la sesión actual."]);
+            if (!imported)
+            {
+                var actor = await pins.AuthenticateAsync(command.AdminPin, token);
+                if (actor?.Role.Code != "ADMIN" || actor.Id != command.ActorUserId)
+                    return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["El NIP ADMIN no corresponde a la sesión actual."]);
+            }
             var validation = await ValidateForPublicationAsync(week, token);
             if (validation.Count > 0) return new(ProductionDailyCommandStatus.ValidationFailed, Errors: validation);
         }
@@ -224,10 +284,10 @@ public sealed partial class ProductionDailyScheduleService(
             if (week.Status == ProductionScheduleWeekStatus.Open && command.LineId is null)
             {
                 line.PlannedDate = command.PlannedDate; line.ProductId = product.Id; line.Quantity = command.Quantity;
-                var created = await CreatePublishedLineAsync(line, product, command, token);
+                var created = await CreatePublishedLineAsync(line, product, command, token, imported);
                 if (!created.Success) return await AbortAsync(transaction, created, token);
             }
-            else if (week.Status == ProductionScheduleWeekStatus.Open && line.WorkOrderId is Guid publishedOrderId)
+            else if ((week.Status == ProductionScheduleWeekStatus.Open || imported) && line.WorkOrderId is Guid publishedOrderId)
             {
                 if (replacePublishedProduct)
                 {
@@ -243,21 +303,25 @@ public sealed partial class ProductionDailyScheduleService(
                 {
                     var order = await db.ProductionWorkOrders.Include(x => x.MaterialPlan)
                         .SingleAsync(x => x.Id == publishedOrderId, token);
-                    var materials = order.MaterialPlan.Select(x => new ExecutionMaterial(x.Id,
-                        decimal.Round(x.PlannedQuantity * command.Quantity / order.AuthorizedQuantity, 4,
-                            MidpointRounding.AwayFromZero))).ToArray();
-                    var adjusted = await new ProductionExecutionService(db, pins, timeProvider).ApplyAuthorizedAsync(
-                        new ProductionExecutionCommand(Derive(command.OperationId, line.Id, "schedule-adjust"), order.Id,
-                            order.Version, "adjust", string.Empty,
-                            ProductionModelConfiguration.ReasonId(ProductionReasonCategory.Adjustment),
-                            "Actualización desde el programa semanal", Target: command.Quantity,
-                            Authorized: command.Quantity, DueDate: command.PlannedDate, Materials: materials),
-                        command.ActorUserId, token);
-                    if (adjusted.Status != ProductionCommandStatus.Success)
+                    if (!imported || order.TargetQuantity != command.Quantity || order.AuthorizedQuantity != command.Quantity || order.DueDate != command.PlannedDate)
                     {
-                        if (transaction is not null) await transaction.RollbackAsync(token);
-                        return Map(adjusted, $"Línea {line.Sequence}");
+                        var materials = order.MaterialPlan.Select(x => new ExecutionMaterial(x.Id,
+                            decimal.Round(x.PlannedQuantity * command.Quantity / order.AuthorizedQuantity, 4,
+                                MidpointRounding.AwayFromZero))).ToArray();
+                        var adjusted = await new ProductionExecutionService(db, pins, timeProvider).ApplyAuthorizedAsync(
+                            new ProductionExecutionCommand(Derive(command.OperationId, line.Id, "schedule-adjust"), order.Id,
+                                order.Version, "adjust", string.Empty,
+                                ProductionModelConfiguration.ReasonId(ProductionReasonCategory.Adjustment),
+                                "Actualización desde el programa semanal", Target: command.Quantity,
+                                Authorized: command.Quantity, DueDate: command.PlannedDate, Materials: materials),
+                            command.ActorUserId, token);
+                        if (adjusted.Status != ProductionCommandStatus.Success)
+                        {
+                            if (transaction is not null) await transaction.RollbackAsync(token);
+                            return Map(adjusted, $"Línea {line.Sequence}");
+                        }
                     }
+                    else order.Version++;
                     order.ExternalReference = Trim(string.Join(" / ", new[]
                         { command.OrderReference1, command.OrderReference2, command.OrderReference3 }.Where(x => !string.IsNullOrWhiteSpace(x))), 120);
                     order.Notes = Trim(command.Notes, 500);
@@ -655,7 +719,7 @@ public sealed partial class ProductionDailyScheduleService(
             x.OrderReference1, x.OrderReference2, x.OrderReference3, x.Notes, x.IsCarryover,
             x.StartArea, x.WorkOrderId, x.Version, x.Product.BaseUnit.Code,
             x.OriginalType, x.OriginalAnnotation1, x.OriginalAnnotation2,
-            x.OriginalAnnotation1Kind, x.OriginalAnnotation2Kind)).ToArray(), week.ExplicitCarryover);
+            x.OriginalAnnotation1Kind, x.OriginalAnnotation2Kind, x.Product.BaseUnit.AllowsDecimals)).ToArray(), week.ExplicitCarryover);
 
     private static ProductionDailyConfigurationView View(ProductionDailyConfiguration row) => new(
         row.CuttingStageId, row.SewingStageId, row.ReadyToPackStageId, row.Shift1Id, row.Shift2Id,

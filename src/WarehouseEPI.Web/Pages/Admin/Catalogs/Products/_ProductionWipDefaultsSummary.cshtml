@@ -4,7 +4,7 @@
     <div class="card-body">
         <div class="d-flex flex-wrap justify-content-between gap-3">
             <div><span class="eyebrow">@CatTexts["Producción"]</span><h2 id="product-wip-summary-heading" class="h4 mb-1">@CatTexts["Destinos WIP habituales"]</h2><p class="text-body-secondary mb-0">@CatTexts["Preferencias por proceso; no representan existencias."]</p></div>
-            <a asp-page="Edit" asp-route-id="@Model.Product.Id" asp-fragment="product-wip-defaults" class="btn btn-outline-primary">@CatTexts["Editar destinos WIP"]</a>
+            @if (User.IsInRole("ADMIN")) { <a asp-page="Edit" asp-route-id="@Model.Product.Id" asp-fragment="product-wip-defaults" class="btn btn-outline-primary">@CatTexts["Editar destinos WIP"]</a> }
         </div>
         @if (Model.WipConfiguration.Rules.Count == 0)
         {

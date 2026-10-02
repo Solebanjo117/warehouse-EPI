@@ -142,7 +142,7 @@ public sealed class DashboardRouteTests
     }
 
     [Fact]
-    public void Admin_summary_unifies_navigation_while_public_report_links_remain_available()
+    public void Admin_summary_unifies_navigation_and_reports_require_admin()
     {
         var layout = File.ReadAllText(RepositoryPath(
             "src", "WarehouseEPI.Web", "Pages", "Shared", "_Layout.cshtml"));
@@ -157,8 +157,8 @@ public sealed class DashboardRouteTests
 
         Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Resumen operativo" && action.Page == "/Reports/Dashboard/Index");
         Assert.Contains(ModuleNavigationTestSupport.Actions(), action => action.Title == "Pendientes" && action.RouteValues["view"] == "pending");
-        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Tablero diario");
-        Assert.Contains(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Carga de trabajo");
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Tablero diario");
+        Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Title == "Carga de trabajo");
         Assert.Contains("asp-page=\"/Reports/Dashboard/Index\">@CatTexts[\"Hoy\"]</a>", summaryNavigation, StringComparison.Ordinal);
         Assert.Contains("asp-page=\"/Reports/Executive/Index\">@CatTexts[\"Gestión\"]</a>", summaryNavigation, StringComparison.Ordinal);
         Assert.Contains("asp-route-view=\"activity\">@CatTexts[\"Equipo\"]</a>", summaryNavigation, StringComparison.Ordinal);

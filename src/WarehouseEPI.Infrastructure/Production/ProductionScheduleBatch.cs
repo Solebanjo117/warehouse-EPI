@@ -13,8 +13,8 @@ public sealed partial class ProductionDailyScheduleService
     {
         if (!await IsAdminAsync(command.ActorUserId, token))
             return Invalid("La programación requiere un usuario ADMIN autenticado.");
-        if (command.Lines is not { Count: > 0 and <= 100 })
-            return Invalid("Agrega entre 1 y 100 renglones antes de confirmar.");
+        if (command.Lines is not { Count: > 0 })
+            return Invalid("Agrega al menos un renglón antes de confirmar.");
 
         var fingerprint = Fingerprint(command with { AdminPin = "" });
         var prior = await db.ProductionScheduleRevisions.AsNoTracking()

@@ -31,6 +31,7 @@ public sealed class ScheduleImportModel(
     [BindProperty(SupportsGet = true)] public int EvidencePage { get; set; } = 1;
     [BindProperty] public OpeningInput Opening { get; set; } = new();
     [BindProperty] public string? ClosingTable { get; set; }
+    [BindProperty] public bool ReplaceProgramming { get; set; }
     public ProductionImportDraftView? Draft { get; private set; }
     public Guid? CreatedWeekId { get; private set; }
     public IReadOnlyList<ProductionImportDraftSummary> SavedDrafts { get; private set; } = [];
@@ -110,7 +111,8 @@ public sealed class ScheduleImportModel(
         ModelState.Clear();
         var draft = await EditableAsync(token);
         if (draft is null) return await ValidateAsync(token);
-        AddRevisionResult(await drafts.ReviseAsync(PreviewToken, ExpectedRevision, Actor(), ProductionScheduleImportResolutions.None, token: token));
+        AddRevisionResult(await drafts.ReviseAsync(PreviewToken, ExpectedRevision, Actor(),
+            ProductionScheduleImportResolutions.None with { ReplaceProgramming = draft.Resolutions.ReplaceProgramming }, token: token));
         return await ValidateAsync(token);
     }
 
@@ -120,7 +122,10 @@ public sealed class ScheduleImportModel(
         var result = await drafts.ConfirmAsync(new(PreviewToken, ExpectedRevision, Fingerprint, OperationId, Actor()), token);
         if (result.Success)
         {
-            TempData["Success"] = texts["Histórico importado como solo lectura y semana actual creada en borrador con arrastre de apertura."].Value;
+            var confirmed = await drafts.GetAsync(PreviewToken, Actor(), token);
+            TempData["Success"] = texts[confirmed?.Preview.ReplaceProgramming == true
+                ? "Programación reemplazada. Se conservaron las capturas, los arrastres y el historial."
+                : "Histórico importado como solo lectura y semana actual creada en borrador con arrastre de apertura."].Value;
             return RedirectToPage(new { PreviewToken, OnlyPending = false });
         }
         ModelState.AddModelError(string.Empty, result.Errors?.FirstOrDefault() ?? "No fue posible confirmar la importación.");
@@ -132,6 +137,17 @@ public sealed class ScheduleImportModel(
         ModelState.Clear();
         var draft = await EditableAsync(token);
         if (draft is not null) AddRevisionResult(await drafts.ReviseAsync(PreviewToken, ExpectedRevision, Actor(), draft.Resolutions, token: token));
+        return await ValidateAsync(token);
+    }
+
+    public async Task<IActionResult> OnPostModeAsync(CancellationToken token)
+    {
+        var replace = ReplaceProgramming;
+        ModelState.Clear();
+        var draft = await EditableAsync(token);
+        if (draft is not null)
+            AddRevisionResult(await drafts.ReviseAsync(PreviewToken, ExpectedRevision, Actor(),
+                draft.Resolutions with { ReplaceProgramming = replace }, token: token));
         return await ValidateAsync(token);
     }
 
@@ -251,6 +267,7 @@ public sealed class ScheduleImportModel(
         ModelState.Remove(nameof(ExpectedRevision));
         ModelState.Remove(nameof(Fingerprint));
         Applied = resolutions;
+        ReplaceProgramming = resolutions.ReplaceProgramming;
         Preview = Draft.Preview;
         if (Draft.Status == ProductionImportDraftStatus.Confirmed)
             CreatedWeekId = await db.ProductionScheduleWeeks.AsNoTracking()
@@ -332,7 +349,7 @@ public sealed class ScheduleImportModel(
             else if (fix.Quantity.HasValue || fix.Date.HasValue) rows[(sheet, table, row)] = new(sheet, table, row, false, fix.Quantity, fix.Date);
         }
         // Changes to source interpretation invalidate the previously accepted physical opening.
-        return new(areas, shifts, products, rows.Values.ToArray()) { ClosingTable = current.ClosingTable };
+        return current with { Areas = areas, Shifts = shifts, Products = products, Rows = rows.Values.ToArray(), Opening = [] };
     }
 
     // Sheet goes last because worksheet names may contain the separator.

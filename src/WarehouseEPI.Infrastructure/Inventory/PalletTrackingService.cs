@@ -399,7 +399,8 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
     public async Task<InventoryMovementResult> ActivateAsync(PalletActivationCommand command, CancellationToken token = default)
     {
         var user = await pins.AuthenticateAsync(command.Pin, token);
-        if (user is null || user.Role.Code is not ("ADMIN" or "OPERATOR")) return new(InventoryMovementStatus.InvalidPin);
+        if (user is null) return new(InventoryMovementStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(InventoryMovementStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var fingerprint = Fingerprint(command with { Pin = user.Id.ToString() });
         var prior = await db.PalletPlateEvents.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId && x.Kind == "Activation", token);
         if (prior is not null) return prior.Fingerprint == fingerprint ? new(InventoryMovementStatus.Success, command.MovementId) : new(InventoryMovementStatus.IdempotencyConflict);

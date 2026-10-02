@@ -85,7 +85,7 @@ public sealed class ProductionWeeklySummaryTests
         Assert.Equal(501, row.Cutting.Completed);
         Assert.Equal(49, row.Cutting.Pending);
         Assert.Equal(3, row.Sewing.Opening);
-        Assert.Equal(504, row.Sewing.Pending);
+        Assert.Equal(553, row.Sewing.Pending); // 550 planned + 3 opening, independent of cutting output.
         Assert.Equal(501, row.Days.Sum(x => x.Shifts.Sum(s => s.Quantity)));
         Assert.Equal(251, row.Days[0].Shifts.Single(x => x.ShiftId == config.Shift1Id).Quantity);
         Assert.Equal(2, Assert.Single(row.Intentions).Quantity);
@@ -120,27 +120,27 @@ public sealed class ProductionWeeklySummaryTests
         Assert.Equal(600m, sheet.Cell(5, 3).GetValue<decimal>());
         Assert.Equal(row.Cutting.Completed, sheet.Cell(5, 5).GetValue<decimal>());
         Assert.Equal(row.Cutting.Pending, sheet.Cell(5, 6).GetValue<decimal>());
-        Assert.Equal(3m, sheet.Cell(5, 9).GetValue<decimal>());
+        Assert.Equal(3m, sheet.Cell(5, 8).GetValue<decimal>());
         Assert.Equal(summary.Through.ToDateTime(TimeOnly.MinValue), sheet.Cell(2, 4).GetDateTime());
         var pendingSheet = workbook.Worksheet("Pendiente proxima semana");
         Assert.Equal(week.WeekEnd.ToDateTime(TimeOnly.MinValue), pendingSheet.Cell(2, 1).GetDateTime());
-        Assert.Equal(50m, pendingSheet.Cell(5, 3).GetValue<decimal>());
-        Assert.Equal(97m, pendingSheet.Cell(5, 8).GetValue<decimal>());
+        Assert.Equal(50m, pendingSheet.Cell(5, 2).GetValue<decimal>());
+        Assert.Equal(97m, pendingSheet.Cell(5, 7).GetValue<decimal>());
         var completionSheet = workbook.Worksheet("Cumplimiento semanal");
         var shiftSheet = workbook.Worksheet("Comparacion de turnos");
-        Assert.Equal("Corte", shiftSheet.Cell(6, 2).GetString());
-        Assert.Equal(252m, shiftSheet.Cell(6, 3).GetValue<decimal>());
-        Assert.Equal(251m, shiftSheet.Cell(6, 4).GetValue<decimal>());
-        Assert.InRange(shiftSheet.Cell(6, 6).GetValue<decimal>(), 0.50099m, 0.50101m);
-        Assert.Equal("—", shiftSheet.Cell(7, 6).GetString());
+        Assert.Equal("Corte", shiftSheet.Cell(6, 1).GetString());
+        Assert.Equal(252m, shiftSheet.Cell(6, 2).GetValue<decimal>());
+        Assert.Equal(251m, shiftSheet.Cell(6, 3).GetValue<decimal>());
+        Assert.InRange(shiftSheet.Cell(6, 5).GetValue<decimal>(), 0.50099m, 0.50101m);
+        Assert.Equal("—", shiftSheet.Cell(7, 5).GetString());
         var partSummarySheet = workbook.Worksheet("Resumen produccion semanal");
-        Assert.Equal(600m, partSummarySheet.Cell(5, 3).GetValue<decimal>());
-        Assert.Equal(503m, partSummarySheet.Cell(5, 4).GetValue<decimal>());
-        Assert.Equal("Ready to Pack completado", partSummarySheet.Cell(4, 6).GetString());
-        Assert.True(partSummarySheet.Cell(4, 7).IsEmpty());
-        Assert.Equal(600m, completionSheet.Cell(5, 3).GetValue<decimal>());
-        Assert.Equal(503m, completionSheet.Cell(5, 4).GetValue<decimal>());
-        Assert.InRange(completionSheet.Cell(5, 5).GetValue<decimal>(), 0.838333333333m, 0.838333333334m);
+        Assert.Equal(600m, partSummarySheet.Cell(5, 2).GetValue<decimal>());
+        Assert.Equal(503m, partSummarySheet.Cell(5, 3).GetValue<decimal>());
+        Assert.Equal("Ready to Pack completado", partSummarySheet.Cell(4, 5).GetString());
+        Assert.True(partSummarySheet.Cell(4, 6).IsEmpty());
+        Assert.Equal(600m, completionSheet.Cell(5, 2).GetValue<decimal>());
+        Assert.Equal(503m, completionSheet.Cell(5, 3).GetValue<decimal>());
+        Assert.InRange(completionSheet.Cell(5, 4).GetValue<decimal>(), 0.838333333333m, 0.838333333334m);
         var planSheet = workbook.Worksheet("Resumen del programa");
         Assert.Equal(50m, planSheet.Cell(10, 4).GetValue<decimal>());
         Assert.Equal(1, planSheet.Cell(10, 7).GetValue<int>());
@@ -156,16 +156,16 @@ public sealed class ProductionWeeklySummaryTests
         Assert.Equal(251, monday.Cutting.CompletedShift1);
         Assert.Equal(250, monday.Cutting.CompletedShift2);
         Assert.Equal(299, monday.Cutting.PendingAfterShift1);
-        Assert.Equal(254, monday.Sewing.PendingAfterShift1);
+        Assert.Equal(553, monday.Sewing.PendingAfterShift1);
         Assert.Equal(3, monday.Sewing.Opening);
-        Assert.Equal(504, monday.Sewing.Pending);
+        Assert.Equal(553, monday.Sewing.Pending);
         var tuesday = Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart.AddDays(1))))!.Products);
         Assert.Equal(0, tuesday.Planned);
         Assert.Equal(0, tuesday.Cutting.Completed);
         Assert.Equal(0, tuesday.Cutting.CompletedShift1);
         Assert.Equal(0, tuesday.Cutting.CompletedShift2);
         Assert.Equal(49, tuesday.Cutting.Opening);
-        Assert.Equal(504, tuesday.Sewing.Opening);
+        Assert.Equal(553, tuesday.Sewing.Opening);
         Assert.Empty(tuesday.Intentions);
         var saturday = Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekEnd)))!.Products);
         Assert.Equal(50, saturday.Planned);
@@ -176,9 +176,9 @@ public sealed class ProductionWeeklySummaryTests
         Assert.Equal(97, saturday.Cutting.Pending);
         var dailySheet = workbook.Worksheet("Balance diario");
         using var mondayBook = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, service).ExportAsync(week.Id, new ProductionWeeklyFilter(week.WeekStart)))!));
-        Assert.Equal(251m, mondayBook.Worksheet("Balance diario").Cell(5, 9).GetValue<decimal>());
-        Assert.Equal(250m, mondayBook.Worksheet("Balance diario").Cell(5, 10).GetValue<decimal>());
-        Assert.Equal(299m, mondayBook.Worksheet("Balance diario").Cell(5, 11).GetValue<decimal>());
+        Assert.Equal(251m, mondayBook.Worksheet("Balance diario").Cell(5, 8).GetValue<decimal>());
+        Assert.Equal(250m, mondayBook.Worksheet("Balance diario").Cell(5, 9).GetValue<decimal>());
+        Assert.Equal(299m, mondayBook.Worksheet("Balance diario").Cell(5, 10).GetValue<decimal>());
         Assert.Equal(0m, dailySheet.Cell(5, 2).GetValue<decimal>());
         Assert.Equal(49m, dailySheet.Cell(5, 3).GetValue<decimal>());
         Assert.Equal(0m, dailySheet.Cell(5, 4).GetValue<decimal>());
@@ -190,9 +190,9 @@ public sealed class ProductionWeeklySummaryTests
         await db.SaveChangesAsync();
         Assert.Equal(3, Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart)))!.Products).Sewing.Opening);
         var wednesday = Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart.AddDays(2))))!.Products);
-        Assert.Equal(511, wednesday.Sewing.Opening);
-        Assert.Equal(511, wednesday.Sewing.Pending);
-        Assert.Equal(511, Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart.AddDays(3))))!.Products).Sewing.Opening);
+        Assert.Equal(560, wednesday.Sewing.Opening);
+        Assert.Equal(560, wednesday.Sewing.Pending);
+        Assert.Equal(560, Assert.Single((await service.GetDailySummaryAsync(week.Id, new(week.WeekStart.AddDays(3))))!.Products).Sewing.Opening);
         await VerifyLookupAsync(db, week, product, actor);
 
         var box = new Product { Sku = "BX-CLOSE", BaseUnitId = 2 };
@@ -208,25 +208,27 @@ public sealed class ProductionWeeklySummaryTests
                 Origin = ProductionScheduleOrigin.ExcelImport });
         await db.SaveChangesAsync();
         var mixedClose = (await service.GetWeekCloseAsync(week.Id, new(week.WeekStart)))!;
-        Assert.Equal(2, mixedClose.Totals.Count);
+        Assert.Single(mixedClose.Totals);
         Assert.Equal(1.2m, mixedClose.Products.Single(x => x.ProductId == box.Id)
             .Cutting.CompletionRatio(10));
         Assert.Null(mixedClose.Products.Single(x => x.ProductId == noPlan.Id)
             .Cutting.CompletionRatio(0));
-        Assert.Equal(10m, mixedClose.Totals.Single(x => x.Unit == "BX").WeeklyPlan);
-        Assert.Equal(12m, mixedClose.Totals.Single(x => x.Unit == "BX").Cutting.Completed);
+        Assert.Equal(632m, Assert.Single(mixedClose.Totals).WeeklyPlan);
+        Assert.Equal(519m, Assert.Single(mixedClose.Totals).Cutting.Completed);
         Assert.Equal(632m, mixedClose.SummaryTotal.WeeklyPlan);
         Assert.Equal(519m, mixedClose.SummaryTotal.Cutting);
-        Assert.Equal(2, mixedClose.ShiftComparison.Count);
-        Assert.Equal(12m, mixedClose.ShiftComparison.Single(x => x.Unit == "BX").Total);
-        Assert.Equal(0m, mixedClose.ShiftComparison.Single(x => x.Unit == "BX").Shift2);
+        Assert.Single(mixedClose.ShiftComparison);
+        Assert.Equal(519m, Assert.Single(mixedClose.ShiftComparison).Areas.Single(x => x.Area == ProductionDailyArea.Cutting).Total);
+        Assert.Equal(3, Assert.Single(mixedClose.ShiftComparison).Areas.Count);
         using var mixedWorkbook = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, service)
             .ExportAsync(week.Id, new ProductionWeeklyFilter(week.WeekStart)))!));
         var mixedSummary = mixedWorkbook.Worksheet("Resumen produccion semanal");
+        foreach (var name in new[] { "Pendiente proxima semana", "Resumen produccion semanal", "Cumplimiento semanal", "Comparacion de turnos" })
+            Assert.DoesNotContain(mixedWorkbook.Worksheet(name).CellsUsed(), cell => cell.GetString() == "Unidad");
         var totalRow = Assert.Single(mixedSummary.RowsUsed(), x => x.Cell(1).GetString() == "Total filtrado");
-        Assert.True(totalRow.Cell(2).IsEmpty());
-        Assert.Equal(632m, totalRow.Cell(3).GetValue<decimal>());
-        Assert.Equal(519m, totalRow.Cell(4).GetValue<decimal>());
+
+        Assert.Equal(632m, totalRow.Cell(2).GetValue<decimal>());
+        Assert.Equal(519m, totalRow.Cell(3).GetValue<decimal>());
         db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id,
             Area = ProductionDailyArea.ReadyToPack, StageId = config.ReadyToPackStageId!.Value,
             ShiftId = config.Shift1Id!.Value, Quantity = 30, EffectiveDate = week.WeekStart,
@@ -245,7 +247,7 @@ public sealed class ProductionWeeklySummaryTests
             ReversedByUserId = actor.Id, ReversedAt = DateTimeOffset.UtcNow, ReverseReason = "Test" });
         await db.SaveChangesAsync();
         var withReadyToPack = (await service.GetWeekCloseAsync(week.Id, new(week.WeekStart)))!;
-        var ready = withReadyToPack.ShiftComparison.Single(x => x.Unit == "EA").Areas
+        var ready = Assert.Single(withReadyToPack.ShiftComparison).Areas
             .Single(x => x.Area == ProductionDailyArea.ReadyToPack);
         Assert.Equal(30m, ready.Shift1);
         Assert.Equal(10m, ready.Shift2);
@@ -255,13 +257,13 @@ public sealed class ProductionWeeklySummaryTests
         Assert.Equal(40m / 550m, status.StatusRatio);
         using var withReadyExport = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, service)
              .ExportAsync(week.Id, new ProductionWeeklyFilter(week.WeekStart)))!));
-        Assert.Equal("Status %", withReadyExport.Worksheet("Balance diario").Cell(4, 30).GetString());
+        Assert.Equal("Status %", withReadyExport.Worksheet("Balance diario").Cell(4, 27).GetString());
         var exportedStatusRow = Assert.Single(withReadyExport.Worksheet("Balance diario").RowsUsed(),
             x => x.Cell(1).GetString() == "ZZ-WEEK");
-        Assert.InRange(exportedStatusRow.Cell(30).GetValue<decimal>(), 0.0727m, 0.0728m);
+        Assert.InRange(exportedStatusRow.Cell(27).GetValue<decimal>(), 0.0727m, 0.0728m);
         var exportedReadyRow = Assert.Single(withReadyExport.Worksheet("Comparacion de turnos").RowsUsed(),
-            x => x.Cell(1).GetString() == "EA" && x.Cell(2).GetString() == "Ready to Pack");
-        Assert.Equal(40m, exportedReadyRow.Cell(5).GetValue<decimal>());
+            x => x.Cell(1).GetString() == "Ready to Pack");
+        Assert.Equal(40m, exportedReadyRow.Cell(4).GetValue<decimal>());
     }
 
     private static async Task VerifyLookupAsync(WarehouseDbContext db, ProductionScheduleWeek week, Product planned, User actor)

@@ -1,41 +1,47 @@
-# Arrastre explícito por semana
+# Arrastre inicial por SKU y área
 
-## Operación
+En Programa semanal, cada SKU tiene un único total inicial para Corte, Costura y Ready to Pack. Las tres áreas se pueden editar en cualquier semana no cerrada, incluidas las importadas, aunque no exista semana anterior, el origen no tenga pendientes o el total sea cero. Las cantidades son no negativas y respetan la unidad y la precisión de cuatro decimales. Las áreas no se suman entre sí.
 
-En **Programa semanal → Arrastre inicial**, selecciona las cantidades de pendientes anteriores que entrarán al lunes. La selección empieza vacía. Cada fila identifica SKU, unidad, semana y renglón de origen; Corte, Costura y Ready to Pack se capturan por separado. No se suman áreas porque pueden representar trabajo pendiente sobre las mismas piezas.
+## Preparación y copia
 
-En borrador, las selecciones se revisan y guardan junto con el programa nuevo. Cada selección modificada de origen/área cuenta como un cambio del máximo de 100. El grupo completo usa una transacción serializable y un identificador idempotente. Deshacer recupera la selección guardada; cero la retira. Al copiar otra semana se pueden preparar sus productos, sus pendientes de arrastre o ambos: cada SKU de arrastre se elige por separado y comienza con todo el disponible por origen/área, editable antes de incorporar. Una semana origen en borrador solo aporta productos. Las selecciones existentes se conservan. La preparación local está separada por usuario y semana y nunca guarda el NIP.
+Buscar un SKU o copiar productos lo incorpora a la misma tabla de planeación. Si hay varios pedidos del mismo SKU, el arrastre se edita una sola vez en su fila principal. También aparecen productos que tienen solamente arrastre, sin programación nueva.
 
-Una semana abierta permite corregir la selección con ADMIN, NIP de la sesión y motivo. La revisión muestra saldo inicial y cierre antes/después. No se pueden retirar cantidades consumidas (incluidas capturas por conciliar) o comprometidas en semanas posteriores. Las semanas cerradas son de consulta. Los orígenes abiertos se identifican como provisionales.
+Copiar semana y marcar Traer arrastre precarga el pendiente de trabajo por área de la semana seleccionada. Los saldos negativos aportan una sugerencia de cero. La cantidad escrita sustituye el total del área y puede superar la sugerencia. Repetir la copia conserva cantidades ya editadas, incluyendo ceros; un total previamente guardado tampoco se sustituye por otra precarga. No se dividen cantidades entre copiado y manual.
 
-## Cálculo
+Los controles para incluir arrastre por producto y Traer arrastre permiten excluir sugerencias de la copia conservando los valores preparados. Los tres campos permanecen editables, también al copiar solo productos. Escribir manualmente un área incluye su total en el guardado y lo protege frente a exclusiones o copias posteriores; las sugerencias no editadas mantienen sus exclusiones. La recuperación conserva esta distinción y los ceros. En preparaciones anteriores sin esta información, se conservan los valores incluidos y las exclusiones explícitas hasta editar el área. La recuperación local conserva cantidades, ceros y selecciones por usuario y semana; no guarda el NIP. Las preparaciones del contrato anterior se recuperan consolidando sus renglones de origen por SKU y área.
 
-La modalidad explícita mide **trabajo pendiente**, separado de la disponibilidad física:
+Se puede guardar solamente arrastre. Cada área modificada cuenta como un cambio junto con los cambios de programación, sin el antiguo límite conjunto de 100. Los cambios de una semana abierta requieren motivo, revisión y NIP ADMIN correspondiente a la sesión. Borradores mantienen sus permisos existentes y las semanas cerradas son de consulta.
 
-`saldo del área = arrastre admitido del área + programación acumulada aplicable − capturas efectivas acumuladas de la semana`.
+## Total definitivo y balance
 
-Programar 100 piezas genera 100 pendientes en cada proceso aplicable a la ruta. No exige haber capturado Corte para mostrar trabajo pendiente en Costura. El saldo conserva el signo para no contar nuevamente capturas adelantadas al cambiar de día; los pendientes positivos, adelantos y extras se identifican por separado. T1 y T2 se calculan con sus propios cortes. Los reversos no cuentan como producción efectiva.
+La tabla production_initial_balances conserva cantidad absoluta y versión, con clave única por semana, producto y área. El cero se guarda explícitamente. Si hay un registro, su cantidad es el total definitivo; las admisiones antiguas y las aperturas importadas de otras fechas no se vuelven a sumar a esa área. Sin registro, los históricos conservan su cálculo anterior hasta su primera edición.
 
-La captura materializa únicamente órdenes propias o raíces admitidas por área; los extras y registros por conciliar conservan su flujo existente. Incorporar arrastre no crea otra orden ni producción o movimientos de inventario. Las reservas para semanas posteriores no están disponibles para consumirlas silenciosamente en el origen.
+Saldo firmado del área = total inicial + programación nueva acumulada aplicable − producción efectiva acumulada de la semana.
 
-Tabla y balance, revisión de cambios, cierre y exportación comparten el cálculo. La exportación añade **Arrastre inicial**, con origen e identificador de renglón y versión revisada. Los totales permanecen separados por unidad y área.
+La corrección permite reducir el total por debajo de lo producido o de compromisos posteriores. Conserva las capturas y muestra la diferencia con el saldo firmado, adelantos y extras existentes. Los reversos no cuentan como producción efectiva. Programa, balance diario y semanal, indicadores, cierre y exportaciones consumen el mismo total. Las copias futuras toman el pendiente resultante de la semana corregida.
 
-## Persistencia y compatibilidad
+Editar arrastre modifica planeación; no crea órdenes, capturas ni movimientos de inventario. Los vínculos históricos de production_week_openings y las asignaciones físicas permanecen para trazabilidad y conciliación. La disponibilidad física se calcula por separado y no se inventa a partir del total inicial.
 
-La migración `20260924144853_ExplicitWeeklyCarryover` incorpora `production_schedule_weeks.explicit_carryover` y `production_week_openings`. Cada admisión conserva semana destino, semana origen, renglón raíz, producto, área, cantidad, huella de disponibilidad y versión. Las revisiones existentes auditan guardados y correcciones (`opening-corrected`).
+El guardado es transaccional e idempotente, con versiones de semana y área y auditoría de cantidades antes/después, incluido el valor calculado antes de la primera edición. Un conflicto conserva la preparación y exige actualizar y revisar. Los reintentos de contratos anteriores conservan su huella idempotente.
 
-Las semanas creadas desde Programa semanal usan la modalidad explícita. La migración convierte semanas manuales no cerradas sin capturas ni actividad de producción vinculada. Conserva la modalidad anterior en históricos importados, semanas cerradas y semanas con actividad, incluidos reversos. Las antiguas intenciones de `production_carryover_plans` permanecen como evidencia: no se convierten en saldos iniciales ni se muestran como seleccionadas en la modalidad nueva.
+## Exportación
 
-Se revalidan disponibilidad y versiones al guardar, publicar y capturar. Un cambio en el origen exige revisar; no se reduce ni sustituye automáticamente la selección. Una operación con respuesta incierta se comprueba o reintenta con el mismo identificador antes de habilitar otra confirmación.
+La hoja Arrastre inicial incluye una fila por SKU y área, unidad, cantidad definitiva y versión, incluyendo ceros. Las hojas de balance y cierre muestran el saldo corregido. Las líneas y aperturas importadas conservadas en el programa original son evidencia histórica; no incrementan el total definitivo ni representan existencias nuevas.
 
-## Referencia del Excel
+## Migración
 
-Se revisó `Production Schedule Report 2026.xlsx`, hoja `09-21 TO 09-27`, estructura `T6:AK7`: programación nueva, apertura por área, producción por turno y pendientes. Las fórmulas de continuidad pertenecen a la misma hoja/semana; no autorizan trasladar automáticamente otra semana. El archivo se usó como referencia y no se modificó ni importaron sus anotaciones ambiguas.
+La migración 20261001173021_EditableInitialCarryover crea production_initial_balances y consolida las admisiones explícitas existentes de semanas no cerradas por semana, producto y área. No duplica cantidades, elimina vínculos ni modifica semanas cerradas. Los históricos sin admisión explícita mantienen el cálculo previo hasta su primera edición.
+
+La migración está preparada para revisión y fue comprobada en PostgreSQL aislado. No se aplica a la base operativa ni se publica, inicia o reinicia la aplicación operativa como parte de esta modificación.
 
 ## Verificación
 
-Las pruebas `ProductionExplicitCarryoverTests` cubren selección 40 de 152, independencia entre áreas, cero sin selección, reintentos, correcciones, consumo, balance diario/cierre/exportación, capturas por conciliar y límite combinado de 100/101. El escenario se ejecuta también en PostgreSQL aislado mediante `ProductionBalanceEditPostgreSqlTests`. Las regresiones de modalidad anterior usan fixtures explícitamente históricos.
+ProductionInitialBalanceTests y ProductionInitialBalancePostgreSqlTests cubren semanas nuevas, borradores, abiertas e importadas; guardado sin programación ni origen; cero persistente; cantidades superiores a sugerencias; decimales por unidad; independencia de áreas; saldo inferior a lo producido; aperturas históricas con distintas fechas; versiones; límites; reintentos anteriores; consolidación de migración; concurrencia y rollback. ProductionInitialBalanceRouteTests comprueba ADMIN, revisión, NIP, SKU con varios pedidos y copias desde saldo cero.
 
-Las pruebas JavaScript de `production-week-openings.test.cjs` cubren selección, deshacer, decimales, recuperación, cambios en origen y respuesta perdida sin almacenar NIP. La validación física con tablet Android, teclado abierto y escáner se realiza por separado y no se sustituye por estas pruebas.
+production-initial-balances.test.cjs cubre precisión, copia repetida, recuperación y consolidación de preparaciones anteriores. production-initial-balances.browser.cjs usa fixtures y solicitudes interceptadas, sin servidor operativo: edición y recuperación, un total por área, Enter y foco, consulta de semana cerrada y tamaños 768/899/900/1199/1200/1440 en temas claro, oscuro y sistema. La validación física de tablets y escáner sigue siendo una comprobación separada.
 
-La migración debe aplicarse con el procedimiento normal de despliegue antes de usar el código nuevo. Las pruebas no aplican migraciones a la base operativa.
+## Antecedentes
+
+La migración 20260924144853_ExplicitWeeklyCarryover introdujo admisiones por origen. Ese modelo mantiene los vínculos físicos y la compatibilidad de los endpoints anteriores; sus restricciones de origen no limitan los nuevos totales editables.
+
+El archivo Production Schedule Report 2026.xlsx se usó como referencia histórica de programación, apertura por área, producción por turno y pendientes. No se modificó ni se importaron sus anotaciones ambiguas.

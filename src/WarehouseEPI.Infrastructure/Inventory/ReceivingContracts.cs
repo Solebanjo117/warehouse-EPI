@@ -42,7 +42,8 @@ public enum ReceivingCommandStatus
     RequiresLocationSharingConfirmation,
     BalanceChanged,
     ConcurrencyConflict,
-    IdempotencyConflict
+    IdempotencyConflict,
+    RoleNotAllowed
 }
 
 public sealed record ReceivingCommandResult(

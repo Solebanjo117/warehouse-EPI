@@ -17,6 +17,91 @@ public sealed class ProductionScheduleImportRouteTests
 {
     private const string Page = "/Admin/Production/ScheduleImport";
 
+    [Fact]
+    public async Task Replacement_review_lists_retained_off_program_lines_and_confirms_them()
+    {
+        using var original = new AdminRouteTests.WarehouseApplicationFactory();
+        using var factory = original.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
+            config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        Guid draftId, lineId;
+        string sku;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            var setup = await ProductionDailyFlexibleTests.SeedAsync(db, weekStart: new(2026, 9, 28));
+            await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(setup.User, "0123");
+            await db.SaveChangesAsync();
+            sku = setup.Product.Sku;
+            lineId = await db.ProductionScheduleLines.Where(x => x.WeekId == setup.Week.Id).Select(x => x.Id).SingleAsync();
+            using var file = ProductionImportLinkedReplacementTests.File((setup.Date, "FG-100", 15));
+            draftId = await scope.ServiceProvider.GetRequiredService<ProductionImportDraftService>().CreateAsync("replacement.xlsx", file.ToArray(), setup.User.Id);
+        }
+        var html = await client.GetStringAsync("/Admin/Login");
+        Assert.Equal(HttpStatusCode.Redirect, (await Post(client, "/Admin/Login", html, new() { ["Input.Pin"] = "0123" })).StatusCode);
+        html = await Html(await client.GetAsync(Page + "?PreviewToken=" + draftId));
+        html = await Html(await Post(client, Page + "?handler=Mode", html, new() { ["PreviewToken"] = draftId.ToString(), ["ReplaceProgramming"] = "true" }));
+        Assert.Contains("data-import-off-program", html, StringComparison.Ordinal);
+        Assert.Contains("Producción conservada fuera del programa", html, StringComparison.Ordinal);
+        Assert.Contains(sku, html, StringComparison.Ordinal);
+        Assert.Contains("Confirmar reemplazo de programación", html, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.Redirect, (await Post(client, Page + "?handler=Confirm", html,
+            new() { ["PreviewToken"] = draftId.ToString(), ["OperationId"] = Guid.NewGuid().ToString() })).StatusCode);
+        using var check = factory.Services.CreateScope();
+        var context = check.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        var line = await context.ProductionScheduleLines.Include(x => x.WorkOrder).SingleAsync(x => x.Id == lineId);
+        Assert.True(line.IsExtra); Assert.False(line.IsCancelled);
+        Assert.NotEqual(ProductionWorkOrderStatus.Cancelled, line.WorkOrder!.Status);
+    }
+
+    [Fact]
+    public async Task Replacement_mode_requires_saved_review_and_preserves_existing_captures()
+    {
+        using var original = new AdminRouteTests.WarehouseApplicationFactory();
+        using var factory = original.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
+            config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        Guid draftId;
+        int captures;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+            await ProductionDailyModuleTests.SeedImportCatalogAsync(db);
+            var user = new User { FullName = "Replacement admin", RoleId = (await db.Roles.SingleAsync(x => x.Code == "ADMIN")).Id, PinLookup = "", PinHash = "" };
+            await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(user, "0123");
+            db.Add(user); await db.SaveChangesAsync();
+            var importer = scope.ServiceProvider.GetRequiredService<ProductionScheduleImportService>();
+            var bytes = ProductionOpeningImportTests.Bytes();
+            var preview = await importer.PreviewAsync(new MemoryStream(bytes), "file.xlsx");
+            Assert.True((await importer.ConfirmAsync(preview, Guid.NewGuid(), user.Id)).Success);
+            captures = await db.ProductionDailyCaptures.CountAsync();
+            draftId = await scope.ServiceProvider.GetRequiredService<ProductionImportDraftService>().CreateAsync("file.xlsx", bytes, user.Id);
+        }
+        var html = await client.GetStringAsync("/Admin/Login");
+        Assert.Equal(HttpStatusCode.Redirect, (await Post(client, "/Admin/Login", html, new() { ["Input.Pin"] = "0123" })).StatusCode);
+        html = await Html(await client.GetAsync(Page + "?PreviewToken=" + draftId));
+        Assert.DoesNotContain("data-import-replacement", html, StringComparison.Ordinal);
+        // Posting a mode value to Confirm cannot bypass the saved review.
+        html = await Html(await Post(client, Page + "?handler=Confirm", html, new() {
+            ["PreviewToken"] = draftId.ToString(), ["ReplaceProgramming"] = "true", ["OperationId"] = Guid.NewGuid().ToString() }));
+        Assert.DoesNotContain("data-import-replacement", html, StringComparison.Ordinal);
+        html = await Html(await Post(client, Page + "?handler=Mode", html, new() {
+            ["PreviewToken"] = draftId.ToString(), ["ReplaceProgramming"] = "true" }));
+        Assert.Contains("data-import-replacement", html, StringComparison.Ordinal);
+        Assert.Contains("Confirmar reemplazo de programación", html, StringComparison.Ordinal);
+        Assert.Contains("Capturas conservadas", html, StringComparison.Ordinal);
+        var fields = new Dictionary<string, string> { ["PreviewToken"] = draftId.ToString(), ["OperationId"] = Guid.NewGuid().ToString() };
+        Assert.Equal(HttpStatusCode.Redirect, (await Post(client, Page + "?handler=Confirm", html, fields)).StatusCode);
+        Assert.Equal(HttpStatusCode.Redirect, (await Post(client, Page + "?handler=Confirm", html, fields)).StatusCode);
+        html = await Html(await client.GetAsync(Page + "?PreviewToken=" + draftId));
+        Assert.Contains("Programación reemplazada.", html, StringComparison.Ordinal);
+        using var check = factory.Services.CreateScope();
+        var context = check.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        Assert.Equal(captures, await context.ProductionDailyCaptures.CountAsync());
+        Assert.Equal(5, await context.ProductionScheduleRevisions.CountAsync(x => x.Action == "programming-replaced"));
+        Assert.Equal(1, await context.ProductionScheduleImportBatches.CountAsync());
+    }
+
     [Theory]
     [InlineData("es", "El cierre contiene pendientes vacíos o no numéricos.")]
     [InlineData("en", "The closing contains blank or non-numeric pending quantities.")]

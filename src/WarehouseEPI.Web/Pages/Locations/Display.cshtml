@@ -1,71 +1,180 @@
 @page "/Locations/Display"
 @model WarehouseEPI.Web.Pages.Locations.DisplayModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@using System.Globalization
+@using WarehouseEPI.Web.Pages.Locations
 @{
-    ViewData["Title"] = "Exhibición de filas";
+    ViewData["Title"] = CatTexts["Exhibición de filas"].Value;
     Layout = Model.Play ? null : "_Layout";
+    var clientKeys = new[]
+    {
+        "Sigue el rack {0}", "Sigue la fila {0}", "Rack {0}",
+        "Fila {0} · Pantalla {1} de {2}", "Fila {0}, rack {1}, pantalla {2} de {3}",
+        "{0} de {1}", "Fila {0} · {1} {2}", "Rack", "Racks",
+        "Croquis del almacén con la fila {0} resaltada", "Pausado", "Reproduciendo", "Reanudar", "Pausar",
+        "No se pudo actualizar · se muestra la última consulta",
+        "No se pudo abrir la pantalla completa. Usa la opción del navegador.",
+        "Salir de pantalla completa", "Pantalla completa", "Selecciona al menos una fila.",
+        "Vista previa: {0}, {1} y croquis {2}.", "vertical", "horizontal", "un rack", "{0} racks", "al lado", "debajo",
+        "En vertical se muestra un rack para facilitar la lectura. La cantidad elegida se conserva para horizontal.",
+        "En vertical o en pantallas estrechas se muestra un rack. La cantidad elegida se conserva para horizontal.",
+        "Ubicación del monitor marcada.", "Sin ubicación del monitor.",
+        "Consultar rack {0}",
+        "Consultar área {0}",
+        "Buscar producto",
+        "Cerrar búsqueda",
+        "SKU, descripción, referencia o código de barras",
+        "Escribe o escanea para ver sugerencias.",
+        "Usa flechas y Enter para elegir.",
+        "Buscando productos…",
+        "Cargando ubicaciones…",
+        "Consultando ubicación…",
+        "No se encontraron productos. Prueba otro código o descripción.",
+        "Mostrando hasta cinco productos. Precisa la búsqueda si falta el que necesitas.",
+        "Selecciona un producto.",
+        "Sin ubicaciones con saldo ni asignaciones activas.",
+        "Con saldo",
+        "Asignado sin saldo",
+        "Producto inactivo",
+        "Ubicación no visible en el croquis",
+        "No se pudo consultar. Vuelve a intentarlo.",
+        "La ubicación ya no está disponible. Selecciona otra ubicación.",
+        "Coincidencias del producto",
+        "Consulta pausada",
+        "Ubicación seleccionada",
+        "Ubicaciones de {0}",
+        "Última consulta: {0}",
+        "Buscar",
+        "Bloqueada",
+        "Inactiva",
+        "Saldo negativo",
+        "Sin descripción"
+    };
+    var clientDictionary = System.Text.Json.JsonSerializer.Serialize(clientKeys.ToDictionary(key => key, key => ClientTexts[key].Value));
+    var firstSlide = Model.Slides.FirstOrDefault();
+    var splitLayout = Model.EffectiveRacksPerScreen == 1 && Model.ContextMap is not null && firstSlide is not null;
+
+    string AsNext(DisplaySlide slide) => CatTexts[slide.Racks.Count == 1 ? "Sigue el rack {0}" : "Siguen los racks {0}", slide.RacksLabel].Value;
+    string Upcoming(IReadOnlyList<DisplaySlide> slides)
+    {
+        if (slides.Count < 2) return "";
+        return slides[1].RowCode == slides[0].RowCode ? AsNext(slides[1]) : CatTexts["Sigue la fila {0}", slides[1].RowCode].Value;
+    }
+
+
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/location-display.css" asp-append-version="true" />
+}
+@section Scripts {
+    <script src="~/js/location-display-config.js" asp-append-version="true"></script>
 }
 @if (Model.Play)
 {
     <!DOCTYPE html>
-    <html lang="es">
+    <html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Exhibición de filas - Warehouse EPI</title>
+        <title>@CatTexts["Exhibición de filas"] - Warehouse EPI</title>
         <script src="~/js/theme-init.js" asp-append-version="true"></script>
         <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
         <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/location-display.css" asp-append-version="true" />
     </head>
-    <body class="location-display" data-location-display data-seconds="@Model.Seconds">
+    <body class="location-display" data-location-display data-ui-texts="@clientDictionary" data-seconds="@Model.Seconds" data-racks-per-screen="@Model.EffectiveRacksPerScreen"
+          data-display-orientation="@Model.Orientation" data-display-effective-orientation="@(Model.Orientation == "portrait" ? "portrait" : "landscape")"
+          data-display-grouped="@(Model.EffectiveRacksPerScreen > 1 ? "true" : "false")"
+          style="--display-seconds: @(Model.Seconds)s; --display-racks: @Model.EffectiveRacksPerScreen">
         <main class="display-shell">
-            <div class="display-topline">
-                <span class="display-brand">Warehouse EPI <span>· Exhibición de almacén</span></span>
-                <span class="display-updated" data-display-updated>Actualizado @Model.GeneratedAt.ToString("dd/MM/yyyy HH:mm:ss")</span>
-            </div>
-            <div class="display-stage">
-                <button type="button" class="display-swipe-control display-swipe-prev" data-display-prev aria-label="Pantalla anterior" title="Pantalla anterior"><span aria-hidden="true">‹</span></button>
-                <div data-display-slides>
+            <section class="display-search-panel" data-display-search-panel id="display-search-panel" hidden aria-labelledby="display-search-title">
+                <div class="d-flex justify-content-between gap-2"><h2 id="display-search-title" class="h4">@CatTexts["Buscar producto"]</h2><button type="button" class="btn btn-outline-secondary" data-display-search-close>@CatTexts["Cerrar búsqueda"]</button></div>
+                <form method="get" data-display-search-form>
+                    <div class="lookup-field">
+                        <label class="form-label" for="display-product-search">@CatTexts["SKU, descripción, referencia o código de barras"]</label>
+                        <div class="input-group input-group-lg"><input id="display-product-search" name="q" type="search" class="form-control" autocomplete="off" autocapitalize="characters" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="display-product-options" aria-describedby="display-search-status" data-display-search-input /><button type="submit" class="btn btn-primary">@CatTexts["Buscar"]</button></div>
+                        <div id="display-product-options" class="lookup-results list-group" role="listbox" data-display-product-options></div>
+                    </div>
+                </form>
+                <p id="display-search-status" class="form-text mb-0" role="status" aria-live="polite" data-display-search-status></p>
+                <div class="selected-record" data-display-selected-product hidden></div>
+                <div data-display-product-locations></div>
+            </section>
+            <div class="display-stage @(splitLayout ? "display-stage-split" : "")">
+                <div class="display-slides" data-display-slides>
                 @for (var i = 0; i < Model.Slides.Count; i++)
                 {
                     var slide = Model.Slides[i];
-                    <section class="display-slide" data-display-slide data-display-row="@slide.RowCode" data-display-part="@slide.Part" aria-label="Fila @slide.RowCode, parte @slide.Part de @slide.Parts" hidden="@(i != 0)">
+                    var rackWord = slide.Racks.Count == 1 ? "rack" : "racks";
+                    <section class="display-slide" data-display-slide data-display-row="@slide.RowCode" data-display-part="@slide.Part"
+                             data-display-racks="@string.Join(' ', slide.Racks.Select(rack => rack.Label))" data-display-as-next="@AsNext(slide)"
+                             aria-label="@CatTexts["Fila {0}, {1} {2}, pantalla {3} de {4}", slide.RowCode, rackWord, slide.RacksLabel, slide.Part, slide.Parts]" hidden="@(i != 0)">
                         <header class="display-heading">
-                            <div><p class="display-eyebrow">Inventario por ubicación</p><h1>Fila <strong>@slide.RowCode</strong></h1></div>
-                            <div class="display-heading-side"><span>@slide.RackCount racks · @slide.OccupiedLocations ubicaciones con saldo</span>@if(slide.Parts > 1){<span>Parte @slide.Part de @slide.Parts</span>}</div>
-                        </header>
-                        @if (slide.Stocks.Count == 0)
-                        {
-                            <div class="display-empty"><strong>Sin existencias en esta fila</strong><span>Las posiciones físicas de esta fila no tienen saldo actual.</span></div>
-                        }
-                        else
-                        {
-                            <div class="display-stock-grid">
-                                @foreach (var stock in slide.Stocks)
-                                {
-                                    <article class="display-stock @(stock.Quantity < 0 ? "display-stock-negative" : "")">
-                                        <div class="display-stock-location"><span>@stock.LocationCode</span><small>Rack @stock.RackNumber</small></div>
-                                        <div class="display-stock-product"><strong>@stock.Sku</strong></div>
-                                        <div class="display-stock-quantity"><strong>@stock.Quantity.ToString("0.####")</strong><span>@stock.Unit</span>@if(stock.Quantity < 0){<small>Saldo negativo</small>}</div>
-                                    </article>
-                                }
+                            <h1 class="display-sign" data-sign-length="@Math.Min(slide.RowCode.Length, 3)"><span class="visually-hidden">@CatTexts["Fila"] </span>@slide.RowCode</h1>
+                            <div class="display-heading-copy">
+                                <p class="display-heading-title">@slide.Title</p>
+                                <p class="display-heading-meta">@CatTexts["Fila {0} · Pantalla {1} de {2}", slide.RowCode, slide.Part, slide.Parts]</p>
+                                <p class="display-heading-meta">@CatTexts["{0} de {1} posiciones con saldo en la fila", slide.Row.OccupiedCount, slide.Row.PositionCount]</p>
                             </div>
-                        }
+                        </header>
+                        <div class="display-bay">
+                            <p class="display-bay-ends" aria-hidden="true">
+                                <span>@(slide.LeftNeighbor is null ? CatTexts["Extremo de la fila"].Value : "‹ " + slide.LeftNeighbor)</span>
+                                <span>@(slide.RightNeighbor is null ? CatTexts["Extremo de la fila"].Value : slide.RightNeighbor + " ›")</span>
+                            </p>
+                            <div class="display-racks">
+                            @foreach (var rack in slide.Racks)
+                            {
+                                <partial name="_DisplayRack" model="new DisplayRackView(rack, slide.Racks.Count > 1)" />
+                            }
+                            </div>
+                        </div>
                     </section>
                 }
                 </div>
-                <button type="button" class="display-swipe-control display-swipe-next" data-display-next aria-label="Pantalla siguiente" title="Pantalla siguiente"><span aria-hidden="true">›</span></button>
+                <div class="display-inspection" data-display-inspection hidden></div>
+                @if (Model.ContextMap is not null && firstSlide is not null)
+                {
+                    var playMap = new DisplayMapView(Model.ContextMap, Model.Here,
+                        CatTexts["Croquis del almacén con la fila {0} resaltada", firstSlide.RowCode].Value, firstSlide.RowCode,
+                        firstSlide.Racks.Select(rack => rack.Label).ToArray());
+                    <figure class="display-map" data-display-map>
+                        <figcaption class="display-map-caption">
+                            <strong>@CatTexts["Ubicación en el almacén"]</strong>
+                            <span data-display-map-caption>@CatTexts["Fila {0} · {1}", firstSlide.RowCode, firstSlide.Title]</span>
+                        </figcaption>
+                        <partial name="_DisplayContextMap" model="playMap" />
+                        <p class="display-map-legend"><span><i class="display-map-key-row" aria-hidden="true"></i>@CatTexts["Fila actual"]</span><span><i class="display-map-key-rack" aria-hidden="true"></i>@CatTexts["Racks en pantalla"]</span><span data-display-product-legend hidden><i class="display-map-key-product" aria-hidden="true"></i>@CatTexts["Coincidencias del producto"]</span><span data-display-assignment-legend hidden><i class="display-map-key-assignment" aria-hidden="true"></i>@CatTexts["Asignado sin saldo"]</span></p>
+                    </figure>
+                }
+                <button type="button" class="display-swipe-control display-swipe-prev" data-display-prev aria-label="@CatTexts["Pantalla anterior"]" title="@CatTexts["Pantalla anterior"]"><span aria-hidden="true">‹</span></button>
+                <button type="button" class="display-swipe-control display-swipe-next" data-display-next aria-label="@CatTexts["Pantalla siguiente"]" title="@CatTexts["Pantalla siguiente"]"><span aria-hidden="true">›</span></button>
             </div>
-            <footer class="display-controls">
-                <div class="display-progress"><span data-display-progress>1 de @Model.Slides.Count</span><span data-display-status>Reproduciendo</span><span class="display-swipe-hint">Desliza a los lados para cambiar de pantalla</span></div>
-                <div class="display-actions">
-                    <button type="button" class="btn btn-outline-secondary" data-display-pause aria-pressed="false">Pausar</button>
-                    <button type="button" class="btn btn-outline-secondary" data-display-fullscreen>Pantalla completa</button>
-                    <a href="@Model.ConfigurationUrl" class="btn btn-outline-primary">Configurar</a>
+            <footer class="display-footer">
+                <div class="display-progress" aria-hidden="true"><span class="display-progress-bar" data-display-bar></span></div>
+                <div class="display-footline">
+                    <p class="display-upcoming" data-display-upcoming>@Upcoming(Model.Slides)</p>
+                    @if (Model.SelectedRows.Count > 1)
+                    {
+                        <nav class="display-rows" aria-label="@CatTexts["Filas de la exhibición"]" data-display-rows>
+                        @foreach (var row in Model.AvailableRows.Where(Model.SelectedRows.Contains))
+                        {
+                            <button type="button" data-display-row-jump="@row" aria-current="@(row == firstSlide?.RowCode ? "true" : "false")" aria-label="@CatTexts["Ir a la fila {0}", row]">@row</button>
+                        }
+                        </nav>
+                    }
+                    <p class="display-meta"><span data-display-progress>@CatTexts["{0} de {1}", 1, Model.Slides.Count]</span><span data-display-status>@CatTexts["Reproduciendo"]</span><span data-display-updated>@CatTexts["Actualizado {0}", Model.GeneratedAt.ToString("dd/MM HH:mm:ss", CultureInfo.InvariantCulture)]</span></p>
+                    <div class="display-actions">
+                        <button type="button" class="btn btn-outline-primary" data-display-search-open aria-expanded="false" aria-controls="display-search-panel">@CatTexts["Buscar producto"]</button>
+                        <button type="button" class="btn btn-outline-secondary" data-display-pause aria-pressed="false">@CatTexts["Pausar"]</button>
+                        <button type="button" class="btn btn-outline-secondary" data-display-fullscreen>@CatTexts["Pantalla completa"]</button>
+                        <a href="@Model.ConfigurationUrl" class="btn btn-outline-primary">@CatTexts["Configurar"]</a>
+                    </div>
                 </div>
             </footer>
             <p class="visually-hidden" role="status" aria-live="polite" data-display-live></p>
         </main>
+        <script src="~/js/location-display-inspection.js" asp-append-version="true"></script>
         <script src="~/js/location-display.js" asp-append-version="true"></script>
     </body>
     </html>
@@ -73,37 +182,106 @@
 else
 {
     <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-4">
-        <div><h1 class="h2 mb-1">Exhibición de filas</h1><p class="text-body-secondary mb-0">Configura qué filas aparecerán en el monitor y cuánto dura cada pantalla.</p></div>
-        <a asp-page="/Locations/Index" class="btn btn-outline-secondary">Volver a ubicaciones</a>
+        <div><h1 class="h2 mb-1">@CatTexts["Exhibición de filas"]</h1><p class="text-body-secondary mb-0">@CatTexts["Elige qué filas pasan por el monitor, cuántos racks caben en cada pantalla y cuánto dura cada una."]</p></div>
+        <a asp-page="/Locations/Index" class="btn btn-outline-secondary">@CatTexts["Volver a ubicaciones"]</a>
     </div>
     @if (Model.Error is not null) { <div class="alert alert-danger" role="alert">@Model.Error</div> }
     @if (Model.AvailableRows.Count == 0)
     {
-        <div class="alert alert-info">Aún no hay filas físicas para exhibir. Crea posiciones de rack para comenzar.</div>
+        <div class="alert alert-info">@CatTexts["Aún no hay filas físicas para exhibir. Crea posiciones de rack para comenzar."]</div>
     }
     else
     {
-        <form method="get" class="card card-body" target="_blank" data-display-config>
+        <form method="get" class="card card-body display-config" target="_blank" data-display-config data-ui-texts="@clientDictionary">
             <input type="hidden" name="play" value="true" />
             <fieldset class="mb-4">
-                <legend class="h5">Filas del carrusel</legend>
-                <p class="text-body-secondary">Cada fila aparece por separado. Si tiene muchas existencias, se divide en varias pantallas.</p>
+                <legend class="h5">@CatTexts["Filas del carrusel"]</legend>
+                <p class="text-body-secondary">@CatTexts["Cada fila aparece por separado y sus racks siguen el recorrido del croquis en el sentido elegido."]</p>
                 <div class="d-flex flex-wrap gap-3">
                     @foreach (var row in Model.AvailableRows)
                     {
                         <label class="form-check border rounded px-3 py-2 d-flex align-items-center gap-2">
                             <input class="form-check-input m-0" type="checkbox" name="rows" value="@row" checked="@Model.SelectedRows.Contains(row)" />
-                            <span class="form-check-label fs-5">Fila @row</span>
+                            <span class="form-check-label fs-5">@CatTexts["Fila {0}", row]</span>
                         </label>
                     }
                 </div>
             </fieldset>
-            <div class="mb-4 col-12 col-md-4 col-xl-3">
-                <label for="display-seconds" class="form-label">Segundos por pantalla</label>
-                <input id="display-seconds" class="form-control form-control-lg" type="number" name="seconds" min="5" max="120" step="1" value="@Model.Seconds" required />
-                <div class="form-text">Entre 5 y 120 segundos. Los datos se actualizan cada minuto.</div>
+            <fieldset class="mb-3">
+                <legend class="h5">@CatTexts["Orientación del monitor"]</legend>
+                <div class="display-config-options">
+                    @foreach (var option in new[] { ("auto", "Automática", "Se adapta al espacio disponible."), ("landscape", "Horizontal", "Para un monitor acostado."), ("portrait", "Vertical", "Un rack y el croquis debajo.") })
+                    {
+                        <label class="form-check border rounded px-3 py-2 display-config-option">
+                            <input class="form-check-input" type="radio" name="orientation" value="@option.Item1" checked="@(Model.Orientation == option.Item1)" />
+                            <span class="form-check-label"><strong>@CatTexts[option.Item2]</strong><small>@CatTexts[option.Item3]</small></span>
+                        </label>
+                    }
+                </div>
+            </fieldset>
+            <figure class="display-config-preview mb-4" data-display-preview data-preview-orientation="@(Model.Orientation == "portrait" ? "portrait" : "landscape")" data-preview-racks="@Model.EffectiveRacksPerScreen">
+                <div class="display-preview-screen" aria-hidden="true">
+                    <div class="display-preview-heading">@CatTexts["Fila · Rack"]</div>
+                    <div class="display-preview-content">
+                        <div class="display-preview-racks">
+                            @for (var rack = 0; rack < 3; rack++)
+                            {
+                                <div class="display-preview-rack">
+                                    @for (var position = 0; position < 9; position++) { <span></span> }
+                                </div>
+                            }
+                        </div>
+                        <div class="display-preview-map">@CatTexts["Croquis"]</div>
+                    </div>
+                    <div class="display-preview-footer">@CatTexts["Próximo rack · Controles"]</div>
+                </div>
+                <figcaption class="text-body-secondary" role="status" aria-live="polite" data-display-preview-caption>@(Model.Orientation == "portrait" ? CatTexts["Vista previa: vertical, un rack y croquis debajo."] : CatTexts["Vista previa: horizontal; se adapta a la orientación elegida."])</figcaption>
+            </figure>
+            <input type="hidden" name="racks" value="@Model.RacksPerScreen" disabled="@(Model.Orientation != "portrait")" data-display-saved-racks />
+            <fieldset class="mb-4" aria-describedby="display-racks-help">
+                <legend class="h5">@CatTexts["Racks por pantalla"]</legend>
+                <div class="display-config-options">
+                    @foreach (var option in new[] { (1, "1 rack", "Posiciones y croquis lado a lado en monitor horizontal."), (2, "2 racks", "Dos racks con el croquis ampliado debajo."), (3, "3 racks", "Más posiciones por pantalla y croquis debajo.") })
+                    {
+                        <label class="form-check border rounded px-3 py-2 display-config-option">
+                            <input class="form-check-input" type="radio" name="racks" value="@option.Item1" checked="@(Model.EffectiveRacksPerScreen == option.Item1)" disabled="@(Model.Orientation == "portrait")" />
+                            <span class="form-check-label"><strong>@CatTexts[option.Item2]</strong><small>@CatTexts[option.Item3]</small></span>
+                        </label>
+                    }
+                </div>
+                <p id="display-racks-help" class="form-text mb-0" role="status" aria-live="polite" data-display-racks-help>@CatTexts["En vertical o en pantallas estrechas se muestra un rack para facilitar la lectura. La cantidad elegida se conserva para horizontal."]</p>
+            </fieldset>
+            <div class="mb-4 col-12 col-md-6">
+                <label for="display-order" class="form-label">@CatTexts["Orden de muestra"]</label>
+                <select id="display-order" name="order" class="form-select form-select-lg" aria-describedby="display-order-help">
+                    <option value="asc" selected="@(Model.Order == "asc")">@CatTexts["Ascendente"]</option>
+                    <option value="desc" selected="@(Model.Order == "desc")">@CatTexts["Descendente"]</option>
+                </select>
+                <div id="display-order-help" class="form-text">@CatTexts["Ascendente: filas de A a Z y racks en el orden del croquis. Descendente: recorrido inverso de filas y racks."]</div>
             </div>
-            <div class="d-flex flex-wrap gap-2 align-items-center"><button class="btn btn-primary btn-lg" type="submit">Abrir exhibición</button><span class="text-body-secondary">La selección queda en la dirección para guardarla como favorito del monitor.</span></div>
+            <div class="mb-4 col-12 col-md-4 col-xl-3">
+                <label for="display-seconds" class="form-label">@CatTexts["Segundos por pantalla"]</label>
+                <input id="display-seconds" class="form-control form-control-lg" type="number" name="seconds" min="5" max="120" step="1" value="@Model.Seconds" required />
+                <div class="form-text">@CatTexts["Entre 5 y 120 segundos. Los datos de la pantalla visible se actualizan cada 2 segundos."]</div>
+            </div>
+            @if (Model.ContextMap is not null)
+            {
+                var pickerMap = new DisplayMapView(Model.ContextMap, Model.Here,
+                    CatTexts["Croquis para marcar dónde está el monitor"].Value, Picker: true);
+                <fieldset class="mb-4" data-display-here-picker>
+                    <legend class="h5">@CatTexts["Ubicación del monitor"]</legend>
+                    <p class="text-body-secondary">@CatTexts["Opcional. Toca en el croquis el lugar donde está el monitor y la exhibición lo marcará como “Esta pantalla”. Con el croquis enfocado, las flechas mueven la marca."]</p>
+                    <input type="hidden" name="here" value="@(Model.Here is null ? "" : DisplayModel.Format(Model.Here.X) + "," + DisplayModel.Format(Model.Here.Y))" data-display-here-input />
+                    <div class="display-config-map">
+                        <partial name="_DisplayContextMap" model="pickerMap" />
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 align-items-center mt-2">
+                        <button type="button" class="btn btn-outline-secondary" data-display-here-clear>@CatTexts["Quitar ubicación"]</button>
+                        <span class="text-body-secondary" role="status" aria-live="polite" data-display-here-status></span>
+                    </div>
+                </fieldset>
+            }
+            <div class="d-flex flex-wrap gap-2 align-items-center"><button class="btn btn-primary btn-lg" type="submit">@CatTexts["Abrir exhibición"]</button><span class="text-body-secondary">@CatTexts["La selección queda en la dirección para guardarla como favorito del monitor."]</span></div>
         </form>
     }
 }

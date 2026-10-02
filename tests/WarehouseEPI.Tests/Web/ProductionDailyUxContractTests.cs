@@ -20,9 +20,17 @@ public sealed class ProductionDailyUxContractTests
     {
         var root = FindRoot();
         var balance = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "_WeeklyBalance.cshtml"));
+        balance += File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "_BalanceTable.cshtml"));
+        Assert.Contains("_BalanceRows", balance, StringComparison.Ordinal);
+        balance += File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "_BalanceRows.cshtml"));
         var close = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Operations", "Production", "_WeekClose.cshtml"));
         Assert.Contains("data-balance-status", balance, StringComparison.Ordinal);
         Assert.Contains("product.StatusRatio", balance, StringComparison.Ordinal);
+        Assert.Contains("data-balance-status-label", balance, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-balance-area-toggle", balance, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-focus-area", balance, StringComparison.Ordinal);
+        Assert.Contains("Enum.GetValues<ProductionDailyArea>()", balance, StringComparison.Ordinal);
+        Assert.Contains("product.Cutting, product.Sewing, product.ReadyToPack", balance, StringComparison.Ordinal);
         Assert.Contains("shift-comparison-heading", close, StringComparison.Ordinal);
         Assert.Contains("close.ShiftComparison", close, StringComparison.Ordinal);
     }
@@ -49,8 +57,9 @@ public sealed class ProductionDailyUxContractTests
         var root = FindRoot();
         var program = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Admin", "Production", "Schedule.cshtml"));
         var import = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Admin", "Production", "ScheduleImport.cshtml"));
-        Assert.Contains("Abrir semana para capturar", program, StringComparison.Ordinal);
-        Assert.Contains("Orden 3", program, StringComparison.Ordinal);
+        Assert.Contains("Confirmar apertura", program, StringComparison.Ordinal);
+        var workspace = File.ReadAllText(Path.Combine(root, "src", "WarehouseEPI.Web", "Pages", "Admin", "Production", "_ScheduleWorkspace.cshtml"));
+        Assert.Contains("line.OrderReference3", workspace, StringComparison.Ordinal);
         Assert.Contains("/Admin/Production/Routes", program, StringComparison.Ordinal);
         Assert.Contains("No crea inventario ni consumos históricos", import, StringComparison.Ordinal);
     }

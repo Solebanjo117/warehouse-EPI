@@ -20,6 +20,8 @@ Aplica comprobaciones proporcionales al cambio. No inicies, detengas, publiques 
 
 ## Navegador
 
+La herramienta local está documentada en [playwright-cli](../../playwright-cli/SKILL.md). Ejecuta `pwsh ./scripts/playwright.ps1` desde la raíz, con una sesión propia; guarda evidencias en `artifacts/ui/playwright/` y cierra únicamente esa sesión.
+
 Cuando exista una instancia que el usuario haya abierto o haya autorizado abrir, verifica al menos los anchos cercanos a estas transiciones:
 
 - por debajo de 900 px: topbar y drawer;

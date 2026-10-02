@@ -1,0 +1,44 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Locations.DisplayInspection
+@using WarehouseEPI.Web.Pages.Locations
+<section data-display-inspection-content data-inspection-row="@Model.Rack?.RowCode" data-inspection-rack="@Model.Rack?.RackNumber" data-inspection-area="@(Model.Rack is null ? Model.Positions[0].LocationId : null)" data-inspection-updated="@Model.UpdatedAt">
+    @if (Model.Rack is not null)
+    {
+        <header class="display-heading">
+            <p class="display-sign" aria-hidden="true">@Model.Rack.RowCode</p>
+            <div class="display-heading-copy">
+                <h1 class="display-heading-title" tabindex="-1" data-display-inspection-heading>@CatTexts["Rack {0}", Model.Label]</h1>
+                <p class="display-heading-meta">@CatTexts["Fila {0}", Model.Rack.RowCode]</p>
+                <p class="display-heading-meta">@CatTexts["{0} de {1} con saldo", Model.Rack.OccupiedCount, Model.Rack.PositionCount]</p>
+            </div>
+        </header>
+        <div class="display-bay display-inspection-bay">
+            <div class="display-racks">
+                <partial name="_DisplayRack" model="new DisplayRackView(Model.Rack, Detailed: true)" />
+            </div>
+        </div>
+    }
+    else
+    {
+        var position = Model.Positions[0];
+        <header class="display-heading"><h1 class="display-heading-title" tabindex="-1" data-display-inspection-heading>@Model.Label</h1></header>
+        <div class="display-area-content" data-display-location="@position.LocationId">
+            @if (!position.IsActive) { <p>@CatTexts["Inactiva"]</p> }
+            @if (position.IsBlocked) { <p>@CatTexts["Bloqueada"]</p> }
+            @if (position.IsWip) { <p>WIP</p> }
+            @if (position.Products.Count == 0) { <p>@CatTexts["Sin saldo"]</p> }
+            <ul class="display-cell-details">
+            @foreach (var product in position.Products)
+            {
+                <li data-display-product="@product.ProductId">
+                    <strong>@product.Sku</strong><span>@(product.Description ?? CatTexts["Sin descripción"].Value)</span>
+                    <span class="@(product.Quantity < 0 ? "text-danger" : "")">@product.Quantity.ToString("#,0.####") @product.Unit</span>
+                    @if (!product.HasNonZeroBalance) { <small>@CatTexts["Asignado sin saldo"]</small> }
+                    @if (product.Quantity < 0) { <small>@CatTexts["Saldo negativo"]</small> }
+                    @if (!product.IsActive) { <small>@CatTexts["Producto inactivo"]</small> }
+                </li>
+            }
+            </ul>
+        </div>
+    }
+</section>

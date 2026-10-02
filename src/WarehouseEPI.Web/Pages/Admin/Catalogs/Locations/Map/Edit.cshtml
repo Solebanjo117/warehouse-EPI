@@ -93,7 +93,7 @@
     <div class="row g-3">
         <div class="col-xl-9">
             <div class="warehouse-map-viewport editor-viewport">
-                <svg class="warehouse-map editor-canvas" viewBox="0 0 @Model.Map.CanvasWidth.ToString(CultureInfo.InvariantCulture) @Model.Map.CanvasHeight.ToString(CultureInfo.InvariantCulture)" data-editor-svg aria-label="@CatTexts["Editor del croquis del almacén"]">
+                <svg class="warehouse-map editor-canvas" viewBox="0 0 @Model.Map.CanvasWidth.ToString(CultureInfo.InvariantCulture) @Model.Map.CanvasHeight.ToString(CultureInfo.InvariantCulture)" data-editor-svg tabindex="0" aria-label="@CatTexts["Editor del croquis del almacén"]">
                     <defs>
                         <pattern id="warehouse-map-editor-grid" width="25" height="25" patternUnits="userSpaceOnUse" data-editor-grid-pattern>
                             <path d="M 25 0 L 0 0 0 25" class="editor-grid-line" />

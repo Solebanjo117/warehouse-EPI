@@ -13,7 +13,7 @@ using WarehouseEPI.Infrastructure.Settings;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.Movements;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "MovementsRead")]
 public sealed class IndexModel(
     InventoryHistoryService history,
     MovementReportService reportService,

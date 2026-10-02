@@ -1,0 +1,44 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    string Area(ProductionDailyArea area) => T[area switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }];
+    string Qty(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
+}
+@if (Model.MatrixPreview is not null)
+{
+    <section class="production-entry__review mt-4" aria-labelledby="group-review-heading" tabindex="-1" data-group-review>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2"><h3 id="group-review-heading" class="h4">@T["Revisar captura"]</h3><button type="button" class="btn btn-outline-secondary" data-back-to-capture>@T["Volver a editar"]</button></div>
+        <p>@T["Revisa las cantidades a sumar. El NIP confirma toda la captura."]</p>
+        <p class="small text-body-secondary">@T["Pendientes y reparto son referencias anteriores al registro. La conciliación se actualiza al confirmar."]</p>
+        <dl class="production-entry__figures">
+        @foreach (var total in Model.MatrixPreview.Items.GroupBy(x => (x.Area, Unit: Model.CaptureProducts.GetValueOrDefault(x.ProductId)?.Unit ?? "")))
+        { <div><dt>@Area(total.Key.Area) · @total.Key.Unit</dt><dd>@Qty(total.Sum(x => x.Preview.Requested))</dd></div> }
+        </dl>
+        @foreach (var item in Model.MatrixPreview.Items.OrderBy(x => x.Preview.Product).ThenBy(x => x.Area))
+        {
+            var preview = item.Preview;
+            var registered = Model.MatrixRegistered.GetValueOrDefault((item.ProductId, item.Area));
+            var unit = Model.CaptureProducts.GetValueOrDefault(item.ProductId)?.Unit;
+            <div class="production-entry__review-product">
+                <strong>@preview.Product · @Area(item.Area)</strong>
+                <p class="production-entry__total">+@Qty(preview.Requested) @unit <small>@T["Cantidad a sumar"]</small></p>
+                <dl class="production-entry__figures">
+                    <div><dt>@T["Registrado en este día y turno"]</dt><dd>@Qty(registered)</dd></div>
+                    <div><dt>@T["Total resultante · vista previa"]</dt><dd>@Qty(registered + preview.Requested)</dd></div>
+                    <div><dt>@T["Pendiente registrado"]</dt><dd>@Qty(preview.Pending)</dd></div>
+                    @if (preview.Extra > 0) { <div class="text-warning-emphasis"><dt>@T["Extras"]</dt><dd>@Qty(preview.Extra)</dd></div> }
+                    <div><dt>@T["Pendiente final"]</dt><dd>@preview.PendingAfterCapture.ToString("0.####", CultureInfo.InvariantCulture)</dd></div>
+                </dl>
+                <details><summary>@T["Ver reparto por órdenes"]</summary><ul>@foreach (var allocation in preview.Allocations) { <li>@allocation.OrderNumber · @Qty(allocation.Quantity)</li> }</ul></details>
+            </div>
+        }
+        @foreach (var error in Model.MatrixPreview.Errors) { <p class="text-danger" role="alert">@WarehouseEPI.Web.Production.ProductionDailyText.Message(T, error)</p> }
+        @if (Model.MatrixPreview.CanConfirm)
+        {
+            <label asp-for="Group.Pin" class="form-label">@T["NIP responsable"]</label><input asp-for="Group.Pin" type="password" inputmode="numeric" maxlength="8" class="form-control form-control-lg mb-2 production-entry__pin" autocomplete="off" />
+            <button asp-page-handler="GroupConfirm" class="btn btn-success btn-lg" data-group-confirm>@T["Registrar producción"]</button>
+        }
+    </section>
+}

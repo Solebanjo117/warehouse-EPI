@@ -1,0 +1,104 @@
+@page
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Admin.System.BackupsModel
+@{
+    ViewData["Title"] = CatTexts["Respaldos"].Value;
+}
+@section Styles {
+    <link rel="stylesheet" href="~/css/manual-backups.css" asp-append-version="true" />
+}
+<div class="backup-board" data-backup-running="@(Model.Running ? "true" : "false")" data-backup-status-url="@Url.Page("Backups", "Status")">
+    <header class="mb-4">
+        <a asp-page="/Admin/System/Index" class="d-inline-block mb-3">@CatTexts["Estado del sistema"]</a>
+        <h1 class="h2">@CatTexts["Respaldos"]</h1>
+        <p class="text-body-secondary mb-0">@CatTexts["Guarda una copia del sistema para recuperación o para entregarla a IT."]</p>
+    </header>
+    @if (Model.Error is not null)
+    {
+        <div class="alert alert-danger" role="alert">@Model.Error</div>
+    }
+    @if (Model.UnavailableReason is not null)
+    {
+        <div class="alert alert-warning" role="status">@CatTexts[Model.UnavailableReason]</div>
+    }
+    @if (Model.Current is not null)
+    {
+        <div class="alert @(Model.Running ? "alert-info" : Model.Current.State == WarehouseEPI.Web.Backups.ManualBackupState.Ready ? "alert-success" : "alert-danger")" role="status" aria-live="polite">
+            @if (Model.Running)
+            {
+                <strong>@CatTexts["Generando respaldo…"]</strong>
+                <p class="mb-2">@CatTexts["Puedes seguir usando el programa. Esta página mostrará el resultado al terminar."]</p>
+                <a asp-page="Backups" class="btn btn-outline-primary">@CatTexts["Actualizar estado"]</a>
+            }
+            else if (Model.Current.State == WarehouseEPI.Web.Backups.ManualBackupState.Ready)
+            {
+                <strong>@CatTexts["El respaldo está listo para descargar."]</strong>
+            }
+            else
+            {
+                <strong>@CatTexts["No se pudo completar el respaldo."]</strong>
+                <p class="mb-0">@CatTexts["Inténtalo de nuevo. Si vuelve a fallar, IT debe revisar espacio, permisos, PostgreSQL y archivos del croquis."]</p>
+            }
+        </div>
+    }
+    <section class="card mb-4" aria-labelledby="backup-create-title">
+        <div class="card-body p-4">
+            <h2 class="h4" id="backup-create-title">@CatTexts["Crear respaldo ahora"]</h2>
+            <p>@CatTexts["Incluye la base de datos, el logo, los fondos del croquis y la clave de los NIP. El archivo completo se cifra con la contraseña que elijas."]</p>
+            <p class="text-body-secondary">@CatTexts["Guarda la contraseña en un lugar seguro y entrégala a IT por separado. Si la pierdes, no podrás abrir este respaldo."]</p>
+            <form method="post" autocomplete="off">
+                <fieldset disabled="@(Model.Running || Model.UnavailableReason is not null)">
+                    <legend class="visually-hidden">@CatTexts["Contraseña del respaldo"]</legend>
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label for="backup-password" class="form-label">@CatTexts["Contraseña del respaldo"]</label>
+                            <input id="backup-password" name="password" type="password" class="form-control" required minlength="12" maxlength="128" autocomplete="new-password" aria-describedby="backup-password-help" />
+                            <div class="form-text" id="backup-password-help">@CatTexts["Entre 12 y 128 caracteres. Usa una frase larga y exclusiva para el respaldo."]</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="backup-confirmation" class="form-label">@CatTexts["Confirmar contraseña"]</label>
+                            <input id="backup-confirmation" name="confirmation" type="password" class="form-control" required minlength="12" maxlength="128" autocomplete="new-password" />
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">@CatTexts["Crear respaldo ahora"]</button>
+                </fieldset>
+            </form>
+        </div>
+    </section>
+    <section class="card mb-4" aria-labelledby="backup-restore-title"><div class="card-body p-4">
+        <h2 class="h4" id="backup-restore-title">@CatTexts["Importar respaldo"]</h2>
+        <p>@CatTexts["Carga un respaldo completo para recuperar los datos, los NIP, el logo y el croquis. La importación reemplaza la información actual."]</p>
+        <a asp-page="Restore" class="btn btn-outline-primary">@CatTexts["Cargar respaldo"]</a>
+    </div></section>
+    <section aria-labelledby="backup-history-title">
+        <h2 class="h4" id="backup-history-title">@CatTexts["Respaldos disponibles"]</h2>
+        <p class="text-body-secondary">@CatTexts["Se conservan los 5 respaldos manuales más recientes en el servidor. Descarga una copia y guárdala fuera del servidor."]</p>
+        @if (Model.History.Count == 0)
+        {
+            <div class="card"><div class="card-body">@CatTexts["Todavía no hay respaldos manuales disponibles."]</div></div>
+        }
+        else
+        {
+            <ul class="list-unstyled backup-list">
+                @foreach (var backup in Model.History)
+                {
+                    <li class="card">
+                        <div class="card-body backup-file">
+                            <div class="backup-file-info">
+                                <h3 class="h6 mb-1"><time datetime="@backup.StartedAt.ToString("o")">@Model.LocalDates[backup.Id].ToString("g")</time></h3>
+                                <span class="text-body-secondary">@((backup.Bytes / 1048576d).ToString("N1")) MB · @CatTexts["Cifrado con contraseña"]</span>
+                                <details class="mt-2"><summary>@CatTexts["Ver huella SHA-256"]</summary><code class="backup-hash">@backup.Sha256</code></details>
+                            </div>
+                            <a asp-page="Backups" asp-page-handler="Download" asp-route-id="@backup.Id" class="btn btn-outline-primary">@CatTexts["Descargar respaldo"] <span class="visually-hidden">@Model.LocalDates[backup.Id].ToString("g")</span></a>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+        <p class="small text-body-secondary mt-3">@CatTexts["La estructura del respaldo PostgreSQL se comprueba antes de descargar. IT debe probar una restauración en una base aislada antes de la migración."]</p>
+        <p class="small text-body-secondary">@CatTexts["El respaldo contiene los datos de su inicio. Las operaciones posteriores se incluirán en un nuevo respaldo."]</p>
+    </section>
+</div>
+@section Scripts {
+    <script src="~/js/manual-backups.js" asp-append-version="true" defer></script>
+}

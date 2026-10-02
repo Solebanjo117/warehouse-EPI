@@ -1,0 +1,60 @@
+@model WarehouseEPI.Web.Pages.Admin.Production.ScheduleModel
+@using global::System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    var hasData = Model.PlanSummary.Any(x => x.NewQuantity != 0 || x.CustomerQuantity != 0 || x.StockQuantity != 0
+        || x.NewLines != 0 || x.CustomerLines != 0 || x.StockLines != 0 || x.ImportedOpening != 0 || x.PlannedCarryover != 0);
+}
+<div class="production-schedule-summary" data-schedule-summary>
+@if (!hasData)
+{
+    <p class="text-body-secondary mb-0" data-summary-empty>@T["Todavía no hay cantidades ni renglones para resumir."]</p>
+}
+else
+{
+    @foreach (var group in Model.PlanSummary.GroupBy(x => x.Unit))
+    {
+        <section class="production-schedule-summary__unit" data-summary-unit="@group.Key">
+            <h4 class="h6">@T["Unidad"]: @group.Key</h4>
+            <dl class="production-schedule-summary__totals" data-summary-totals>
+                <div><dt>@T["Programado nuevo"]</dt><dd>@group.Sum(x => x.NewQuantity).ToString("0.####") @group.Key</dd></div>
+                <div><dt>@T["Cliente"]</dt><dd>@group.Sum(x => x.CustomerQuantity).ToString("0.####") @group.Key</dd></div>
+                <div><dt>@T["Inventario"]</dt><dd>@group.Sum(x => x.StockQuantity).ToString("0.####") @group.Key</dd></div>
+            </dl>
+            <details data-summary-total-detail><summary>@T["Ver conteos y arrastres"] · @T["Total semanal"]</summary>
+                <dl class="row mb-2">
+                    <dt class="col-7">@T["Líneas nuevas"]</dt><dd class="col-5">@group.Sum(x => x.NewLines)</dd>
+                    <dt class="col-7">@T["Líneas cliente"]</dt><dd class="col-5">@group.Sum(x => x.CustomerLines)</dd>
+                    <dt class="col-7">@T["Líneas inventario"]</dt><dd class="col-5">@group.Sum(x => x.StockLines)</dd>
+                    <dt class="col-7">@T["Apertura importada"]</dt><dd class="col-5">@group.Sum(x => x.ImportedOpening).ToString("0.####") @group.Key</dd>
+                    <dt class="col-7">@T["Arrastre programado"]</dt><dd class="col-5">@group.Sum(x => x.PlannedCarryover).ToString("0.####") @group.Key</dd>
+                </dl>
+            </details>
+            <div class="table-responsive"><table class="table align-middle production-schedule-summary__table">
+                <caption class="visually-hidden">@T["Distribución diaria"] · @group.Key</caption>
+                <thead><tr><th scope="col">@T["Día"]</th><th scope="col">@T["Programado nuevo"]</th><th scope="col">@T["Cliente"]</th><th scope="col">@T["Inventario"]</th><th scope="col">@T["Detalle"]</th></tr></thead>
+                <tbody>
+                @foreach (var row in group)
+                {
+                    <tr data-summary-day="@row.Day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)">
+                        <th scope="row">@row.Day.ToString("ddd dd/MM", CultureInfo.CurrentUICulture)</th>
+                        <td class="production-schedule-summary__quantity" data-label="@T["Programado nuevo"]">@row.NewQuantity.ToString("0.####") @row.Unit</td>
+                        <td class="production-schedule-summary__quantity" data-label="@T["Cliente"]">@row.CustomerQuantity.ToString("0.####") @row.Unit</td>
+                        <td class="production-schedule-summary__quantity" data-label="@T["Inventario"]">@row.StockQuantity.ToString("0.####") @row.Unit</td>
+                        <td class="production-schedule-summary__details"><details><summary>@T["Ver conteos y arrastres"]</summary>
+                            <dl>
+                                <dt>@T["Líneas nuevas"]</dt><dd>@row.NewLines</dd>
+                                <dt>@T["Líneas cliente"]</dt><dd>@row.CustomerLines</dd>
+                                <dt>@T["Líneas inventario"]</dt><dd>@row.StockLines</dd>
+                                <dt>@T["Apertura importada"]</dt><dd>@row.ImportedOpening.ToString("0.####") @row.Unit</dd>
+                                <dt>@T["Arrastre programado"]</dt><dd>@row.PlannedCarryover.ToString("0.####") @row.Unit</dd>
+                            </dl>
+                        </details></td>
+                    </tr>
+                }
+                </tbody>
+            </table></div>
+        </section>
+    }
+}
+</div>

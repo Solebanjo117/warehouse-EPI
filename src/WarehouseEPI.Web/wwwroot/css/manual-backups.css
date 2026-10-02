@@ -1,0 +1,13 @@
+.backup-board { max-width: 960px; margin-inline: auto; }
+.backup-board .btn, .backup-board input { min-height: 44px; }
+.backup-list { display: grid; gap: .75rem; }
+.backup-file { display: flex; align-items: center; justify-content: space-between; gap: 1.25rem; }
+.backup-file-info { min-width: 0; }
+.backup-hash { display: block; overflow-wrap: anywhere; margin-top: .5rem; }
+.backup-board summary { cursor: pointer; padding-block: .5rem; }
+.backup-board .form-check-input { min-height: 1.25rem; }
+.backup-board .form-check-label { min-height: 44px; display: inline-block; padding-block: .5rem; }
+@media (max-width: 575.98px) {
+    .backup-file { flex-direction: column; align-items: stretch; }
+    .backup-board .card-body { padding: 1rem !important; }
+}

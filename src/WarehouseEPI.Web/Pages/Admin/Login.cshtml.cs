@@ -22,8 +22,8 @@ public sealed class LoginModel(UserPinService userPinService, IStringLocalizer<C
 
     public IActionResult OnGet()
     {
-        return User.IsInRole("ADMIN")
-            ? RedirectToPage("/Admin/Users/Index")
+        return User.Identity?.IsAuthenticated == true
+            ? RedirectToPage(Landing(User.FindFirstValue(ClaimTypes.Role)))
             : Page();
     }
 
@@ -31,13 +31,15 @@ public sealed class LoginModel(UserPinService userPinService, IStringLocalizer<C
     {
         if (!ModelState.IsValid)
         {
+            Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
             return Page();
         }
 
         var user = await userPinService.AuthenticateAsync(Input.Pin, cancellationToken);
-        if (user is null || user.Role.Code != "ADMIN")
+        if (user is null || !WarehouseEPI.Core.Entities.RoleAccess.IsKnown(user.Role.Code))
         {
-            ModelState.AddModelError(string.Empty, text["NIP inválido o sin permiso administrativo."].Value);
+            ModelState.AddModelError(string.Empty, text["NIP inválido o usuario inactivo."].Value);
+            Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
             return Page();
         }
 
@@ -62,8 +64,13 @@ public sealed class LoginModel(UserPinService userPinService, IStringLocalizer<C
 
         return !string.IsNullOrWhiteSpace(ReturnUrl) && Url.IsLocalUrl(ReturnUrl)
             ? LocalRedirect(ReturnUrl)
-            : RedirectToPage("/Admin/Users/Index");
+            : RedirectToPage(Landing(user.Role.Code));
     }
+
+    private static string Landing(string? role) => role switch
+    {
+        "ADMIN" => "/Admin/Users/Index", "PRODUCTION" => "/Operations/Production/Index", _ => "/Index"
+    };
 
     public sealed class InputModel
     {

@@ -58,7 +58,7 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
         CampaignId = id; LocationId = locationId;
         PhysicalLocationId = await dbContext.CycleCountLocations.Where(x => x.Id == locationId && x.CampaignId == id).Select(x => x.LocationId).SingleOrDefaultAsync(cancellationToken);
         var pin = Input.Pin;
-        Input.Pin = string.Empty;
+        Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         Response.Headers.CacheControl = "no-store";
         CycleCountPreparation? preparation = null;
         if (Input.AttemptId is Guid legacyAttempt)
@@ -121,7 +121,7 @@ public sealed class CountModel(CycleCountService cycleCountService, WarehouseDbC
         if (OperatorSession is null)
         {
             RequireOperatorPin = true;
-            Error = string.IsNullOrWhiteSpace(pin)
+            Error = operatorSessions.RoleNotAllowed ? texts[WarehouseEPI.Core.Entities.RoleAccess.WarehouseWarning] : string.IsNullOrWhiteSpace(pin)
                 ? texts["Tu sesión de conteo terminó. Ingresa tu NIP para conservar la captura y continuar."]
                 : texts["No fue posible validar el NIP. La captura permanece disponible para reintentar."];
             return Page();

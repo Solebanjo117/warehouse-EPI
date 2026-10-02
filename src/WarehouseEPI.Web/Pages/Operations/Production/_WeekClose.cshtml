@@ -37,15 +37,15 @@
             {
                 <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Comparación de turnos"]">
                     <table class="table table-sm production-week-close__table">
-                        <thead><tr><th scope="col">@T["Unidad"]</th><th scope="col">@T["Área"]</th><th scope="col">T1</th><th scope="col">T2</th><th scope="col">@T["Total"]</th><th scope="col">% T1</th><th scope="col">% T2</th></tr></thead>
+                        <thead><tr><th scope="col">@T["Área"]</th><th scope="col">T1</th><th scope="col">T2</th><th scope="col">@T["Total"]</th><th scope="col">% T1</th><th scope="col">% T2</th></tr></thead>
                         @foreach (var unit in close.ShiftComparison)
                         {
                             <tbody>
                                 @foreach (var area in unit.Areas)
                                 {
-                                    <tr><th scope="row" class="production-week-close__sku">@unit.Unit</th><td data-label="@T["Área"]">@AreaName(area.Area)</td><td data-label="T1">@Qty(area.Shift1)</td><td data-label="T2">@Qty(area.Shift2)</td><td data-label="@T["Total"]">@Qty(area.Total)</td><td data-label="% T1">@(area.Shift1Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td><td data-label="% T2">@(area.Shift2Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td></tr>
+                                    <tr><th scope="row" data-label="@T["Área"]">@AreaName(area.Area)</th><td data-label="T1">@Qty(area.Shift1)</td><td data-label="T2">@Qty(area.Shift2)</td><td data-label="@T["Total"]">@Qty(area.Total)</td><td data-label="% T1">@(area.Shift1Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td><td data-label="% T2">@(area.Shift2Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td></tr>
                                 }
-                                <tr class="fw-semibold"><th scope="row" class="production-week-close__sku">@unit.Unit</th><td data-label="@T["Área"]">@T["Total"]</td><td data-label="T1">@Qty(unit.Shift1)</td><td data-label="T2">@Qty(unit.Shift2)</td><td data-label="@T["Total"]">@Qty(unit.Total)</td><td data-label="% T1">@(unit.Shift1Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td><td data-label="% T2">@(unit.Shift2Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td></tr>
+                                <tr class="fw-semibold"><th scope="row" data-label="@T["Área"]">@T["Total"]</th><td data-label="T1">@Qty(unit.Shift1)</td><td data-label="T2">@Qty(unit.Shift2)</td><td data-label="@T["Total"]">@Qty(unit.Total)</td><td data-label="% T1">@(unit.Shift1Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td><td data-label="% T2">@(unit.Shift2Share?.ToString("P1", CultureInfo.CurrentCulture) ?? "—")</td></tr>
                             </tbody>
                         }
                     </table>
@@ -57,21 +57,21 @@
     <details id="next-week-heading" class="production-week-close__group mb-3" open="@(Model.WeeklySection == "pending")">
         <summary><span class="fw-semibold">@T["Pendiente para próxima semana"]</span><span class="text-body-secondary small ms-2">@close.PendingProducts.Count SKU</span></summary>
         <div class="production-week-close__body">
-        <p class="small text-body-secondary">@T["El pendiente final es el saldo físico después del domingo; programar un arrastre no aumenta ese saldo. Las cifras por conciliar se muestran por separado."]</p>
+        <p class="small text-body-secondary">@T["El pendiente es arrastre inicial + programación acumulada − producción efectiva. Un valor negativo indica adelanto. La disponibilidad física se valida por separado."]</p>
         @if (close.PendingProducts.Count == 0) { <p class="alert alert-info">@T["No hay programación ni saldo pendiente al cierre del domingo para los filtros seleccionados."]</p> }
         else
         {
             <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Pendiente para próxima semana"]">
                 <table class="table table-sm production-week-close__table">
-                    <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Unidad"]</th><th rowspan="2" scope="col">@T["Programado nuevo domingo"]</th>
-                        @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th colspan="6" scope="colgroup" class="production-week-close__area-@((int)area)">@AreaName(area)</th> }
+                    <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Programado nuevo domingo"]</th>
+                        @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th colspan="5" scope="colgroup" class="production-week-close__area-@((int)area)">@AreaName(area)</th> }
                     </tr><tr>@foreach (var area in Enum.GetValues<ProductionDailyArea>())
-                        { foreach (var label in new[] { "Arrastre", "T1", "Pendiente T2", "T2", "Pendiente final", "Por conciliar" })
+                        { foreach (var label in new[] { "Arrastre", "T1", "Pendiente T2", "T2", "Pendiente final" })
                             { <th scope="col" class="production-week-close__area-@((int)area)">@T[label]</th> } }
                     </tr></thead>
                     @foreach (var product in Model.PendingRows)
                     {
-                        <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Unidad"]">@product.Unit</td><td data-label="@T["Programado nuevo domingo"]">@Qty(product.SundayPlan)</td>
+                        <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Programado nuevo domingo"]">@Qty(product.SundayPlan)</td>
                             @for (var i = 0; i < product.Areas.Count; i++)
                             {
                                 var area = product.Areas[i]; var name = AreaName((ProductionDailyArea)i);
@@ -80,15 +80,14 @@
                                 <td class="production-week-close__area-@i" data-label="@name · @T["Pendiente T2"]">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</td>
                                 <td class="production-week-close__area-@i" data-label="@name · T2">@(area.Applies ? Qty(area.Shift2) : T["No aplica"])</td>
                                 <td class="production-week-close__area-@i fw-semibold" data-label="@name · @T["Pendiente final"]">@(area.Applies ? Qty(area.Pending) : T["No aplica"])</td>
-                                <td class="production-week-close__area-@i @(area.ToReconcile > 0 ? "text-warning-emphasis" : "")" data-label="@name · @T["Por conciliar"]">@(area.Applies ? Qty(area.ToReconcile) : T["No aplica"])</td>
                             }
                         </tr></tbody>
                     }
                     <tfoot>@foreach (var total in close.Totals)
-                    { <tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Unidad"]">@total.Unit</td><td data-label="@T["Programado nuevo domingo"]">@Qty(total.SundayPlan)</td>
+                    { <tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Programado nuevo domingo"]">@Qty(total.SundayPlan)</td>
                         @for (var i = 0; i < total.Areas.Count; i++)
                         { var area = total.Areas[i]; var name = AreaName((ProductionDailyArea)i);
-                            <td data-label="@name · @T["Arrastre"]">@(area.Applies ? Qty(area.Opening) : T["No aplica"])</td><td data-label="@name · T1">@(area.Applies ? Qty(area.Shift1) : T["No aplica"])</td><td data-label="@name · @T["Pendiente T2"]">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</td><td data-label="@name · T2">@(area.Applies ? Qty(area.Shift2) : T["No aplica"])</td><td data-label="@name · @T["Pendiente final"]">@(area.Applies ? Qty(area.Pending) : T["No aplica"])</td><td data-label="@name · @T["Por conciliar"]">@(area.Applies ? Qty(area.ToReconcile) : T["No aplica"])</td> }
+                            <td data-label="@name · @T["Arrastre"]">@(area.Applies ? Qty(area.Opening) : T["No aplica"])</td><td data-label="@name · T1">@(area.Applies ? Qty(area.Shift1) : T["No aplica"])</td><td data-label="@name · @T["Pendiente T2"]">@(area.Applies ? Qty(area.PendingAfterShift1) : T["No aplica"])</td><td data-label="@name · T2">@(area.Applies ? Qty(area.Shift2) : T["No aplica"])</td><td data-label="@name · @T["Pendiente final"]">@(area.Applies ? Qty(area.Pending) : T["No aplica"])</td> }
                     </tr> }</tfoot>
                 </table>
             </div>
@@ -110,18 +109,18 @@
         {
             <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Cumplimiento semanal por producto y área"]">
                 <table class="table table-sm production-week-close__table production-week-close__table--completion">
-                    <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Unidad"]</th><th rowspan="2" scope="col">@T["Programado nuevo semana"]</th>
+                    <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Programado nuevo semana"]</th>
                         @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th colspan="2" scope="colgroup" class="production-week-close__area-@((int)area)">@AreaName(area)</th> }
                     </tr><tr>@foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th scope="col" class="production-week-close__area-@((int)area)">@T["Completado"]</th><th scope="col" class="production-week-close__area-@((int)area)">@T["Cumplimiento %"]</th> }</tr></thead>
                     @foreach (var product in Model.CompletionRows)
-                    { <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Unidad"]">@product.Unit</td><td data-label="@T["Programado nuevo semana"]">@Qty(product.WeeklyPlan)</td>
+                    { <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Programado nuevo semana"]">@Qty(product.WeeklyPlan)</td>
                         @for (var i = 0; i < product.Areas.Count; i++)
                         { var area = product.Areas[i]; var name = AreaName((ProductionDailyArea)i);
                             <td class="production-week-close__area-@i" data-label="@name · @T["Completado"]">@(area.Applies ? Qty(area.Completed) : T["No aplica"])</td>
                             <td class="production-week-close__area-@i @(area.CompletionRatio(product.WeeklyPlan) > 1 ? "text-warning-emphasis fw-semibold" : "")" data-label="@name · @T["Cumplimiento"]">@Ratio(area, product.WeeklyPlan)</td> }
                     </tr></tbody> }
                     <tfoot>@foreach (var total in close.Totals)
-                    { <tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Unidad"]">@total.Unit</td><td data-label="@T["Programado nuevo semana"]">@Qty(total.WeeklyPlan)</td>
+                    { <tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Programado nuevo semana"]">@Qty(total.WeeklyPlan)</td>
                         @for (var i = 0; i < total.Areas.Count; i++)
                         { var area = total.Areas[i]; var name = AreaName((ProductionDailyArea)i);
                             <td data-label="@name · @T["Completado"]">@(area.Applies ? Qty(area.Completed) : T["No aplica"])</td><td data-label="@name · @T["Cumplimiento"]">@Ratio(area, total.WeeklyPlan)</td> }
@@ -144,17 +143,17 @@
             {
                 <div class="production-week-close__scroll" tabindex="0" aria-label="@T["Resumen semanal de producción por SKU"]">
                     <table class="table table-sm production-week-close__table">
-                        <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Unidad"]</th><th rowspan="2" scope="col">@T["Programado nuevo semana"]</th>
+                        <thead><tr><th rowspan="2" scope="col">SKU</th><th rowspan="2" scope="col">@T["Programado nuevo semana"]</th>
                             @foreach (var area in Enum.GetValues<ProductionDailyArea>()) { <th scope="col" class="production-week-close__area-@((int)area)">@AreaName(area) · @T["Completado"]</th> }
                         </tr></thead>
                         @foreach (var product in Model.SummaryRows)
-                        { <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Unidad"]">@product.Unit</td><td data-label="@T["Programado nuevo semana"]">@Qty(product.WeeklyPlan)</td>
+                        { <tbody><tr><th scope="row" class="production-week-close__sku">@product.Sku</th><td data-label="@T["Programado nuevo semana"]">@Qty(product.WeeklyPlan)</td>
                             @for (var i = 0; i < product.Areas.Count; i++)
                             { var area = product.Areas[i]; var name = AreaName((ProductionDailyArea)i);
                                 <td class="production-week-close__area-@i" data-label="@name · @T["Completado"]">@(area.Applies ? Qty(area.Completed) : T["No aplica"])</td> }
                         </tr></tbody> }
                         @{ var summaryTotal = close.SummaryTotal; }
-                        <tfoot><tr><th scope="row" colspan="2">@T["Total filtrado"]</th><td data-label="@T["Programado nuevo semana"]">@Qty(summaryTotal.WeeklyPlan)</td>
+                        <tfoot><tr><th scope="row">@T["Total filtrado"]</th><td data-label="@T["Programado nuevo semana"]">@Qty(summaryTotal.WeeklyPlan)</td>
                             @for (var i = 0; i < summaryTotal.Completed.Count; i++)
                             { var name = AreaName((ProductionDailyArea)i);
                                 <td data-label="@name · @T["Completado"]">@Qty(summaryTotal.Completed[i])</td> }

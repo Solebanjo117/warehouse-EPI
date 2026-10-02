@@ -15,6 +15,19 @@ public static class ProductionDailyText
         issue.Row is null && issue.Sheet == "Archivo" ? texts["Archivo XLSX"] : issue.Sheet;
 
     private static readonly string[] Keys = [
+        "La preparación contiene totales repetidos o cambios incompatibles.",
+        "{0}, {1}: el mínimo permitido es {2} {3}.",
+        "La semana cambió o no admite esta corrección. Actualiza y revisa de nuevo.",
+        "Revisa entre 1 y 100 cambios e indica un motivo de hasta 500 caracteres.",
+        "Las capturas cambiaron. Revisa nuevamente la corrección.",
+        "La semana no admite cambios de arrastre inicial.",
+        "Hay arrastres repetidos en el grupo.",
+        "El origen del arrastre · {0} ya no está disponible. Prepara de nuevo la copia.",
+        "{0} · {1}: hay {2} consumidas y {3} comprometidas. Corrige primero las capturas o los arrastres posteriores.",
+        "{0} · {1}: el pendiente cambió o la cantidad no es válida. Revisa el origen.",
+        "{0} · {1}: hay {2} consumidas y {3} comprometidas. Corrige primero las capturas [{4}] o las semanas [{5}].",
+        "{0} · {1}: corrige primero las capturas o los arrastres posteriores que comprometen este saldo.",
+        "El origen del arrastre {0} · {1} cambió. Revisa Arrastre inicial en Programa semanal.",
         "Apertura pendiente de conciliación: {0}.",
         "Selecciona una tabla de cierre válida.",
         "El cierre no tiene las columnas de pendientes requeridas.",
@@ -135,6 +148,12 @@ public static class ProductionDailyText
                 var args = Enumerable.Range(0, indices.Max() + 1).Select(index => (object)match.Groups["arg" + index].Value).ToArray();
                 if (key == "La semana debe estar en estado {0}." && Enum.TryParse<ProductionScheduleWeekStatus>((string)args[0], out var status))
                     args[0] = WeekStatus(texts, status);
+                if (key.Contains(" · {1}", StringComparison.Ordinal) && args.Length > 1
+                    && Enum.TryParse<ProductionDailyArea>((string)args[1], out var area))
+                    args[1] = texts[area switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }].Value;
+                if (key == "El origen del arrastre · {0} ya no está disponible. Prepara de nuevo la copia." &&
+                    Enum.TryParse<ProductionDailyArea>((string)args[0], out var missingArea))
+                    args[0] = texts[missingArea switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }].Value;
                 return texts[key, args];
             }
         }

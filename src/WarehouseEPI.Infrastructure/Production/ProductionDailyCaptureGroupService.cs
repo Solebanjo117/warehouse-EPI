@@ -4,7 +4,7 @@ using WarehouseEPI.Core.Entities;
 
 namespace WarehouseEPI.Infrastructure.Production;
 
-public sealed record ProductionAvailableProduct(Guid ProductId, string Sku, string Description, decimal Available, decimal ToReconcile = 0);
+public sealed record ProductionAvailableProduct(Guid ProductId, string Sku, string Description, decimal Available, decimal ToReconcile = 0, decimal Pending = 0);
 public sealed record ProductionCaptureRow(Guid ProductId, decimal Quantity, string? Notes);
 public sealed record ProductionCaptureGroupCommand(Guid OperationId, DateOnly Date, ProductionDailyArea Area, Guid ShiftId,
     IReadOnlyList<ProductionCaptureRow> Rows, string ReviewedFingerprint = "", string Pin = "");
@@ -13,9 +13,13 @@ public sealed record ProductionCaptureGroupPreview(bool CanConfirm, string Finge
 
 public sealed partial class ProductionDailyCaptureService
 {
-    public async Task<IReadOnlyList<ProductionAvailableProduct>> GetAvailabilityAsync(DateOnly date, ProductionDailyArea area,
-        bool priorOnly = false, CancellationToken token = default)
+    public Task<IReadOnlyList<ProductionAvailableProduct>> GetAvailabilityAsync(DateOnly date, ProductionDailyArea area,
+        bool priorOnly = false, CancellationToken token = default) => GetAvailabilityAsync(date, area, priorOnly, null, token);
+
+    internal async Task<IReadOnlyList<ProductionAvailableProduct>> GetAvailabilityAsync(DateOnly date, ProductionDailyArea area,
+        bool priorOnly, Guid[]? selectedProducts, CancellationToken token)
     {
+        using var measurement = ProductionBalanceDiagnostics.Source.StartActivity("capture.availability");
         if (!Enum.IsDefined(area)) return [];
         var monday = date.AddDays(-(((int)date.DayOfWeek + 6) % 7));
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.WeekStart == monday, token);
@@ -29,6 +33,7 @@ public sealed partial class ProductionDailyCaptureService
             var planned = db.ProductionScheduleLines.Where(x => x.WeekId == week.Id && !x.IsCancelled).Select(x => x.ProductId);
             var captured = db.ProductionDailyCaptures.Where(x => x.WeekId == week.Id && x.Area == area && x.Status == ProductionDailyCaptureStatus.Active).Select(x => x.ProductId);
             var catalog = await db.Products.AsNoTracking().Where(x => x.IsActive && (planned.Contains(x.Id) || admitted.Contains(x.Id) || captured.Contains(x.Id)))
+                .Where(x => selectedProducts == null || selectedProducts.Contains(x.Id))
                 .OrderBy(x => x.Sku).Select(x => new { x.Id, x.Sku, x.Description }).ToListAsync(token);
             var result = new List<ProductionAvailableProduct>();
             foreach (var product in catalog)
@@ -39,15 +44,31 @@ public sealed partial class ProductionDailyCaptureService
                 var available = allocations.Sum(x => x.Quantity);
                 if (available > 0 || residual > 0) result.Add(new(product.Id, product.Sku, product.Description ?? "", available, residual));
             }
-            return result;
+            return await WithPendingAsync(result);
         }
-        var balance = await new ProductionDailyBalanceService(db).GetAsync(week.Id, true, priorOnly, token);
-        var products = await db.Products.AsNoTracking().Where(x => x.IsActive).Select(x => x.Id).ToListAsync(token);
-        return balance!.Rows.Where(x => x.Date == date && products.Contains(x.ProductId)).Select(row =>
+        var balance = await new ProductionDailyBalanceService(db).GetPhysicalAsync(week.Id, availability: true, priorOnly: priorOnly, token: token, selectedProducts: selectedProducts);
+        var products = await db.Products.AsNoTracking().Where(x => x.IsActive && (selectedProducts == null || selectedProducts.Contains(x.Id))).Select(x => x.Id).ToListAsync(token);
+        var physical = balance!.Rows.Where(x => x.Date == date && products.Contains(x.ProductId)).Select(row =>
         {
             var value = area switch { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack };
             return new ProductionAvailableProduct(row.ProductId, row.Sku, row.Description ?? "", value.Pending, value.ToReconcile);
         }).Where(x => x.Available > 0 || !priorOnly && x.ToReconcile > 0).OrderBy(x => x.Sku).ToArray();
+        return priorOnly ? physical : await WithPendingAsync(physical);
+
+        async Task<IReadOnlyList<ProductionAvailableProduct>> WithPendingAsync(IEnumerable<ProductionAvailableProduct> available)
+        {
+            var result = available.ToDictionary(x => x.ProductId);
+            var initialIds = await db.ProductionInitialBalances.AsNoTracking().Where(x => x.WeekId == week.Id && x.Area == area).Select(x => x.ProductId).ToArrayAsync(token);
+            var summary = await new ProductionDailyBalanceService(db).GetAsync(week.Id, false, false, token, selectedProducts: selectedProducts);
+            foreach (var row in summary!.Rows.Where(x => x.Date == date && (result.ContainsKey(x.ProductId) || initialIds.Contains(x.ProductId))))
+            {
+                var value = area switch { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack };
+                if (!value.Applies) continue;
+                if (!result.TryGetValue(row.ProductId, out var product)) product = new(row.ProductId, row.Sku, row.Description ?? "", 0);
+                result[row.ProductId] = product with { Pending = value.SignedPending };
+            }
+            return result.Values.OrderBy(x => x.Sku).ToArray();
+        }
     }
 
     public async Task<ProductionCaptureGroupPreview> PreviewGroupAsync(ProductionCaptureGroupCommand command, CancellationToken token = default)
@@ -78,7 +99,8 @@ public sealed partial class ProductionDailyCaptureService
         var rows = command.Rows.Where(x => x.Quantity != 0).OrderBy(x => x.ProductId).ToArray();
         var fp = Fingerprint(new { command.Date, command.Area, command.ShiftId, rows });
         var user = await pins.AuthenticateAsync(command.Pin, token);
-        if (user?.Role.Code is not ("ADMIN" or "OPERATOR")) return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP inválido."]);
+        if (user is null) return new(ProductionDailyCommandStatus.InvalidPin, Errors: ["NIP inválido."]);
+        if (!RoleAccess.CanCaptureProduction(user.Role.Code)) return new(ProductionDailyCommandStatus.RoleNotAllowed, Errors: [RoleAccess.ProductionWarning]);
         async Task<ProductionDailyCommandResult?> Prior()
         {
             var prior = await db.ProductionCaptureSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
@@ -126,5 +148,18 @@ public sealed partial class ProductionDailyCaptureService
             db.ChangeTracker.Clear();
             return await Prior() ?? new(ProductionDailyCommandStatus.ConcurrencyConflict, Errors: ["La disponibilidad cambió. Revisa la tanda actualizada antes de confirmar."]);
         }
+    }
+
+    // Read-only recovery of a submitted operation. Receipt access follows the public daily history.
+    public async Task<ProductionDailyCommandResult?> FindRecordedGroupAsync(ProductionCaptureGroupCommand command, CancellationToken token = default)
+    {
+        var prior = await db.ProductionCaptureSubmissions.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
+        if (prior is null) return null;
+        var rows = command.Rows.Where(x => x.Quantity != 0).OrderBy(x => x.ProductId).ToArray();
+        var fingerprint = Fingerprint(new { command.Date, command.Area, command.ShiftId, rows });
+        return prior.RequestFingerprint == fingerprint
+            ? new(ProductionDailyCommandStatus.Success, prior.Id)
+            : new(ProductionDailyCommandStatus.IdempotencyConflict);
     }
 }

@@ -1,0 +1,29 @@
+@page
+@model WarehouseEPI.Web.Pages.Production.ScheduleModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> Texts
+@{ ViewData["Title"] = Texts["Programa semanal"]; }
+<header class="page-header"><h1>@Texts["Programa semanal"]</h1><p>@Texts["Consulta de solo lectura."]</p></header>
+<form method="get" class="row g-3 mb-4">
+<div class="col-12 col-md-8"><label asp-for="WeekId" class="form-label">@Texts["Semana"]</label><select asp-for="WeekId" class="form-select form-select-lg">
+@foreach (var week in Model.Weeks) { <option value="@week.Id">@week.WeekStart.ToString("yyyy-MM-dd") — @week.WeekEnd.ToString("yyyy-MM-dd")</option> }
+</select></div><div class="col-12 col-md-4 align-self-end"><button class="btn btn-primary btn-lg">@Texts["Consultar"]</button></div>
+</form>
+@if (Model.Week is null)
+{ <p class="alert alert-info">@Texts["No hay semanas disponibles."]</p> }
+else
+{
+    <p><strong>@Texts["Estado"]:</strong> @WarehouseEPI.Web.Production.ProductionDailyText.WeekStatus(Texts, Model.Week.Status)</p>
+    <a class="btn btn-outline-primary mb-3" asp-page="/Operations/Production/Index" asp-route-WeekId="@Model.WeekId">@Texts["Tabla y balance"]</a>
+    <div class="table-responsive"><table class="table align-middle"><caption>@Texts["Programa semanal"]</caption><thead><tr><th scope="col">@Texts["Fecha"]</th><th scope="col">SKU</th><th scope="col">@Texts["Descripción"]</th><th scope="col">@Texts["Cantidad"]</th><th scope="col">@Texts["Unidad"]</th><th scope="col">@Texts["Referencias"]</th></tr></thead><tbody>
+    @foreach (var line in Model.Lines)
+    { <tr><td>@line.PlannedDate.ToString("yyyy-MM-dd")</td><td><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@line.ProductId">@line.Sku</a></td><td>@line.Description</td><td>@line.Quantity.ToString("0.####")</td><td>@line.Unit</td><td>@string.Join(" · ", new[] { line.OrderReference1, line.OrderReference2, line.OrderReference3 }.Where(x => !string.IsNullOrWhiteSpace(x)))</td></tr> }
+    </tbody></table></div>
+    <nav aria-label="@SharedTexts["Paginación"]" class="d-flex gap-3 align-items-center mb-4">
+    @if (Model.PageNumber > 1) { <a class="btn btn-outline-primary" asp-route-WeekId="@Model.WeekId" asp-route-PageNumber="@(Model.PageNumber - 1)">@SharedTexts["Anterior"]</a> }
+    <span>@Model.PageNumber / @Model.PageCount</span>
+    @if (Model.PageNumber < Model.PageCount) { <a class="btn btn-outline-primary" asp-route-WeekId="@Model.WeekId" asp-route-PageNumber="@(Model.PageNumber + 1)">@SharedTexts["Siguiente"]</a> }
+    </nav>
+    <div class="table-responsive"><table class="table"><caption>@Texts["Resumen por día y unidad"]</caption><thead><tr><th scope="col">@Texts["Fecha"]</th><th scope="col">@Texts["Unidad"]</th><th scope="col">@Texts["Cantidad nueva"]</th><th scope="col">@Texts["Arrastre inicial"]</th><th scope="col">@Texts["Arrastre programado"]</th></tr></thead><tbody>
+    @foreach (var row in Model.Summary) { <tr><td>@row.Day.ToString("yyyy-MM-dd")</td><td>@row.Unit</td><td>@row.NewQuantity.ToString("0.####")</td><td>@row.ImportedOpening.ToString("0.####")</td><td>@row.PlannedCarryover.ToString("0.####")</td></tr> }
+    </tbody></table></div>
+}

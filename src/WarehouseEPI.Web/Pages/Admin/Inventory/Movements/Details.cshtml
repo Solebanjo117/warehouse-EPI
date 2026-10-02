@@ -96,12 +96,12 @@
         {
             <article class="movement-line-card">
                 <header class="movement-line-header">
-                    <div><a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@line.ProductId" class="h5 mb-1 d-inline-block">@line.Sku</a><p class="text-body-secondary mb-0">@(line.Description ?? CatTexts["Sin descripción"].Value)</p></div>
+                    <div>@if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Catalogs/Products/Details" asp-route-id="@line.ProductId" class="h5 mb-1 d-inline-block">@line.Sku</a> } else { <span>@line.Sku</span> }<p class="text-body-secondary mb-0">@(line.Description ?? CatTexts["Sin descripción"].Value)</p></div>
                     <strong class="movement-line-quantity">@line.Quantity.ToString("0.####") <small>@line.Unit</small></strong>
                 </header>
                 <div class="movement-line-context">
                     <div><span>@CatTexts["Trayecto"]</span><strong>@(line.Source ?? "—") <span aria-hidden="true">→</span> @(line.Destination ?? Model.Movement.OperationalArea ?? "—")</strong></div>
-                    <div><span>@CatTexts["Lote interno"]</span>@if (line.LotId is Guid lot) { <a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@lot">@line.LotNumber</a> } else { <strong>—</strong> }</div>
+                    <div><span>@CatTexts["Lote interno"]</span>@if (line.LotId is Guid lot) { @if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Inventory/Lots/Details" asp-route-id="@lot">@line.LotNumber</a> } else { <span>@line.LotNumber</span> } } else { <strong>—</strong> }</div>
                 </div>
                 <div class="table-responsive movement-change-shell">
                     <table class="table table-sm align-middle movement-change-table mb-0">
@@ -110,7 +110,7 @@
                             @foreach (var change in line.Changes)
                             {
                                 <tr class="@(change.Resulting < 0 ? "movement-negative" : null)">
-                                    <td data-label="@CatTexts["Ubicación"]"><a asp-page="/Admin/Catalogs/Locations/Details" asp-route-id="@change.LocationId" class="fw-semibold">@change.Location</a></td>
+                                    <td data-label="@CatTexts["Ubicación"]"><a asp-page="/Locations/Details" asp-route-id="@change.LocationId" class="fw-semibold">@change.Location</a></td>
                                     <td data-label="@CatTexts["Anterior"]" class="text-end">@change.Previous.ToString("0.####")</td>
                                     <td data-label="@CatTexts["Cambio"]" class="text-end @(change.Delta < 0 ? "text-danger" : "text-success")">@(change.Delta > 0 ? "+" : "")@change.Delta.ToString("0.####")</td>
                                     <td data-label="Final" class="text-end fw-bold">@change.Resulting.ToString("0.####")</td>
@@ -168,7 +168,7 @@
             }
             @if (Model.Movement.OriginalCorrection is null && Model.Movement.ReversalCorrection is null)
             {
-                <a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">@CatTexts["Corregir movimiento"]</a>
+                @if (User.IsInRole("ADMIN")) { <a class="btn btn-outline-danger" asp-page="Correct" asp-route-id="@Model.Movement.Id" asp-route-returnUrl="@Model.ReturnUrl">@CatTexts["Corregir movimiento"]</a> }
             }
         </footer>
     }

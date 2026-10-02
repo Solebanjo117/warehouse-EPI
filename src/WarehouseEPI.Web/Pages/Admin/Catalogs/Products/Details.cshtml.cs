@@ -6,7 +6,7 @@ using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "ProductsRead")]
 public sealed class DetailsModel(ProductCatalogQueryService catalog, ProductionTraceabilityService production,
     ProductionWipDefaultService wipDefaults) : PageModel
 {

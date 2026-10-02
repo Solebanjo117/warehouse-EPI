@@ -14,7 +14,7 @@ public sealed class WarehouseMapCalibrationContractTests
         Assert.Contains("asp-page-handler=\"Publish\"", calibration, StringComparison.Ordinal);
         Assert.Contains("NIP ADMIN", calibration, StringComparison.Ordinal);
         Assert.DoesNotContain("<script>", calibration, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("data-location-start>@CatTexts[\"Mi ubicación\"]", query, StringComparison.Ordinal);
+        Assert.Contains("class=\"btn btn-outline-primary d-none\" data-location-start>@CatTexts[\"Mi ubicación\"]", query, StringComparison.Ordinal);
         Assert.Contains("data-location-accuracy", query, StringComparison.Ordinal);
         Assert.Contains("geolocation={(allowsGeolocation ? \"(self)\" : \"()\")}", program, StringComparison.Ordinal);
         Assert.Contains("watchPosition", tracker, StringComparison.Ordinal);

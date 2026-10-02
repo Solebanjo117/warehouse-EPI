@@ -5,7 +5,8 @@ namespace WarehouseEPI.Infrastructure.Production;
 public sealed record ProductionBalanceScenario(DateOnly Date, IReadOnlyList<Guid> ReversedCaptures,
     IReadOnlyList<ProductionBalanceAddition> Additions,
     IReadOnlyDictionary<Guid, decimal>? PlanQuantities = null, IReadOnlyList<ProductionBalanceNewPlan>? NewPlans = null,
-    IReadOnlyList<ProductionOpeningChange>? Openings = null);
+    IReadOnlyList<ProductionOpeningChange>? Openings = null,
+    IReadOnlyList<ProductionInitialBalanceChange>? InitialBalances = null);
 public sealed record ProductionBalanceAddition(Guid Id, Guid ProductId, ProductionDailyArea Area, Guid ShiftId, decimal Quantity, string? Notes = null);
 
 public sealed partial class ProductionDailyBalanceService
@@ -18,7 +19,8 @@ public sealed partial class ProductionDailyBalanceService
     // Detached read models only: no EF tracking, writes, provisional orders or database transactions.
     private static void ApplyScenario(ProductionBalanceScenario scenario, ProductionScheduleWeek week,
         ProductionDailyConfiguration config, List<ProductionScheduleLine> lines, List<BalanceCapture> captures,
-        List<BalanceAllocation> allocations, IReadOnlyDictionary<(Guid, ProductionDailyArea), decimal>? explicitLimits = null)
+        List<BalanceAllocation> allocations, IReadOnlyDictionary<(Guid, ProductionDailyArea), decimal>? explicitLimits = null,
+        IReadOnlyCollection<Guid>? detachedLineIds = null)
     {
         if (scenario.PlanQuantities is not null)
             foreach (var line in lines)
@@ -26,7 +28,7 @@ public sealed partial class ProductionDailyBalanceService
         var reversedCutting = captures.Where(x => x.Area == ProductionDailyArea.Cutting && scenario.ReversedCaptures.Contains(x.Id)).Select(x => x.Id).ToHashSet();
         var cancelledExtras = allocations.Where(a => reversedCutting.Contains(a.CaptureId))
             .Select(a => a.ScheduleLineId).ToHashSet();
-        lines.RemoveAll(x => x.IsExtra && cancelledExtras.Contains(x.Id));
+        lines.RemoveAll(x => x.IsExtra && cancelledExtras.Contains(x.Id) && detachedLineIds?.Contains(x.Id) != true);
         captures.RemoveAll(x => scenario.ReversedCaptures.Contains(x.Id));
         allocations.RemoveAll(x => scenario.ReversedCaptures.Contains(x.CaptureId));
         Guid Stage(ProductionDailyArea area) => ProductionDailyProcessFlow.Stage(config, area)!.Value;

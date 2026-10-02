@@ -1,0 +1,40 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using System.Globalization
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@if (Model.GroupPreview is not null)
+{
+    <section class="production-entry__review mt-4" aria-labelledby="group-review-heading" tabindex="-1" data-group-review>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h3 id="group-review-heading" class="h4">@T["Revisar captura"]</h3>
+            <button type="button" class="btn btn-outline-secondary" data-back-to-capture>@T["Volver a editar"]</button>
+        </div>
+        <p>@T["Revisa las cantidades a sumar. El NIP confirma toda la captura."]</p>
+        <dl class="production-entry__figures">
+            @foreach (var unit in Model.GroupPreview.Products.GroupBy(x => Model.CaptureProducts.GetValueOrDefault(Model.Group.Rows.FirstOrDefault(r => r.Sku == x.Product)?.ProductId ?? Guid.Empty)?.Unit ?? ""))
+            { <div><dt>@T["Cantidad a sumar"] · @unit.Key</dt><dd>@unit.Sum(x => x.Requested).ToString("0.####", CultureInfo.InvariantCulture)</dd></div> }
+        </dl>
+        @foreach (var preview in Model.GroupPreview.Products)
+        {
+            var selectedRow = Model.Group.Rows.FirstOrDefault(x => x.Sku == preview.Product);
+            var registered = selectedRow is null ? 0 : Model.RegisteredInShift.GetValueOrDefault(selectedRow.ProductId);
+            <div class="production-entry__review-product">
+                <div class="d-flex justify-content-between align-items-baseline gap-3"><strong>@preview.Product</strong><span class="production-entry__total">@preview.Requested.ToString("0.####", CultureInfo.InvariantCulture) <small>@T["Cantidad a sumar"]</small></span></div>
+                <dl class="production-entry__figures">
+                    <div><dt>@T["Registrado en este día y turno"]</dt><dd>@registered.ToString("0.####", CultureInfo.InvariantCulture)</dd></div>
+                    <div><dt>@T["Total resultante · vista previa"]</dt><dd>@((registered + preview.Requested).ToString("0.####", CultureInfo.InvariantCulture))</dd></div>
+                    <div><dt>@T["Pendiente registrado"]</dt><dd>@preview.Pending.ToString("0.####", CultureInfo.InvariantCulture)</dd></div>
+                    @if (preview.Extra > 0) { <div class="text-warning-emphasis"><dt>@T["Extras"]</dt><dd>@preview.Extra.ToString("0.####", CultureInfo.InvariantCulture)</dd></div> }
+                    <div><dt>@T["Pendiente final"]</dt><dd>@preview.PendingAfterCapture.ToString("0.####", CultureInfo.InvariantCulture)</dd></div>
+                </dl>
+                <details><summary>@T["Ver reparto por órdenes"]</summary><ul>@foreach (var allocation in preview.Allocations) { <li>@allocation.OrderNumber · @allocation.Quantity.ToString("0.####", CultureInfo.InvariantCulture)</li> }</ul></details>
+            </div>
+        }
+        @foreach (var error in Model.GroupPreview.Errors) { <p class="text-danger" role="alert">@WarehouseEPI.Web.Production.ProductionDailyText.Message(T, error)</p> }
+        @if (Model.GroupPreview.CanConfirm)
+        {
+            <label asp-for="Group.Pin" class="form-label">@T["NIP responsable"]</label>
+            <input asp-for="Group.Pin" type="password" inputmode="numeric" maxlength="8" class="form-control form-control-lg mb-2 production-entry__pin" autocomplete="off" />
+            <button asp-page-handler="GroupConfirm" class="btn btn-success btn-lg" data-group-confirm>@T["Registrar producción"]</button>
+        }
+    </section>
+}

@@ -44,6 +44,8 @@ Haz el cambio más pequeño que produzca una pantalla coherente:
 
 ## Verificación y entrega
 
+Para revisar accesibilidad, foco, formularios, temas y rendimiento, consulta [web-design-guidelines](../web-design-guidelines/SKILL.md), adaptada a los contratos de este proyecto.
+
 Para una implementación o corrección, lee [references/verification.md](references/verification.md) y ejecuta comprobaciones proporcionales al riesgo.
 
 Entrega el resultado separando claramente:

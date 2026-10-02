@@ -2,89 +2,144 @@
 @using global::System.Text.Json
 @using global::System.Globalization
 @using WarehouseEPI.Core.Entities
-@if (Model.Week is { Status: ProductionScheduleWeekStatus.Draft } week)
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@if (Model.Workspace is { } week)
 {
+    var isNew = Model.IsPreparingNew;
+    var editable = week.Status != ProductionScheduleWeekStatus.Closed;
+    var progressLabels = new[] { "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo", "Corte", "Costura", "Ready to Pack", "Cubierto por adelanto", "Sin meta", "No aplica", "Adelanto", "Adelanto aplicado", "Pendiente", "Plan", "Plan base", "Diario", "Hoy", "Meta", "Estado del plan", "Cubierto", "Hecho ese día", "Pendiente de esta meta", "Sin meta nueva", "Total", "Pedidos y notas", "Detalle de pedidos debajo", "Sin programación nueva", "renglones de pedidos", "Inventario", "Sin productos programados ni producción en esta semana.", "Cantidad programada", "Ver desglose", "Editar pedidos ({0})", "Ver pedidos ({0})", "Pedido 1", "Pedido 2", "Pedido 3", "Notas", "Acciones", "Arrastre inicial", "Total con arrastre", "Por revisar", "Pedido {0}" }.ToDictionary(key => key, key => T[key].Value);
+    var copySources = isNew ? Model.NewWeekCopySources.ToArray() : Model.Weeks.Where(x => x.WeekStart < week.WeekStart).OrderByDescending(x => x.WeekStart).Select(x => new ScheduleModel.PreparedCopySource(x.Id, x.WeekStart, x.WeekEnd)).ToArray();
+    progressLabels["Mostrando {0} de {1} SKU."] = T["Mostrando {0} de {1} SKU."].Value;
+    progressLabels["No se encontraron productos."] = T["No se encontraron productos."].Value;
+    progressLabels["Renglón {0}"] = T["Renglón {0}"].Value;
     <section class="card mt-3 production-week-workspace" data-week-workspace
-             data-week-id="@week.Id" data-week-version="@week.Version"
+             data-new-week="@(isNew ? "true" : "false")" data-context-url="@Url.Page("Schedule", "NewWeekContext")" data-target-ready="@(!isNew || Model.CanCreateSelectedWeek ? "true" : "false")" data-week-id="@week.Id" data-week-version="@week.Version"
+             data-week-status="@week.Status" data-readonly="@(!editable ? "true" : "false")"
+             data-focus-line="@(Model.EditLineId ?? Model.DeleteLineId)" data-request-delete="@(Model.DeleteLineId.HasValue ? "true" : "false")"
+             data-request-add="@(Model.AddLine ? "true" : "false")" data-request-mode="@(Model.ActionPanel is "copy" or "carry" ? "copy" : "add")"
+             data-progress-labels="@JsonSerializer.Serialize(progressLabels)"
              data-week-start="@week.WeekStart.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
              data-user-id="@Model.User.FindFirst(global::System.Security.Claims.ClaimTypes.NameIdentifier)?.Value"
              data-search-url="@Url.Page("Schedule", "WorkspaceProducts")"
              data-resolve-url="@Url.Page("/Operations/Lookup", "ResolveProduct")"
-             data-paste-url="@Url.Page("Schedule", "WorkspaceResolveProducts")"
+             data-resolve-products-url="@Url.Page("Schedule", "WorkspaceResolveProducts")"
              data-copy-url="@Url.Page("Schedule", "WorkspaceCopy")"
-             data-operation-url="@Url.Page("Schedule", "WorkspaceOperation")">
+             data-workspace-review-url="@Url.Page("Schedule", isNew ? "NewWeekReview" : "WorkspaceReview")"
+             data-operation-url="@Url.Page("Schedule", isNew ? "NewWeekOperation" : "WorkspaceOperation")"
+             data-program-url="@Url.Page("Schedule", new { WeekId = week.Id, SelectedDay = Model.SelectedDay?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), View = "program", ActionPanel = isNew ? "new" : null })"
+             data-review-url="@Url.Page("Schedule", new { WeekId = week.Id, SelectedDay = Model.SelectedDay?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), View = "review" })"
+             data-text-save="@T[isNew ? "Guardar y abrir semana" : "Guardar cambios"]" data-text-continue="@T["Guardar y continuar a apertura"]"
+             data-text-count-one="@T["{0} cambio"]" data-text-count-many="@T["{0} cambios"]"
+             data-text-prepared="@T["Incorpora o descarta la preparación antes de continuar a apertura."]"
+             data-text-recovery="@T["Recupera o descarta la preparación pendiente antes de continuar."]"
+             data-text-invalid="@T["Completa las cantidades de los productos preparados antes de continuar."]" data-text-discard="@T["Descartar preparación ilegible"]">
         <div class="card-body">
-            <div class="production-week-workspace__context d-flex flex-wrap justify-content-between align-items-start gap-2">
-                <div><h3 class="h5 mb-1">Preparar la semana</h3><p class="text-body-secondary mb-0">Escribe cantidades por día. Revisa y guarda el grupo cuando esté listo.</p></div>
-                <div class="d-flex flex-wrap gap-2"><span class="badge text-bg-secondary">Borrador · @week.WeekStart.ToString("dd/MM/yyyy")–@week.WeekEnd.ToString("dd/MM/yyyy")</span><span class="badge text-bg-primary" data-workspace-count>0 cambios</span></div>
+            @if(isNew){<p data-workspace-target-status role="status" aria-live="polite">@T[Model.CanCreateSelectedWeek ? "Prepara el programa antes de confirmar la apertura." : "Selecciona una semana disponible para introducir el programa."]</p>}
+            <fieldset data-workspace-controls disabled="@(isNew && !Model.CanCreateSelectedWeek)">
+            <h2 class="visually-hidden">@T["Planeación y avance semanal"]</h2>
+            <p class="alert alert-warning mt-2" data-workspace-progress-warning role="status" hidden>@T["Hay cambios pendientes. Guarda para actualizar las metas y los porcentajes."]</p>
+            <div hidden data-workspace-progress>
+                @foreach(var product in Model.ScheduleProgress){<span data-progress="@JsonSerializer.Serialize(product, new JsonSerializerOptions(JsonSerializerDefaults.Web))"></span>}
             </div>
-            <partial name="_InitialCarryover" model="Model" />
             <div hidden data-workspace-existing>
                 @foreach (var line in week.Lines.Where(x => !x.IsCarryover))
                 {
                     <span data-line="@JsonSerializer.Serialize(new {
-                        line.Id, line.Version, line.ProductId, line.Sku, line.Unit,
+                        line.Id, line.Version, line.ProductId, line.Sku, line.Unit, line.AllowsDecimals,
                         Day = line.PlannedDate.DayNumber - week.WeekStart.DayNumber,
                         line.Quantity, line.OrderReference1, line.OrderReference2, line.OrderReference3,
                         line.Notes, line.OriginalType, line.OriginalAnnotation1, line.OriginalAnnotation2,
                         line.OriginalAnnotation1Kind, line.OriginalAnnotation2Kind
+                        , CanRemove = Model.DeletionEligibility.GetValueOrDefault(line.Id)?.Allowed ?? false,
+                        RemovalReason = Model.DeletionEligibility.GetValueOrDefault(line.Id)?.Reason,
+                        RemovalRequiresPin = Model.DeletionEligibility.GetValueOrDefault(line.Id)?.RequiresPin ?? false
                     })"></span>
                 }
             </div>
-            <div class="row g-3 mt-1">
-                <div class="col-12 col-lg-5 position-relative">
-                    <label for="week-workspace-search" class="form-label">Buscar o escanear SKU</label>
+            @if(editable){
+            <section class="production-week-workspace__methods" aria-labelledby="workspace-method-title">
+                <h4 class="visually-hidden" id="workspace-method-title">@T["Forma de agregar productos"]</h4>
+                <div class="production-week-workspace__toolbar">
+                <div class="production-week-workspace__search position-relative" id="workspace-add">
+                    <label for="week-workspace-search" class="form-label">@T["Buscar o escanear SKU"]</label>
                     <input id="week-workspace-search" type="search" class="form-control form-control-lg" data-workspace-search autocomplete="off" autocapitalize="characters" aria-expanded="false" aria-controls="week-workspace-results" />
                     <div id="week-workspace-results" class="list-group production-daily__suggestions" data-workspace-results role="listbox"></div>
                 </div>
-                <div class="col-12 col-lg-4">
-                    <label for="week-workspace-source" class="form-label">Copiar de otra semana</label>
-                    <select id="week-workspace-source" class="form-select form-select-lg" data-workspace-source>
-                        @foreach (var source in Model.Weeks.Where(x => x.WeekStart < week.WeekStart).OrderByDescending(x => x.WeekStart))
+                <button type="button" class="btn btn-outline-primary" data-workspace-copy-toggle aria-expanded="false" aria-controls="workspace-copy">@T["Copiar semana"]</button>
+            </div>
+            <div class="row g-3 production-week-workspace__copy-panel" id="workspace-copy" data-workspace-copy-panel hidden>
+                <div class="col-12 col-lg-5">
+                    <label for="week-workspace-source" class="form-label">@T["Copiar de otra semana"]</label>
+                    <select id="week-workspace-source" class="form-select form-select-lg" data-workspace-source disabled="@(copySources.Length == 0)">
+                        @foreach (var source in copySources)
                         { <option value="@source.Id">@source.WeekStart.ToString("dd/MM/yyyy")–@source.WeekEnd.ToString("dd/MM/yyyy")</option> }
                     </select>
+                    @if(copySources.Length == 0){<p class="form-text mb-0">@T["No hay una semana anterior para copiar."]</p>}
                 </div>
                 <div class="col-12 col-lg-3 d-flex flex-column justify-content-end gap-1 production-week-workspace__copy-controls">
-                    <label><input type="checkbox" data-workspace-copy-products checked /> Copiar productos</label>
-                    <label><input type="checkbox" data-workspace-copy-openings /> Traer arrastre</label>
-                    <label><input type="checkbox" data-workspace-copy-quantities /> Incluir cantidades anteriores de productos</label>
-                    <button type="button" class="btn btn-outline-primary" data-workspace-copy>Preparar copia</button>
+                    <label><input type="checkbox" data-workspace-copy-products checked /> @T["Copiar productos"]</label>
+                    <label><input type="checkbox" data-workspace-copy-openings /> @T["Traer arrastre"]</label>
+                    <label><input type="checkbox" data-workspace-copy-quantities /> @T["Incluir cantidades anteriores de productos"]</label>
+                    <button type="button" class="btn btn-outline-primary" data-workspace-copy disabled="@(copySources.Length == 0)">@T["Preparar copia"]</button>
+                    <p class="form-text mb-0" data-workspace-copy-status role="status" aria-live="polite"></p>
                 </div>
+                <div class="col-12"><partial name="_InitialCarryover" model="Model" /></div>
             </div>
-            <details class="mt-3" data-workspace-paste-panel><summary class="py-2">Pegar desde Excel</summary>
-                <p class="small text-body-secondary">Usa encabezados «SKU | Lunes | Martes | … | Domingo» o «Día | SKU | Cantidad». Pedido 1, Pedido 2, Pedido 3 y Notas son opcionales.</p>
-                <div class="row g-2"><div class="col-12 col-lg-6"><strong class="small">Plantilla semanal</strong><pre class="small border rounded p-2 overflow-auto">SKU	Lunes	Martes	Miércoles	Jueves	Viernes	Sábado	Domingo	Pedido 1	Notas
-SKU-123	10	20						PO-1	</pre></div><div class="col-12 col-lg-6"><strong class="small">Plantilla por día</strong><pre class="small border rounded p-2 overflow-auto">Día	SKU	Cantidad	Pedido 1	Notas
-Lunes	SKU-123	10	PO-1	</pre></div></div>
-                <label for="week-workspace-paste" class="form-label">Datos copiados de Excel</label>
-                <textarea id="week-workspace-paste" class="form-control" rows="5" data-workspace-paste></textarea>
-                <button type="button" class="btn btn-outline-primary mt-2" data-workspace-preview-paste>Revisar pegado</button>
+            </section>
+            <details class="production-week-workspace__legacy mt-2" data-workspace-legacy-paste hidden>
+                <summary>@T["Texto pendiente del pegado anterior"]</summary>
+                <p class="small text-body-secondary mt-2">@T["Este texto se conserva solo como respaldo. No se incorporará al programa ni impedirá guardar otros cambios."]</p>
+                <pre class="border rounded p-2" data-workspace-legacy-text></pre>
+                <button type="button" class="btn btn-outline-secondary" data-workspace-discard-legacy>@T["Descartar texto anterior"]</button>
             </details>
-            <section data-workspace-paste-preview class="mt-3" aria-label="Productos y arrastre preparados para incorporar" tabindex="-1" hidden></section>
-            <div class="d-flex flex-wrap gap-2 mt-3" role="group" aria-label="Vista de la preparación">
-                <button type="button" class="btn btn-outline-primary active" data-workspace-view="week">Semana</button>
-                <button type="button" class="btn btn-outline-primary" data-workspace-view="day">Por día</button>
-                <select class="form-select production-week-workspace__day" data-workspace-day aria-label="Día visible"></select>
+            }
+            @if (!editable)
+            {
+                <div class="production-week-workspace__search">
+                    <label for="week-workspace-filter" class="form-label">@T["Buscar SKU en esta semana"]</label>
+                    <input id="week-workspace-filter" type="search" class="form-control form-control-lg" data-workspace-filter autocomplete="off" autocapitalize="characters" aria-controls="week-workspace-rows" aria-describedby="week-workspace-filter-status" />
+                    <p id="week-workspace-filter-status" class="small text-body-secondary mt-2 mb-0" data-workspace-filter-status role="status" aria-live="polite"></p>
+                </div>
+                <partial name="_InitialCarryover" model="Model" />
+            }
+            <div class="production-week-workspace__table-toolbar mt-3">
+                @if(editable){
+                    <span class="badge text-bg-secondary" data-workspace-count>@T["{0} cambios", 0]</span>
+                    <button type="button" class="btn btn-outline-secondary" data-workspace-clear-all hidden>@T["Limpiar todo"]</button>
+                }
             </div>
+            @if(!isNew){<details class="production-week-workspace__explanation"><summary>@T["Cómo interpretar el avance"]</summary><p class="small text-body-secondary mb-2">@T["El estado del plan cubre primero las metas más antiguas con toda la producción guardada de la semana. «Hecho ese día» conserva su fecha real."]</p></details>}
             <p class="small text-body-secondary mt-2 mb-0" data-workspace-day-summary></p>
-            <div class="table-responsive mt-3"><table class="table table-bordered align-middle production-week-workspace__table">
-                <thead><tr><th scope="col">SKU</th><th scope="col" data-workspace-day-head="0">Lunes</th><th scope="col" data-workspace-day-head="1">Martes</th><th scope="col" data-workspace-day-head="2">Miércoles</th><th scope="col" data-workspace-day-head="3">Jueves</th><th scope="col" data-workspace-day-head="4">Viernes</th><th scope="col" data-workspace-day-head="5">Sábado</th><th scope="col" data-workspace-day-head="6">Domingo</th><th scope="col">Total</th><th scope="col">Acciones</th></tr></thead>
-                <tbody data-workspace-rows></tbody>
+            <div class="production-week-workspace__top-scroll mt-3" data-workspace-scroll-top tabindex="0" aria-label="@T["Desplazamiento horizontal del programa semanal"]" hidden>
+                <div data-workspace-scroll-width aria-hidden="true"></div>
+            </div>
+            <div class="table-responsive production-week-workspace__scroll" data-workspace-scroll><table class="table table-bordered align-middle production-week-workspace__table">
+                <thead>
+                    <tr class="production-week-workspace__column-groups"><th rowspan="2" scope="col">SKU</th><th colspan="3" scope="colgroup">@T["Arrastre inicial"]</th><th colspan="7" scope="colgroup" data-workspace-program-head>@T["Programación nueva"] <span id="week-workspace-quantity-label" class="small fw-normal text-body-secondary ms-2">@T["Cantidad programada"]</span></th><th rowspan="2" scope="col">@T["Total"]</th><th rowspan="2" scope="col">@T["Total con arrastre"]</th><th rowspan="2" scope="col">@T["Acciones"]</th></tr>
+                    <tr><th scope="col">@T["Corte"]</th><th scope="col">@T["Costura"]</th><th scope="col">@T["Ready to Pack"]</th><th scope="col" data-workspace-day-head="0">@T["Lunes"]</th><th scope="col" data-workspace-day-head="1">@T["Martes"]</th><th scope="col" data-workspace-day-head="2">@T["Miércoles"]</th><th scope="col" data-workspace-day-head="3">@T["Jueves"]</th><th scope="col" data-workspace-day-head="4">@T["Viernes"]</th><th scope="col" data-workspace-day-head="5">@T["Sábado"]</th><th scope="col" data-workspace-day-head="6">@T["Domingo"]</th></tr>
+                </thead>
+                <tbody id="week-workspace-rows" data-workspace-rows></tbody>
             </table></div>
-            <p data-workspace-empty class="text-body-secondary">Busca un SKU, pega una lista o copia una semana para empezar.</p>
+            <p data-workspace-empty class="text-body-secondary">@T["Busca un SKU o copia una semana para empezar."]</p>
             <div data-workspace-message role="status" aria-live="polite"></div>
-            <form method="post" asp-page-handler="WorkspaceSave" data-workspace-form autocomplete="off">
+            @if(editable){
+            <form id="week-workspace-form" method="post" asp-page-handler="@(isNew ? "CreateWeek" : "WorkspaceSave")" data-workspace-form autocomplete="off">
+                @if(isNew){<input asp-for="NewWeek.OperationId" type="hidden"/><input name="WeekId" type="hidden" value="@Model.WeekId"/><input name="SelectedDay" type="hidden" value="@(Model.SelectedDay?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))"/><input name="View" type="hidden" value="@Model.View"/>}
                 <input name="payload" type="hidden" data-workspace-payload />
                 <div class="production-week-workspace__actions border rounded p-2 mt-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
                     <span data-workspace-summary>Sin cambios pendientes</span>
-                    <button type="button" class="btn btn-primary" data-workspace-review>Revisar cambios</button>
+                    <button type="button" class="btn btn-primary" data-workspace-review>@T[isNew ? "Revisar y abrir semana" : "Revisar cambios del programa"]</button>
                 </div>
-                <div data-workspace-review-panel hidden class="border rounded p-3 mt-3">
-                    <h4 class="h6">Cambios por confirmar</h4><div data-workspace-review-list></div>
-                    <div class="d-flex flex-wrap gap-2 mt-3"><button type="submit" class="btn btn-success" data-workspace-save>Guardar cambios</button><button type="button" class="btn btn-outline-secondary" data-workspace-back>Seguir editando</button></div>
+                <div data-workspace-review-panel hidden tabindex="-1" class="border rounded p-3 mt-3">
+                    <h4 class="h6">@T[isNew ? "Revisión de la semana" : "Cambios por confirmar"]</h4><div data-workspace-review-list></div>
+                    <div data-workspace-reason-panel hidden class="mt-3"><label for="workspace-reason" class="form-label">@T["Motivo del cambio de arrastre"]</label><input id="workspace-reason" data-workspace-reason class="form-control" maxlength="500" /><button type="button" class="btn btn-outline-primary mt-2" data-workspace-recheck>@T["Validar revisión"]</button></div>
+                    <div data-workspace-pin-panel hidden class="mt-3"><label for="workspace-admin-pin" class="form-label">@T["NIP ADMIN de la sesión"]</label><input id="workspace-admin-pin" name="@(isNew ? "NewWeek.Pin" : "adminPin")" data-workspace-pin value="" pattern="[0-9]{4,8}" minlength="4" maxlength="8" type="password" inputmode="numeric" autocomplete="off" class="form-control" disabled /></div>
+                    <div class="d-flex flex-wrap gap-2 mt-3"><button type="submit" class="btn btn-success" data-workspace-save>@T[isNew ? "Guardar y abrir semana" : "Guardar cambios"]</button><button type="button" class="btn btn-outline-secondary" data-workspace-back>@T["Seguir editando"]</button></div>
                 </div>
             </form>
-            <div class="alert alert-info mt-3" data-workspace-recovery hidden></div>
+            <div class="alert alert-warning mt-3" data-workspace-recovery hidden></div>
+            }
+            </fieldset>
         </div>
     </section>
 }

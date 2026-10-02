@@ -26,7 +26,7 @@ public sealed class BatchReviewModel(CycleCountService cycleCounts, IStringLocal
     public async Task<IActionResult> OnPostAsync(Guid id, CancellationToken token)
     {
         var pin = Input.Pin;
-        Input.Pin = string.Empty;
+        Input.Pin = string.Empty; ModelState.Remove("Input.Pin");
         var commands = Input.Decisions.Select(item => new CycleCountReviewDecisionCommand(
             item.LocationId,
             item.OperationId,

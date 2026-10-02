@@ -18,6 +18,7 @@ cambio implícito de las reglas operativas.
 - `Localization/OperationsTexts`: movimientos, recepciones, conteos y etiquetas.
 - `Localization/ProductionTexts`: operación, surtimiento y administración de producción.
 - `Localization/CatalogTexts`: catálogos, administración, ubicaciones y reportes.
+- `Localization/ClientTexts`: mensajes y plantillas de los scripts de pantalla.
 
 Los archivos están en `src/WarehouseEPI.Web/Resources/Localization`.
 `*.resx` contiene el texto español de respaldo y `*.en.resx`, el inglés.
@@ -93,3 +94,24 @@ El buscador recibe `data-no-description` codificado por Razor. Los días de sema
 usan `CurrentUICulture`, mientras fechas HTML y captura de cantidades conservan
 el contrato operativo (ISO en el envío de fechas, punto decimal y `ProductId`).
 La configuración propuesta no se persiste en un GET; ADMIN debe guardarla.
+
+## Exhibición, croquis y arrastre inicial
+
+La configuración y reproducción de la exhibición usan `CatalogTexts` y reciben
+un diccionario reducido de `ClientTexts` en su propio `data-ui-texts`. La reproducción
+funciona sin el layout ni `site.js`; sus scripts leen ese diccionario directamente.
+La preferencia de idioma se aplica también al refresco, la orientación, los
+controles y las etiquetas accesibles.
+
+Los scripts del editor de croquis y arrastre reutilizan `warehouseText` del layout.
+`WarehouseMapText` y `ProductionDailyText` adaptan los mensajes conocidos de los
+servicios en la frontera web, conservando identificadores, argumentos y estructura
+JSON. Las etiquetas del período del mapa de calor se localizan antes de enviarlas
+a HTML, JSON o los consumidores de exportación. Esto no convierte los demás
+encabezados de documentos y exportaciones.
+
+Las pruebas focales verifican claves literales Razor en su catálogo, idioma de
+configuración/reproducción/refresco, mensajes del servidor e interacciones ES/EN.
+La suite `tests/javascript/location-display-localization.browser.cjs` utiliza
+fixtures generados por `LocationDisplayTests`, separados por idioma, sin iniciar
+la instalación operativa.

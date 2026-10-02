@@ -1,0 +1,18 @@
+{
+  "browser": {
+    "browserName": "chromium",
+    "isolated": true,
+    "launchOptions": {
+      "channel": "msedge",
+      "headless": true
+    },
+    "contextOptions": {
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      }
+    }
+  },
+  "outputDir": "artifacts/ui/playwright",
+  "outputMode": "file"
+}

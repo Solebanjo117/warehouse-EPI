@@ -1,0 +1,21 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+<!DOCTYPE html>
+<html lang="@System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@T[Model.ReportTitle]</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/production-reports.css" asp-append-version="true" />
+    @if(Model.Report!.Filter.Products && Model.Report.Areas.Count>1){<link rel="stylesheet" href="~/css/production-reports-a3.css" asp-append-version="true" />}
+</head>
+<body class="report-print">
+    <main class="p-3">
+        <button type="button" class="btn btn-primary report-print-action" data-report-print>@T["Imprimir"]</button>
+        <h1 class="h3">@T[Model.ReportTitle]</h1>
+        <partial name="_ReportMetadata" model="Model" />
+        <partial name="_ReportTable" model="Model" />
+    </main>
+    <script src="~/js/production-reports.js" asp-append-version="true"></script>
+</body>
+</html>

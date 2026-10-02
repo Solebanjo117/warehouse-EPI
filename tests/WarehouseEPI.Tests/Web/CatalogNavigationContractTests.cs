@@ -14,7 +14,7 @@ public sealed class CatalogNavigationContractTests
             Assert.DoesNotContain(ModuleNavigationTestSupport.Actions(false), action => action.Page == $"/Admin/Catalogs/{name}/Index");
             Assert.Equal("catalogs", WarehouseEPI.Web.Navigation.ModuleNavigation.Active($"/Admin/Catalogs/{name}/Index", null, true)?.Key);
         }
-        Assert.Contains("ModuleNavigation.GetVisible(isAdmin)", layout, StringComparison.Ordinal);
+        Assert.Contains("ModuleNavigation.GetVisible(role)", layout, StringComparison.Ordinal);
     }
 
     [Theory]

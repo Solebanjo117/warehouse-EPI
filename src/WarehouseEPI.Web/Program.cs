@@ -16,6 +16,7 @@ using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Backups;
 using WarehouseEPI.Web.Bootstrap;
 using WarehouseEPI.Web.Branding;
 using WarehouseEPI.Web.Hosting;
@@ -77,15 +78,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 builder.Services.AddRazorPages(options =>
 {
-    options.Conventions.AuthorizeFolder("/Admin/Users", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Catalogs", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Inventory", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Reports", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/System", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Account", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Settings", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Labels", "AdminOnly");
-    options.Conventions.AuthorizeFolder("/Admin/Production", "AdminOnly");
+    WarehouseEPI.Web.Security.PageAccess.ConfigurePages(options);
 }).AddDataAnnotationsLocalization(options =>
     options.DataAnnotationLocalizerProvider = (modelType, factory) =>
         factory.Create(WarehouseEPI.Web.Localization.UiTextCatalog.ForModel(modelType)));
@@ -121,6 +114,15 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton(new ApplicationLifetimeInfo(TimeProvider.System));
 builder.Services.AddSingleton<RecentFailureStore>();
 builder.Services.AddScoped<SystemStatusService>();
+builder.Services.AddSingleton<ManualBackupSettings>();
+builder.Services.AddSingleton<BackupOperationCoordinator>();
+builder.Services.AddSingleton<RestoreJobStore>();
+builder.Services.AddSingleton<RestorePackageInspector>();
+builder.Services.AddSingleton<RestoreUploadService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<RestoreUploadService>());
+builder.Services.AddSingleton<IManualBackupBuilder, PostgresManualBackupBuilder>();
+builder.Services.AddSingleton<ManualBackupService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<ManualBackupService>());
 builder.Services.AddHealthChecks()
     .AddCheck("process", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<DatabaseHealthCheck>("postgresql", tags: ["database"]);
@@ -155,6 +157,7 @@ builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDail
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDailyBalanceService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionScheduleImportService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionDailyExportService>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionReportService>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionImportDraftService>();
 builder.Services.AddScoped<InventoryCorrectionService>();
 builder.Services.AddScoped<WipDispositionService>();
@@ -244,7 +247,7 @@ builder.Services
     .AddCookie(options =>
     {
         options.LoginPath = "/Admin/Login";
-        options.AccessDeniedPath = "/Admin/Login";
+        options.AccessDeniedPath = "/AccessDenied";
         options.Cookie.Name = productionSecurity is null ? "WarehouseEPI.Admin" : "__Host-WarehouseEPI.Admin";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Strict;
@@ -255,6 +258,11 @@ builder.Services
         options.SlidingExpiration = true;
         options.Events.OnValidatePrincipal = async context =>
         {
+            if (RestoreMaintenanceMiddleware.BypassesAuthentication(context.Request.Path))
+            {
+                context.RejectPrincipal();
+                return;
+            }
             var userIdValue = context.Principal?.FindFirstValue(ClaimTypes.NameIdentifier);
             if (!Guid.TryParse(userIdValue, out var userId))
             {
@@ -270,16 +278,15 @@ builder.Services
                 .Include(candidate => candidate.Role)
                 .SingleOrDefaultAsync(candidate => candidate.Id == userId);
 
-            if (user is not { IsActive: true } || user.Role.Code != "ADMIN")
+            if (user is not { IsActive: true } || !WarehouseEPI.Core.Entities.RoleAccess.IsKnown(user.Role.Code) ||
+                user.Role.Code != context.Principal?.FindFirstValue(ClaimTypes.Role))
             {
                 context.RejectPrincipal();
                 await context.HttpContext.SignOutAsync();
             }
         };
     });
-builder.Services.AddAuthorization(options =>
-    options.AddPolicy("AdminOnly", policy =>
-        policy.RequireAuthenticatedUser().RequireRole("ADMIN")));
+builder.Services.AddAuthorization(WarehouseEPI.Web.Security.PageAccess.ConfigurePolicies);
 builder.Services.AddAntiforgery(options =>
 {
     options.Cookie.Name = productionSecurity is null ? "WarehouseEPI.Antiforgery" : "__Host-WarehouseEPI.Antiforgery";
@@ -361,6 +368,8 @@ app.Use(async (context, next) =>
 
 app.UseRateLimiter();
 
+app.UseMiddleware<RestoreMaintenanceMiddleware>();
+// The progress screen must work while PostgreSQL is being replaced, including with an old login cookie.
 app.UseAuthentication();
 app.UseAuthorization();
 

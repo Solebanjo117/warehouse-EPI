@@ -72,7 +72,7 @@ public sealed class WarehouseMapEditorContractTests
         Assert.Contains("data-editor-selection-help", page, StringComparison.Ordinal);
         Assert.Contains("data-editor-selection-help", script, StringComparison.Ordinal);
         Assert.Contains("aria-live=\"polite\"", page, StringComparison.Ordinal);
-        Assert.Contains("lockButton.textContent = capabilities.unlock ? \"Desbloquear\" : \"Bloquear\"", script, StringComparison.Ordinal);
+        Assert.Contains("lockButton.textContent = capabilities.unlock ? translate(\"Desbloquear\") : translate(\"Bloquear\")", script, StringComparison.Ordinal);
         Assert.Contains("group: sameLayer", script, StringComparison.Ordinal);
         Assert.Contains("ungroup: sameGroup", script, StringComparison.Ordinal);
         Assert.Contains("elementLock: architectureLayersEditable", script, StringComparison.Ordinal);

@@ -24,6 +24,8 @@ public sealed class CycleCountOperatorSession(
     private readonly IDataProtector protector = dataProtectionProvider.CreateProtector("WarehouseEPI.CycleCounts.OperatorSession.v1");
     private string CookieName => environment.IsProduction() ? ProductionCookieName : DevelopmentCookieName;
 
+    public bool RoleNotAllowed { get; private set; }
+
     public async Task<CycleCountOperatorSessionView?> StartAsync(
         HttpContext context,
         Guid campaignId,
@@ -31,7 +33,8 @@ public sealed class CycleCountOperatorSession(
         CancellationToken cancellationToken = default)
     {
         var user = await pinService.AuthenticateAsync(pin, cancellationToken);
-        if (user is null || user.Role.Code is not ("ADMIN" or "OPERATOR")) return null;
+        RoleNotAllowed = user is not null && !WarehouseEPI.Core.Entities.RoleAccess.CanOperateWarehouse(user.Role.Code);
+        if (user is null || RoleNotAllowed) return null;
 
         Clear(context);
         var now = timeProvider.GetUtcNow();

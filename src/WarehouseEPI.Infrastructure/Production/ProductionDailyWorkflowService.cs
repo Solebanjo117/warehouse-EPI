@@ -89,8 +89,8 @@ public sealed partial class ProductionDailyScheduleService
         if (week is null || source is null || source.WeekStart >= week.WeekStart) return Invalid("Selecciona una semana anterior válida.");
         if (week.Version != command.ExpectedVersion || source.Version != command.SourceVersion) return new(ProductionDailyCommandStatus.ConcurrencyConflict);
         if (week.Status == ProductionScheduleWeekStatus.Closed) return Invalid("Reabre la semana antes de modificarla.");
-        if (command.Rows.Count is 0 or > 100 || command.Rows.Select(x => x.SourceLineId).Distinct().Count() != command.Rows.Count)
-            return Invalid("Selecciona entre 1 y 100 líneas sin repetir.");
+        if (command.Rows.Count is 0 || command.Rows.Select(x => x.SourceLineId).Distinct().Count() != command.Rows.Count)
+            return Invalid("Selecciona al menos una línea sin repetir.");
         foreach (var row in command.Rows)
         {
             var line = source.Lines.SingleOrDefault(x => x.Id == row.SourceLineId && !x.IsCancelled && !x.IsCarryover && !x.IsExtra);
@@ -141,7 +141,7 @@ public sealed partial class ProductionDailyScheduleService
     }
 
     private async Task<ProductionDailyCommandResult> CreatePublishedLineAsync(ProductionScheduleLine line, Product product,
-        SaveProductionScheduleLineCommand command, CancellationToken token)
+        SaveProductionScheduleLineCommand command, CancellationToken token, bool imported = false)
     {
         var order = await BuildDailyOrderAsync(Derive(command.OperationId, line.Id, "create"), product, command.Quantity,
             command.OrderReference1, command.PlannedDate, command.Notes, null, command.ActorUserId, "Producto agregado a semana abierta.", token);
@@ -149,7 +149,9 @@ public sealed partial class ProductionDailyScheduleService
             "Producto agregado a semana abierta.", token);
         if (released.Status != ProductionCommandStatus.Success) return Map(released, "Programa");
         var trace = new ProductionTraceabilityService(db, pins, new ProductionMaterialService(db, pins, movements, timeProvider), timeProvider);
-        var batch = await trace.CreateBatchAsync(new(Derive(command.OperationId, line.Id, "batch"), order.Id, command.Quantity, order.Version, command.AdminPin), token);
+        var batchCommand = new CreateProductionBatchCommand(Derive(command.OperationId, line.Id, "batch"), order.Id, command.Quantity, order.Version, command.AdminPin);
+        var batch = imported ? await trace.CreateBatchAuthorizedAsync(batchCommand, command.ActorUserId, token)
+            : line.IsExtra ? await trace.CreateDailyBatchAsync(batchCommand, token) : await trace.CreateBatchAsync(batchCommand, token);
         if (!batch.Success) return new(ProductionDailyCommandStatus.ValidationFailed, Errors: batch.Errors);
         line.WorkOrderId = order.Id;
         return new(ProductionDailyCommandStatus.Success, order.Id);

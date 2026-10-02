@@ -54,6 +54,19 @@ public static partial class ProductionModelConfiguration
         week.HasOne(x => x.PublishedByUser).WithMany().HasForeignKey(x => x.PublishedByUserId).OnDelete(DeleteBehavior.Restrict);
         week.HasOne(x => x.ClosedByUser).WithMany().HasForeignKey(x => x.ClosedByUserId).OnDelete(DeleteBehavior.Restrict);
 
+        var initial = modelBuilder.Entity<ProductionInitialBalance>();
+        initial.ToTable("production_initial_balances", t => t.HasCheckConstraint("ck_initial_balance_quantity", "quantity >= 0"));
+        initial.HasKey(x => x.Id);
+        initial.Property(x => x.Id).HasColumnName("id");
+        initial.Property(x => x.WeekId).HasColumnName("week_id");
+        initial.Property(x => x.ProductId).HasColumnName("product_id");
+        initial.Property(x => x.Area).HasColumnName("area").HasConversion<string>().HasMaxLength(20);
+        initial.Property(x => x.Quantity).HasColumnName("quantity").HasPrecision(18, 4);
+        initial.Property(x => x.Version).HasColumnName("version").IsConcurrencyToken();
+        initial.HasIndex(x => new { x.WeekId, x.ProductId, x.Area }).IsUnique();
+        initial.HasOne<ProductionScheduleWeek>().WithMany().HasForeignKey(x => x.WeekId).OnDelete(DeleteBehavior.Restrict);
+        initial.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
+
         var opening = modelBuilder.Entity<ProductionWeekOpening>();
         opening.ToTable("production_week_openings", t => t.HasCheckConstraint("ck_week_opening_quantity", "quantity >= 0"));
         opening.HasKey(x => x.Id);

@@ -1,2 +1,27 @@
 @page "/Reports/Notifications"
 @model WarehouseEPI.Web.Pages.Reports.Notifications.IndexModel
+@using WarehouseEPI.Infrastructure.Reporting
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@{ ViewData["Title"] = SharedTexts["Notificaciones"]; }
+<header class="page-header"><h1>@SharedTexts["Notificaciones"]</h1></header>
+<form method="get" class="row g-3 mb-4">
+    <div class="col-12 col-md-5"><label asp-for="Category" class="form-label">@CatTexts["Categoría"]</label><select asp-for="Category" class="form-select form-select-lg"><option value="NegativeInventory">@CatTexts["Saldos negativos"]</option><option value="BelowMinimum">@CatTexts["Productos bajo mínimo"]</option></select></div>
+    <div class="col-12 col-md-5"><label asp-for="Search" class="form-label">@SharedTexts["Buscar"]</label><input asp-for="Search" class="form-control form-control-lg" /></div>
+    <div class="col-12 col-md-2 align-self-end"><button class="btn btn-primary btn-lg" type="submit">@SharedTexts["Buscar"]</button></div>
+</form>
+@if (Model.Results.TotalCount == 0)
+{
+    <p class="alert alert-info" role="status">@SharedTexts["Sin resultados."]</p>
+}
+else
+{
+    <div class="table-responsive"><table class="table align-middle"><caption>@CatTexts[Model.Category == OperationalAlertCategory.NegativeInventory ? "Saldos negativos" : "Productos bajo mínimo"] · @Model.Results.TotalCount</caption><thead><tr><th scope="col">@CatTexts["Producto"]</th><th scope="col">@CatTexts["Detalle"]</th><th scope="col">@CatTexts["Saldo"]</th><th scope="col">@CatTexts["Consulta"]</th></tr></thead><tbody>
+    @foreach (var item in Model.Results.Items)
+    { <tr><td>@item.PrimaryText</td><td>@item.SecondaryText</td><td>@item.ValueText</td><td><a asp-page="/Inventory/Index" asp-route-productId="@item.ProductId" asp-route-locationId="@item.LocationId" class="btn btn-outline-primary">@CatTexts["Existencias"]</a></td></tr> }
+    </tbody></table></div>
+    <nav aria-label="@SharedTexts["Paginación"]" class="d-flex gap-3 align-items-center">
+    @if (Model.PageNumber > 1) { <a class="btn btn-outline-primary" asp-route-Category="@Model.Category" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber - 1)">@SharedTexts["Anterior"]</a> }
+    <span>@Model.PageNumber / @Model.PageCount</span>
+    @if (Model.PageNumber < Model.PageCount) { <a class="btn btn-outline-primary" asp-route-Category="@Model.Category" asp-route-Search="@Model.Search" asp-route-PageNumber="@(Model.PageNumber + 1)">@SharedTexts["Siguiente"]</a> }
+    </nav>
+}

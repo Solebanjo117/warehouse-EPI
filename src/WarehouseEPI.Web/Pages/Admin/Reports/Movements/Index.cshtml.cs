@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace WarehouseEPI.Web.Pages.Admin.Reports.Movements;
 
-[Authorize(Policy = "AdminOnly")]
+[Authorize(Policy = "MovementsRead")]
 public sealed class IndexModel : PageModel
 {
     public IActionResult OnGet()

@@ -6,13 +6,16 @@ namespace WarehouseEPI.Infrastructure.Production;
 public sealed partial class ProductionDailyBalanceService
 {
     private async Task<ProductionDailyBalanceView> ExplicitWeekAsync(ProductionScheduleWeek week,
-        DateOnly? cutoff, Guid? shiftId, ProductionBalanceScenario? scenario, CancellationToken token)
+        DateOnly? cutoff, Guid? shiftId, ProductionBalanceScenario? scenario, CancellationToken token, Guid[]? selectedProducts = null)
     {
         var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
         var lines = await db.ProductionScheduleLines.AsNoTracking().Include(x => x.WorkOrder).ThenInclude(x => x!.Stages)
+            .Where(x => selectedProducts == null || selectedProducts.Contains(x.ProductId))
             .Where(x => x.WeekId == week.Id && !x.IsCancelled && !x.IsExtra).ToListAsync(token);
-        var openings = await db.ProductionWeekOpenings.AsNoTracking().Where(x => x.WeekId == week.Id && x.Quantity > 0).ToListAsync(token);
+        var openings = await db.ProductionWeekOpenings.AsNoTracking().Where(x => x.WeekId == week.Id && x.Quantity > 0)
+            .Where(x => selectedProducts == null || selectedProducts.Contains(x.ProductId)).ToListAsync(token);
         var captures = await db.ProductionDailyCaptures.AsNoTracking()
+            .Where(x => selectedProducts == null || selectedProducts.Contains(x.ProductId))
             .Where(x => x.WeekId == week.Id && x.Status == ProductionDailyCaptureStatus.Active)
             .Select(x => new { x.Id, x.ProductId, x.Area, Date = x.EffectiveDate, x.ShiftId, x.Quantity,
                 Residual = x.Quantity - x.Allocations.Sum(a => a.Quantity) }).ToListAsync(token);
@@ -68,8 +71,12 @@ public sealed partial class ProductionDailyBalanceService
                     var net = initial + plan - complete;
                     var advance = Math.Min(Math.Max(0, -net), own.Where(x => x.PlannedDate > day && Applies(x, area)).Sum(x => x.Quantity));
                     var applies = own.Any(x => Applies(x, area)) || carried.Any(x => x.Area == area) || done.Any(x => x.Area == area);
+                    var programmedToday = own.Where(x => !x.IsCarryover && x.PlannedDate == day && Applies(x, area)).Sum(x => x.Quantity);
+                    var openingToday = (day == week.WeekStart ? initial : 0)
+                        + own.Where(x => x.IsCarryover && x.PlannedDate == day && Applies(x, area)).Sum(x => x.Quantity);
                     return new(area, applies, complete, Math.Max(0, net), advance, Math.Max(0, -net) - advance,
-                        area == ProductionDailyArea.Cutting ? 0 : done.Where(x => x.Area == area && x.Date <= day).Sum(x => x.Residual), initial, net);
+                        area == ProductionDailyArea.Cutting ? 0 : done.Where(x => x.Area == area && x.Date <= day).Sum(x => x.Residual), initial, net,
+                        ProgrammedToday: programmedToday, OpeningToday: openingToday);
                 }
                 var finalArea = Enum.GetValues<ProductionDailyArea>().LastOrDefault(a => Area(a).Applies);
                 var target = carried.Where(x => x.Area == finalArea).Sum(x => x.Quantity) + own.Where(x => Applies(x, finalArea)).Sum(x => x.Quantity);
@@ -107,7 +114,8 @@ public sealed partial class ProductionDailyBalanceService
                 x.WeekId, x.Allocations.Sum(a => a.Quantity), x.Allocations.Any(), x.RecordedAt)).ToListAsync(token);
         var allocations = await db.ProductionDailyCaptureAllocations.AsNoTracking().Where(x => lineIds.Contains(x.ScheduleLineId) && x.Capture.Status == ProductionDailyCaptureStatus.Active)
             .Select(x => new BalanceAllocation(x.CaptureId, x.ScheduleLineId, x.WorkOrderStageId, x.Capture.EffectiveDate, x.Capture.ShiftId, x.Quantity)).ToListAsync(token);
-        ApplyScenario(scenario, week, config, lines, captures, allocations, limits);
+        ApplyScenario(scenario, week, config, lines, captures, allocations, limits,
+            await ProductionScheduleImportService.DetachedLineIdsAsync(db, lineIds, token));
         return captures.Where(x => x.WeekId == week.Id).ToDictionary(x => x.Id, x => x.Quantity - x.Allocated);
     }
 }

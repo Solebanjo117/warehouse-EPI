@@ -84,6 +84,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         CancellationToken token = default)
     {
         var user = await OperatorAsync(command.Pin, token); if (user is null) return new(ProductionSupplyCommandStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(ProductionSupplyCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var selections = Normalize(command.Sources); var fp = Fingerprint(command with { Pin = string.Empty, Sources = selections });
         var prior = await ExistingAsync(command.OperationId, fp, token); if (prior is not null) return prior;
         if (selections.Count == 0) return Invalid("Selecciona al menos un origen con cantidad positiva.");
@@ -153,6 +154,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         CancellationToken token = default)
     {
         var user = await OperatorAsync(command.Pin, token); if (user is null) return new(ProductionSupplyCommandStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(ProductionSupplyCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         var requestedSources = command.ActualSources is null ? null : Normalize(command.ActualSources);
         var fp = Fingerprint(command with { Pin = string.Empty, ActualSources = requestedSources }); var prior = await ExistingAsync(command.OperationId, fp, token); if (prior is not null) return prior;
         await using var tx = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(token) : null;
@@ -273,6 +275,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
     public async Task<ProductionSupplyCommandResult> DiscardAsync(ProductionSupplyDiscardCommand command, CancellationToken token = default)
     {
         var user = await OperatorAsync(command.Pin, token); if (user is null) return new(ProductionSupplyCommandStatus.InvalidPin);
+        if (!RoleAccess.CanOperateWarehouse(user.Role.Code)) return new(ProductionSupplyCommandStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
         if (string.IsNullOrWhiteSpace(command.Reason)) return Invalid("Indica el motivo para descartar la preparación.");
         var fp = Fingerprint(command with { Pin = string.Empty }); var prior = await ExistingAsync(command.OperationId, fp, token); if (prior is not null) return prior;
         var preparation = await db.ProductionSupplyPreparations.Include(x => x.SupplyRequestLine).ThenInclude(x => x.SupplyRequest)
@@ -490,7 +493,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
             InventoryMovementId = movementId, RecordedAt = timeProvider.GetUtcNow() });
     private async Task<ProductionSupplyCommandResult?> ExistingAsync(Guid operationId, string fp, CancellationToken token)
     { var e = await db.ProductionSupplyEvents.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == operationId, token); return e is null ? null : e.RequestFingerprint == fp ? new(ProductionSupplyCommandStatus.Success, e.SupplyRequestId) : new(ProductionSupplyCommandStatus.IdempotencyConflict, e.SupplyRequestId); }
-    private async Task<User?> OperatorAsync(string pin, CancellationToken token) { var user = await pins.AuthenticateAsync(pin, token); return user?.Role.Code is "ADMIN" or "OPERATOR" ? user : null; }
+    private async Task<User?> OperatorAsync(string pin, CancellationToken token) { var user = await pins.AuthenticateAsync(pin, token); return user; }
     private static string Fingerprint<T>(T value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(value))));
     private static Guid Derive(Guid operationId, Guid sourceId) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{operationId:N}|{sourceId:N}"))[..16]);
     private static ProductionSupplyCommandResult Invalid(string message) => new(ProductionSupplyCommandStatus.ValidationFailed, Errors: [message]);

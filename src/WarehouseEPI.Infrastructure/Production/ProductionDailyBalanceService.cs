@@ -8,16 +8,23 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
 {
     public Task<ProductionDailyBalanceView?> GetAsync(Guid weekId, CancellationToken token = default) => GetAsync(weekId, false, false, token);
 
+    // Operational callers must never consume the reporting backlog as physical stock.
+    internal Task<ProductionDailyBalanceView?> GetPhysicalAsync(Guid weekId,
+        bool availability = false, bool priorOnly = false, Guid[]? selectedProducts = null, CancellationToken token = default) =>
+        GetAsync(weekId, availability, priorOnly, token, physicalOnly: true, selectedProducts: selectedProducts);
+
     internal async Task<ProductionDailyBalanceView?> GetAsync(Guid weekId, bool availability, bool priorOnly, CancellationToken token,
-        DateOnly? shiftCutoffDate = null, Guid? includedShiftId = null, ProductionBalanceScenario? scenario = null)
+        DateOnly? shiftCutoffDate = null, Guid? includedShiftId = null, ProductionBalanceScenario? scenario = null,
+        bool physicalOnly = false, Guid[]? selectedProducts = null)
     {
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == weekId, token);
         if (week is null) return null;
-        if (week.ExplicitCarryover && !availability && !priorOnly)
-            return await ExplicitWeekAsync(week, shiftCutoffDate, includedShiftId, scenario, token);
+        if (week.ExplicitCarryover && !availability && !priorOnly && !physicalOnly)
+            return await WithInitialBalancesAsync(await ExplicitWeekAsync(week, shiftCutoffDate, includedShiftId, scenario, token, selectedProducts), scenario, selectedProducts, token);
         var config = await db.ProductionDailyConfigurations.AsNoTracking().SingleAsync(x => x.Id == 1, token);
         var lines = await db.ProductionScheduleLines.AsNoTracking()
             .Include(x => x.Week).Include(x => x.WorkOrder).ThenInclude(x => x!.Stages)
+            .Where(x => selectedProducts == null || selectedProducts.Contains(x.ProductId))
             .Where(x => !x.IsCancelled && (x.WeekId == weekId ||
                 x.WorkOrderId != null && x.Week.WeekStart < week.WeekStart && x.Week.Status != ProductionScheduleWeekStatus.Draft ||
                 x.CaptureAllocations.Any(a => a.Capture.IsFlexible && a.Capture.EffectiveDate <= week.WeekEnd)))
@@ -26,6 +33,7 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
             (!priorOnly || x.Week.WeekStart < week.WeekStart) &&
             x.WorkOrder!.Status is ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress).ToList();
         var captures = await db.ProductionDailyCaptures.AsNoTracking()
+            .Where(x => selectedProducts == null || selectedProducts.Contains(x.ProductId))
             .Where(x => (x.WeekId == weekId || x.IsFlexible && x.EffectiveDate <= week.WeekEnd) && x.Status == ProductionDailyCaptureStatus.Active)
                         .Select(x => new BalanceCapture(x.Id, x.ProductId, x.Area, x.EffectiveDate, x.ShiftId, x.Quantity, x.IsFlexible, x.WeekId, x.Allocations.Sum(a => a.Quantity), x.Allocations.Any(), x.RecordedAt))
             .ToListAsync(token);
@@ -35,7 +43,8 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
                 x.Capture.EffectiveDate <= week.WeekEnd)
                         .Select(x => new BalanceAllocation(x.CaptureId, x.ScheduleLineId, x.WorkOrderStageId, x.Capture.EffectiveDate, x.Capture.ShiftId, x.Quantity))
             .ToListAsync(token);
-        if (scenario is not null) ApplyScenario(scenario, week, config, lines, captures, allocations);
+        if (scenario is not null) ApplyScenario(scenario, week, config, lines, captures, allocations,
+            detachedLineIds: await ProductionScheduleImportService.DetachedLineIdsAsync(db, lineIds, token));
         if (shiftCutoffDate is not null)
         {
             captures = captures.Where(x => x.EffectiveDate != shiftCutoffDate || x.ShiftId == includedShiftId).ToList();
@@ -101,7 +110,7 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
                         var area = (int)flow.Stages[index].Area;
                         // Extra capacity is never a plan to cut more pieces, including when viewing an earlier date.
                         var firstInput = flow.Line.IsExtra && index == 0 ? through[index] : planned;
-                        var opening = isPrior ? (index == 0 ? flow.Line.Quantity : before[index - 1]) - before[index] : 0;
+                        var opening = isPrior ? (index == 0 ? (flow.Line.IsExtra ? before[index] : flow.Line.Quantity) : before[index - 1]) - before[index] : 0;
                         openingTotal += opening;
                         // Older captures can be reconciled to a new week's order. Their signed opening survives that link.
                         openingByArea[area] += (isPrior ? opening : (index == 0 ? 0 : before[index - 1]) - before[index])
@@ -152,9 +161,37 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
                 if (legacyAreas.Length > 0) finalCompleted += legacyDone[legacyAreas[^1]];
                 var progress = progressTarget <= 0 ? (finalCompleted > 0 ? 100m : 0m) :
                     decimal.Round(Math.Min(100m, finalCompleted * 100m / progressTarget), 1);
+                var toReconcile = pending.Select(x => Math.Max(0, -x)).ToArray();
+                var programmedToday = new decimal[3];
+                var openingToday = new decimal[3];
+                if (!physicalOnly && !availability && !priorOnly)
+                {
+                    applicable.Clear();
+                    bool Applies(ProductionScheduleLine line, ProductionDailyArea area) =>
+                        ProductionDailyProcessFlow.Resolve(config,
+                            line.WorkOrder?.Stages.OrderBy(x => x.Sequence).Select(x => x.SourceStageId) ?? routeStages ?? [],
+                            line.IsCarryover ? line.StartArea : null).Contains(area);
+                    foreach (var area in areas)
+                    {
+                        var i = (int)area;
+                        var own = currentLines.Where(x => !x.IsCarryover && Applies(x, area)).ToArray();
+                        // Preserve historical openings and their original dates; do not transfer another week's plan.
+                        var carry = currentLines.Where(x => x.IsCarryover && (x.StartArea ?? ProductionDailyArea.Cutting) == area).ToArray();
+                        programmedToday[i] = own.Where(x => x.PlannedDate == day).Sum(x => x.Quantity);
+                        openingToday[i] = carry.Where(x => x.PlannedDate == day).Sum(x => x.Quantity);
+                        var initial = openingByArea[i] - carry.Where(x => x.PlannedDate > day).Sum(x => x.Quantity);
+                        completed[i] = productCaptures.Where(x => x.Area == area && x.EffectiveDate >= week.WeekStart && x.EffectiveDate <= day).Sum(x => x.Quantity);
+                        pending[i] = initial + own.Where(x => x.PlannedDate <= day).Sum(x => x.Quantity) - completed[i];
+                        advance[i] = Math.Min(Math.Max(0, -pending[i]), own.Where(x => x.PlannedDate > day).Sum(x => x.Quantity));
+                        extras[i] = Math.Max(0, -pending[i]) - advance[i];
+                        if (own.Length > 0 || carry.Length > 0 || initial != 0 ||
+                            productCaptures.Any(x => x.Area == area)) applicable.Add(area);
+                    }
+                }
                 ProductionDailyAreaBalance Area(ProductionDailyArea area) => new(area, applicable.Contains(area),
                     completed[(int)area], Math.Max(0, pending[(int)area]), advance[(int)area],
-                    extras[(int)area], area == ProductionDailyArea.Cutting ? 0 : Math.Max(0, -pending[(int)area]), openingByArea[(int)area], pending[(int)area]);
+                    extras[(int)area], area == ProductionDailyArea.Cutting ? 0 : toReconcile[(int)area], openingByArea[(int)area], pending[(int)area],
+                    ProgrammedToday: programmedToday[(int)area], OpeningToday: openingToday[(int)area]);
                 var dayCaptures = productCaptures.Where(x => x.EffectiveDate == day).ToArray();
                 rows.Add(new(day, productId, product.Sku, product.Description,
                     dayLines.Where(x => !x.IsCarryover).Sum(x => x.Quantity), dayLines.Where(x => x.IsCarryover).Sum(x => x.Quantity),
@@ -165,7 +202,9 @@ public sealed partial class ProductionDailyBalanceService(WarehouseDbContext db)
                     Area(ProductionDailyArea.Cutting), Area(ProductionDailyArea.Sewing), Area(ProductionDailyArea.ReadyToPack), progress));
             }
         }
-        return new(week.Id, week.WeekStart, week.WeekEnd, week.Status, rows);
+        var result = new ProductionDailyBalanceView(week.Id, week.WeekStart, week.WeekEnd, week.Status, rows);
+        return !physicalOnly && !availability && !priorOnly
+            ? await WithInitialBalancesAsync(result, scenario, selectedProducts, token) : result;
     }
 
     private sealed record FlowStage(ProductionDailyArea Area, Guid? Id);

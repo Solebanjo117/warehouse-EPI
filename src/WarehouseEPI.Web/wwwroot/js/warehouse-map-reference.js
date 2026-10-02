@@ -1,4 +1,5 @@
 (() => {
+  const translate = window.warehouseText || ((key, ...args) => key.replace(/\{(\d+)\}/g, (match, index) => args[Number(index)] ?? match));
   const editor = document.querySelector("[data-map-editor]");
   if (!editor) return;
 
@@ -87,15 +88,15 @@
         const normalized = localNormalizedPoint(item, canvasPoint(event)); calibrationPoints.push(normalized);
         if (calibrationPoints.length === 2) {
           const inches = calibrationInches();
-          if (!inches) { status.textContent = "Introduce una distancia real positiva antes de calibrar."; calibrationPoints = []; return; }
+          if (!inches) { status.textContent = translate("Introduce una distancia real positiva antes de calibrar."); calibrationPoints = []; return; }
           set(item, "CalibrationAX", calibrationPoints[0].x); set(item, "CalibrationAY", calibrationPoints[0].y);
           set(item, "CalibrationBX", calibrationPoints[1].x); set(item, "CalibrationBY", calibrationPoints[1].y);
           set(item, "CalibrationDistanceInches", inches); calibrationPoints = []; calibrating = false;
-          updateScaleFromReference(item); sync(); render(); status.textContent = "Escala calibrada y vinculada al fondo.";
-        } else status.textContent = "Marca el segundo punto sobre el fondo.";
+          updateScaleFromReference(item); sync(); render(); status.textContent = translate("Escala calibrada y vinculada al fondo.");
+        } else status.textContent = translate("Marca el segundo punto sobre el fondo.");
         return;
       }
-      if (read(item, "IsLocked", true)) { status.textContent = "Desbloquea el fondo antes de transformarlo."; return; }
+      if (read(item, "IsLocked", true)) { status.textContent = translate("Desbloquea el fondo antes de transformarlo."); return; }
       pushUndo();
       const start = canvasPoint(event); interaction = {
         kind: event.target.classList.contains("editor-reference-resize") ? "resize" : "move", start,
@@ -130,19 +131,19 @@
     group.style.opacity = String(read(item, "Opacity", .35)); group.hidden = visibility?.checked === false; group.classList.toggle("is-locked", read(item, "IsLocked", true));
     const handle = group.querySelector(".editor-reference-resize"); handle.setAttribute("x", width - 12); handle.setAttribute("y", height - 12);
     renderCalibration(group, item); if (controls) controls.hidden = false; if (opacity) { opacity.value = String(read(item, "Opacity", .35)); opacity.disabled = read(item, "IsLocked", true); }
-    const lockButton = editor.querySelector("[data-reference-lock]"); if (lockButton) lockButton.textContent = read(item, "IsLocked", true) ? "Desbloquear fondo" : "Bloquear fondo";
+    const lockButton = editor.querySelector("[data-reference-lock]"); if (lockButton) lockButton.textContent = read(item, "IsLocked", true) ? translate("Desbloquear fondo") : translate("Bloquear fondo");
     sync();
   };
   const restore = (id) => {
     if (tokenField?.value && states.length) { states = states.slice(0, -1); tokenField.value = ""; previewUrl = ""; }
     const restoring = find(id); if (!restoring) return; pushUndo(); const current = active(); if (current) set(current, "IsArchived", true);
-    set(restoring, "IsArchived", false); sync(); render(); renderArchived(); status.textContent = "Fondo restaurado. Guarda la revisión para confirmarlo.";
+    set(restoring, "IsArchived", false); sync(); render(); renderArchived(); status.textContent = translate("Fondo restaurado. Guarda la revisión para confirmarlo.");
   };
   const renderArchived = () => {
     const container = editor.querySelector("[data-reference-archived-items]"); if (!container) return;
     const items = states.filter((item) => read(item, "IsArchived", false));
-    container.replaceChildren(...items.map((item) => { const button = document.createElement("button"); button.type = "button"; button.className = "btn btn-outline-secondary w-100 text-start mb-2"; button.dataset.referenceRestore = read(item, "Id"); button.textContent = `Restaurar ${read(item, "OriginalFileName")}`; button.addEventListener("click", () => restore(read(item, "Id"))); return button; }));
-    if (!items.length) { const empty = document.createElement("span"); empty.className = "small text-body-secondary"; empty.textContent = "No hay fondos archivados."; container.append(empty); }
+    container.replaceChildren(...items.map((item) => { const button = document.createElement("button"); button.type = "button"; button.className = "btn btn-outline-secondary w-100 text-start mb-2"; button.dataset.referenceRestore = read(item, "Id"); button.textContent = translate("Restaurar {0}", read(item, "OriginalFileName")); button.addEventListener("click", () => restore(read(item, "Id"))); return button; }));
+    if (!items.length) { const empty = document.createElement("span"); empty.className = "small text-body-secondary"; empty.textContent = translate("No hay fondos archivados."); container.append(empty); }
   };
   const scheduleRender = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; render(); }); };
 
@@ -160,26 +161,26 @@
 
   const uploadForm = editor.querySelector("[data-reference-upload-form]");
   uploadForm?.addEventListener("submit", async (event) => {
-    event.preventDefault(); const button = uploadForm.querySelector("[data-reference-upload]"); button.disabled = true; button.textContent = "Validando…";
+    event.preventDefault(); const button = uploadForm.querySelector("[data-reference-upload]"); button.disabled = true; button.textContent = translate("Validando…");
     try {
       const response = await fetch(uploadForm.action, { method: "POST", body: new FormData(uploadForm), headers: { "X-Requested-With": "XMLHttpRequest" } });
-      const data = await response.json(); if (!response.ok) throw new Error(data.error || "No se pudo preparar la imagen.");
+      const data = await response.json(); if (!response.ok) throw new Error(data.error || translate("No se pudo preparar la imagen."));
       pushUndo(); if (tokenField?.value && states.length) states = states.slice(0, -1);
       const current = active(); if (current) set(current, "IsArchived", true);
       const ratio = data.pixelWidth / data.pixelHeight; let width = Math.min(1500, 800 * ratio); let height = width / ratio; if (height > 800) { height = 800; width = height * ratio; }
       states.push({ Id: data.id, OriginalFileName: data.originalFileName, StoredFileName: data.storedFileName, ContentType: data.contentType, Sha256: data.sha256, PixelWidth: data.pixelWidth, PixelHeight: data.pixelHeight, X: (canvasWidth() - width) / 2, Y: (canvasHeight() - height) / 2, Width: width, Height: height, Rotation: 0, Opacity: .35, IsLocked: true, IsArchived: false, CalibrationAX: null, CalibrationAY: null, CalibrationBX: null, CalibrationBY: null, CalibrationDistanceInches: null });
-      if (tokenField) tokenField.value = data.token; previewUrl = data.previewUrl; visibility.checked = true; sync(); render(); renderArchived(); status.textContent = "Fondo preparado. Revisa sus cambios antes de guardarlo.";
-    } catch (error) { status.textContent = error.message; } finally { button.disabled = false; button.textContent = "Preparar fondo"; }
+      if (tokenField) tokenField.value = data.token; previewUrl = data.previewUrl; visibility.checked = true; sync(); render(); renderArchived(); status.textContent = translate("Fondo preparado. Revisa sus cambios antes de guardarlo.");
+    } catch (error) { status.textContent = error.message; } finally { button.disabled = false; button.textContent = translate("Preparar fondo"); }
   });
   opacity?.addEventListener("focus", pushUndo);
   opacity?.addEventListener("input", () => { const item = active(); if (!item) return; set(item, "Opacity", Number(opacity.value)); sync(); scheduleRender(); });
   visibility?.addEventListener("change", () => { localStorage.setItem(visibilityKey, String(visibility.checked)); render(); });
   editor.querySelector("[data-reference-lock]")?.addEventListener("click", () => { const item = active(); if (!item) return; pushUndo(); set(item, "IsLocked", !read(item, "IsLocked", true)); sync(); render(); });
-  editor.querySelector("[data-reference-rotate]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; const rotation = (Number(read(item, "Rotation")) + 90) % 360; const rotated = [90, 270].includes(rotation); if ((rotated && (read(item, "Width") > canvasHeight() || read(item, "Height") > canvasWidth())) || (!rotated && (read(item, "Width") > canvasWidth() || read(item, "Height") > canvasHeight()))) { status.textContent = "Redimensiona el fondo antes de girarlo para mantenerlo dentro del lienzo."; return; } pushUndo(); set(item, "Rotation", rotation); clampGeometry(item); sync(); render(); });
+  editor.querySelector("[data-reference-rotate]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; const rotation = (Number(read(item, "Rotation")) + 90) % 360; const rotated = [90, 270].includes(rotation); if ((rotated && (read(item, "Width") > canvasHeight() || read(item, "Height") > canvasWidth())) || (!rotated && (read(item, "Width") > canvasWidth() || read(item, "Height") > canvasHeight()))) { status.textContent = translate("Redimensiona el fondo antes de girarlo para mantenerlo dentro del lienzo."); return; } pushUndo(); set(item, "Rotation", rotation); clampGeometry(item); sync(); render(); });
   editor.querySelector("[data-reference-fit]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; pushUndo(); const ratio = read(item, "PixelWidth") / read(item, "PixelHeight"); let width = canvasWidth(); let height = width / ratio; if (height > canvasHeight()) { height = canvasHeight(); width = height * ratio; } set(item, "X", (canvasWidth() - width) / 2); set(item, "Y", (canvasHeight() - height) / 2); set(item, "Width", width); set(item, "Height", height); clampGeometry(item); updateScaleFromReference(item); sync(); render(); });
-  editor.querySelector("[data-reference-calibrate]")?.addEventListener("click", () => { const item = active(); if (!item) return; if (read(item, "IsLocked", true)) { status.textContent = "Desbloquea el fondo antes de calibrarlo."; return; } pushUndo(); calibrating = true; calibrationPoints = []; status.textContent = "Marca dos puntos sobre el fondo."; });
-  editor.querySelector("[data-reference-unlink-calibration]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; pushUndo(); ["CalibrationAX", "CalibrationAY", "CalibrationBX", "CalibrationBY", "CalibrationDistanceInches"].forEach((name) => set(item, name, null)); sync(); render(); status.textContent = "La escala del plano se conserva, pero ya no está vinculada al fondo."; });
-  editor.querySelector("[data-reference-archive]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) { status.textContent = "Desbloquea el fondo antes de archivarlo."; return; } pushUndo(); if (tokenField?.value && states.at(-1) === item) { states.pop(); tokenField.value = ""; previewUrl = ""; sync(); render(); renderArchived(); status.textContent = "El fondo nuevo se descartó antes de guardarlo."; return; } set(item, "IsArchived", true); sync(); render(); renderArchived(); status.textContent = "Fondo archivado de forma reversible. Guarda la revisión para publicarlo."; });
+  editor.querySelector("[data-reference-calibrate]")?.addEventListener("click", () => { const item = active(); if (!item) return; if (read(item, "IsLocked", true)) { status.textContent = translate("Desbloquea el fondo antes de calibrarlo."); return; } pushUndo(); calibrating = true; calibrationPoints = []; status.textContent = translate("Marca dos puntos sobre el fondo."); });
+  editor.querySelector("[data-reference-unlink-calibration]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) return; pushUndo(); ["CalibrationAX", "CalibrationAY", "CalibrationBX", "CalibrationBY", "CalibrationDistanceInches"].forEach((name) => set(item, name, null)); sync(); render(); status.textContent = translate("La escala del plano se conserva, pero ya no está vinculada al fondo."); });
+  editor.querySelector("[data-reference-archive]")?.addEventListener("click", () => { const item = active(); if (!item || read(item, "IsLocked", true)) { status.textContent = translate("Desbloquea el fondo antes de archivarlo."); return; } pushUndo(); if (tokenField?.value && states.at(-1) === item) { states.pop(); tokenField.value = ""; previewUrl = ""; sync(); render(); renderArchived(); status.textContent = translate("El fondo nuevo se descartó antes de guardarlo."); return; } set(item, "IsArchived", true); sync(); render(); renderArchived(); status.textContent = translate("Fondo archivado de forma reversible. Guarda la revisión para publicarlo."); });
   editor.querySelectorAll("[data-reference-restore]").forEach((button) => button.addEventListener("click", () => restore(button.dataset.referenceRestore)));
 
   if (visibility) visibility.checked = localStorage.getItem(visibilityKey) !== "false";

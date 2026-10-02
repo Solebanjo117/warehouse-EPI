@@ -160,15 +160,20 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
 
     public async Task<IReadOnlyList<InventoryPositionView>> GetLocationInventoryAsync(
         Guid locationId,
+        CancellationToken cancellationToken = default) =>
+        await GetLocationsInventoryAsync([locationId], cancellationToken);
+
+    public async Task<IReadOnlyList<InventoryPositionView>> GetLocationsInventoryAsync(
+        IReadOnlyCollection<Guid> locationIds,
         CancellationToken cancellationToken = default)
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
-            .Where(assignment => assignment.LocationId == locationId && assignment.IsActive &&
+            .Where(assignment => locationIds.Contains(assignment.LocationId) && assignment.IsActive &&
                 assignment.Location.IsPhysicallyPresent)
             .Select(ToPositionFromAssignment())
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.LocationId == locationId && balance.Quantity != 0 &&
+            .Where(balance => locationIds.Contains(balance.LocationId) && balance.Quantity != 0 &&
                 balance.Location.IsPhysicallyPresent)
             .Select(ToPositionFromBalance())
             .ToListAsync(cancellationToken);

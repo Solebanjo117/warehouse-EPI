@@ -28,6 +28,12 @@ SQL idempotente y ejecuta las pruebas con cobertura. Los resultados quedan en
 `artifacts/`, que no se versiona. La suite incluye pruebas web, de dominio y de
 PostgreSQL.
 
+Los comandos de MSBuild ejecutados por linea de comandos guardan automaticamente
+un binlog unico en `.binlogs/` mediante `Directory.Build.rsp`. El directorio
+conserva los registros locales y Git ignora los archivos `.binlog`. No hace
+falta agregar `-bl` a los comandos habituales. Si se pasa explicitamente,
+usa tambien una ruta dentro de `.binlogs/`; MSBuild generara dos registros.
+
 > Advertencia: las pruebas de integracion recrean la base
 > `warehouse_epi_test`. Si se define `WAREHOUSE_EPI_TEST_CONNECTION`, debe
 > apuntar exclusivamente a esa base. Nunca configures una conexion de pruebas
@@ -55,6 +61,53 @@ dentro de cada proyecto y puede incorporar esas salidas como contenido en las
 compilaciones siguientes.
 
 ## Dependencias, formato y cobertura
+
+### Revisión de interfaz y Playwright CLI
+
+Las skills del proyecto en `.agents/skills/` incluyen `web-design-guidelines`
+y `playwright-cli`, adaptadas a Razor Pages, Bootstrap y los contratos de
+captura de Warehouse EPI. Complementan `warehouse-epi-ui` y su contrato visual;
+no añaden frameworks ni dependencias al frontend de producción.
+
+Playwright CLI está fijado como herramienta de desarrollo en
+`tools/playwright/package.json`, con resoluciones en `pnpm-lock.yaml`.
+Requiere Node.js 22 o posterior y pnpm 11.19.0. Desde la raíz:
+
+```powershell
+pnpm --dir tools/playwright install --frozen-lockfile --ignore-scripts
+pwsh ./scripts/playwright.ps1 --version
+pwsh ./scripts/playwright.ps1 --help
+```
+
+El wrapper llama a Node directamente, desactiva las consultas automáticas de
+actualización y conserva argumentos como URLs con `&`, sin pasar por `cmd.exe`.
+`.playwright/cli.config.json` usa Edge instalado,
+perfil aislado, ejecución sin ventana y evidencias en
+`artifacts/ui/playwright/`, fuera de Git. En otra máquina, instala Edge o
+ajusta el canal de la configuración al navegador disponible.
+
+Para revisar una instancia abierta o autorizada, usa su URL actual:
+
+```powershell
+pwsh ./scripts/playwright.ps1 -s=epi-ui open 'URL_LOCAL_AUTORIZADA'
+pwsh ./scripts/playwright.ps1 -s=epi-ui snapshot
+pwsh ./scripts/playwright.ps1 -s=epi-ui resize 768 1024
+pwsh ./scripts/playwright.ps1 -s=epi-ui screenshot --filename=artifacts/ui/playwright/tablet.png
+pwsh ./scripts/playwright.ps1 -s=epi-ui close
+```
+
+La CLI no inicia Warehouse EPI. Usa fixtures o un entorno de pruebas para
+confirmar movimientos; la revisión visual en una instancia con datos reales
+no implica autorización para registrarlos. No captures NIP ni estados de
+autenticación. Revisa Claro/Oscuro/Sistema, teclado, foco y los anchos a ambos
+lados de 900 y 1200 px; la prueba física de tablet, HID, cámara e impresora
+permanece separada de la emulación.
+
+Para actualizar la herramienta, cambia su versión deliberadamente y revisa
+el lockfile. Las skills conservan la procedencia y referencias originales;
+una actualización debe preservar sus adaptaciones operativas.
+
+### Dependencias .NET
 
 Las versiones de paquetes se administran desde `Directory.Packages.props` y sus
 resoluciones quedan bloqueadas mediante `packages.lock.json`. La restauracion
