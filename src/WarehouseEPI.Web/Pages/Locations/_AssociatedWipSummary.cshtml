@@ -1,0 +1,34 @@
+@model WarehouseEPI.Web.Pages.Locations.LocationIndexPageModel.AssociatedWipSummary
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+<details class="map-wip-summary mt-3" open data-associated-wip-summary="@Model.Association.WipAreaId">
+    <summary>
+        <strong>@CatTexts["Últimas entregas a {0}", Model.Association.Code]</strong>
+        <small>@CatTexts["Hasta 5 entregas, de más reciente a más antigua"]</small>
+    </summary>
+    <div class="map-wip-summary-body">
+        <p class="small text-body-secondary">@CatTexts["Reporte compartido del WIP; sin distribución por rack o posición"]</p>
+        @if (Model.Deliveries.Count == 0)
+        {
+            <p class="text-body-secondary">@CatTexts["Aún no hay surtimientos registrados en este WIP."]</p>
+        }
+        else
+        {
+            <div class="map-wip-issues">
+                @foreach (var row in Model.Deliveries)
+                {
+                    <a asp-page="/Reports/Wip/Document" asp-route-id="@row.DocumentId" class="map-wip-issue">
+                        <strong class="text-break">@row.ProductSku</strong>
+                        <time datetime="@row.UpdatedAt.ToString("O")">@row.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</time>
+                        @if (!string.IsNullOrWhiteSpace(row.ProductDescription))
+                        { <span class="map-wip-description text-break">@row.ProductDescription</span> }
+                        @if (row.IsOpening)
+                        { <span class="badge text-bg-secondary">@CatTexts["Apertura del corte"]</span> }
+                        <span><strong>@CatTexts["Cantidad documentada"]:</strong> @row.Delivered.ToString("0.####") @row.Unit</span>
+                        <span class="text-break"><strong>@CatTexts["Responsable:"]</strong> @row.Responsible</span>
+                    </a>
+                }
+            </div>
+        }
+        <a asp-page="/Reports/Wip/Index" asp-route-wipAreaId="@Model.Association.WipAreaId" class="btn btn-outline-primary mt-2">@CatTexts["Ver surtimientos de {0}", Model.Association.Code]</a>
+    </div>
+</details>

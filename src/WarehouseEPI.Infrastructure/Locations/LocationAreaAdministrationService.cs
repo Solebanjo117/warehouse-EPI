@@ -192,6 +192,8 @@ public sealed class LocationAreaAdministrationService(
     private async Task<List<string>> GetBlockersAsync(Guid locationId, CancellationToken token)
     {
         var blockers = new List<string>();
+        if (await dbContext.LocationRackWipAssociations.AnyAsync(x => x.WipAreaId == locationId, token))
+            blockers.Add("Tiene racks asociados. Desconéctalos antes de eliminar el área WIP.");
         if (await dbContext.ProductLocationAssignments.AsNoTracking().AnyAsync(item => item.LocationId == locationId, token))
             blockers.Add("Tiene productos asignados, incluso si la asignación ya está inactiva.");
         if (await dbContext.InventoryBalances.AsNoTracking().AnyAsync(item => item.LocationId == locationId, token))

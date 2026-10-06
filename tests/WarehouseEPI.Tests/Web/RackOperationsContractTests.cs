@@ -23,7 +23,10 @@ public sealed class RackOperationsContractTests
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Edit.cshtml"));
         var model = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Admin", "Catalogs", "Locations", "Rack", "Edit.cshtml.cs"));
-        Assert.Contains("7, 8, 9, 4, 5, 6, 1, 2, 3", page, StringComparison.Ordinal);
+        Assert.Contains("format.PalletOrder", page, StringComparison.Ordinal);
+        Assert.Contains("asp-for=\"Input.Columns\"", page, StringComparison.Ordinal);
+        Assert.Contains("asp-for=\"Input.Levels\"", page, StringComparison.Ordinal);
+        Assert.Contains("data-rack-format-error", page, StringComparison.Ordinal);
         Assert.Contains("Revisar cambios", page, StringComparison.Ordinal);
         Assert.Contains("NIP ADMIN", page, StringComparison.Ordinal);
         Assert.Contains("No es eliminación física de datos", page, StringComparison.Ordinal);
@@ -77,7 +80,7 @@ public sealed class RackOperationsContractTests
     public void Operation_get_validates_prefill_without_changing_post_contract()
     {
         var model = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "OperationPageModel.cs"));
-        Assert.Contains("Task OnGetAsync(Guid? productId", model, StringComparison.Ordinal);
+        Assert.Contains("Task<IActionResult> OnGetAsync(Guid? productId", model, StringComparison.Ordinal);
         Assert.Contains("LoadSelectionAsync(cancellationToken)", model, StringComparison.Ordinal);
         Assert.Contains("Input.ExpectedBalanceVersion = LocationBalance.Version", model, StringComparison.Ordinal);
         Assert.Contains("new InventoryMovementCommand(", model, StringComparison.Ordinal);

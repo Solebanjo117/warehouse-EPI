@@ -2,10 +2,11 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack;
 
@@ -18,6 +19,9 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
     public LocationRackEditSummary? ReviewSummary { get; private set; }
     public IReadOnlyList<string> ReviewErrors { get; private set; } = [];
     public bool IsReviewed { get; private set; }
+    public RackFormat SelectedFormat => new RackFormat(Input.Columns, Input.Levels) is { IsValid: true } format
+        ? format : Rack.Format;
+    public IReadOnlyList<Location> WipAreas { get; private set; } = [];
     public IReadOnlyList<ProductionStage> Processes { get; private set; } = [];
     [TempData] public string? Message { get; set; }
 
@@ -32,7 +36,11 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
             OperationId = Guid.NewGuid(),
             RowCode = rack.RowCode,
             RackNumber = rack.RackNumber,
+            Columns = rack.Format.Columns,
+            Levels = rack.Format.Levels,
             OperationalRole = rack.OperationalRole,
+            WipAreaId = rack.WipAssociation?.WipAreaId,
+            ExpectedWipAreaId = rack.WipAssociation?.WipAreaId,
             ProcessIds = rack.ProcessIds.ToArray(),
             ProcessConfigurationVersion = rack.ProcessConfigurationVersion,
             PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
@@ -49,6 +57,14 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
     {
         if (!await LoadRackAsync(token)) return NotFound();
         await LoadProcessesAsync(token);
+        if (HasFormatBindingErrors())
+        {
+            ReviewErrors = [HasAssociationBindingErrors() ? "Selecciona un área WIP activa, presente y sin bloqueo."
+                : "Selecciona entre una y tres columnas y entre uno y tres niveles."];
+            Input.Pin = string.Empty;
+            ModelState.Remove($"{nameof(Input)}.{nameof(InputModel.Pin)}");
+            return Page();
+        }
         var result = await racks.ReviewAsync(Command(pin: null), token);
         ReviewErrors = result.Errors;
         ReviewSummary = result.Summary;
@@ -62,6 +78,14 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
     {
         if (!await LoadRackAsync(token)) return NotFound();
         await LoadProcessesAsync(token);
+        if (HasFormatBindingErrors())
+        {
+            ReviewErrors = [HasAssociationBindingErrors() ? "Selecciona un área WIP activa, presente y sin bloqueo."
+                : "Selecciona entre una y tres columnas y entre uno y tres niveles."];
+            Input.Pin = string.Empty;
+            ModelState.Remove($"{nameof(Input)}.{nameof(InputModel.Pin)}");
+            return Page();
+        }
         var result = await racks.SaveAsync(Command(Input.Pin), token);
         Input.Pin = string.Empty;
         ModelState.Remove($"{nameof(Input)}.{nameof(InputModel.Pin)}");
@@ -92,7 +116,11 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
             OperationId = Guid.NewGuid(),
             RowCode = rack.RowCode,
             RackNumber = rack.RackNumber,
+            Columns = rack.Format.Columns,
+            Levels = rack.Format.Levels,
             OperationalRole = rack.OperationalRole,
+            WipAreaId = rack.WipAssociation?.WipAreaId,
+            ExpectedWipAreaId = rack.WipAssociation?.WipAreaId,
             ProcessIds = rack.ProcessIds.ToArray(),
             ProcessConfigurationVersion = rack.ProcessConfigurationVersion,
             PresentPallets = rack.Positions.Where(item => item.IsPhysicallyPresent)
@@ -137,23 +165,44 @@ public sealed class EditModel(LocationRackAdministrationService racks, Warehouse
         DeleteInput.RackNumber = rack.RackNumber;
     }
 
+    private bool HasAssociationBindingErrors() =>
+        ModelState[$"{nameof(Input)}.{nameof(InputModel.WipAreaId)}"]?.Errors.Count > 0 ||
+        ModelState[$"{nameof(Input)}.{nameof(InputModel.ExpectedWipAreaId)}"]?.Errors.Count > 0;
+
+    private bool HasFormatBindingErrors() => HasAssociationBindingErrors() ||
+        ModelState[$"{nameof(Input)}.{nameof(InputModel.Columns)}"]?.Errors.Count > 0 ||
+        ModelState[$"{nameof(Input)}.{nameof(InputModel.Levels)}"]?.Errors.Count > 0;
+
     private LocationRackEditCommand Command(string? pin) => new(Input.OperationId,
         CurrentUserId(), Input.RowCode, Input.RackNumber, Input.OperationalRole,
         Input.PresentPallets, Input.Reason, pin, Input.ProcessIds, Input.ProcessConfigurationVersion,
-        Input.WipPallets);
+        Input.WipPallets, new RackFormat(Input.Columns, Input.Levels),
+        new RackWipAssociationChange(Input.WipAreaId, Input.ExpectedWipAreaId));
 
-    private async Task LoadProcessesAsync(CancellationToken token) => Processes = await db.ProductionStages.AsNoTracking()
+    private async Task LoadProcessesAsync(CancellationToken token)
+    {
+        var currentWipAreaId = Rack.WipAssociation?.WipAreaId;
+        WipAreas = await db.Locations.AsNoTracking().Where(x =>
+            (x.Kind == LocationKind.Area && x.OperationalRole == LocationOperationalRole.Wip && x.IsActive && x.IsPhysicallyPresent && !x.IsBlocked) ||
+            x.Id == currentWipAreaId)
+            .OrderBy(x => x.Code).ToListAsync(token);
+        Processes = await db.ProductionStages.AsNoTracking()
         .Where(x => x.IsActive || Input.ProcessIds.Contains(x.Id) || Rack.InheritedProcessIds.Contains(x.Id))
         .OrderBy(x => x.Name).ToListAsync(token);
+    }
 
     private Guid CurrentUserId() => Guid.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
         ? id : Guid.Empty;
 
     public sealed class InputModel
     {
+        public Guid? WipAreaId { get; set; }
+        public Guid? ExpectedWipAreaId { get; set; }
         public Guid OperationId { get; set; }
         public string RowCode { get; set; } = string.Empty;
         public short RackNumber { get; set; }
+        public int Columns { get; set; } = 3;
+        public int Levels { get; set; } = 3;
         public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Storage;
         public short[] PresentPallets { get; set; } = [];
         public short[] WipPallets { get; set; } = [];

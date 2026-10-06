@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 
 namespace WarehouseEPI.Web.Locations;
@@ -9,6 +10,7 @@ public sealed class LocationGenerationService(WarehouseDbContext dbContext, Loca
 {
     private const int MaxBlocks = 50;
     private const int MaxCandidates = 5000;
+    private const string FormatError = "Una posición queda fuera del formato configurado. Amplía el rack desde Editar rack antes de generar esa posición.";
 
     public async Task<LocationGenerationPreview> PrepareAsync(string? manifest, Guid ownerUserId,
         CancellationToken cancellationToken = default)
@@ -21,6 +23,7 @@ public sealed class LocationGenerationService(WarehouseDbContext dbContext, Loca
             (await dbContext.Locations.AsNoTracking().Where(location => codes.Contains(location.Code))
                 .Select(location => location.Code).ToListAsync(cancellationToken)).ToHashSet(StringComparer.Ordinal);
         var rows = candidates.Select(row => row with { Exists = existing.Contains(row.Code) }).ToList();
+        if (await HasPositionsOutsideFormatAsync(rows, cancellationToken)) errors.Add(FormatError);
         if (existing.Count > 0) errors.Add($"Ya existen {existing.Count} ubicaciones de la preparación.");
         return store.Save(ownerUserId, source, rows, errors);
     }
@@ -50,6 +53,8 @@ public sealed class LocationGenerationService(WarehouseDbContext dbContext, Loca
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         try
         {
+            if (await HasPositionsOutsideFormatAsync(rows, cancellationToken))
+                return new(false, 0, FormatError);
             dbContext.Locations.AddRange(rows.Select(row => new Location
             {
                 Code = row.Code,
@@ -70,6 +75,13 @@ public sealed class LocationGenerationService(WarehouseDbContext dbContext, Loca
             return new(false, 0, "La base de datos rechazó la carga. No se insertó ninguna ubicación.");
         }
         finally { if (transaction is not null) await transaction.DisposeAsync(); }
+    }
+
+    private async Task<bool> HasPositionsOutsideFormatAsync(IReadOnlyList<LocationGenerationRow> rows, CancellationToken token)
+    {
+        var formats = await LocationRackFormats.LoadAsync(dbContext, token);
+        return rows.Any(row => formats.TryGetValue((row.RowCode, row.RackNumber), out var format) &&
+            row.PalletNumber > format.Capacity);
     }
 
     private static List<LocationGenerationRow> Parse(string manifest, List<string> errors)

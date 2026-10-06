@@ -5351,4 +5351,63 @@
   <data name="Los compromisos documentales de una orden superan las existencias a convertir." xml:space="preserve"><value>Los compromisos documentales de una orden superan las existencias a convertir.</value></data>
   <data name="Hay reservas de almacén en WIP. Resuélvelas antes del corte." xml:space="preserve"><value>Hay reservas de almacén en WIP. Resuélvelas antes del corte.</value></data>
   <data name="WIP asociado" xml:space="preserve"><value>WIP asociado</value></data>
+  <data name="{0} producto(s)" xml:space="preserve"><value>{0} producto(s)</value></data>
+  <data name="+{0} producto(s)" xml:space="preserve"><value>+{0} producto(s)</value></data>
+  <data name="+{0} asignado(s)" xml:space="preserve"><value>+{0} asignado(s)</value></data>
+  <data name="Sin saldo actual · {0} producto(s) asignado(s)." xml:space="preserve"><value>Sin saldo actual · {0} producto(s) asignado(s).</value></data>
+  <data name="Fila {0} · Rack {1} · Pallet {2}" xml:space="preserve"><value>Fila {0} · Rack {1} · Pallet {2}</value></data>
+  <data name="Fila {0} · Rack {1}" xml:space="preserve"><value>Fila {0} · Rack {1}</value></data>
+  <data name="Rack {0}-{1} WIP · Pallet {2}" xml:space="preserve"><value>Rack {0}-{1} WIP · Pallet {2}</value></data>
+  <data name="Pallet {0}, posición inexistente" xml:space="preserve"><value>Pallet {0}, posición inexistente</value></data>
+  <data name="Ubicación actual: {0}" xml:space="preserve"><value>Ubicación actual: {0}</value></data>
+  <data name="Abrir {0}" xml:space="preserve"><value>Abrir {0}</value></data>
+  <data name="Con incidencias" xml:space="preserve"><value>Con incidencias</value></data>
+  <data name="sin saldo.lower" xml:space="preserve"><value>sin saldo</value></data>
+  <data name="Bloqueada: {0}" xml:space="preserve"><value>Bloqueada: {0}</value></data>
+  <data name="Escribe {0} para confirmar" xml:space="preserve"><value>Escribe {0} para confirmar</value></data>
+  <data name="Al cambiar el formato se seleccionan sus posiciones. Puedes desmarcar las que no existan antes de revisar." xml:space="preserve"><value>Al cambiar el formato se seleccionan sus posiciones. Puedes desmarcar las que no existan antes de revisar.</value></data>
+  <data name="Columnas del rack" xml:space="preserve"><value>Columnas del rack</value></data>
+  <data name="El formato dejaría fuera posiciones con saldo o asignaciones activas. Libera esas posiciones antes de reducir el rack." xml:space="preserve"><value>El formato dejaría fuera posiciones con saldo o asignaciones activas. Libera esas posiciones antes de reducir el rack.</value></data>
+  <data name="Formato actual" xml:space="preserve"><value>Formato actual</value></data>
+  <data name="Formato solicitado" xml:space="preserve"><value>Formato solicitado</value></data>
+  <data name="Las posiciones se numeran de izquierda a derecha y de abajo hacia arriba. En 2 × 2: 1 y 2 abajo; 3 y 4 arriba." xml:space="preserve"><value>Las posiciones se numeran de izquierda a derecha y de abajo hacia arriba. En 2 × 2: 1 y 2 abajo; 3 y 4 arriba.</value></data>
+  <data name="Las posiciones seleccionadas deben quedar dentro del formato del rack." xml:space="preserve"><value>Las posiciones seleccionadas deben quedar dentro del formato del rack.</value></data>
+  <data name="Niveles del rack" xml:space="preserve"><value>Niveles del rack</value></data>
+  <data name="Selecciona entre una y tres columnas y entre uno y tres niveles." xml:space="preserve"><value>Selecciona entre una y tres columnas y entre uno y tres niveles.</value></data>
+  <data name="Seguimiento documental WIP" xml:space="preserve"><value>Seguimiento documental WIP</value></data>
+  <data name="Sin asociación" xml:space="preserve"><value>Sin asociación</value></data>
+  <data name="(no disponible)" xml:space="preserve"><value>(no disponible)</value></data>
+  <data name="Aplica únicamente a las posiciones WIP presentes. Surte al área WIP para consultar el reporte compartido." xml:space="preserve"><value>Aplica únicamente a las posiciones WIP presentes. Surte al área WIP para consultar el reporte compartido.</value></data>
+  <data name="WIP asociado actual" xml:space="preserve"><value>WIP asociado actual</value></data>
+  <data name="WIP asociado solicitado" xml:space="preserve"><value>WIP asociado solicitado</value></data>
+  <data name="Se quitará la asociación WIP del rack. Los documentos conservan su destino original." xml:space="preserve"><value>Se quitará la asociación WIP del rack. Los documentos conservan su destino original.</value></data>
+  <data name="Posiciones WIP asociadas a {0}" xml:space="preserve"><value>Posiciones WIP asociadas a {0}</value></data>
+  <data name="El WIP asociado no está disponible para nuevas operaciones." xml:space="preserve"><value>El WIP asociado no está disponible para nuevas operaciones.</value></data>
+  <data name="Ver surtimientos de {0}" xml:space="preserve"><value>Ver surtimientos de {0}</value></data>
+  <data name="El reporte de esta posición conserva únicamente las entregas registradas directamente en ella." xml:space="preserve"><value>El reporte de esta posición conserva únicamente las entregas registradas directamente en ella.</value></data>
+  <data name="Reporte compartido del WIP; sin distribución por rack o posición" xml:space="preserve"><value>Reporte compartido del WIP; sin distribución por rack o posición</value></data>
+  <data name="Desconecta los racks asociados antes de cambiar la función del área WIP." xml:space="preserve"><value>Desconecta los racks asociados antes de cambiar la función del área WIP.</value></data>
+  <data name="Tiene racks asociados. Desconéctalos antes de eliminar el área WIP." xml:space="preserve"><value>Tiene racks asociados. Desconéctalos antes de eliminar el área WIP.</value></data>
+  <data name="La asociación WIP cambió mientras editabas. Recarga y vuelve a revisar." xml:space="preserve"><value>La asociación WIP cambió mientras editabas. Recarga y vuelve a revisar.</value></data>
+  <data name="Selecciona al menos una posición WIP presente para asociar el rack." xml:space="preserve"><value>Selecciona al menos una posición WIP presente para asociar el rack.</value></data>
+  <data name="Selecciona un área WIP activa, presente y sin bloqueo." xml:space="preserve"><value>Selecciona un área WIP activa, presente y sin bloqueo.</value></data>
+  <data name="Selecciona un área para corregir sus datos, procesos o disponibilidad." xml:space="preserve"><value>Selecciona un área para corregir sus datos, procesos o disponibilidad.</value></data>
+  <data name="Buscar área" xml:space="preserve"><value>Buscar área</value></data>
+  <data name="No hay áreas con estos filtros." xml:space="preserve"><value>No hay áreas con estos filtros.</value></data>
+  <data name="Busca otro código o limpia los filtros para ver todas las áreas." xml:space="preserve"><value>Busca otro código o limpia los filtros para ver todas las áreas.</value></data>
+  <data name="Ver todas las áreas" xml:space="preserve"><value>Ver todas las áreas</value></data>
+  <data name="Editar área {0}" xml:space="preserve"><value>Editar área {0}</value></data>
+  <data name="Área activa" xml:space="preserve"><value>Área activa</value></data>
+  <data name="Área bloqueada" xml:space="preserve"><value>Área bloqueada</value></data>
+  <data name="Motivo de bloqueo" xml:space="preserve"><value>Motivo de bloqueo</value></data>
+  <data name="El bloqueo requiere un motivo. Al desactivar el área se limpia el bloqueo; no se eliminan sus registros." xml:space="preserve"><value>El bloqueo requiere un motivo. Al desactivar el área se limpia el bloqueo; no se eliminan sus registros.</value></data>
+  <data name="WIP da seguimiento documental al material recibido; no controla existencias de almacén." xml:space="preserve"><value>WIP da seguimiento documental al material recibido; no controla existencias de almacén.</value></data>
+  <data name="Selecciona una función operativa válida." xml:space="preserve"><value>Selecciona una función operativa válida.</value></data>
+  <data name="El área cambió mientras editabas. Recarga la página y revisa los cambios antes de guardar." xml:space="preserve"><value>El área cambió mientras editabas. Recarga la página y revisa los cambios antes de guardar.</value></data>
+  <data name="Se guardó el área {0}." xml:space="preserve"><value>Se guardó el área {0}.</value></data>
+  <data name="No hay procesos disponibles para asociar." xml:space="preserve"><value>No hay procesos disponibles para asociar.</value></data>
+  <data name="Últimas entregas a {0}" xml:space="preserve"><value>Últimas entregas a {0}</value></data>
+  <data name="Hasta 5 entregas, de más reciente a más antigua" xml:space="preserve"><value>Hasta 5 entregas, de más reciente a más antigua</value></data>
+  <data name="Enviado sin devolución histórica:" xml:space="preserve"><value>Enviado sin devolución histórica:</value></data>
+  <data name="Seguimiento documental y últimos surtimientos" xml:space="preserve"><value>Seguimiento documental y últimos surtimientos</value></data>
 </root>

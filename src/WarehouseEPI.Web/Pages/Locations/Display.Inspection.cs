@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Locations;
 
 namespace WarehouseEPI.Web.Pages.Locations;
 
@@ -80,10 +81,12 @@ public sealed partial class DisplayModel
         if (selected?.Kind == LocationKind.Area) positions = [Position(selected)];
         else
         {
-            positions = KeypadOrder.Select(number => locations.FirstOrDefault(item => item.PalletNumber == number) is { } item
+            var format = await LocationRackFormats.GetAsync(db, row!, rackNumber!.Value, cancellationToken);
+            positions = format.PalletOrder.Select(number => locations.FirstOrDefault(item => item.PalletNumber == number) is { } item
                 ? Position(item) : new DisplayPosition(number, null, "missing", false, [])).ToArray();
             rack = new(row!, rackNumber!.Value, locations.Length,
-                positions.Count(item => item.Products.Any(product => product.HasNonZeroBalance)), positions);
+                positions.Count(item => item.Products.Any(product => product.HasNonZeroBalance)), positions)
+            { Format = format, WipAssociation = await LocationRackWipAssociations.GetAsync(db, row!, rackNumber.Value, cancellationToken) };
         }
         return Partial("_DisplayInspection", new DisplayInspection(rack?.Label ?? selected!.Code, rack, positions,
             await UpdatedAtAsync(cancellationToken)));

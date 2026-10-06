@@ -10,6 +10,10 @@ html {
   .rack-editor-review { position: sticky; top: 1rem; max-height: calc(100dvh - 2rem); overflow-y: auto; }
 }
 .rack-physical-keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.rack-format-grid[data-rack-columns="1"] { grid-template-columns: minmax(0, 1fr); }
+.rack-format-grid[data-rack-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rack-physical-position[hidden] { display: none; }
+.rack-physical-editor [data-rack-columns-input], .rack-physical-editor [data-rack-levels-input] { min-height: 44px; }
 .rack-physical-position { min-height: 8.5rem; padding: 1rem; border: 2px solid var(--bs-border-color); border-radius: .75rem; display: grid; grid-template-columns: auto 1fr; align-content: start; gap: .35rem .65rem; cursor: pointer; background: var(--bs-body-bg); }
 .rack-physical-position > strong { font-size: 1.5rem; }
 .rack-physical-position > span:not(.badge), .rack-physical-position > small { grid-column: 2; }

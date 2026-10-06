@@ -21,14 +21,16 @@ public sealed class RackPrintContractTests
         Assert.Contains("Una asignación sin saldo no confirma existencia física", page, StringComparison.Ordinal);
         Assert.Contains("position.Products.Take(3)", page, StringComparison.Ordinal);
         Assert.Contains("producto(s) más en esta posición", page, StringComparison.Ordinal);
-        Assert.Contains("[7, 8, 9, 4, 5, 6, 1, 2, 3]", model, StringComparison.Ordinal);
+        Assert.Contains("RackFormat.Default.PalletOrder", model, StringComparison.Ordinal);
+        Assert.Contains("Model.Format.PalletOrder", page, StringComparison.Ordinal);
+        Assert.Contains("data-rack-columns=\"@Model.Format.Columns\"", page, StringComparison.Ordinal);
         Assert.Contains("group.Sum(item => item.Quantity)", model, StringComparison.Ordinal);
         Assert.Contains("Saldo sin asignación", model, StringComparison.Ordinal);
         Assert.Contains("Asignado sin saldo", model, StringComparison.Ordinal);
         Assert.Contains("@media print", styles, StringComparison.Ordinal);
         Assert.Contains("size:letter landscape", styles, StringComparison.Ordinal);
         Assert.Contains("height:194mm", styles, StringComparison.Ordinal);
-        Assert.Contains("grid-template-rows:repeat(3,minmax(0,1fr))", styles, StringComparison.Ordinal);
+        Assert.Contains("grid-template-rows:repeat(var(--rack-levels,3),minmax(0,1fr))", styles, StringComparison.Ordinal);
         Assert.Contains("break-inside:avoid-page", styles, StringComparison.Ordinal);
         Assert.Contains("[data-print-page]", siteScript, StringComparison.Ordinal);
     }

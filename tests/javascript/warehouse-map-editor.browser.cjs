@@ -15,7 +15,10 @@ const architecture = (id, x, y, persisted = true, group = '', locked = false, ki
      data-fill-token="NONE" data-stroke-width="4" data-z="1" data-element-locked="${locked}"
      data-persisted="${persisted}" data-group-id="${group}" tabindex="0" role="button"></g>`;
 
+const razorSource = fs.readFileSync(path.join(root, 'src/WarehouseEPI.Web/Pages/Admin/Catalogs/Locations/Map/Edit.cshtml'), 'utf8');
+const modalSource = razorSource.slice(razorSource.indexOf('<div class="modal fade"'), razorSource.indexOf('                    else', razorSource.indexOf('<div class="modal fade"'))).replace(/\s*}\s*$/, '');
 const fixture = () => `<!doctype html><html><head><meta charset="utf-8">
+  <link rel="stylesheet" href="/bootstrap.css"><link rel="stylesheet" href="/site.css">
   <style>
     body { margin: 16px; font: 16px sans-serif; }
     svg { display: block; width: 800px; height: 450px; margin: 12px 0; }
@@ -66,7 +69,13 @@ const fixture = () => `<!doctype html><html><head><meta charset="utf-8">
       <div data-property-vertex><input data-vertex-property="x"><input data-vertex-property="y"></div>
     </div>
     <div data-editor-archived-list></div>
+    <aside class="map-editor-inspector"><form action="/editor" method="post" data-map-save-form>
+      <input name="Input.Pin" data-editor-review-pin aria-label="Test PIN">
+      <button type="button" data-editor-review-button>Review</button>
+      ${modalSource.replace('asp-page-handler="Save"', 'formaction="/editor?handler=Save"')}
+    </form></aside>
   </div>
+  <script src="/bootstrap.js"></script>
   <script src="/warehouse-map.js"></script>
 </body></html>`;
 
@@ -79,6 +88,9 @@ const fixture = () => `<!doctype html><html><head><meta charset="utf-8">
     await context.route('**/*', route => {
       const url = new URL(route.request().url());
       if (url.hostname !== 'map-editor.test') return route.abort();
+      const assets = { '/bootstrap.css': 'lib/bootstrap/dist/css/bootstrap.min.css', '/bootstrap.js': 'lib/bootstrap/dist/js/bootstrap.bundle.min.js', '/site.css': 'css/site.css' };
+      if (assets[url.pathname]) return route.fulfill({ contentType: url.pathname.endsWith('.css') ? 'text/css' : 'application/javascript', body: fs.readFileSync(path.join(root, 'src/WarehouseEPI.Web/wwwroot', assets[url.pathname]), 'utf8') });
+      if (url.searchParams.get('handler') === 'Review') return route.fulfill({ json: { summary: {}, warnings: [] } });
       return url.pathname === '/warehouse-map.js'
         ? route.fulfill({ contentType: 'application/javascript', body: fs.readFileSync(scriptPath, 'utf8') })
         : route.fulfill({ contentType: 'text/html', body: fixture() });
@@ -223,6 +235,46 @@ const fixture = () => `<!doctype html><html><head><meta charset="utf-8">
     assert.equal(await state('new'), undefined);
     results.push('Existing Archive and Discard buttons');
 
+    assert.deepEqual(errors, []);
+    for (const width of [768, 1024, 1440]) {
+      for (const theme of ['light', 'dark']) {
+        await page.setViewportSize({ width, height: 900 });
+        await reset();
+        await page.locator('html').evaluate((html, value) => html.dataset.bsTheme = value, theme);
+        await page.locator('[data-editor-review-pin]').fill('fixture-only');
+        const openReview = async () => {
+          await page.locator('[data-editor-review-modal]').evaluate(modal => {
+            modal.dataset.testShown = 'false';
+            modal.addEventListener('shown.bs.modal', () => { modal.dataset.testShown = 'true'; }, { once: true });
+          });
+          await page.locator('[data-editor-review-button]').click();
+          await page.locator('[data-editor-review-content]').waitFor({ state: 'visible' });
+          await page.waitForFunction(() => document.querySelector('[data-editor-review-modal]').dataset.testShown === 'true');
+        };
+        await openReview();
+        await page.locator('[data-editor-review-modal] .btn-close').click();
+        await page.locator('[data-editor-review-modal]').waitFor({ state: 'hidden' });
+        await page.waitForFunction(() => document.querySelector('[data-editor-review-button]') === document.activeElement);
+        await openReview();
+        await page.keyboard.press('Escape');
+        await page.locator('[data-editor-review-modal]').waitFor({ state: 'hidden' });
+        await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
+        await openReview();
+        await page.locator('[data-editor-review-modal] .modal-footer [data-bs-dismiss]').click();
+        await page.locator('[data-editor-review-modal]').waitFor({ state: 'hidden' });
+        await page.waitForFunction(() => !document.querySelector('.modal-backdrop'));
+        await openReview();
+        await page.locator('[data-map-save-form]').evaluate(form => form.addEventListener('submit', event => {
+          event.preventDefault();
+          window.testSubmission = { handler: event.submitter.formAction, pinPresent: new FormData(form).has('Input.Pin') };
+        }));
+        await page.locator('[data-editor-save-reviewed]').click();
+        const submitted = await page.evaluate(() => window.testSubmission);
+        assert.match(submitted.handler, /handler=Save/);
+        assert.equal(submitted.pinPresent, true);
+      }
+    }
+    results.push('Review modal: close, Escape, return focus and original POST form at three widths in both themes');
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ browser: browser.version(), fixture: 'Isolated HTML; real warehouse-map.js; no database writes', results }, null, 2));
     await context.close();

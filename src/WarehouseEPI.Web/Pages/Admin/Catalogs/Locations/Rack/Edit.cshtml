@@ -3,13 +3,14 @@
 @model WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Rack.EditModel
 @{
     ViewData["Title"] = CatTexts["Editar rack {0}-{1}", Model.Rack.RowCode, Model.Rack.RackNumber].Value;
-    var keypad = new short[] { 7, 8, 9, 4, 5, 6, 1, 2, 3 };
+    var format = Model.SelectedFormat;
+    var keypad = format.PalletOrder.Concat(Enumerable.Range(1, 9).Select(number => (short)number).Except(format.PalletOrder));
 }
 
 <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
     <div>
         <a asp-page="../Index" asp-route-viewMode="racks" class="small text-decoration-none">@CatTexts["← Volver a racks"]</a>
-        <h1 class="h2 mt-2 mb-1">Editar rack @Model.Rack.RowCode-@Model.Rack.RackNumber</h1>
+        <h1 class="h2 mt-2 mb-1">@CatTexts["Editar rack {0}-{1}", Model.Rack.RowCode, Model.Rack.RackNumber]</h1>
         <p class="text-body-secondary mb-0">@CatTexts["Configura la existencia y función de cada posición física del rack."]</p>
     </div>
 </div>
@@ -20,16 +21,30 @@
 }
 @if (Model.ReviewErrors.Count > 0)
 {
-    <div class="alert alert-danger" role="alert"><strong>@CatTexts["No se puede continuar."]</strong><ul class="mb-0 mt-2">@foreach (var error in Model.ReviewErrors) { <li>@error</li> }</ul></div>
+    <div class="alert alert-danger" role="alert"><strong>@CatTexts["No se puede continuar."]</strong><ul class="mb-0 mt-2">@foreach (var error in Model.ReviewErrors) { <li>@CatTexts[error]</li> }</ul></div>
 }
 
 <form method="post" class="rack-physical-editor" data-rack-editor>
     <input asp-for="Input.OperationId" type="hidden" />
+    <input asp-for="Input.ExpectedWipAreaId" type="hidden" />
     <input asp-for="Input.RowCode" type="hidden" />
     <input asp-for="Input.RackNumber" type="hidden" />
     <input asp-for="Input.ProcessConfigurationVersion" type="hidden" />
     <div class="rack-editor-workspace">
         <div class="rack-editor-main">
+            <section class="card mt-3"><div class="card-body">
+                <label asp-for="Input.WipAreaId" class="form-label">@CatTexts["WIP asociado"]</label>
+                <select asp-for="Input.WipAreaId" class="form-select form-select-lg" aria-describedby="rack-wip-help">
+                    <option value="">@CatTexts["Sin asociación"]</option>
+                    @foreach (var area in Model.WipAreas)
+                    {
+                        <option value="@area.Id">@area.Code @(!area.IsOperational ? CatTexts["(no disponible)"].Value : "")</option>
+                    }
+                </select>
+                <p id="rack-wip-help" class="form-text">@CatTexts["Aplica únicamente a las posiciones WIP presentes. Surte al área WIP para consultar el reporte compartido."]</p>
+                <p class="mb-0">@CatTexts["Posiciones WIP"]: <span data-rack-wip-positions aria-live="polite">@string.Join(", ", Model.Input.WipPallets.Select(p => $"{Model.Input.RowCode}-{Model.Input.RackNumber}-{p}"))</span></p>
+                <partial name="/Pages/Shared/_RackWipAssociation.cshtml" model="Model.Rack.WipAssociation" />
+            </div></section>
             <section class="card mt-3">
                 <div class="card-body">
                     <h2 class="h4">@CatTexts["Procesos del rack"]</h2>
@@ -55,16 +70,33 @@
                 <div class="card-body">
                     <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
                         <div><h2 class="h4 mb-1">@CatTexts["Posiciones físicas"]</h2><p class="text-body-secondary mb-0">@CatTexts["Seleccionada = existe. Sin seleccionar = retirada o no creada."]</p></div>
-                        <span class="badge text-bg-light border">@CatTexts["Distribución 7-8-9 / 4-5-6 / 1-2-3"]</span>
+                        <span class="badge text-bg-light border align-self-start" data-rack-format-summary aria-live="polite">@(format.Columns) × @(format.Levels)</span>
                     </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6 col-md-4">
+                            <label asp-for="Input.Columns" class="form-label">@CatTexts["Columnas del rack"]</label>
+                            <select asp-for="Input.Columns" class="form-select" data-rack-columns-input aria-describedby="rack-format-help">
+                                @for (var number = 1; number <= 3; number++) { <option value="@number">@number</option> }
+                            </select>
+                        </div>
+                        <div class="col-6 col-md-4">
+                            <label asp-for="Input.Levels" class="form-label">@CatTexts["Niveles del rack"]</label>
+                            <select asp-for="Input.Levels" class="form-select" data-rack-levels-input aria-describedby="rack-format-help">
+                                @for (var number = 1; number <= 3; number++) { <option value="@number">@number</option> }
+                            </select>
+                        </div>
+                    </div>
+                    <p id="rack-format-help" class="form-text">@CatTexts["Las posiciones se numeran de izquierda a derecha y de abajo hacia arriba. En 2 × 2: 1 y 2 abajo; 3 y 4 arriba."]</p>
+                    <p class="form-text">@CatTexts["Al cambiar el formato se seleccionan sus posiciones. Puedes desmarcar las que no existan antes de revisar."]</p>
+                    <div class="alert alert-warning" role="alert" data-rack-format-error data-protected-message="@CatTexts["El formato dejaría fuera posiciones con saldo o asignaciones activas. Libera esas posiciones antes de reducir el rack."]" hidden></div>
                     <div class="d-flex flex-wrap gap-2 mb-3"><button type="button" class="btn btn-outline-secondary" data-rack-all-storage>@CatTexts["Todas a almacenamiento"]</button><button type="button" class="btn btn-outline-warning" data-rack-all-wip>@CatTexts["Todas a WIP"]</button></div>
                     <p class="alert alert-info py-2" role="status" data-rack-role-summary data-storage-label="@CatTexts["Almacenamiento"]" data-wip-label="WIP" data-mixed-label="@CatTexts["Mixto"]">@CatTexts["Función por posición"]</p>
-                    <div class="rack-physical-keypad">
+                    <div class="rack-physical-keypad rack-format-grid" data-rack-keypad data-rack-columns="@format.Columns">
                     @foreach (var pallet in keypad)
                     {
                         var position = Model.Rack.Positions.Single(item => item.PalletNumber == pallet);
                         var blocked = position.IsPhysicallyPresent && (position.HasBalance || position.HasActiveAssignments);
-                        <div class="rack-physical-position @(position.IsPhysicallyPresent ? "present" : "absent") @(blocked ? "protected" : "")" data-rack-position>
+                        <div class="rack-physical-position @(Model.Input.PresentPallets.Contains(pallet) ? "present" : "absent") @(blocked ? "protected" : "")" data-rack-position data-pallet="@pallet" hidden="@(pallet > format.Capacity && !Model.Input.PresentPallets.Contains(pallet) ? "hidden" : null)">
                             <input class="form-check-input" id="rack-present-@pallet" type="checkbox" name="Input.PresentPallets" value="@pallet" data-rack-present
                                    checked="@(Model.Input.PresentPallets.Contains(pallet) ? "checked" : null)"
                                    disabled="@(blocked ? "disabled" : null)" />
@@ -102,6 +134,10 @@
                     <div class="card-body">
                         <h2 id="rack-review-title" class="h4">@CatTexts["Revisión previa"]</h2>
                         <dl class="row mb-3">
+                            <dt class="col-sm-4">@CatTexts["WIP asociado actual"]</dt><dd class="col-sm-8">@(Model.Rack.WipAssociation?.Code ?? CatTexts["Sin asociación"].Value)</dd>
+                            <dt class="col-sm-4">@CatTexts["WIP asociado solicitado"]</dt><dd class="col-sm-8">@(Model.WipAreas.FirstOrDefault(x => x.Id == Model.ReviewSummary.RequestedWipAreaId)?.Code ?? CatTexts["Sin asociación"].Value)</dd>
+                            <dt class="col-sm-4">@CatTexts["Formato actual"]</dt><dd class="col-sm-8">@(Model.Rack.Format.Columns) × @(Model.Rack.Format.Levels)</dd>
+                            <dt class="col-sm-4">@CatTexts["Formato solicitado"]</dt><dd class="col-sm-8">@(Model.Input.Columns) × @(Model.Input.Levels)</dd>
                             <dt class="col-sm-4">@CatTexts["Posiciones WIP"]</dt><dd class="col-sm-8">@Model.Input.WipPallets.Count(pallet => Model.Input.PresentPallets.Contains(pallet))</dd>
                             <dt class="col-sm-4">@CatTexts["Posiciones de almacenamiento"]</dt><dd class="col-sm-8">@Model.Input.PresentPallets.Count(pallet => !Model.Input.WipPallets.Contains(pallet))</dd>
                             <dt class="col-sm-4">@CatTexts["Cambios de función"]</dt><dd class="col-sm-8">@(Model.ReviewSummary.RoleChanges is { Count: > 0 } ? string.Join("; ", Model.ReviewSummary.RoleChanges) : CatTexts["Ninguno"].Value)</dd>
@@ -112,6 +148,8 @@
                             <dt class="col-sm-4">@CatTexts["Directos solicitados"]</dt><dd class="col-sm-8">@(Model.ReviewSummary.DirectProcessesRemoved || Model.Input.ProcessIds.Length == 0 ? CatTexts["Ninguno"].Value : string.Join(", ", Model.Processes.Where(x => Model.Input.ProcessIds.Contains(x.Id)).Select(x => x.Name)))</dd>
                             <dt class="col-sm-4">@CatTexts["Heredados de fila"]</dt><dd class="col-sm-8">@(Model.Rack.InheritedProcessIds.Count == 0 ? CatTexts["Ninguno"].Value : string.Join(", ", Model.Processes.Where(x => Model.Rack.InheritedProcessIds.Contains(x.Id)).Select(x => x.Name)))</dd>
                         </dl>
+                        @if (Model.ReviewSummary.PreviousWipAreaId.HasValue && !Model.ReviewSummary.RequestedWipAreaId.HasValue)
+                        { <p class="alert alert-warning">@CatTexts["Se quitará la asociación WIP del rack. Los documentos conservan su destino original."]</p> }
                         @if (Model.IsReviewed)
                         {
                             @if (Model.ReviewSummary.OperationalRoleChanged)
@@ -151,7 +189,7 @@
                     <div class="alert alert-danger" role="alert"><strong>@CatTexts["Esta acción no se puede deshacer."]</strong> @CatTexts["Se conservará únicamente la auditoría administrativa de la eliminación."]</div>
                     <label asp-for="DeleteInput.Reason" class="form-label">@CatTexts["Motivo de la eliminación"]</label>
                     <textarea asp-for="DeleteInput.Reason" class="form-control mb-3" rows="3" maxlength="500" required></textarea>
-                    <label asp-for="DeleteInput.ConfirmationCode" class="form-label">Escribe @Model.Rack.RowCode-@Model.Rack.RackNumber para confirmar</label>
+                    <label asp-for="DeleteInput.ConfirmationCode" class="form-label">@CatTexts["Escribe {0} para confirmar", $"{Model.Rack.RowCode}-{Model.Rack.RackNumber}"]</label>
                     <input asp-for="DeleteInput.ConfirmationCode" class="form-control mb-3" required autocomplete="off" />
                     <label asp-for="DeleteInput.Pin" class="form-label">@CatTexts["NIP ADMIN"]</label>
                     <input asp-for="DeleteInput.Pin" value="" class="form-control" type="password" inputmode="numeric" autocomplete="off" required />

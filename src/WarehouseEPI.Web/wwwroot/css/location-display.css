@@ -17,6 +17,8 @@
 .display-rack-head p { margin: 0; color: var(--bs-secondary-color); font-size: .85rem; }
 .display-rack-frame { display: grid; gap: .35rem; border-inline: .3rem solid var(--bs-secondary-border-subtle); border-bottom: .3rem solid var(--bs-secondary-border-subtle); padding: .35rem; }
 .display-rack-level { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+.display-rack[data-rack-columns="1"] .display-rack-level { grid-template-columns: minmax(0, 1fr); }
+.display-rack[data-rack-columns="2"] .display-rack-level { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .display-cell { min-width: 0; min-height: clamp(5rem, 7vh, 6.5rem); padding: .5rem; border: 1px solid var(--bs-border-color); border-top-width: 3px; border-radius: .25rem; display: flex; flex-direction: column; gap: .2rem; line-height: 1.2; background: var(--bs-body-bg); overflow-wrap: anywhere; }
 .display-cell p { margin: 0; }
 .display-cell.is-occupied { border-color: var(--bs-primary-border-subtle); border-top-color: var(--bs-primary); background: var(--bs-primary-bg-subtle); }
@@ -140,6 +142,8 @@
 .location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-racks { width: 100%; max-width: calc(var(--display-racks) * clamp(26rem, 42vh, 34rem)); margin-inline: auto; grid-template-columns: repeat(var(--display-racks), minmax(0, 1fr)); grid-template-rows: auto repeat(3, auto); gap: .3rem .75rem; }
 .location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-rack { display: grid; grid-row: span 4; grid-template-rows: subgrid; }
 .location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-rack-frame { grid-row: span 3; grid-template-rows: subgrid; padding: .25rem; gap: .3rem; }
+.location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-rack[data-rack-levels="2"] .display-rack-level:first-child { grid-row: 2; }
+.location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-rack[data-rack-levels="1"] .display-rack-level:first-child { grid-row: 3; }
 .location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-rack-head { padding: .25rem .5rem; }
 .location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-rack-head h2 { font-size: clamp(1.1rem, 1.3vw, 1.5rem); }
 .location-display[data-display-grouped="true"]:not([data-display-inspecting="true"]) .display-cell { min-height: clamp(8rem, 14dvh, 11rem); padding: .35rem .5rem; gap: .15rem; }

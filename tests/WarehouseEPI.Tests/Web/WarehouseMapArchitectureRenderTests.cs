@@ -37,9 +37,9 @@ public sealed class WarehouseMapArchitectureRenderTests
         Assert.Contains("data-map-architecture", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Preparar racks", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Editar croquis", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("method=\"post\"", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("method=\"post\"", MainContent(html), StringComparison.OrdinalIgnoreCase);
         var publicLocationNavigation = LocationNavigation(html);
-        Assert.Contains("href=\"/Locations\"", publicLocationNavigation, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Modules/inventory\"", publicLocationNavigation, StringComparison.Ordinal);
         Assert.Contains("aria-current=\"page\"", publicLocationNavigation, StringComparison.Ordinal);
 
         var textElement = Regex.Match(
@@ -123,13 +123,13 @@ public sealed class WarehouseMapArchitectureRenderTests
         var detail = await client.GetAsync($"/Locations/{locationId}");
         var sheet = await client.GetAsync($"/Locations/Rack/Print?rowCode={rowCode}&rackNumber={rackNumber}");
         var detailHtml = await detail.Content.ReadAsStringAsync();
-        var sheetHtml = await sheet.Content.ReadAsStringAsync();
+        var sheetHtml = WebUtility.HtmlDecode(await sheet.Content.ReadAsStringAsync());
 
         Assert.Equal(HttpStatusCode.OK, detail.StatusCode);
         Assert.Equal(HttpStatusCode.OK, sheet.StatusCode);
         Assert.Contains("Existencias actuales", detailHtml, StringComparison.Ordinal);
         Assert.Contains("Productos asignados", detailHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("method=\"post\"", detailHtml, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("method=\"post\"", MainContent(detailHtml), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Editar rack", detailHtml, StringComparison.Ordinal);
         Assert.Contains("Hoja de verificación de rack", sheetHtml, StringComparison.Ordinal);
     }
@@ -156,7 +156,7 @@ public sealed class WarehouseMapArchitectureRenderTests
         Assert.Contains("Preparar racks", adminHtml, StringComparison.Ordinal);
         Assert.Contains("Editar croquis", adminHtml, StringComparison.Ordinal);
         var adminLocationNavigation = LocationNavigation(adminHtml);
-        Assert.Contains("href=\"/Admin/Catalogs/Locations\"", adminLocationNavigation, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Modules/inventory\"", adminLocationNavigation, StringComparison.Ordinal);
         Assert.Contains("aria-current=\"page\"", adminLocationNavigation, StringComparison.Ordinal);
         Assert.DoesNotContain("<span>Administrar ubicaciones</span>", adminHtml, StringComparison.Ordinal);
 
@@ -169,9 +169,16 @@ public sealed class WarehouseMapArchitectureRenderTests
 
     private static string LocationNavigation(string html)
     {
-        var links = Regex.Matches(html, "<a[^>]*title=\"Ubicaciones\"[^>]*>");
+        var links = Regex.Matches(html, "<a[^>]*title=\"Inventario\"[^>]*>");
         Assert.Single(links.Cast<Match>());
         return links[0].Value;
+    }
+
+    private static string MainContent(string html)
+    {
+        var main = Regex.Match(html, "<main\\b[^>]*>(.*?)</main>", RegexOptions.Singleline);
+        Assert.True(main.Success);
+        return main.Value;
     }
 
     private async Task<HttpClient> SignedInAdminAsync()

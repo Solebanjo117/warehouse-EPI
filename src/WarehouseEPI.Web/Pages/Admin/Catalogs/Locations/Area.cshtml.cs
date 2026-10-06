@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using Npgsql;
 using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
@@ -27,13 +28,24 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
 
     public async Task<IActionResult> OnGetAsync(Guid? locationId, CancellationToken cancellationToken)
     {
-        if (locationId is null) { await LoadProcessesAsync(cancellationToken); return Page(); }
+        if (locationId is null) { await LoadProcessesAsync(cancellationToken, refreshVersion: true); return Page(); }
         var location = await dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(candidate => candidate.Id == locationId, cancellationToken);
         if (location is null) return NotFound();
         if (location.Kind != LocationKind.Area) return BadRequest();
         var selected = await processes.AreaProcessIdsAsync(location.Id, cancellationToken);
-        Input = new() { Id = location.Id, Code = location.Code, Description = location.Description, OperationalRole = location.OperationalRole, ProcessIds = selected };
-        await LoadProcessesAsync(cancellationToken);
+        Input = new()
+        {
+            Id = location.Id,
+            Code = location.Code,
+            Description = location.Description,
+            OperationalRole = location.OperationalRole,
+            ProcessIds = selected,
+            IsActive = location.IsActive,
+            IsBlocked = location.IsBlocked,
+            BlockReason = location.BlockReason,
+            OriginalUpdatedAt = location.UpdatedAt.ToString("O")
+        };
+        await LoadProcessesAsync(cancellationToken, refreshVersion: true);
         await PrepareDeletionAsync(location.Id, cancellationToken);
         return Page();
     }
@@ -42,6 +54,13 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
     {
         Input.Code = LocationNormalization.NormalizeCode(Input.Code);
         Input.Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim();
+        Input.BlockReason = Input.IsActive && Input.IsBlocked ? Input.BlockReason?.Trim() : null;
+        Input.IsBlocked = Input.IsActive && Input.IsBlocked;
+        if (!Input.IsBlocked) ModelState.Remove("Input.BlockReason");
+        if (!Enum.IsDefined(Input.OperationalRole))
+            ModelState.AddModelError("Input.OperationalRole", text["Selecciona una función operativa válida."].Value);
+        if (Input.IsBlocked && string.IsNullOrWhiteSpace(Input.BlockReason))
+            ModelState.AddModelError("Input.BlockReason", text["Escribe un motivo de bloqueo de hasta 200 caracteres."].Value);
         if (!LocationNormalization.IsValidAreaCode(Input.Code))
             ModelState.AddModelError("Input.Code", text["Usa letras, números y guiones, sin espacios externos ni guiones al inicio o final."].Value);
         if (!ModelState.IsValid)
@@ -66,12 +85,35 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         }
         else
         {
+            if (dbContext.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+                await dbContext.Locations.FromSqlInterpolated(
+                    $"SELECT * FROM locations WHERE id = {Input.Id} FOR UPDATE").LoadAsync(cancellationToken);
             target = await dbContext.Locations.SingleOrDefaultAsync(candidate => candidate.Id == Input.Id, cancellationToken) ?? null!;
             if (target is null) return NotFound();
             if (target.Kind != LocationKind.Area) return BadRequest();
+            if (!DateTimeOffset.TryParseExact(Input.OriginalUpdatedAt, "O", global::System.Globalization.CultureInfo.InvariantCulture,
+                    global::System.Globalization.DateTimeStyles.None, out var originalUpdatedAt) || target.UpdatedAt != originalUpdatedAt)
+            {
+                ModelState.AddModelError(string.Empty, text["El área cambió mientras editabas. Recarga la página y revisa los cambios antes de guardar."].Value);
+                await LoadProcessesAsync(cancellationToken);
+                await PrepareDeletionAsync(Input.Id, cancellationToken);
+                return Page();
+            }
+            var roleError = await WarehouseEPI.Infrastructure.Locations.LocationWipRules.ValidateChangeAsync(
+                dbContext, target.Id, target.OperationalRole, Input.OperationalRole, cancellationToken);
+            if (roleError is not null)
+            {
+                ModelState.AddModelError("Input.OperationalRole", text[roleError]);
+                await LoadProcessesAsync(cancellationToken);
+                await PrepareDeletionAsync(Input.Id, cancellationToken);
+                return Page();
+            }
             target.Code = Input.Code; target.Description = Input.Description;
             target.OperationalRole = Input.OperationalRole; target.UpdatedAt = DateTimeOffset.UtcNow;
         }
+        target.IsActive = Input.IsActive;
+        target.IsBlocked = Input.IsBlocked;
+        target.BlockReason = Input.BlockReason;
         var association = await processes.ApplyAreaAsync(target.Id, Input.OperationalRole, Input.ProcessIds, Input.ProcessConfigurationVersion, cancellationToken);
         if (association.Status != ProcessConfigurationStatus.Success)
         {
@@ -93,11 +135,21 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             ModelState.AddModelError(string.Empty, text["La configuración de procesos cambió mientras editabas. Recarga y vuelve a revisar."].Value);
             await LoadProcessesAsync(cancellationToken); await PrepareDeletionAsync(Input.Id, cancellationToken); return Page();
         }
-        return RedirectToPage("Index");
+        catch (DbUpdateException exception) when (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            if (transaction is not null) await transaction.RollbackAsync(cancellationToken);
+            ModelState.AddModelError("Input.Code", text["Ya existe una ubicación con ese código."].Value);
+            await LoadProcessesAsync(cancellationToken); await PrepareDeletionAsync(Input.Id, cancellationToken); return Page();
+        }
+        TempData["Message"] = text["Se guardó el área {0}.", target.Code].Value;
+        return RedirectToPage("Details", new { id = target.Id });
     }
 
     public async Task<IActionResult> OnPostDeleteAsync(CancellationToken cancellationToken)
     {
+        // The deletion form does not submit the editor fields.
+        foreach (var key in ModelState.Keys.Where(key => key.StartsWith("Input.", StringComparison.Ordinal)).ToArray())
+            ModelState.Remove(key);
         var location = await dbContext.Locations.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == DeleteInput.LocationId, cancellationToken);
         if (location is null) return NotFound();
@@ -107,7 +159,12 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             Id = location.Id,
             Code = location.Code,
             Description = location.Description,
-            OperationalRole = location.OperationalRole
+            OperationalRole = location.OperationalRole,
+            IsActive = location.IsActive,
+            IsBlocked = location.IsBlocked,
+            BlockReason = location.BlockReason,
+            OriginalUpdatedAt = location.UpdatedAt.ToString("O"),
+            ProcessIds = await processes.AreaProcessIdsAsync(location.Id, cancellationToken)
         };
         Deletion = await areas.GetDeletionStateAsync(location.Id, cancellationToken);
         var result = await areas.DeleteAsync(new LocationAreaDeleteCommand(DeleteInput.OperationId,
@@ -118,7 +175,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         if (result.Status == LocationAreaDeleteStatus.Success)
         {
             TempData["Message"] = text["Se eliminó definitivamente el área {0}.", location.Code].Value;
-            return RedirectToPage("Index");
+            return RedirectToPage("Areas");
         }
         if (result.Status == LocationAreaDeleteStatus.NotFound) return NotFound();
         DeleteErrors = result.Status switch
@@ -129,6 +186,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             _ => (result.Errors ?? ["No fue posible eliminar el área."]).Select(error => text[error].Value).ToArray()
         };
         Deletion = await areas.GetDeletionStateAsync(location.Id, cancellationToken);
+        await LoadProcessesAsync(cancellationToken, refreshVersion: true);
         return Page();
     }
 
@@ -141,10 +199,10 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         DeleteInput.LocationId = locationId;
     }
 
-    private async Task LoadProcessesAsync(CancellationToken token)
+    private async Task LoadProcessesAsync(CancellationToken token, bool refreshVersion = false)
     {
         var result = await processes.GetProcessesAsync(Input.ProcessIds, token);
-        Input.ProcessConfigurationVersion = result.Version;
+        if (refreshVersion) Input.ProcessConfigurationVersion = result.Version;
         Processes = result.Processes;
     }
 
@@ -156,7 +214,12 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         public Guid Id { get; set; }
         [Required, StringLength(40)] public string Code { get; set; } = string.Empty;
         [StringLength(200)] public string? Description { get; set; }
+        [EnumDataType(typeof(LocationOperationalRole))]
         public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Other;
+        public bool IsActive { get; set; } = true;
+        public bool IsBlocked { get; set; }
+        [StringLength(200)] public string? BlockReason { get; set; }
+        public string? OriginalUpdatedAt { get; set; }
         public List<Guid> ProcessIds { get; set; } = [];
         public uint ProcessConfigurationVersion { get; set; }
     }

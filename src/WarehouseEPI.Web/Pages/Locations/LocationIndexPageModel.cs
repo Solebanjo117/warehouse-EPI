@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
+using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Locations;
@@ -31,10 +32,14 @@ public class LocationIndexPageModel(
         new WarehouseClock(new WarehouseSettingsService(context)))
     { }
     private const int PageSize = 25;
-    private static readonly short[] KeypadOrder = [7, 8, 9, 4, 5, 6, 1, 2, 3];
 
     public virtual bool IsAdministrativeView => false;
 
+    public IReadOnlyDictionary<(string, short), RackWipAssociationView> WipAssociations { get; private set; } = new Dictionary<(string, short), RackWipAssociationView>();
+    public RackWipAssociationView? RackWip(string? row, short? rack) => WipAssociations.GetValueOrDefault((row ?? "", rack ?? 0));
+    public IReadOnlyDictionary<Guid, IReadOnlyList<WipInventoryRow>> AssociatedWipDeliveries { get; private set; }
+        = new Dictionary<Guid, IReadOnlyList<WipInventoryRow>>();
+    public sealed record AssociatedWipSummary(RackWipAssociationView Association, IReadOnlyList<WipInventoryRow> Deliveries);
     public IReadOnlyList<LocationRow> Locations { get; private set; } = [];
     public IReadOnlyList<RackLayout> LayoutRacks { get; private set; } = [];
     public IReadOnlyList<LocationRow> LayoutAreas { get; private set; } = [];
@@ -70,6 +75,7 @@ public class LocationIndexPageModel(
         string rackFilter = "all", string mapMetric = "normal", string? period = "30",
         DateOnly? from = null, DateOnly? to = null, CancellationToken cancellationToken = default)
     {
+        WipAssociations = await LocationRackWipAssociations.LoadAsync(DbContext, cancellationToken);
         Search = search?.Trim();
         Status = status is "all" or "inactive" or "blocked" or "retired" or "unavailable" ? status : "active";
         Kind = kind is "rack" or "area" ? kind : "all";
@@ -95,6 +101,16 @@ public class LocationIndexPageModel(
         if (ViewMode == "map")
         {
             Map = await mapService.GetAsync(true, includeReferences: false, cancellationToken);
+            // Read each shared area once, even when several mixed racks reference it.
+            var associatedDeliveries = new Dictionary<Guid, IReadOnlyList<WipInventoryRow>>();
+            var areaIds = Map.Elements
+                .Where(element => User.IsInRole("ADMIN") && element.Kind == "Rack" && element.Positions.Any(position => position.OperationalRole == LocationOperationalRole.Wip))
+                .Select(element => RackWip(element.RowCode, element.RackNumber)?.WipAreaId)
+                .OfType<Guid>().Distinct();
+            foreach (var areaId in areaIds)
+                associatedDeliveries[areaId] = (await wipReportService.GetTrackedPageAsync(
+                    new(null, null, WipAreaId: areaId), 1, 5, cancellationToken)).Inventory;
+            AssociatedWipDeliveries = associatedDeliveries;
             if (MapMetric != "normal")
             {
                 var heatmapQuery = await HeatmapQueryNormalizer.BuildAsync(
@@ -132,7 +148,7 @@ public class LocationIndexPageModel(
             Locations = ApplyRackFilter(await LoadRowsAsync(query.OrderBy(location => location.RowCode)
                 .ThenBy(location => location.RackNumber).ThenBy(location => location.PalletNumber), cancellationToken));
             LayoutAreas = [];
-            LayoutRacks = CreateRackLayouts(Locations);
+            LayoutRacks = await CreateRackLayoutsAsync(Locations, cancellationToken);
             return;
         }
 
@@ -154,7 +170,7 @@ public class LocationIndexPageModel(
 
         Locations = await LoadRowsAsync(ordered, cancellationToken);
         LayoutAreas = Locations.Where(location => location.Kind == LocationKind.Area).ToArray();
-        LayoutRacks = CreateRackLayouts(Locations);
+        LayoutRacks = await CreateRackLayoutsAsync(Locations, cancellationToken);
     }
 
     public async Task<IActionResult> OnGetHeatmapExportAsync(
@@ -227,16 +243,22 @@ public class LocationIndexPageModel(
         HeatmapTo = query.To;
     }
 
-    private static IReadOnlyList<RackLayout> CreateRackLayouts(IReadOnlyList<LocationRow> locations)
-        => locations.Where(location => location.Kind == LocationKind.Rack)
+    private async Task<IReadOnlyList<RackLayout>> CreateRackLayoutsAsync(IReadOnlyList<LocationRow> locations,
+        CancellationToken token)
+    {
+        var formats = await LocationRackFormats.LoadAsync(DbContext, token);
+        return locations.Where(location => location.Kind == LocationKind.Rack)
             .GroupBy(location => (location.RowCode!, location.RackNumber!.Value))
             .OrderBy(group => group.Key.Item1).ThenBy(group => group.Key.Item2)
             .Select(group =>
             {
                 var positions = group.ToDictionary(location => location.PalletNumber!.Value);
+                var format = formats.GetValueOrDefault(group.Key) ?? RackFormat.Default;
                 return new RackLayout(group.Key.Item1, group.Key.Item2,
-                    KeypadOrder.Select(number => positions.GetValueOrDefault(number)).ToArray());
+                    format.PalletOrder.Select(number => positions.GetValueOrDefault(number)).ToArray())
+                { Format = format };
             }).ToArray();
+    }
 
     private IReadOnlyList<LocationRow> ApplyRackFilter(IReadOnlyList<LocationRow> locations)
     {
@@ -269,17 +291,24 @@ public class LocationIndexPageModel(
         if (!string.IsNullOrWhiteSpace(Search))
         {
             var term = Search.ToUpperInvariant();
+            var matchingProducts = DbContext.Products.Where(product => product.Sku.Contains(term) ||
+                (product.Description != null && product.Description.ToUpper().Contains(term)) ||
+                (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(term)) ||
+                product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(term)))
+                .Select(product => product.Id);
+            // Presence is the net balance of each product at the location, across all lots.
+            var locationsWithBalance = DbContext.InventoryBalances
+                .Where(balance => matchingProducts.Contains(balance.ProductId))
+                .GroupBy(balance => new { balance.LocationId, balance.ProductId })
+                .Where(group => group.Sum(balance => balance.Quantity) != 0)
+                .Select(group => group.Key.LocationId);
+            var includeAssignments = IsAdministrativeView;
             query = query.Where(location => location.Code.Contains(term) ||
                 (location.Description != null && location.Description.ToUpper().Contains(term)) ||
-                location.ProductAssignments.Any(assignment => assignment.IsActive &&
-                    (assignment.Product.Sku.Contains(term) ||
-                     (assignment.Product.Description != null && assignment.Product.Description.ToUpper().Contains(term)) ||
-                     (assignment.Product.ExternalReference != null && assignment.Product.ExternalReference.ToUpper().Contains(term)) ||
-                     assignment.Product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(term)))) ||
-                DbContext.InventoryBalances.Any(balance => balance.LocationId == location.Id && (balance.Product.Sku.Contains(term) ||
-                    (balance.Product.Description != null && balance.Product.Description.ToUpper().Contains(term)) ||
-                    (balance.Product.ExternalReference != null && balance.Product.ExternalReference.ToUpper().Contains(term)) ||
-                    balance.Product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(term)))));
+                (location.OperationalRole != LocationOperationalRole.Wip &&
+                (locationsWithBalance.Contains(location.Id) ||
+                 (includeAssignments && location.ProductAssignments.Any(assignment => assignment.IsActive &&
+                     matchingProducts.Contains(assignment.ProductId))))));
         }
         return query;
     }
@@ -296,7 +325,7 @@ public class LocationIndexPageModel(
         var ids = locations.Select(location => location.Id).ToArray();
         var assignments = ids.Length == 0
             ? []
-            : await DbContext.ProductLocationAssignments.AsNoTracking()
+            : await DbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.Location.OperationalRole != LocationOperationalRole.Wip)
                 .Where(assignment => assignment.IsActive && ids.Contains(assignment.LocationId))
                 .OrderBy(assignment => assignment.Product.Sku)
                 .Select(assignment => new AssignmentRow(assignment.LocationId, assignment.ProductId, assignment.Product.Sku))
@@ -305,7 +334,7 @@ public class LocationIndexPageModel(
             .ToDictionary(group => group.Key, group => group.Select(assignment => assignment.Sku).ToArray());
         var balanceSources = ids.Length == 0
             ? []
-            : await DbContext.InventoryBalances.AsNoTracking().Where(balance => ids.Contains(balance.LocationId))
+            : await DbContext.InventoryBalances.AsNoTracking().Where(x => x.Location.OperationalRole != LocationOperationalRole.Wip).Where(balance => ids.Contains(balance.LocationId))
                 .Select(balance => new BalanceSource(balance.LocationId, balance.ProductId, balance.Product.Sku,
                     balance.Product.Description, balance.Product.BaseUnit.Code, balance.Quantity))
                 .ToListAsync(cancellationToken);
@@ -349,10 +378,12 @@ public class LocationIndexPageModel(
     }
     public sealed record RackLayout(string RowCode, short RackNumber, IReadOnlyList<LocationRow?> Positions)
     {
+        public RackFormat Format { get; init; } = RackFormat.Default;
         private IEnumerable<LocationRow> Existing => Positions.OfType<LocationRow>();
         public int PositionCount => Existing.Count();
-        public int OccupiedCount => Existing.Count(position => position.HasInventory);
-        public int EmptyCount => Existing.Count(position => !position.HasInventory);
+        public int StoragePositionCount => Existing.Count(position => !position.IsWip);
+        public int OccupiedCount => Existing.Count(position => !position.IsWip && position.HasInventory);
+        public int EmptyCount => Existing.Count(position => !position.IsWip && !position.HasInventory);
         public int IssueCount => Existing.Count(position => position.HasIssue);
         public bool IsWip => Existing.Any() && Existing.All(position => position.IsWip);
         public bool IsMixed => Existing.Any(position => position.IsWip) && Existing.Any(position => !position.IsWip);

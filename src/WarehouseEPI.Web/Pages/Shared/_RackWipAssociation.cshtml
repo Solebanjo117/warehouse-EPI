@@ -1,0 +1,11 @@
+@model WarehouseEPI.Infrastructure.Locations.RackWipAssociationView
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@if (Model is not null)
+{
+    <div class="my-2" data-rack-wip-association="@Model.WipAreaId">
+        <p class="mb-1"><strong>@CatTexts["Posiciones WIP asociadas a {0}", Model.Code]</strong></p>
+        @if (!Model.IsOperational)
+        { <p class="text-warning mb-1">@CatTexts["El WIP asociado no está disponible para nuevas operaciones."]</p> }
+        <a asp-page="/Reports/Wip/Index" asp-route-wipAreaId="@Model.WipAreaId" class="btn btn-outline-primary no-print">@CatTexts["Ver surtimientos de {0}", Model.Code]</a>
+    </div>
+}

@@ -1107,6 +1107,117 @@ public sealed class LocationCatalogTests
     }
 
     [Fact]
+    public async Task Rack_generation_respects_a_format_saved_after_preparing_the_manifest()
+    {
+        await using var fixture = new Fixture();
+        fixture.Db.Add(Rack("Q", 2, 1));
+        await fixture.Db.SaveChangesAsync();
+        var prepared = await fixture.Service.PrepareAsync("Q,2,2,5", fixture.Owner);
+        Assert.True(prepared.CanConfirm);
+        fixture.Db.LocationRackFormats.Add(new LocationRackFormat { RowCode = "Q", RackNumber = 2, Columns = 2, Levels = 2 });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ConfirmAsync(prepared.Token, fixture.Owner, ["Q-2-5"]);
+        Assert.False(result.Succeeded);
+        Assert.Single(await fixture.Db.Locations.ToArrayAsync());
+        Assert.False((await fixture.Service.PrepareAsync("Q,2,2,5", fixture.Owner)).CanConfirm);
+        Assert.True((await fixture.Service.PrepareAsync("Q,2,2,2-4", fixture.Owner)).CanConfirm);
+    }
+
+    [Fact]
+    public async Task Rack_format_two_by_two_persists_without_renaming_locations_and_is_audited()
+    {
+        await using var fixture = new Fixture();
+        var pins = new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        var original = Enumerable.Range(1, 9).Select(number => Rack("Q", 2, (short)number)).ToArray();
+        fixture.Db.AddRange(role, user);
+        fixture.Db.Locations.AddRange(original);
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var command = new LocationRackEditCommand(Guid.NewGuid(), user.Id, "Q", 2,
+            LocationOperationalRole.Storage, [1, 2, 3, 4], "Formato físico de dos por dos", "1234",
+            Format: new RackFormat(2, 2));
+
+        Assert.Empty((await service.ReviewAsync(command)).Errors);
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
+        Assert.Equal(LocationRackSaveStatus.IdempotencyConflict,
+            (await service.SaveAsync(command with { Format = new RackFormat(3, 2) })).Status);
+        await using var reloaded = fixture.CreateDb();
+        var format = await LocationRackFormats.GetAsync(reloaded, "Q", 2);
+        Assert.Equal(new RackFormat(2, 2), format);
+        Assert.Equal(new short[] { 3, 4, 1, 2 }, format.PalletOrder);
+        var view = await new LocationRackAdministrationService(reloaded,
+            new UserPinService(reloaded, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")), TimeProvider.System).GetAsync("Q", 2);
+        Assert.Equal(format, view!.Format);
+        var rows = await reloaded.Locations.OrderBy(item => item.PalletNumber).ToArrayAsync();
+        Assert.Equal(original.Select(item => item.Id), rows.Select(item => item.Id));
+        Assert.Equal(original.Select(item => item.Code), rows.Select(item => item.Code));
+        Assert.All(rows.Take(4), item => Assert.True(item.IsPhysicallyPresent));
+        Assert.All(rows.Skip(4), item => Assert.False(item.IsPhysicallyPresent));
+        var revision = Assert.Single(await reloaded.LocationRackRevisions.ToListAsync());
+        Assert.Contains("\"Columns\":3", revision.BeforeJson);
+        Assert.Contains("\"Columns\":2", revision.AfterJson);
+
+        var restore = command with
+        {
+            OperationId = Guid.NewGuid(),
+            Format = new RackFormat(3, 3),
+            PresentPallets = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        };
+        Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(restore)).Status);
+        Assert.All(original, item => Assert.True(item.IsPhysicallyPresent));
+    }
+
+    [Fact]
+    public async Task Rack_format_cannot_hide_positions_with_balances_or_active_assignments()
+    {
+        await using var fixture = new Fixture();
+        var pins = new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
+        var role = new Role { Id = 1, Code = "ADMIN", Name = "Administrador" };
+        var user = new User { FullName = "Rack Admin", Role = role, PinLookup = string.Empty, PinHash = string.Empty };
+        await pins.AssignAsync(user, "1234");
+        var positions = Enumerable.Range(1, 9).Select(number => Rack("Q", 2, (short)number)).ToArray();
+        var product = new Product { Sku = "FORMAT-PROTECTED", BaseUnit = new Unit { Code = "EA", Name = "Each" } };
+        fixture.Db.AddRange(role, user, product);
+        fixture.Db.AddRange(positions);
+        fixture.Db.InventoryBalances.Add(new InventoryBalance { Product = product, Location = positions[4], Quantity = -1 });
+        fixture.Db.ProductLocationAssignments.Add(new ProductLocationAssignment { Product = product, Location = positions[5] });
+        await fixture.Db.SaveChangesAsync();
+        var service = new LocationRackAdministrationService(fixture.Db, pins, TimeProvider.System);
+        var command = new LocationRackEditCommand(Guid.NewGuid(), user.Id, "Q", 2,
+            LocationOperationalRole.Storage, [1, 2, 3, 4], "Reducir a dos por dos", "1234", Format: new RackFormat(2, 2));
+
+        var review = await service.ReviewAsync(command);
+        Assert.Contains(review.Errors, error => error.Contains("Q-2-5", StringComparison.Ordinal));
+        Assert.Contains(review.Errors, error => error.Contains("Q-2-6", StringComparison.Ordinal));
+        Assert.Equal(LocationRackSaveStatus.ValidationFailed, (await service.SaveAsync(command)).Status);
+        Assert.Empty(await fixture.Db.LocationRackFormats.ToArrayAsync());
+        Assert.Empty(await fixture.Db.LocationRackRevisions.ToArrayAsync());
+        Assert.All(positions, item => Assert.True(item.IsPhysicallyPresent));
+        Assert.Equal(LocationRackSaveStatus.ValidationFailed,
+            (await service.SaveAsync(command with { PresentPallets = [1, 2, 3, 4, 5, 6] })).Status);
+    }
+
+    [Theory]
+    [InlineData(0, 2)]
+    [InlineData(2, 4)]
+    [InlineData(4, 2)]
+    public async Task Rack_format_validates_dimensions_on_the_server(int columns, int levels)
+    {
+        await using var fixture = new Fixture();
+        var service = new LocationRackAdministrationService(fixture.Db,
+            new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=")), TimeProvider.System);
+        var command = new LocationRackEditCommand(Guid.NewGuid(), Guid.NewGuid(), "Q", 2,
+            LocationOperationalRole.Storage, [1], "Formato inválido", "1234", Format: new RackFormat(columns, levels));
+        Assert.NotEmpty((await service.ReviewAsync(command)).Errors);
+        Assert.Equal(LocationRackSaveStatus.ValidationFailed, (await service.SaveAsync(command)).Status);
+    }
+
+    [Fact]
     public async Task Rack_correction_retires_reversibly_and_preserves_rows_and_audit()
     {
         await using var fixture = new Fixture();
@@ -1146,7 +1257,7 @@ public sealed class LocationCatalogTests
     }
 
     [Fact]
-    public async Task Rack_role_change_applies_to_every_position_and_preserves_inventory_relationships()
+    public async Task Rack_role_change_requires_zero_stock_and_no_active_storage_assignments()
     {
         await using var fixture = new Fixture();
         var protector = new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
@@ -1173,6 +1284,15 @@ public sealed class LocationCatalogTests
         Assert.Equal(LocationOperationalRole.Wip, review.Summary.RequestedOperationalRole);
         Assert.Equal(LocationRackSaveStatus.InvalidPin,
             (await service.SaveAsync(command with { Pin = "0000" })).Status);
+        Assert.Equal(LocationRackSaveStatus.ValidationFailed, (await service.SaveAsync(command)).Status);
+        Assert.Equal(7m, await fixture.Db.InventoryBalances.SumAsync(x => x.Quantity));
+        var balance = await fixture.Db.InventoryBalances.SingleAsync();
+        balance.Quantity = 0;
+        await fixture.Db.SaveChangesAsync();
+        Assert.Equal(LocationRackSaveStatus.ValidationFailed, (await service.SaveAsync(command)).Status);
+        var assignment = await fixture.Db.ProductLocationAssignments.SingleAsync();
+        assignment.IsActive = false;
+        await fixture.Db.SaveChangesAsync();
         Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(command)).Status);
         Assert.Equal(LocationRackSaveStatus.IdempotencyConflict,
             (await service.SaveAsync(command with { OperationalRole = LocationOperationalRole.Storage })).Status);
@@ -1181,7 +1301,7 @@ public sealed class LocationCatalogTests
             .OrderBy(item => item.PalletNumber).ToArrayAsync();
         Assert.Equal(9, rows.Length);
         Assert.All(rows, item => Assert.Equal(LocationOperationalRole.Wip, item.OperationalRole));
-        Assert.Equal(7m, await fixture.Db.InventoryBalances.SumAsync(item => item.Quantity));
+        Assert.Equal(0m, await fixture.Db.InventoryBalances.SumAsync(item => item.Quantity));
         Assert.Single(await fixture.Db.ProductLocationAssignments.ToListAsync());
         var revision = Assert.Single(await fixture.Db.LocationRackRevisions.ToListAsync());
         Assert.Contains("OperationalRole", revision.BeforeJson, StringComparison.Ordinal);

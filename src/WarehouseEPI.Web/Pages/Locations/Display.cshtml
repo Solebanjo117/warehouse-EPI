@@ -114,7 +114,7 @@
                             <div class="display-heading-copy">
                                 <p class="display-heading-title">@slide.Title</p>
                                 <p class="display-heading-meta">@CatTexts["Fila {0} · Pantalla {1} de {2}", slide.RowCode, slide.Part, slide.Parts]</p>
-                                <p class="display-heading-meta">@CatTexts["{0} de {1} posiciones con saldo en la fila", slide.Row.OccupiedCount, slide.Row.PositionCount]</p>
+                                <p class="display-heading-meta">@(slide.Row.PositionCount == 0 ? CatTexts["Sin control de existencias"] : CatTexts["{0} de {1} posiciones con saldo en la fila", slide.Row.OccupiedCount, slide.Row.PositionCount])</p>
                             </div>
                         </header>
                         <div class="display-bay">

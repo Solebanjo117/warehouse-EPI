@@ -19,6 +19,7 @@
             @if (Model.Detailed && !position.IsActive && position.State != "inactive") { <p class="display-cell-flag">@CatTexts["Inactiva"]</p> }
             @if (Model.Detailed && position.IsBlocked && position.State != "blocked") { <p class="display-cell-flag">@CatTexts["Bloqueada"]</p> }
             @if (position.State == "missing") { <p class="display-cell-note">@CatTexts["No existe"]</p> }
+            else if (position.IsWip) { <p class="display-cell-note">@CatTexts["Sin control de existencias"]</p> }
             else if (products.Count == 0) { <p class="display-cell-note">@CatTexts["Sin saldo"]</p> }
             else if (Model.Detailed)
             {
@@ -56,10 +57,11 @@
         </div>
     }
 }
-<article class="display-rack" data-display-rack="@rack.Label" aria-label="@CatTexts["Rack {0}, {1} de {2} posiciones con saldo", rack.Label, rack.OccupiedCount, rack.PositionCount]">
-    <header class="display-rack-head"><h2>@(Model.ShowLabel ? rack.Label : CatTexts["Posiciones"].Value)</h2><p>@CatTexts["{0} de {1} con saldo", rack.OccupiedCount, rack.PositionCount]</p></header>
+<article class="display-rack" data-display-rack="@rack.Label" data-rack-columns="@rack.Format.Columns" data-rack-levels="@rack.Format.Levels" aria-label="@CatTexts["Rack {0}, {1} de {2} posiciones con saldo", rack.Label, rack.OccupiedCount, rack.PositionCount]">
+    <header class="display-rack-head"><h2>@(Model.ShowLabel ? rack.Label : CatTexts["Posiciones"].Value)</h2><p>@(rack.PositionCount == 0 ? CatTexts["Sin control de existencias"] : CatTexts["{0} de {1} con saldo", rack.OccupiedCount, rack.PositionCount])</p></header>
+    <partial name="/Pages/Shared/_RackWipAssociation.cshtml" model="rack.WipAssociation" />
     <div class="display-rack-frame">
-    @foreach (var level in rack.Positions.Chunk(3))
+    @foreach (var level in rack.Positions.Chunk(rack.Format.Columns))
     {
         <div class="display-rack-level">
         @foreach (var position in level) { Cell(position); }

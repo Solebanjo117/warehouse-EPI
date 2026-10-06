@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
@@ -13,6 +14,7 @@ public sealed record WarehouseMapProduct(Guid ProductId, string Sku, string? Des
 public sealed record WarehouseMapPosition(Guid LocationId, string Code, short? PalletNumber, string? Description, LocationOperationalRole OperationalRole, bool IsActive, bool IsBlocked, string? BlockReason, int AssignmentCount, int ProductCount, bool HasInventory, bool HasNegative, IReadOnlyList<WarehouseMapProduct> Products);
 public sealed record WarehouseMapElementView(Guid Id, string Kind, string Label, string? RowCode, short? RackNumber, Guid? LocationId, decimal X, decimal Y, decimal Width, decimal Height, short Rotation, int ZIndex, bool IsVisible, IReadOnlyList<WarehouseMapPosition> Positions)
 {
+    public RackFormat Format { get; init; } = RackFormat.Default;
     public bool IsWip => Positions.Any(position => position.OperationalRole == LocationOperationalRole.Wip);
     public bool IsMixed => IsWip && Positions.Any(position => position.OperationalRole == LocationOperationalRole.Storage);
 }
@@ -137,7 +139,11 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
                     .OrderBy(item => item.ZIndex).ToList()
                 : stored;
         var locations = await LoadPositionsAsync(token);
-        var views = elements.Select(item => ToView(item, locations)).ToArray();
+        var formats = await LocationRackFormats.LoadAsync(dbContext, token);
+        var views = elements.Select(item => ToView(item, locations) with
+        {
+            Format = formats.GetValueOrDefault((item.RowCode ?? string.Empty, item.RackNumber ?? 0)) ?? RackFormat.Default
+        }).ToArray();
         var layerCodes = layers.ToDictionary(item => item.Id, item => WarehouseMapArchitectureCatalog.Code(item.Code));
         var architectureViews = architecture.Where(item => !item.IsArchived).OrderBy(item => item.ZIndex).Select(item => WarehouseMapArchitectureCatalog.ToView(item, layerCodes[item.LayerId])).ToArray();
         var archivedArchitectureViews = includeProposal
@@ -715,9 +721,10 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         // A warehouse map is an administrative view, so aggregate the already materialized
         // rows without mixing quantities from different units.
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
-            .Where(item => item.IsActive)
+            .Where(item => item.IsActive && item.Location.OperationalRole != LocationOperationalRole.Wip)
             .ToListAsync(token);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
+            .Where(item => item.Location.OperationalRole != LocationOperationalRole.Wip)
             .Include(item => item.Product)
             .ThenInclude(product => product.BaseUnit)
             .ToListAsync(token);

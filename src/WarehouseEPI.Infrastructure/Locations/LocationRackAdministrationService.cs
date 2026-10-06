@@ -15,7 +15,10 @@ public sealed record LocationRackEditCommand(Guid OperationId, Guid RequestedByU
     short RackNumber, LocationOperationalRole OperationalRole,
     IReadOnlyCollection<short> PresentPallets, string? Reason, string? Pin,
     IReadOnlyList<Guid>? ProcessIds = null, uint? ProcessConfigurationVersion = null,
-    IReadOnlyCollection<short>? WipPallets = null);
+    IReadOnlyCollection<short>? WipPallets = null, RackFormat? Format = null,
+    RackWipAssociationChange? WipAssociation = null);
+
+public sealed record RackWipAssociationChange(Guid? WipAreaId, Guid? ExpectedWipAreaId);
 
 public sealed record LocationRackPositionState(Guid? Id, short PalletNumber, string Code,
     bool Exists, bool IsPhysicallyPresent, bool IsActive, bool IsBlocked, bool HasBalance,
@@ -24,7 +27,11 @@ public sealed record LocationRackPositionState(Guid? Id, short PalletNumber, str
 public sealed record LocationRackEditView(string RowCode, short RackNumber,
     LocationOperationalRole OperationalRole, IReadOnlyList<LocationRackPositionState> Positions,
     IReadOnlyList<LocationRackRevisionView> Revisions, LocationRackDeletionState Deletion,
-    IReadOnlyList<Guid> ProcessIds, IReadOnlyList<Guid> InheritedProcessIds, uint ProcessConfigurationVersion);
+    IReadOnlyList<Guid> ProcessIds, IReadOnlyList<Guid> InheritedProcessIds, uint ProcessConfigurationVersion)
+{
+    public RackFormat Format { get; init; } = RackFormat.Default;
+    public RackWipAssociationView? WipAssociation { get; init; }
+}
 
 public sealed record LocationRackDeletionState(bool CanDelete, IReadOnlyList<string> Blockers);
 
@@ -39,6 +46,8 @@ public sealed record LocationRackEditSummary(IReadOnlyList<string> Added, IReadO
     LocationOperationalRole RequestedOperationalRole,
     IReadOnlyList<string>? RoleChanges = null, bool DirectProcessesRemoved = false)
 {
+    public Guid? PreviousWipAreaId { get; init; }
+    public Guid? RequestedWipAreaId { get; init; }
     public bool OperationalRoleChanged => PreviousOperationalRole != RequestedOperationalRole || RoleChanges is { Count: > 0 };
 }
 
@@ -80,7 +89,11 @@ public sealed class LocationRackAdministrationService(
         var inheritedProcessIds = await dbContext.ProductionProcessWipTargets.AsNoTracking()
             .Where(x => x.RowCode == row && x.RackNumber == null).Select(x => x.ProductionStageId).ToListAsync(token);
         var processVersion = (await dbContext.ProductionProcessConfigurations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, token))?.Version ?? 0;
-        return new(row, rackNumber, RackOperationalRole(locations), states, revisions, deletion, processIds, inheritedProcessIds, processVersion);
+        return new(row, rackNumber, RackOperationalRole(locations), states, revisions, deletion, processIds, inheritedProcessIds, processVersion)
+        {
+            Format = await LocationRackFormats.GetAsync(dbContext, row, rackNumber, token),
+            WipAssociation = await LocationRackWipAssociations.GetAsync(dbContext, row, rackNumber, token)
+        };
     }
 
     public async Task<LocationRackReviewResult> ReviewAsync(LocationRackEditCommand command,
@@ -94,13 +107,34 @@ public sealed class LocationRackAdministrationService(
         var locations = await LoadRackAsync(row, command.RackNumber, true, token);
         if (locations.Count == 0) errors.Add("El rack no existe.");
         var desired = command.PresentPallets.ToHashSet();
+        var format = command.Format ?? await LocationRackFormats.GetAsync(dbContext, row, command.RackNumber, token);
+        if (desired.Any(pallet => pallet > format.Capacity))
+            errors.Add("Las posiciones seleccionadas deben quedar dentro del formato del rack.");
         errors.AddRange(await ValidateRetirementsAsync(locations, desired, token));
         var summary = BuildSummary(row, command.RackNumber, locations, desired, command);
+        var association = await dbContext.LocationRackWipAssociations.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.RowCode == row && x.RackNumber == command.RackNumber, token);
+        errors.AddRange(await ValidateWipAssociationAsync(command, association, token));
+        summary = summary with
+        {
+            PreviousWipAreaId = association?.WipAreaId,
+            RequestedWipAreaId = EffectiveWipArea(command, association)
+        };
         return new(errors.Distinct(StringComparer.Ordinal).ToArray(), summary);
     }
 
     public async Task<LocationRackSaveResult> SaveAsync(LocationRackEditCommand command,
         CancellationToken token = default)
+    {
+        try { return await SaveCoreAsync(command, token); }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        {
+            return new(LocationRackSaveStatus.ValidationFailed,
+                ["El rack cambió al mismo tiempo. Revisa nuevamente antes de guardar."]);
+        }
+    }
+
+    private async Task<LocationRackSaveResult> SaveCoreAsync(LocationRackEditCommand command, CancellationToken token)
     {
         var errors = ValidateCommand(command);
         if (errors.Count != 0) return new(LocationRackSaveStatus.ValidationFailed, errors);
@@ -113,7 +147,7 @@ public sealed class LocationRackAdministrationService(
         var reason = command.Reason!.Trim();
         var desired = command.PresentPallets.OrderBy(value => value).ToArray();
         var wipPallets = RequestedWipPallets(command);
-        var fingerprint = Hash(JsonSerializer.Serialize(new
+        var requestContent = JsonSerializer.Serialize(new
         {
             command.RequestedByUserId,
             AuthorizedByUserId = authorized.Id,
@@ -125,7 +159,12 @@ public sealed class LocationRackAdministrationService(
             ProcessIds = command.ProcessIds?.OrderBy(x => x),
             command.ProcessConfigurationVersion,
             Reason = reason
-        }));
+        });
+        // Keep fingerprints from older requests that did not include a format replayable.
+        var fingerprintContent = command.Format is null ? requestContent
+            : JsonSerializer.Serialize(new { Content = requestContent, command.Format });
+        var fingerprint = Hash(command.WipAssociation is null ? fingerprintContent
+            : JsonSerializer.Serialize(new { Content = fingerprintContent, command.WipAssociation }));
 
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, token)
@@ -151,7 +190,22 @@ public sealed class LocationRackAdministrationService(
             if (transaction is not null) await transaction.RollbackAsync(token);
             return new(LocationRackSaveStatus.NotFound);
         }
+        var previousFormat = await LocationRackFormats.GetAsync(dbContext, row, command.RackNumber, token);
+        var association = await dbContext.LocationRackWipAssociations
+            .SingleOrDefaultAsync(x => x.RowCode == row && x.RackNumber == command.RackNumber, token);
+        var previousWipAreaId = association?.WipAreaId;
+        var requestedWipAreaId = EffectiveWipArea(command, association);
+        var requestedFormat = command.Format ?? previousFormat;
         errors = await ValidateRetirementsAsync(locations, desired.ToHashSet(), token);
+        errors.AddRange(await ValidateWipAssociationAsync(command, association, token));
+        foreach (var location in locations.Where(x => x.PalletNumber.HasValue && desired.Contains(x.PalletNumber.Value)))
+        {
+            var roleError = await LocationWipRules.ValidateChangeAsync(dbContext, location.Id, location.OperationalRole,
+                wipPallets.Contains(location.PalletNumber!.Value) ? LocationOperationalRole.Wip : LocationOperationalRole.Storage, token);
+            if (roleError is not null) errors.Add(location.Code + ": " + roleError);
+        }
+        if (desired.Any(pallet => pallet > requestedFormat.Capacity))
+            errors.Add("Las posiciones seleccionadas deben quedar dentro del formato del rack.");
         if (errors.Count != 0)
         {
             if (transaction is not null) await transaction.RollbackAsync(token);
@@ -191,8 +245,14 @@ public sealed class LocationRackAdministrationService(
             configuration.Version++;
         }
 
-        var before = JsonSerializer.Serialize(new { Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations)),
-            DirectProcessIds = previousProcessIds, InheritedRowProcessIds = inheritedProcessIds });
+        var before = JsonSerializer.Serialize(new
+        {
+            Format = previousFormat,
+            Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations)),
+            DirectProcessIds = previousProcessIds,
+            InheritedRowProcessIds = inheritedProcessIds,
+            WipAreaId = previousWipAreaId
+        });
         var byPallet = locations.ToDictionary(item => item.PalletNumber!.Value);
         var now = timeProvider.GetUtcNow();
         foreach (var pallet in Enumerable.Range(1, 9).Select(value => (short)value))
@@ -238,8 +298,33 @@ public sealed class LocationRackAdministrationService(
             }
         }
 
-        var after = JsonSerializer.Serialize(new { Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations.OrderBy(item => item.PalletNumber).ToArray())),
-            DirectProcessIds = requestedProcessIds, InheritedRowProcessIds = inheritedProcessIds });
+        var storedFormat = await dbContext.LocationRackFormats.SingleOrDefaultAsync(
+            item => item.RowCode == row && item.RackNumber == command.RackNumber, token);
+        if (storedFormat is null)
+        {
+            storedFormat = new LocationRackFormat { RowCode = row, RackNumber = command.RackNumber };
+            dbContext.LocationRackFormats.Add(storedFormat);
+        }
+        storedFormat.Columns = requestedFormat.Columns;
+        storedFormat.Levels = requestedFormat.Levels;
+
+        if (requestedWipAreaId is Guid areaId)
+        {
+            if (association is null)
+                dbContext.LocationRackWipAssociations.Add(new LocationRackWipAssociation
+                { RowCode = row, RackNumber = command.RackNumber, WipAreaId = areaId });
+            else association.WipAreaId = areaId;
+        }
+        else if (association is not null) dbContext.LocationRackWipAssociations.Remove(association);
+
+        var after = JsonSerializer.Serialize(new
+        {
+            Format = requestedFormat,
+            Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations.OrderBy(item => item.PalletNumber).ToArray())),
+            DirectProcessIds = requestedProcessIds,
+            InheritedRowProcessIds = inheritedProcessIds,
+            WipAreaId = requestedWipAreaId
+        });
         dbContext.LocationRackRevisions.Add(new LocationRackRevision
         {
             OperationId = command.OperationId,
@@ -336,7 +421,14 @@ public sealed class LocationRackAdministrationService(
         var mapElements = await dbContext.WarehouseMapElements
             .Where(item => item.Kind == WarehouseMapElementKind.Rack && item.RowCode == row &&
                 item.RackNumber == command.RackNumber).ToListAsync(token);
-        var before = SerializeState(locations);
+        var association = await dbContext.LocationRackWipAssociations
+            .SingleOrDefaultAsync(x => x.RowCode == row && x.RackNumber == command.RackNumber, token);
+        var before = JsonSerializer.Serialize(new
+        {
+            Locations = JsonSerializer.Deserialize<JsonElement>(SerializeState(locations)),
+            WipAreaId = association?.WipAreaId
+        });
+        if (association is not null) dbContext.LocationRackWipAssociations.Remove(association);
         dbContext.LocationRackRevisions.Add(new LocationRackRevision
         {
             OperationId = command.OperationId,
@@ -406,6 +498,9 @@ public sealed class LocationRackAdministrationService(
             var configuration = await dbContext.ProductionProcessConfigurations.SingleOrDefaultAsync(x => x.Id == 1, token);
             if (configuration is not null) configuration.Version++;
         }
+        var rackFormat = await dbContext.LocationRackFormats.SingleOrDefaultAsync(
+            item => item.RowCode == row && item.RackNumber == command.RackNumber, token);
+        if (rackFormat is not null) dbContext.LocationRackFormats.Remove(rackFormat);
         dbContext.Locations.RemoveRange(locations);
 
         try
@@ -426,6 +521,37 @@ public sealed class LocationRackAdministrationService(
                 ["El rack recibió un registro relacionado y ya no puede eliminarse."]);
         }
         return new(LocationRackDeleteStatus.Success);
+    }
+
+    private static Guid? EffectiveWipArea(LocationRackEditCommand command, LocationRackWipAssociation? current) =>
+        RequestedWipPallets(command).Count == 0 ? null :
+        command.WipAssociation is null ? current?.WipAreaId : command.WipAssociation.WipAreaId;
+
+    private static bool IsSerializationFailure(Exception exception) =>
+        exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure } ||
+        exception.InnerException is not null && IsSerializationFailure(exception.InnerException);
+
+    private async Task<List<string>> ValidateWipAssociationAsync(LocationRackEditCommand command,
+        LocationRackWipAssociation? current, CancellationToken token)
+    {
+        var errors = new List<string>();
+        if (command.WipAssociation is { } change && change.ExpectedWipAreaId != current?.WipAreaId)
+            errors.Add("La asociación WIP cambió mientras editabas. Recarga y vuelve a revisar.");
+        var requested = EffectiveWipArea(command, current);
+        if (RequestedWipPallets(command).Count == 0 && command.WipAssociation?.WipAreaId is not null && current is null)
+            errors.Add("Selecciona al menos una posición WIP presente para asociar el rack.");
+        if (requested is Guid id)
+        {
+            if (dbContext.Database.CurrentTransaction is not null && dbContext.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+                await dbContext.Locations.FromSqlInterpolated($"SELECT * FROM locations WHERE id = {id} FOR UPDATE")
+                    .AsNoTracking().ToListAsync(token);
+            var area = await dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, token);
+            // Keep unavailable existing associations visible; never replace their target implicitly.
+            if (area is null || area.Kind != LocationKind.Area || !area.IsWip ||
+                (current?.WipAreaId != id && !area.IsOperational))
+                errors.Add("Selecciona un área WIP activa, presente y sin bloqueo.");
+        }
+        return errors;
     }
 
     private async Task<List<Location>> LoadRackAsync(string row, short rack, bool tracking,
@@ -538,6 +664,12 @@ public sealed class LocationRackAdministrationService(
         if (command.PresentPallets.Count is < 1 or > 9 || command.PresentPallets.Distinct().Count() != command.PresentPallets.Count ||
             command.PresentPallets.Any(item => item is < 1 or > 9))
             errors.Add("Selecciona entre una y nueve posiciones distintas.");
+        if (command.Format is { } format)
+        {
+            if (!format.IsValid) errors.Add("Selecciona entre una y tres columnas y entre uno y tres niveles.");
+            else if (command.PresentPallets.Any(pallet => pallet > format.Capacity))
+                errors.Add("Las posiciones seleccionadas deben quedar dentro del formato del rack.");
+        }
         if (command.WipPallets is not null &&
             (command.WipPallets.Distinct().Count() != command.WipPallets.Count ||
              command.WipPallets.Any(item => item is < 1 or > 9 || !command.PresentPallets.Contains(item))))

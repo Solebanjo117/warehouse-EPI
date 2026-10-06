@@ -9,14 +9,14 @@
     }
 </div>
 <small class="location-neighbor-code">@Model.Code</small>
-<span class="rack-slot-state">@Model.InventoryState</span>
+<span class="rack-slot-state">@CatTexts[Model.InventoryState]</span>
 @if (Model.PrimaryBalance is not null)
 {
     <span class="sku-chip" title="@Model.PrimaryBalance.Sku">@Model.PrimaryBalance.Sku</span>
     <span class="location-neighbor-balance @(Model.PrimaryBalance.Quantity < 0 ? "text-danger" : "")">@Model.PrimaryBalance.Quantity.ToString("0.####") @Model.PrimaryBalance.Unit</span>
     @if (Model.AdditionalProductCount > 0)
     {
-        <span class="sku-more">+@Model.AdditionalProductCount producto(s)</span>
+        <span class="sku-more">@CatTexts["+{0} producto(s)", Model.AdditionalProductCount]</span>
     }
 }
 else if (Model.PrimaryAssignedSku is not null)
@@ -24,7 +24,7 @@ else if (Model.PrimaryAssignedSku is not null)
     <span class="sku-chip" title="@Model.PrimaryAssignedSku">@Model.PrimaryAssignedSku</span>
     @if (Model.AdditionalAssignmentCount > 0)
     {
-        <span class="sku-more">+@Model.AdditionalAssignmentCount asignado(s)</span>
+        <span class="sku-more">@CatTexts["+{0} asignado(s)", Model.AdditionalAssignmentCount]</span>
     }
 }
 <div class="location-neighbor-flags">

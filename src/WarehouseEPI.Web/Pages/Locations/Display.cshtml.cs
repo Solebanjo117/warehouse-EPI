@@ -21,6 +21,8 @@ public sealed record DisplayPosition(short PalletNumber, string? Code, string St
 public sealed record DisplayRack(string RowCode, short RackNumber, int PositionCount, int OccupiedCount,
     IReadOnlyList<DisplayPosition> Positions)
 {
+    public WarehouseEPI.Core.RackFormat Format { get; init; } = WarehouseEPI.Core.RackFormat.Default;
+    public RackWipAssociationView? WipAssociation { get; init; }
     public string Label => $"{RowCode}-{RackNumber}";
 }
 
@@ -53,7 +55,6 @@ public sealed record DisplayMapView(DisplayContextMap Map, DisplayPoint? Here, s
 public sealed partial class DisplayModel(WarehouseDbContext db, WarehouseClock clock, WarehouseMapService maps, IStringLocalizer<CatalogTexts>? localizer = null) : PageModel
 {
     private string Text(string key, params object[] args) => localizer is null ? string.Format(CultureInfo.CurrentCulture, key, args) : localizer[key, args].Value;
-    private static readonly short[] KeypadOrder = [7, 8, 9, 4, 5, 6, 1, 2, 3];
     public IReadOnlyList<string> AvailableRows { get; private set; } = [];
     public IReadOnlySet<string> SelectedRows { get; private set; } = new HashSet<string>();
     public IReadOnlyList<DisplaySlide> Slides { get; private set; } = [];
@@ -127,6 +128,8 @@ public sealed partial class DisplayModel(WarehouseDbContext db, WarehouseClock c
             .ToListAsync(cancellationToken);
         var locationIds = locations.Select(location => location.Id).ToArray();
         var productsByLocation = await LoadDisplayProductsAsync(locationIds, false, cancellationToken);
+        var formats = await LocationRackFormats.LoadAsync(db, cancellationToken);
+        var associations = await LocationRackWipAssociations.LoadAsync(db, cancellationToken);
 
         var slides = new List<DisplaySlide>();
         var orderedRows = AvailableRows.Where(SelectedRows.Contains);
@@ -139,7 +142,8 @@ public sealed partial class DisplayModel(WarehouseDbContext db, WarehouseClock c
                     var byPallet = group.Where(location => location.PalletNumber != null)
                         .GroupBy(location => location.PalletNumber!.Value)
                         .ToDictionary(pallets => pallets.Key, pallets => pallets.First());
-                    var positions = KeypadOrder.Select(pallet =>
+                    var format = formats.GetValueOrDefault((row, group.Key)) ?? WarehouseEPI.Core.RackFormat.Default;
+                    var positions = format.PalletOrder.Select(pallet =>
                     {
                         if (!byPallet.TryGetValue(pallet, out var location))
                             return new DisplayPosition(pallet, null, "missing", false, []);
@@ -152,10 +156,11 @@ public sealed partial class DisplayModel(WarehouseDbContext db, WarehouseClock c
                             location.OperationalRole == LocationOperationalRole.Wip, products, location.Id,
                             location.IsActive, location.IsBlocked);
                     }).ToArray();
-                    return new DisplayRack(row, group.Key, group.Count(),
-                        group.Count(location => productsByLocation.ContainsKey(location.Id)), positions);
+                    return new DisplayRack(row, group.Key, group.Count(x => x.OperationalRole != LocationOperationalRole.Wip),
+                        group.Count(location => productsByLocation.ContainsKey(location.Id)), positions)
+                    { Format = format, WipAssociation = associations.GetValueOrDefault((row, group.Key)) };
                 });
-            var displayRow = new DisplayRow(row, rowRacks.Count, rowLocations.Length,
+            var displayRow = new DisplayRow(row, rowRacks.Count, rowLocations.Count(x => x.OperationalRole != LocationOperationalRole.Wip),
                 rowLocations.Count(location => productsByLocation.ContainsKey(location.Id)));
             var seen = new HashSet<short>();
             var physicalOrder = PhysicalOrder(displayRacks.Where(rack => rack.RowCode == row).ToArray())

@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using WarehouseEPI.Core;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -22,6 +23,8 @@ public class LocationDetailsPageModel(
     public IReadOnlyList<BalanceRow> Balances { get; private set; } = [];
     public IReadOnlyList<MovementRow> RecentMovements { get; private set; } = [];
     public IReadOnlyList<NeighborRow> Neighbors { get; private set; } = [];
+    public RackWipAssociationView? WipAssociation { get; private set; }
+    public RackFormat Format { get; private set; } = RackFormat.Default;
     public bool IsMapped { get; private set; }
     public int ActiveAssignmentCount => Assignments.Count(item => item.IsActive);
     public int BalanceProductCount => Balances.Select(item => item.ProductId).Distinct().Count();
@@ -47,8 +50,12 @@ public class LocationDetailsPageModel(
             .SingleOrDefaultAsync(cancellationToken);
         if (location is null) return false;
         Location = location;
+        if (location.Kind == LocationKind.Rack && location.OperationalRole == LocationOperationalRole.Wip)
+            WipAssociation = await LocationRackWipAssociations.GetAsync(DbContext, location.RowCode!, location.RackNumber!.Value, cancellationToken);
+        if (location.Kind == LocationKind.Rack)
+            Format = await LocationRackFormats.GetAsync(DbContext, location.RowCode!, location.RackNumber!.Value, cancellationToken);
 
-        Assignments = await DbContext.ProductLocationAssignments.AsNoTracking()
+        Assignments = await DbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.Location.OperationalRole != LocationOperationalRole.Wip)
             .Where(assignment => assignment.LocationId == id && (IsAdministrativeView || assignment.IsActive))
             .OrderByDescending(assignment => assignment.IsActive).ThenBy(assignment => assignment.Product.Sku)
             .Select(assignment => new AssignmentRow(assignment.ProductId, assignment.Product.Sku,
@@ -61,12 +68,12 @@ public class LocationDetailsPageModel(
                     candidate.RackNumber == location.RackNumber && candidate.IsPhysicallyPresent)
                 .OrderBy(candidate => candidate.PalletNumber)
                 .Select(candidate => new NeighborBaseRow(candidate.Id, candidate.Code, candidate.PalletNumber,
-                    candidate.IsActive, candidate.IsBlocked, candidate.BlockReason))
+                    candidate.IsActive, candidate.IsBlocked, candidate.BlockReason, candidate.OperationalRole))
                 .ToListAsync(cancellationToken)
             : [new NeighborBaseRow(location.Id, location.Code, location.PalletNumber,
-                location.IsActive, location.IsBlocked, location.BlockReason)];
+                location.IsActive, location.IsBlocked, location.BlockReason, location.OperationalRole)];
         var rackLocationIds = rackPositions.Select(item => item.Id).ToArray();
-        var activeAssignments = await DbContext.ProductLocationAssignments.AsNoTracking()
+        var activeAssignments = await DbContext.ProductLocationAssignments.AsNoTracking().Where(x => x.Location.OperationalRole != LocationOperationalRole.Wip)
             .Where(assignment => assignment.IsActive && rackLocationIds.Contains(assignment.LocationId))
             .OrderBy(assignment => assignment.Product.Sku)
             .Select(assignment => new AssignmentSource(assignment.LocationId, assignment.ProductId, assignment.Product.Sku))
@@ -74,7 +81,7 @@ public class LocationDetailsPageModel(
         var assignmentsByLocation = activeAssignments.GroupBy(item => item.LocationId)
             .ToDictionary(group => group.Key, group => group.ToArray() as IReadOnlyList<AssignmentSource>);
         var assignedKeys = activeAssignments.Select(item => (item.LocationId, item.ProductId)).ToHashSet();
-        var rackBalanceSources = await DbContext.InventoryBalances.AsNoTracking()
+        var rackBalanceSources = await DbContext.InventoryBalances.AsNoTracking().Where(x => x.Location.OperationalRole != LocationOperationalRole.Wip)
             .Where(balance => rackLocationIds.Contains(balance.LocationId))
             .Select(balance => new BalanceSource(balance.LocationId, balance.ProductId, balance.Product.Sku,
                 balance.Product.Description, balance.Product.BaseUnit.Code, balance.Quantity))
@@ -96,7 +103,7 @@ public class LocationDetailsPageModel(
                 var assignments = assignmentsByLocation.GetValueOrDefault(item.Id) ?? [];
                 return new NeighborRow(item.Id, item.Code, item.PalletNumber, item.Id == id, item.IsActive,
                     item.IsBlocked, item.BlockReason, balancesByLocation.GetValueOrDefault(item.Id) ?? [],
-                    assignments.Select(assignment => assignment.Sku).ToArray(), assignments.Count);
+                    assignments.Select(assignment => assignment.Sku).ToArray(), assignments.Count, item.OperationalRole);
             }).ToArray();
         IsMapped = await DbContext.WarehouseMapElements.AsNoTracking().AnyAsync(item => item.IsVisible && (item.LocationId == id || (item.RowCode == location.RowCode && item.RackNumber == location.RackNumber)), cancellationToken);
         if (!IsAdministrativeView)
@@ -154,7 +161,7 @@ public class LocationDetailsPageModel(
         bool ProductIsActive, bool IsActive);
     public sealed record ProductResult(Guid Id, string Sku, string? Description, bool IsAssigned);
     private sealed record NeighborBaseRow(Guid Id, string Code, short? PalletNumber, bool IsActive,
-        bool IsBlocked, string? BlockReason);
+        bool IsBlocked, string? BlockReason, LocationOperationalRole OperationalRole);
     private sealed record AssignmentSource(Guid LocationId, Guid ProductId, string Sku);
     private sealed record BalanceSource(Guid LocationId, Guid ProductId, string Sku, string? Description,
         string Unit, decimal Quantity);
@@ -163,7 +170,7 @@ public class LocationDetailsPageModel(
     public sealed record MovementRow(Guid MovementId, DateTimeOffset OccurredAt, InventoryMovementType Type, string Sku, decimal Delta);
     public sealed record NeighborRow(Guid Id, string Code, short? PalletNumber, bool IsCurrent, bool IsActive,
         bool IsBlocked, string? BlockReason, IReadOnlyList<BalanceRow> Balances,
-        IReadOnlyList<string> AssignedSkus, int AssignmentCount)
+        IReadOnlyList<string> AssignedSkus, int AssignmentCount, LocationOperationalRole OperationalRole = LocationOperationalRole.Storage)
     {
         public bool HasInventory => Balances.Count > 0;
         public bool HasNegative => Balances.Any(item => item.Quantity < 0);
@@ -172,7 +179,7 @@ public class LocationDetailsPageModel(
         public string? PrimaryAssignedSku => AssignedSkus.FirstOrDefault();
         public int AdditionalProductCount => Math.Max(0, Balances.Count - 1);
         public int AdditionalAssignmentCount => HasInventory ? 0 : Math.Max(0, AssignmentCount - 1);
-        public string InventoryState => HasNegative ? "Saldo negativo"
+        public string InventoryState => OperationalRole == LocationOperationalRole.Wip ? "WIP · Sin control de existencias" : HasNegative ? "Saldo negativo"
             : HasUnassignedBalance ? "Saldo sin asignación"
             : HasInventory ? "Con saldo"
             : AssignmentCount > 0 ? "Asignado sin saldo"

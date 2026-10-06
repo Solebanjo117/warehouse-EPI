@@ -95,10 +95,13 @@
 .rack-sheet-frame {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-rows: repeat(var(--rack-levels, 3), minmax(0, 1fr)) auto;
   gap: var(--gap);
   min-height: 0;
 }
+
+.rack-sheet-frame[data-rack-levels="1"] { --rack-levels: 1; }
+.rack-sheet-frame[data-rack-levels="2"] { --rack-levels: 2; }
 
 .rack-sheet-frame::after {
   content: "";
@@ -235,4 +238,4 @@
    verificación y firmas, y el bastidor se queda sin altura. Mientras la regla
    global siga siendo de elemento, estos tres overrides son los que sostienen la
    hoja impresa. */
-@media print{@page{size:letter landscape;margin:7mm}html,body{height:auto}.app-topbar,.app-sidebar,.app-backdrop,.app-footer,.no-print{display:none!important}.app-content{margin:0!important;padding:0!important}.app-main{padding:0!important}.rack-sheet-desk{padding:0;border:0;border-radius:0;background:none}.rack-sheet{--pad:0;--gap:2mm;--code:24pt;--eyebrow:6pt;--cell-pad:2mm;--pallet:13pt;--pos-code:9pt;--body:7pt;--micro:5.8pt;--ink:#000;--ink-soft:#3f3f3f;--rule:#8a8a8a;--rule-strong:#000;width:100%;height:194mm;max-width:none;aspect-ratio:auto;overflow:hidden;box-shadow:none;print-color-adjust:exact}.rack-sheet-header{display:grid!important}.sheet-cell-head{display:grid!important}.rack-sheet-footer{display:grid!important}.rack-sheet-frame{grid-template-rows:repeat(3,minmax(0,1fr)) auto}.sheet-cell{break-inside:avoid-page}.sheet-cell.is-flagged{border-left-width:2.5pt}.sheet-product-desc,.sheet-cell-description{-webkit-line-clamp:2}}
+@media print{@page{size:letter landscape;margin:7mm}html,body{height:auto}.app-topbar,.app-sidebar,.app-backdrop,.app-footer,.no-print{display:none!important}.app-content{margin:0!important;padding:0!important}.app-main{padding:0!important}.rack-sheet-desk{padding:0;border:0;border-radius:0;background:none}.rack-sheet{--pad:0;--gap:2mm;--code:24pt;--eyebrow:6pt;--cell-pad:2mm;--pallet:13pt;--pos-code:9pt;--body:7pt;--micro:5.8pt;--ink:#000;--ink-soft:#3f3f3f;--rule:#8a8a8a;--rule-strong:#000;width:100%;height:194mm;max-width:none;aspect-ratio:auto;overflow:hidden;box-shadow:none;print-color-adjust:exact}.rack-sheet-header{display:grid!important}.sheet-cell-head{display:grid!important}.rack-sheet-footer{display:grid!important}.rack-sheet-frame{grid-template-rows:repeat(var(--rack-levels,3),minmax(0,1fr)) auto}.sheet-cell{break-inside:avoid-page}.sheet-cell.is-flagged{border-left-width:2.5pt}.sheet-product-desc,.sheet-cell-description{-webkit-line-clamp:2}}

@@ -16,7 +16,7 @@
 
   const describeProduct = (item) => [item.description, item.externalReference, item.unitCode]
     .filter(Boolean).join(" · ");
-  const describeLocation = (item) => item.description || text("Ubicación operativa");
+  const describeLocation = (item) => item.description || text("Sin descripción");
 
   const preferredCameraStorageKey = "warehouseEpi.preferredCameraDeviceId";
   const cameraVideoConstraints = {

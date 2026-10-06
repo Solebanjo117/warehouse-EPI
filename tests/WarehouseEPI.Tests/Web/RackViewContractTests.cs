@@ -79,7 +79,8 @@ public sealed class RackViewContractTests
 
         Assert.Contains("map-element-detail-wip-rack", page, StringComparison.Ordinal);
         Assert.Contains("element.Kind==\"Rack\"", page, StringComparison.Ordinal);
-        Assert.Contains("new short[]{7,8,9,4,5,6,1,2,3}", page, StringComparison.Ordinal);
+        Assert.Contains("element.Format.PalletOrder", page, StringComparison.Ordinal);
+        Assert.Contains("data-rack-columns=\"@element.Format.Columns\"", page, StringComparison.Ordinal);
         Assert.Contains("data-map-position=\"@position.LocationId\"", page, StringComparison.Ordinal);
         Assert.Contains("data-position-detail=\"@position.LocationId\"", page, StringComparison.Ordinal);
         Assert.Contains("map-wip-position-actions", page, StringComparison.Ordinal);

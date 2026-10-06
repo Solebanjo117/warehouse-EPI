@@ -9,7 +9,7 @@
             <div class="display-heading-copy">
                 <h1 class="display-heading-title" tabindex="-1" data-display-inspection-heading>@CatTexts["Rack {0}", Model.Label]</h1>
                 <p class="display-heading-meta">@CatTexts["Fila {0}", Model.Rack.RowCode]</p>
-                <p class="display-heading-meta">@CatTexts["{0} de {1} con saldo", Model.Rack.OccupiedCount, Model.Rack.PositionCount]</p>
+                <p class="display-heading-meta">@(Model.Rack.PositionCount == 0 ? CatTexts["Sin control de existencias"] : CatTexts["{0} de {1} con saldo", Model.Rack.OccupiedCount, Model.Rack.PositionCount])</p>
             </div>
         </header>
         <div class="display-bay display-inspection-bay">
