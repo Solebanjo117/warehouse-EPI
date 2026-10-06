@@ -666,13 +666,13 @@
     focusRow(rows.at(-1));
   };
   const searchProducts = async () => {
+    const generation = ++searchGeneration;
     const term = search.value.trim(); results.replaceChildren(); search.setAttribute('aria-expanded', 'false');
     if (term.length < 2) return;
-    const generation = ++searchGeneration;
     const url = new URL(root.dataset.searchUrl, location.origin); url.searchParams.set('q', term);
     try {
       const response = await fetch(url); if (!response.ok) throw new Error();
-      const products = await response.json(); if (generation !== searchGeneration) return;
+      const products = await response.json(); if (generation !== searchGeneration || term !== search.value.trim()) return;
       products.forEach(product => {
         const button = text('button', '', 'list-group-item list-group-item-action'); button.type = 'button';
         button.setAttribute('role', 'option');
@@ -683,24 +683,35 @@
       });
       if (!products.length) results.append(text('div', 'No se encontró el SKU.', 'list-group-item'));
       search.setAttribute('aria-expanded', 'true');
-    } catch { note('No se pudo buscar el producto. Reintenta.', 'warning'); }
+    } catch {
+      if (generation === searchGeneration && term === search.value.trim()) note('No se pudo buscar el producto. Reintenta.', 'warning');
+    }
   };
-  search.addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(searchProducts, 180); });
+  search.addEventListener('input', () => {
+    clearTimeout(searchTimer); searchGeneration++;
+    results.replaceChildren(); search.setAttribute('aria-expanded', 'false');
+    if (search.value.trim().length >= 2) searchTimer = setTimeout(searchProducts, 180);
+  });
   search.addEventListener('keydown', async event => {
     if (event.key !== 'Enter') return;
     event.preventDefault();
     clearTimeout(searchTimer); searchGeneration++;
+    const generation = searchGeneration;
     const code = search.value.trim(); if (!code) return;
     try {
       const url = new URL(root.dataset.resolveUrl, location.origin); url.searchParams.set('code', code);
       const response = await fetch(url); if (!response.ok) throw new Error();
       const product = await response.json();
+      if (generation !== searchGeneration || code !== search.value.trim()) return;
       if (!product?.id) throw new Error();
       const detailUrl = new URL(root.dataset.resolveProductsUrl, location.origin); detailUrl.searchParams.set('skus', product.sku);
       const details = await fetch(detailUrl).then(x => x.json());
+      if (generation !== searchGeneration || code !== search.value.trim()) return;
       if (!details[0]) throw new Error();
       insertProduct(details[0]);
-    } catch { note('No se pudo resolver el código escaneado. Selecciona el SKU de la lista.', 'warning'); }
+    } catch {
+      if (generation === searchGeneration && code === search.value.trim()) note('No se pudo resolver el código escaneado. Selecciona el SKU de la lista.', 'warning');
+    }
   });
   const review = async (forOpening = false) => {
     await window.ProductionWeekWorkspace?.ready;
