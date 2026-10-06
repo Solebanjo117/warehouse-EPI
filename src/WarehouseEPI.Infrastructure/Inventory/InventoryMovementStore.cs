@@ -38,6 +38,10 @@ internal sealed class InventoryMovementStore(WarehouseDbContext dbContext, TimeP
 
         foreach (var pair in pairs)
         {
+            // WIP locations routinely hold multiple products without sharing approval.
+            if (locations[pair.LocationId].IsWip)
+                continue;
+
             var sameProductHasStock = occupiedBalances.Any(balance =>
                 balance.ProductId == pair.ProductId && balance.LocationId == pair.LocationId);
             if (sameProductHasStock || approved.Contains(pair))

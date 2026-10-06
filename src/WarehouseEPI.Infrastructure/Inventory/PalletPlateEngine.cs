@@ -5,7 +5,10 @@ using WarehouseEPI.Infrastructure.Persistence;
 
 namespace WarehouseEPI.Infrastructure.Inventory;
 
-internal sealed class PalletPlateException(string message) : Exception(message);
+internal sealed class PalletPlateException(string message, IReadOnlyList<SharedLocationConflict>? conflicts = null) : Exception(message)
+{
+    internal IReadOnlyList<SharedLocationConflict> SharingConflicts { get; } = conflicts ?? [];
+}
 
 internal sealed record PalletState(Guid LocationId, decimal Quantity, bool IsVoided, Dictionary<Guid, decimal> Lots, string? Reason = null);
 
@@ -326,7 +329,7 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         foreach (var original in originals)
         {
             var later = await db.PalletPlateEvents.Where(x => x.PlateId == original.PlateId && x.PlateVersion > original.PlateVersion
-                && x.MovementId != movementId && x.ReversesEventId == null
+                && x.MovementId != movementId && x.ReversesEventId == null && x.Kind != "WIP_DOCUMENT_CUTOVER"
                 && !db.PalletPlateEvents.Any(r => r.ReversesEventId == x.Id)).OrderBy(x => x.PlateVersion).FirstOrDefaultAsync(token);
             if (later is not null) return $"Revierte primero la operación {later.OperationId} de la placa PLT-{original.PlateId:N}.";
         }
@@ -343,6 +346,7 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         {
             var p = e.Plate; var before = State(p);
             var state = JsonSerializer.Deserialize<PalletState>(e.Before)!;
+            if (await db.WipDocumentCutovers.AnyAsync(token) && await db.Locations.AnyAsync(x => x.Id == state.LocationId && x.OperationalRole == LocationOperationalRole.Wip, token)) continue;
             p.LocationId = state.LocationId; p.IsVoided = state.IsVoided;
             foreach (var lot in p.Lots) lot.Quantity = state.Lots.GetValueOrDefault(lot.LotId);
             foreach (var lot in state.Lots.Where(x => p.Lots.All(l => l.LotId != x.Key))) p.Lots.Add(new() { Plate = p, PlateId = p.Id, LotId = lot.Key, Quantity = lot.Value });

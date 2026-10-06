@@ -84,7 +84,7 @@ public sealed class OperationalAlertService(
         var stagnant = await StagnantProducts(now.AddDays(-90)).CountAsync(token);
         var stale = await dbContext.CycleCountLocations.AsNoTracking().CountAsync(x => x.Status == CycleCountLocationStatus.Stale, token);
         var pending = await dbContext.CycleCountLocations.AsNoTracking().CountAsync(x => x.Status == CycleCountLocationStatus.UnderReview || x.Status == CycleCountLocationStatus.RecountRequested, token);
-        var agedWip = await AgedWipBalances(DateOnly.FromDateTime(now.AddDays(-wipDays).UtcDateTime)).CountAsync(token);
+        var agedWip = await AgedWipBalances(now.AddDays(-wipDays)).CountAsync(token);
         return new(negative, minimum, unassigned, restricted, stagnant, stale, pending, agedWip, wipDays);
     }
 
@@ -104,7 +104,7 @@ public sealed class OperationalAlertService(
             items.Add(Item(OperationalAlertCategory.StagnantInventory, OperationalAlertSeverity.Warning, c.Stagnant, "Inventario estancado", "Productos con existencia y 90 días o más sin salida efectiva.", "/Admin/Inventory/Alerts?category=StagnantInventory"));
             items.Add(Item(OperationalAlertCategory.CycleCountStale, OperationalAlertSeverity.Critical, c.Stale, "Conteos obsoletos", "El saldo cambió durante el conteo y requiere reconteo.", "/Admin/Inventory/Alerts?category=CycleCountStale"));
             items.Add(Item(OperationalAlertCategory.CycleCountPending, OperationalAlertSeverity.Warning, c.Pending, "Conteos pendientes", "Ubicaciones en revisión o con reconteo solicitado.", "/Admin/Inventory/Alerts?category=CycleCountPending"));
-            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Saldo WIP estancado", $"Posiciones WIP positivas con lote de {c.WipDays} días o más.", "/Admin/Inventory/Alerts?category=AgedWip"));
+            items.Add(Item(OperationalAlertCategory.AgedWip, OperationalAlertSeverity.Information, c.AgedWip, "Seguimiento WIP pendiente", $"Entregas documentales pendientes desde hace {c.WipDays} días o más.", "/Admin/Inventory/Alerts?category=AgedWip"));
         }
         return items.Where(x => x.Count > 0).OrderBy(x => x.Severity).ThenBy(x => x.Category).ToArray();
     }
@@ -169,7 +169,7 @@ public sealed class OperationalAlertService(
                 OccurredAt = x.CreatedAt
             });
         }
-        return AgedWipBalances(DateOnly.FromDateTime(now.AddDays(-wipDays).UtcDateTime)).Select(x => new AlertDetailProjection
+        return AgedWipBalances(now.AddDays(-wipDays)).Select(x => new AlertDetailProjection
         {
             PrimaryText = x.Sku,
             SecondaryText = x.WipCode,
@@ -197,9 +197,9 @@ public sealed class OperationalAlertService(
         var value = category switch
         {
             OperationalAlertCategory.BelowMinimum => $"Faltan {row.Quantity:0.####} {row.Unit}",
-            OperationalAlertCategory.StagnantInventory => $"Existencia {row.Quantity:0.####} {row.Unit}",
+            OperationalAlertCategory.StagnantInventory => $"Pendiente documental {row.Quantity:0.####} {row.Unit}",
             OperationalAlertCategory.CycleCountStale or OperationalAlertCategory.CycleCountPending => CycleStatusLabel(row.CycleStatus),
-            OperationalAlertCategory.AgedWip => $"Existencia {row.Quantity:0.####} {row.Unit}",
+            OperationalAlertCategory.AgedWip => $"Pendiente documental {row.Quantity:0.####} {row.Unit}",
             _ => $"{row.Quantity:0.####} {row.Unit}"
         };
         var target = category switch
@@ -287,9 +287,9 @@ public sealed class OperationalAlertService(
                 $"El conteo {FormatCampaign(row.PrimaryText)} de {row.SecondaryText} tiene un reconteo solicitado pendiente.",
             OperationalAlertCategory.CycleCountPending =>
                 $"El conteo {FormatCampaign(row.PrimaryText)} de {row.SecondaryText} está pendiente de revisión.",
-            OperationalAlertCategory.AgedWip when row.OldestLotDate is DateOnly oldestLotDate =>
-                $"Hay {quantity} en {row.SecondaryText}; el lote positivo más antiguo es del {oldestLotDate:dd/MM/yyyy} y supera el límite configurado de {wipDays} días.",
-            _ => $"Hay {quantity} en WIP por más de {wipDays} días."
+            OperationalAlertCategory.AgedWip when row.OccurredAt is not null =>
+                $"Pendiente documental de {quantity} en {row.SecondaryText}; la entrega o apertura del corte es del {FormatWarehouseDate(row.OccurredAt.Value, warehouseZone)} y supera el límite configurado de {wipDays} días.",
+            _ => $"Pendiente documental de {quantity} en WIP por más de {wipDays} días."
         };
     }
 
@@ -397,35 +397,23 @@ public sealed class OperationalAlertService(
                };
     }
 
-    private IQueryable<AgedWipLine> AgedWipBalances(DateOnly cutoff) =>
-        from balance in dbContext.InventoryBalances.AsNoTracking()
-        where balance.Location.OperationalRole == LocationOperationalRole.Wip
-        group balance by new
-        {
-            balance.ProductId,
-            Sku = balance.Product.Sku,
-            WipId = balance.LocationId,
-            WipCode = balance.Location.Code,
-            Unit = balance.Product.BaseUnit.Code
-        }
-        into position
-        where position.Sum(item => item.Quantity) > 0 && position.Any(item => item.Quantity > 0 && item.Lot != null &&
-            item.Lot.LotDate != null && item.Lot.LotDate <= cutoff)
-        select new AgedWipLine
-        {
-            // PostgreSQL has no min(uuid); the line is only a deterministic
-            // contextual subject, so choose the first UUID by ordering instead.
-            LineId = position.OrderBy(item => item.Id).Select(item => item.Id).First(),
-            ProductId = position.Key.ProductId,
-            Sku = position.Key.Sku,
-            WipId = position.Key.WipId,
-            WipCode = position.Key.WipCode,
-            Quantity = position.Sum(item => item.Quantity),
-            Unit = position.Key.Unit,
-            OccurredAt = position.Min(item => item.UpdatedAt),
-            OldestLotDate = position.Where(item => item.Quantity > 0 && item.Lot != null && item.Lot.LotDate != null)
-                .Min(item => item.Lot!.LotDate)
-        };
+    private IQueryable<AgedWipLine> AgedWipBalances(DateTimeOffset limit)
+    {
+        return dbContext.WipDocuments.AsNoTracking().Where(x => !x.IsCancelled && x.OccurredAt <= limit)
+            .Select(x => new AgedWipLine
+            {
+                LineId = x.Id,
+                ProductId = x.ProductId,
+                Sku = x.Product.Sku,
+                WipId = x.WipLocationId,
+                WipCode = x.WipLocation.Code,
+                Unit = x.Product.BaseUnit.Code,
+                OccurredAt = x.OccurredAt,
+                Quantity = x.Quantity - x.Applications.Where(a => a.Kind != WipDocumentApplicationKind.Reversal &&
+                    !dbContext.WipDocumentApplications.Any(r => r.ReversesApplicationId == a.Id)).Sum(a => a.Quantity),
+                OldestLotDate = DateOnly.FromDateTime(x.OccurredAt.UtcDateTime)
+            }).Where(x => x.Quantity > 0);
+    }
 
     private static OperationalAlertItemDto Item(OperationalAlertCategory category, OperationalAlertSeverity severity,
         int count, string title, string description, string targetUrl) => new(category, severity, count, title, description, targetUrl);

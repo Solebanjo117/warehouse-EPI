@@ -82,8 +82,11 @@ public sealed class InventoryCorrectionService(
                     Errors: ["El reemplazo de una recepción documental debe conservar Entrada y propósito Recepción documental."]), cancellationToken);
             }
             var originalLineIds = original.Lines.Select(line => line.Id).ToArray();
+            if (await dbContext.WipDocumentApplications.AnyAsync(x => x.InventoryMovementLineId.HasValue && originalLineIds.Contains(x.InventoryMovementLineId.Value), cancellationToken))
+                return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
+                    Errors: ["Revierte la aplicación desde su documento WIP o su orden de trabajo."]), cancellationToken);
             if (await dbContext.ProductionMaterialOperationLines.AsNoTracking()
-                .AnyAsync(line => originalLineIds.Contains(line.InventoryMovementLineId), cancellationToken))
+                .AnyAsync(line => line.InventoryMovementLineId.HasValue && originalLineIds.Contains(line.InventoryMovementLineId.Value), cancellationToken))
             {
                 return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                     Errors: ["El movimiento pertenece a una operación de material. Revierte la operación desde la orden de trabajo."]), cancellationToken);
@@ -113,11 +116,11 @@ public sealed class InventoryCorrectionService(
                     return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                         Errors: ["Un movimiento con varios surtimientos solo admite reverso completo."]), cancellationToken);
                 if (normalized.Replacement is { } issueReplacement &&
-                    (issueReplacement.Type != InventoryMovementType.Transfer ||
+                    (issueReplacement.Type != InventoryMovementType.Exit ||
                      issueReplacement.Purpose != InventoryMovementPurpose.ProductionIssue ||
                      issueReplacement.Lines.Count != 1 ||
                      issueReplacement.Lines[0].ProductId != original.Lines.Single().ProductId ||
-                     issueReplacement.Lines[0].DestinationLocationId != original.Lines.Single().DestinationLocationId))
+                     issueReplacement.OperationalAreaId != original.OperationalAreaId))
                     return await AbortAsync(ownedTransaction, new(InventoryCorrectionStatus.ValidationFailed,
                         Errors: ["El reemplazo debe conservar producto, destino WIP y propósito del surtimiento vinculado."]), cancellationToken);
                 if (normalized.Replacement is { } supplyReplacement && singleMaterialIssue?.SupplyRequestLine is { } supplyLine)
@@ -192,11 +195,11 @@ public sealed class InventoryCorrectionService(
                         .SingleAsync(line => line.MovementId == replacementId, cancellationToken);
                     materialIssue.InventoryMovementLineId = replacementLine.Id;
                     materialIssue.ProductId = replacementLine.ProductId;
-                    materialIssue.WipLocationId = replacementLine.DestinationLocationId!.Value;
+                    materialIssue.WipLocationId = normalized.Replacement!.OperationalAreaId!.Value;
                     materialIssue.Quantity = replacementLine.Quantity;
                     dbContext.ProductionMaterialIssueLots.RemoveRange(materialIssue.Lots);
-                    foreach (var change in replacementLine.BalanceChanges.Where(x => x.DeltaQuantity > 0 && x.LotId.HasValue))
-                        materialIssue.Lots.Add(new ProductionMaterialIssueLot { LotId = change.LotId!.Value, Quantity = change.DeltaQuantity });
+                    foreach (var change in replacementLine.BalanceChanges.Where(x => x.DeltaQuantity < 0 && x.LotId.HasValue))
+                        materialIssue.Lots.Add(new ProductionMaterialIssueLot { LotId = change.LotId!.Value, Quantity = -change.DeltaQuantity });
                 }
                 else
                 {
@@ -207,8 +210,10 @@ public sealed class InventoryCorrectionService(
                             x => x.IssueLinkId == materialIssue.Id, cancellationToken))
                         materialIssue.CancelledQuantity = materialIssue.Quantity;
                     else
-                        dbContext.ProductionMaterialIssueLinks.Remove(materialIssue);
+                        materialIssue.CancelledQuantity = materialIssue.Quantity;
                 }
+                if (replacementResult?.MovementId is not null)
+                    await new WipDocumentService(dbContext, userPinService, timeProvider).AssignAsync(materialIssue, cancellationToken);
                 materialIssue.WorkOrder.Version++;
                 if (materialIssue.SupplyRequestLine is { } supplyLine)
                 {

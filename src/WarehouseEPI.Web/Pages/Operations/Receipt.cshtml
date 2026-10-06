@@ -91,7 +91,7 @@
     }
     @if (Model.Receipt.Purpose == InventoryMovementPurpose.ProductionIssue)
     {
-        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">@OpTexts["El surtimiento transfirió existencias al WIP y conservó los lotes del origen."]</p></section>
+        <section class="operation-card border-warning"><strong>Rack → @Model.Receipt.OperationalAreaCode</strong><p class="mb-0">@OpTexts["El surtimiento conserva el destino WIP y los lotes del origen. Consulta el seguimiento documental de la entrega."]</p></section>
     }
     @if (Model.ReceivingDocument is not null)
     {

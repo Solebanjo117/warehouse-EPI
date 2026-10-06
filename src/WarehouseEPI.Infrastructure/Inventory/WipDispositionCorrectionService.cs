@@ -80,6 +80,8 @@ public sealed class WipDispositionCorrectionService(
             });
         }
 
+        await new WipDocumentService(dbContext, userPinService, timeProvider).ReverseApplicationsAsync(
+            [original.OperationId], command.OperationId, authorized, reason, cancellationToken);
         var reversal = new WipDisposition
         {
             OperationId = command.OperationId,

@@ -20,21 +20,13 @@ public sealed class ExportModel(WipReportService reportService, WarehouseClock c
         var interval = await clock.GetUtcIntervalAsync(from, to, token);
         var report = await reportService.GetTrackedPageAsync(new(interval.FromInclusive, interval.ToExclusive,
             search?.Trim(), wipAreaId), 1, 10_001, token);
-        var rows = report.Inventory.Select(row => new ExportRow(
-                "Inventario actual", row.UpdatedAt, null, row.ProductSku, row.ProductDescription, row.Unit,
-                row.WipArea, null, null, row.Quantity, null, row.OldestPositiveLotDate, null, null))
-            .Concat(report.Activity.Select(row => new ExportRow(
-                "Actividad", row.OccurredAt, row.MovementId, row.ProductSku, row.ProductDescription, row.Unit,
-                row.WipArea, row.Category, Route(row.SourceLocation, row.DestinationLocation), row.Delta,
-                row.Responsible, null, row.Reference, row.Notes)))
-            .Take(10_001)
-            .ToArray();
-        if (report.TotalActivityCount + report.Inventory.Count > 10_000)
+        var rows = report.Inventory.ToArray();
+        if (report.TotalActivityCount > 10_000)
             return BadRequest(localizer["La exportación excede el límite estricto de 10,000 filas. Reduce el periodo o agrega filtros."]);
         var localNow = await clock.ConvertAsync(DateTimeOffset.UtcNow, token);
         var name = $"reporte-wip-{localNow:yyyyMMddHHmmss}";
-        var headers = new[] { "Población", "Fecha local", "Folio", "Producto", "Descripción", "Unidad", "WIP",
-            "Clasificación", "Trayecto", "Cantidad", "Responsable", "Lote positivo más antiguo", "Referencia", "Notas" };
+        var headers = new[] { "Documento", "Fecha local", "Producto", "Descripción", "Unidad", "WIP", "Origen documental",
+            "Entregado", "Uso registrado", "Merma", "A bodega", "A proveedor", "Pendiente documental", "Responsable" };
         if (string.Equals(format, "xlsx", StringComparison.OrdinalIgnoreCase))
         {
             using var workbook = new XLWorkbook(); var sheet = workbook.Worksheets.Add("WIP");
@@ -59,10 +51,9 @@ public sealed class ExportModel(WipReportService reportService, WarehouseClock c
         foreach (var row in rows) csv.AppendJoin(',', Values(row).Select(Csv)).Append("\r\n");
         return File(new UTF8Encoding(true).GetBytes(csv.ToString()), "text/csv; charset=utf-8", name + ".csv");
     }
-    private static object?[] Values(ExportRow row) => [row.Population, row.OccurredAt, row.MovementId, row.ProductSku,
-        row.ProductDescription, row.Unit, row.WipArea, row.Category, row.Route, row.Quantity, row.Responsible,
-        row.OldestPositiveLotDate, row.Reference, row.Notes];
-    private static string Route(string? source, string? destination) => $"{source ?? "Exterior"} → {destination ?? "Exterior"}";
+    private static object?[] Values(WipInventoryRow row) => [row.DocumentId, row.UpdatedAt, row.ProductSku,
+        row.ProductDescription, row.Unit, row.WipArea, row.IsOpening ? "Apertura del corte" : "Surtimiento",
+        row.Delivered, row.Used, row.Scrapped, row.WarehouseReturned, row.SupplierReturned, row.Quantity, row.Responsible];
     private static string SafeText(string? value)
     {
         var text = value ?? string.Empty;

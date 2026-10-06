@@ -126,7 +126,8 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         Guid productId,
         CancellationToken cancellationToken = default) =>
         await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.ProductId == productId && balance.Location.IsPhysicallyPresent)
+            .Where(balance => balance.ProductId == productId && balance.Location.IsPhysicallyPresent &&
+                balance.Location.OperationalRole != LocationOperationalRole.Wip)
             .OrderBy(balance => balance.Location.Code)
             .Select(ToBalanceView())
             .ToListAsync(cancellationToken);
@@ -140,18 +141,19 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
             .Select(ToBalanceView())
             .ToListAsync(cancellationToken);
 
+    // Product consultation shows warehouse stock; production stock is consulted by WIP location.
     public async Task<IReadOnlyList<InventoryPositionView>> GetProductInventoryAsync(
         Guid productId,
         CancellationToken cancellationToken = default)
     {
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
             .Where(assignment => assignment.ProductId == productId && assignment.IsActive &&
-                assignment.Location.IsPhysicallyPresent)
+                assignment.Location.IsPhysicallyPresent && assignment.Location.OperationalRole != LocationOperationalRole.Wip)
             .Select(ToPositionFromAssignment())
             .ToListAsync(cancellationToken);
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
-                balance.Location.IsPhysicallyPresent)
+                balance.Location.IsPhysicallyPresent && balance.Location.OperationalRole != LocationOperationalRole.Wip)
             .Select(ToPositionFromBalance())
             .ToListAsync(cancellationToken);
 
@@ -213,7 +215,7 @@ public sealed class InventoryQueryService(WarehouseDbContext dbContext)
         Guid productId,
         CancellationToken cancellationToken = default) =>
         await dbContext.InventoryBalances.AsNoTracking()
-            .Where(balance => balance.ProductId == productId)
+            .Where(balance => balance.ProductId == productId && balance.Location.OperationalRole != LocationOperationalRole.Wip)
             .SumAsync(balance => (decimal?)balance.Quantity, cancellationToken) ?? 0m;
 
     public async Task<IReadOnlyList<InventoryBalanceView>> GetNegativeBalancesAsync(

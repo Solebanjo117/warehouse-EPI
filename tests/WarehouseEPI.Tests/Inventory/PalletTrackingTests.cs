@@ -170,42 +170,29 @@ public sealed class PalletTrackingTests
     }
 
     [Fact]
-    public async Task Wip_assignment_consumption_and_return_use_reserved_plates()
+    public async Task Wip_delivery_keeps_plate_traceability_without_wip_plates_or_stock()
     {
         await using var f = await Fixture.Create();
-        f.Source.OperationalRole = LocationOperationalRole.Wip; await f.Db.SaveChangesAsync();
-        var entry = await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Entry, 100)); var p = Assert.Single(entry.Plates!);
-        var assigned = await ProductionPlateAllocation.AssignAsync(f.Db, f.Product.Id, f.Source.Id, 60, [new(p.PlateId, 60, p.Version)], default);
-        var issue = new ProductionMaterialIssueLink { ProductId = f.Product.Id, WipLocationId = f.Source.Id, WorkOrderId = Guid.NewGuid(), WorkOrderStageId = Guid.NewGuid(),
-            Quantity = 60, Source = ProductionMaterialSupplySource.WipAssignment, PlateAllocationsJson = assigned.Plates,
-            Lots = assigned.Lots.Select(x => new ProductionMaterialIssueLot { LotId = x.LotId, Quantity = x.Quantity }).ToList() };
-        f.Db.ProductionMaterialIssueLinks.Add(issue); await f.Db.SaveChangesAsync();
-        var forbidden = await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Exit, 50, plates: [new(p.PlateId, 50, p.Version)]));
-        Assert.Equal(InventoryMovementStatus.ValidationFailed, forbidden.Status);
-        var balanceBeforeCount = await new InventoryQueryService(f.Db).GetBalanceAsync(f.Product.Id, f.Source.Id);
-        var protectedCount = await f.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Adjustment, "2468",
-            [new(f.Product.Id, 100, LocationId: f.Source.Id, ExpectedBalanceVersion: balanceBeforeCount.Version,
-                PlateCounts: [new(p.PlateId, 50, p.Version)])], Notes: "Conteo con reserva"));
-        Assert.Equal(InventoryMovementStatus.ValidationFailed, protectedCount.Status);
-        Assert.Equal(100, (await f.Db.PalletPlates.SingleAsync(x => x.Id == p.PlateId)).Quantity);
-        var selections = await ProductionPlateAllocation.SelectAsync(f.Db, issue, 25, default);
-        var consumed = await f.Service.ConfirmAuthorizedAsync(new(Guid.NewGuid(), InventoryMovementType.Exit, "2468",
-            [new(f.Product.Id, 25, SourceLocationId: f.Source.Id, Plates: selections, MaterialIssueLinkId: issue.Id)], Purpose: InventoryMovementPurpose.WipConsumption, OperationalAreaId: f.Source.Id),
-            (await f.Pins.AuthenticateAsync("2468"))!, allowReservedWip: true);
-        Assert.Equal(InventoryMovementStatus.Success, consumed.Status);
-        var op = new ProductionMaterialOperation { OperationId = Guid.NewGuid(), RequestFingerprint = "test", WorkOrderId = issue.WorkOrderId, WorkOrderStageId = issue.WorkOrderStageId,
-            ResponsibleUserId = f.User.Id, Type = ProductionMaterialOperationType.Consumption, Lines = [new() { IssueLinkId = issue.Id,
-                InventoryMovementLineId = (await f.Db.InventoryMovementLines.SingleAsync(x => x.MovementId == consumed.MovementId)).Id, Quantity = 25 }] };
-        f.Db.ProductionMaterialOperations.Add(op); await f.Db.SaveChangesAsync();
-        Assert.Equal(35, (await ProductionPlateAllocation.RemainingAsync(f.Db, issue, default)).Sum(x => x.Quantity));
-        var remaining = await ProductionPlateAllocation.SelectAsync(f.Db, issue, 35, default);
-        var returned = await f.Service.ConfirmAuthorizedAsync(new(Guid.NewGuid(), InventoryMovementType.Transfer, "2468",
-            [new(f.Product.Id, 35, SourceLocationId: f.Source.Id, DestinationLocationId: f.Destination.Id, Plates: remaining, MaterialIssueLinkId: issue.Id)],
-            Purpose: InventoryMovementPurpose.WipWarehouseReturn, OperationalAreaId: f.Source.Id), (await f.Pins.AuthenticateAsync("2468"))!, allowReservedWip: true);
-        Assert.Equal(InventoryMovementStatus.Success, returned.Status);
-        Assert.Equal(40, (await f.Db.PalletPlates.SingleAsync(x => x.Id == p.PlateId)).Quantity);
-        Assert.Equal(35, (await f.Db.PalletPlates.SingleAsync(x => x.LocationId == f.Destination.Id)).Quantity);
+        f.Source.Kind = LocationKind.Rack; f.Source.RowCode = "A"; f.Source.RackNumber = 1; f.Source.PalletNumber = 1;
+        f.Destination.OperationalRole = LocationOperationalRole.Wip; await f.Db.SaveChangesAsync();
+        var entry = await f.Service.ConfirmAsync(f.Command(InventoryMovementType.Entry, 100));
+        var plate = Assert.Single(entry.Plates!);
+        var issue = await f.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Exit, "2468",
+            [new(f.Product.Id, 60, SourceLocationId: f.Source.Id, Plates: [new(plate.PlateId, 60, plate.Version)])],
+            Purpose: InventoryMovementPurpose.ProductionIssue, OperationalAreaId: f.Destination.Id));
+        Assert.Equal(InventoryMovementStatus.Success, issue.Status);
+        Assert.Equal(40, (await f.Db.PalletPlates.SingleAsync()).Quantity);
+        Assert.False(await f.Db.PalletPlates.AnyAsync(x => x.LocationId == f.Destination.Id));
+        Assert.False(await f.Db.InventoryBalances.AnyAsync(x => x.LocationId == f.Destination.Id));
+        var document = await f.Db.WipDocuments.Include(x => x.Lots).SingleAsync();
+        Assert.Equal(60, document.Lots.Sum(x => x.Quantity));
+        var documents = new WipDocumentService(f.Db, f.Pins, TimeProvider.System);
+        Assert.Equal(InventoryMovementStatus.Success, (await documents.ConfirmAsync(new(Guid.NewGuid(), f.Product.Id, f.Destination.Id, 25,
+            WipDocumentApplicationKind.Consumption, "2468", DocumentId: document.Id))).Status);
+        Assert.Equal(InventoryMovementStatus.Success, (await documents.ConfirmAsync(new(Guid.NewGuid(), f.Product.Id, f.Destination.Id, 35,
+            WipDocumentApplicationKind.WarehouseReturn, "2468", f.Source.Id, document.Id))).Status);
         Assert.Equal(75, await f.Db.InventoryBalances.SumAsync(x => x.Quantity));
+        Assert.False(await f.Db.PalletPlates.AnyAsync(x => x.LocationId == f.Destination.Id));
     }
 
     [Fact]

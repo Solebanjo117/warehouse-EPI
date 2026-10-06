@@ -86,7 +86,8 @@ public sealed class OperationLocationSelectionContractTests
         Assert.Contains("input, textarea, select, [contenteditable]", capture, StringComparison.Ordinal);
         Assert.Contains("target !== document.body && !root.contains(target)", capture, StringComparison.Ordinal);
         Assert.Contains("if (event.key === \"Shift\") return;", capture, StringComparison.Ordinal);
-        Assert.Contains("if (event.key === \" \")", capture, StringComparison.Ordinal);
+        Assert.Contains("allowSpaces = false", capture, StringComparison.Ordinal);
+        Assert.Contains("if (event.key === \" \" && !allowSpaces)", capture, StringComparison.Ordinal);
         Assert.Contains("window.WarehouseEpiHidCapture = { listen };", capture, StringComparison.Ordinal);
 
         Assert.Contains("window.WarehouseEpiHidCapture?.listen({", operations, StringComparison.Ordinal);

@@ -322,13 +322,26 @@ public sealed class ProductionTraceabilityService(WarehouseDbContext db, UserPin
                 RecordedAt = timeProvider.GetUtcNow()
             };
             if (materialOperation is not null)
-                foreach (var line in materialOperation.Lines)
-                    foreach (var change in line.InventoryMovementLine.BalanceChanges.Where(x => x.DeltaQuantity < 0 && x.LotId.HasValue))
-                        result.Materials.Add(new ProductionBatchMaterialConsumption { IssueLinkId = line.IssueLinkId,
-                            MaterialLotId = change.LotId!.Value, Quantity = -change.DeltaQuantity });
-                        db.ProductionExecutionAudits.Add(new() { OperationId = command.OperationId, WorkOrderId = order.Id,
-                Fingerprint = fp, Action = command.IsRework ? "rework" : "result", ResponsibleUserId = user.Id,
-                AuthorizedByUserId = administrator?.Id, Reason = reasonSnapshot ?? "Resultado conforme",
+            {
+                var operationIds = materialOperation.Lines.Select(x => ProductionMaterialService.DocumentOperationId(materialOperation.OperationId, x.IssueLinkId)).Distinct().ToArray();
+                var applications = await db.WipDocumentApplications.Where(x => operationIds.Contains(x.OperationId) && x.LotId != null).ToListAsync(token);
+                foreach (var application in applications)
+                    result.Materials.Add(new ProductionBatchMaterialConsumption
+                    {
+                        IssueLinkId = application.IssueLinkId!.Value,
+                        MaterialLotId = application.LotId!.Value,
+                        Quantity = application.Quantity
+                    });
+            }
+            db.ProductionExecutionAudits.Add(new()
+            {
+                OperationId = command.OperationId,
+                WorkOrderId = order.Id,
+                Fingerprint = fp,
+                Action = command.IsRework ? "rework" : "result",
+                ResponsibleUserId = user.Id,
+                AuthorizedByUserId = administrator?.Id,
+                Reason = reasonSnapshot ?? "Resultado conforme",
                 BeforeJson = JsonSerializer.Serialize(new { order.Version, PendingRework = selectedCase?.Pending }),
                 AfterJson = JsonSerializer.Serialize(new
                 {

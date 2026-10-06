@@ -13,7 +13,7 @@ public sealed class WipExitFlowContractTests
         Assert.Contains("Input.ExitMode", page, StringComparison.Ordinal);
         Assert.Contains("data-edit-step=\"exit-mode\"", page, StringComparison.Ordinal);
         Assert.Contains("Surtir WIP", page, StringComparison.Ordinal);
-        Assert.Contains("existencia real", page, StringComparison.Ordinal);
+        Assert.Contains("entrega documental", page, StringComparison.Ordinal);
         Assert.Contains("data-wip-destination-step", page, StringComparison.Ordinal);
         Assert.DoesNotContain("Orden y proceso", page, StringComparison.Ordinal);
         Assert.DoesNotContain("WipLinkMode", page, StringComparison.Ordinal);
@@ -53,7 +53,7 @@ public sealed class WipExitFlowContractTests
     }
 
     [Fact]
-    public void Process_wip_exposes_three_balance_based_actions_review_camera_and_antiforgery_form()
+    public void Process_wip_exposes_documentary_actions_review_camera_and_antiforgery_form()
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "WipProcess.cshtml"));
         var model = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Operations", "WipProcess.cshtml.cs"));
@@ -73,8 +73,8 @@ public sealed class WipExitFlowContractTests
         Assert.Contains("data-camera-photo", page, StringComparison.Ordinal);
         Assert.Contains("data-camera-switch", page, StringComparison.Ordinal);
         Assert.Contains("zxing-browser.min.js", page, StringComparison.Ordinal);
-        Assert.Contains("WipConsumption", model, StringComparison.Ordinal);
-        Assert.Contains("WipSupplierReturn", model, StringComparison.Ordinal);
+        Assert.Contains("WipDocumentApplicationKind.Consumption", model, StringComparison.Ordinal);
+        Assert.Contains("WipDocumentApplicationKind.SupplierReturn", model, StringComparison.Ordinal);
         Assert.Contains("Source.Id", model, StringComparison.Ordinal);
         Assert.Contains("handler: \"Products\"", script, StringComparison.Ordinal);
         Assert.Contains("Selecciona un producto de la lista.", script, StringComparison.Ordinal);

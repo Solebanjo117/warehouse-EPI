@@ -1382,4 +1382,8 @@
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
   <data name="Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="{0} salida(s) · {1} asignación(es) documentales WIP" xml:space="preserve"><value>{0} salida(s) · {1} asignación(es) documentales WIP</value></data>
+  <data name="Puedes combinar existencias de almacén con entregas WIP documentadas sin asignar. Los lotes se resuelven automáticamente." xml:space="preserve"><value>Puedes combinar existencias de almacén con entregas WIP documentadas sin asignar. Los lotes se resuelven automáticamente.</value></data>
+  <data name="Entrega documental WIP" xml:space="preserve"><value>Entrega documental WIP</value></data>
+  <data name="Pendiente documental {0} · asignado a otras órdenes {1}" xml:space="preserve"><value>Pendiente documental {0} · asignado a otras órdenes {1}</value></data>
 </root>

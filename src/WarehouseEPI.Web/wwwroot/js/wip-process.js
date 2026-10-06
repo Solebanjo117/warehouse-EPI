@@ -482,7 +482,7 @@
     destination.classList.toggle("d-none", !returning);
     destinationInput.required = returning;
     if (!returning) destinationInput.setCustomValidity("");
-    referenceHint.textContent = action === "SupplierReturn" ? "(obligatoria)" : "(opcional)";
+    referenceHint.textContent = action === "SupplierReturn" ? text("(obligatoria)") : text("(opcional)");
   };
 
   shell.querySelectorAll('input[name="Input.Action"]').forEach((item) => item.addEventListener("change", refresh));
@@ -503,12 +503,12 @@
     shell.querySelector("[data-wip-review-position]").textContent = `${wip} · ${product}`;
     shell.querySelector("[data-wip-review-quantity]").textContent = quantity;
     const targetRow = shell.querySelector("[data-wip-review-target-row]");
-    targetRow.classList.toggle("d-none", !(target && action === "Regreso a bodega"));
+    targetRow.classList.toggle("d-none", !(target && shell.querySelector('input[name="Input.Action"]:checked')?.value === "WarehouseReturn"));
     shell.querySelector("[data-wip-review-target]").textContent = target || "";
     const current = Number(shell.dataset.sourceBalance);
     const requested = Number(quantity.replace(",", "."));
     shell.querySelector("[data-wip-negative-review]").textContent = Number.isFinite(current) && Number.isFinite(requested) && requested > current
-      ? "Advertencia: el saldo WIP resultante será negativo."
+      ? text("La cantidad se validará contra el pendiente documental al confirmar.")
       : "";
     bootstrap.Modal.getOrCreateInstance(document.getElementById("confirm-wip-process")).show();
   });

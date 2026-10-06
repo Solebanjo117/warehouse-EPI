@@ -25,16 +25,21 @@ public sealed class ProductLocationAssignmentService(WarehouseDbContext dbContex
         Guid locationId,
         CancellationToken cancellationToken = default)
     {
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction is null
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        if ((transaction ?? dbContext.Database.CurrentTransaction) is { } activeTransaction)
+            await WarehouseEPI.Infrastructure.Inventory.InventoryMovementStore.LockLocationsAsync([locationId], activeTransaction, cancellationToken);
         var product = await dbContext.Products.SingleOrDefaultAsync(
             candidate => candidate.Id == productId, cancellationToken);
         if (product is null) return ProductLocationAssignmentResult.ProductNotFound;
         if (!product.IsActive) return ProductLocationAssignmentResult.ProductInactive;
 
-        var location = await dbContext.Locations.SingleOrDefaultAsync(
+        var location = await dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
             candidate => candidate.Id == locationId, cancellationToken);
         if (location is null) return ProductLocationAssignmentResult.LocationNotFound;
         if (!location.IsPhysicallyPresent || !location.IsActive) return ProductLocationAssignmentResult.LocationInactive;
         if (location.IsBlocked) return ProductLocationAssignmentResult.LocationBlocked;
+        if (!location.TracksInventory) return ProductLocationAssignmentResult.LocationDoesNotTrackInventory;
         var assignment = await dbContext.ProductLocationAssignments.SingleOrDefaultAsync(
             candidate => candidate.ProductId == productId && candidate.LocationId == locationId,
             cancellationToken);
@@ -55,6 +60,7 @@ public sealed class ProductLocationAssignmentService(WarehouseDbContext dbContex
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction is not null) await transaction.CommitAsync(cancellationToken);
         return ProductLocationAssignmentResult.Success;
     }
 

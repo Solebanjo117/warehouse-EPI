@@ -19,10 +19,10 @@ public sealed partial class ProductionMaterialServiceTests
         Assert.Equal(ProductionMaterialStatus.Success, (await f.Materials.ApplyAsync(command)).Status);
         var row = Assert.Single(await f.Materials.GetIssuesAsync(f.Order.Id));
         Assert.Equal(4, row.Pending); Assert.Equal(2, row.Scrapped); Assert.Equal(0, row.Consumed);
-        Assert.Equal(4, await f.Db.InventoryBalances.Where(x => x.LocationId == f.Wip.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(0, await f.Db.InventoryBalances.Where(x => x.LocationId == f.Wip.Id).SumAsync(x => x.Quantity));
         var reverse = await f.Materials.ReverseAsync(Guid.NewGuid(), first.OperationId!.Value, f.Order.Version, f.AdminPin, "Captura equivocada");
         Assert.Equal(ProductionMaterialStatus.Success, reverse.Status);
         Assert.Equal(6, Assert.Single(await f.Materials.GetIssuesAsync(f.Order.Id)).Pending);
-        Assert.Equal(6, await f.Db.InventoryBalances.Where(x => x.LocationId == f.Wip.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(0, await f.Db.InventoryBalances.Where(x => x.LocationId == f.Wip.Id).SumAsync(x => x.Quantity));
     }
 }

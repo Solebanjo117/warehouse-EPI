@@ -16,9 +16,7 @@ public sealed class ExitModel : OperationPageModel
         IStringLocalizer<OperationsTexts> texts)
         : base(movementService, inventoryQuery, operationalQuery, texts) => this.preparations = preparations;
     public override InventoryMovementType MovementType => InventoryMovementType.Exit;
-    protected override InventoryMovementType CommandMovementType => Input.ExitMode == ExitMode.Wip
-        ? InventoryMovementType.Transfer
-        : InventoryMovementType.Exit;
+    protected override InventoryMovementType CommandMovementType => InventoryMovementType.Exit;
     public override InventoryMovementPurpose MovementPurpose => Input.ExitMode == ExitMode.Wip
         ? InventoryMovementPurpose.ProductionIssue
         : InventoryMovementPurpose.GeneralExit;

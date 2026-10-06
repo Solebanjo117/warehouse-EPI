@@ -41,8 +41,9 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
             InventoryMovementType.Entry, "3843", [new InventoryMovementLineCommand(material.Id, 8,
                 DestinationLocationId: source.Id)]))).Status);
         Assert.Equal(InventoryMovementStatus.Success, (await movements.ConfirmAsync(new(Guid.NewGuid(),
-            InventoryMovementType.Entry, "3843", [new InventoryMovementLineCommand(material.Id, 2,
-                DestinationLocationId: wip.Id)]))).Status);
+            InventoryMovementType.Exit, "3843", [new InventoryMovementLineCommand(material.Id, 2,
+                SourceLocationId: source.Id)], Purpose: InventoryMovementPurpose.ProductionIssue,
+            OperationalAreaId: wip.Id))).Status);
         var created = await production.CreateOrderAsync(new(Guid.NewGuid(), finished.Id, 10, null, null, null, "3842"));
         var order = await db.ProductionWorkOrders.SingleAsync(x => x.Id == created.WorkOrderId);
         Assert.Equal(ProductionCommandStatus.Success,
@@ -72,11 +73,10 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
     }
 
     [Fact]
-    public async Task Existing_order_and_history_survive_batch_traceability_migration()
+    public Task Existing_order_and_history_survive_batch_traceability_migration() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        await using var db = fixture.CreateDbContext();
-        await db.Database.ExecuteSqlRawAsync(
-            "TRUNCATE TABLE production_work_orders, production_routes, production_recipes, inventory_movements, products, locations, users, production_stages RESTART IDENTITY CASCADE;");
+        await using var db = isolated.CreateDbContext();
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         var user = new User { FullName = "Admin legado PG", RoleId = 1, PinLookup = $"legacy-{suffix}", PinHash = "legacy" };
         var product = new Product { Sku = $"PG-LEG-{suffix}", Description = "Producto legado", BaseUnitId = 1 };
@@ -132,7 +132,7 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         {
             await db.Database.MigrateAsync();
         }
-    }
+    });
 
     [Fact]
     public async Task Batch_consumption_partial_receipts_and_trace_are_atomic_on_postgresql()
@@ -202,7 +202,7 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         Assert.False(rejectedSecondBatch.Success);
         await db.Entry(order).ReloadAsync();
         var issue2 = await db.ProductionMaterialIssueLinks.Where(x => x.WorkOrderId == order.Id &&
-            x.InventoryMovementLine!.BalanceChanges.Any(c => c.LotId == rawLot2.Id && c.DeltaQuantity > 0)).SingleAsync();
+            x.InventoryMovementLine!.BalanceChanges.Any(c => c.LotId == rawLot2.Id && c.DeltaQuantity < 0)).SingleAsync();
         var result2 = await trace.RecordResultAsync(new(Guid.NewGuid(), order.Id, batch.Id!.Value, stageId, shift.Id,
             false, 5, 5, 0, 0, [new(issue2.Id, 5)], order.Version, null, "2843"));
         Assert.True(result2.Success, string.Join("; ", result2.Errors ?? []));
@@ -295,7 +295,9 @@ public sealed class ProductionMaterialPostgreSqlTests(PostgreSqlInventoryFixture
         Assert.Equal(ProductionMaterialStatus.Success, consumption.Status);
         Assert.Equal(InventoryMovementStatus.ValidationFailed, general.Status);
         Assert.Equal(4, Assert.Single(await service.GetIssuesAsync(order.Id)).Pending);
-        Assert.Equal(4, await db.InventoryBalances.Where(x => x.ProductId == material.Id && x.LocationId == wip.Id)
+        Assert.Equal(0, await db.InventoryBalances.Where(x => x.ProductId == material.Id && x.LocationId == wip.Id)
             .SumAsync(x => x.Quantity));
+        Assert.Equal(6, await db.WipDocuments.Where(x => x.ProductId == material.Id && x.WipLocationId == wip.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(2, await db.WipDocumentApplications.Where(x => x.IssueLinkId == link.Id).SumAsync(x => x.Quantity));
     }
 }

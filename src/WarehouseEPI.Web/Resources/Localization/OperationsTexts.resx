@@ -691,4 +691,24 @@
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
   <data name="Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="El uso y las devoluciones no pueden superar lo pendiente documental. Un regreso suma únicamente al almacén y conserva los lotes de origen." xml:space="preserve"><value>El uso y las devoluciones no pueden superar lo pendiente documental. Un regreso suma únicamente al almacén y conserva los lotes de origen.</value></data>
+  <data name="Entrada al almacén ligada a la entrega original." xml:space="preserve"><value>Entrada al almacén ligada a la entrega original.</value></data>
+  <data name="Registra uso o devoluciones contra las entregas documentales WIP, sin un segundo descuento del almacén." xml:space="preserve"><value>Registra uso o devoluciones contra las entregas documentales WIP, sin un segundo descuento del almacén.</value></data>
+  <data name="Registro de uso sin movimiento de inventario." xml:space="preserve"><value>Registro de uso sin movimiento de inventario.</value></data>
+  <data name="Registro documental con referencia obligatoria." xml:space="preserve"><value>Registro documental con referencia obligatoria.</value></data>
+  <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>La cantidad se validará contra el pendiente documental al confirmar.</value></data>
+  <data name="Merma" xml:space="preserve"><value>Merma</value></data>
+  <data name="El material se descontará del almacén y quedará como entrega documental al WIP seleccionado." xml:space="preserve"><value>El material se descontará del almacén y quedará como entrega documental al WIP seleccionado.</value></data>
+  <data name="La operación documental o su cantidad no es válida." xml:space="preserve"><value>La operación documental o su cantidad no es válida.</value></data>
+  <data name="Indica una referencia o motivo válido para la operación." xml:space="preserve"><value>Indica una referencia o motivo válido para la operación.</value></data>
+  <data name="La operación ya fue utilizada con otros datos." xml:space="preserve"><value>La operación ya fue utilizada con otros datos.</value></data>
+  <data name="El producto, la unidad o el destino WIP no están disponibles." xml:space="preserve"><value>El producto, la unidad o el destino WIP no están disponibles.</value></data>
+  <data name="Completa el corte documental ADMIN antes de procesar este WIP." xml:space="preserve"><value>Completa el corte documental ADMIN antes de procesar este WIP.</value></data>
+  <data name="La cantidad supera lo pendiente documental. Revisa las entregas y sus asignaciones a órdenes." xml:space="preserve"><value>La cantidad supera lo pendiente documental. Revisa las entregas y sus asignaciones a órdenes.</value></data>
+  <data name="Los lotes documentales no concuerdan con lo pendiente. Revisa la entrega." xml:space="preserve"><value>Los lotes documentales no concuerdan con lo pendiente. Revisa la entrega.</value></data>
+  <data name="Selecciona una ubicación de almacén para el regreso." xml:space="preserve"><value>Selecciona una ubicación de almacén para el regreso.</value></data>
+  <data name="El registro cambió. Vuelve a consultar la entrega." xml:space="preserve"><value>El registro cambió. Vuelve a consultar la entrega.</value></data>
+  <data name="Operación documental registrada. Las existencias del almacén no cambiaron." xml:space="preserve"><value>Operación documental registrada. Las existencias del almacén no cambiaron.</value></data>
+  <data name="Descuenta del rack y registra una entrega documental a WIP." xml:space="preserve"><value>Descuenta del rack y registra una entrega documental a WIP.</value></data>
+  <data name="El surtimiento conserva el destino WIP y los lotes del origen. Consulta el seguimiento documental de la entrega." xml:space="preserve"><value>El surtimiento conserva el destino WIP y los lotes del origen. Consulta el seguimiento documental de la entrega.</value></data>
 </root>

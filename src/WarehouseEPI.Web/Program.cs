@@ -162,6 +162,8 @@ builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionRepo
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Production.ProductionImportDraftService>();
 builder.Services.AddScoped<InventoryCorrectionService>();
 builder.Services.AddScoped<WipDispositionService>();
+builder.Services.AddScoped<WipDocumentService>();
+builder.Services.AddScoped<WipDocumentCutoverService>();
 builder.Services.AddScoped<WipDispositionCorrectionService>();
 builder.Services.AddScoped<WipReportService>();
 builder.Services.AddScoped<InventoryHistoryService>();

@@ -438,4 +438,7 @@
   <data name="Pedido {0}" xml:space="preserve"><value>Pedido {0}</value></data>
   <data name="La preparación contiene totales repetidos o cambios incompatibles." xml:space="preserve"><value>La preparación contiene totales repetidos o cambios incompatibles.</value></data>
   <data name="{0}, {1}: el mínimo permitido es {2} {3}." xml:space="preserve"><value>{0}, {1}: el mínimo permitido es {2} {3}.</value></data>
+  <data name="(obligatoria)" xml:space="preserve"><value>(obligatoria)</value></data>
+  <data name="(opcional)" xml:space="preserve"><value>(opcional)</value></data>
+  <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>La cantidad se validará contra el pendiente documental al confirmar.</value></data>
 </root>

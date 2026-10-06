@@ -349,7 +349,7 @@ public sealed class CycleCountRouteTests
         Assert.Contains("cycle-count-create.js", create, StringComparison.Ordinal);
         Assert.Contains("indeterminate", createScript, StringComparison.Ordinal);
         Assert.Contains("item.dataset.row === toggle.dataset.row && item.dataset.rack === toggle.dataset.rack", createScript, StringComparison.Ordinal);
-        Assert.DoesNotContain("item.OperationalRole != LocationOperationalRole.Wip", createModel, StringComparison.Ordinal);
+        Assert.Contains("item.OperationalRole != LocationOperationalRole.Wip", createModel, StringComparison.Ordinal);
         Assert.DoesNotContain("item.TracksInventory", createModel, StringComparison.Ordinal);
         Assert.Contains("CampaignStatusLabel", index, StringComparison.Ordinal);
         Assert.Contains("LocationStatusLabel", details, StringComparison.Ordinal);

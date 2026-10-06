@@ -35,7 +35,7 @@
                     <dt class="col-5">@ProdTexts["Destino"]</dt><dd class="col-7">@confirmationDestination</dd>
                     <dt class="col-5">@ProdTexts["Responsable"]</dt><dd class="col-7">@confirmationResponsible</dd>
                     <dt class="col-5">@ProdTexts["Fecha"]</dt><dd class="col-7">@confirmationRecordedAt</dd>
-                    <dt class="col-5">@ProdTexts["Registros"]</dt><dd class="col-7">@ProdTexts["{0} traslado(s) · {1} asignación(es) WIP", confirmationMovements ?? string.Empty, confirmationAssignments ?? string.Empty]</dd>
+                    <dt class="col-5">@ProdTexts["Registros"]</dt><dd class="col-7">@ProdTexts["{0} salida(s) · {1} asignación(es) documentales WIP", confirmationMovements ?? string.Empty, confirmationAssignments ?? string.Empty]</dd>
                 </dl>
                 <div class="d-flex flex-wrap gap-2">
                     @if (detail.Line.Pending > 0) { <a class="btn btn-primary" asp-page="Prepare" asp-route-QueueSearch="@Model.QueueSearch" asp-route-QueueCondition="@Model.QueueCondition" asp-route-QueuePage="@Model.QueuePage" asp-route-lineId="@detail.Line.LineId">@ProdTexts["Continuar pendiente"]</a> }
@@ -71,7 +71,7 @@
         <section class="entry-step is-active">
             <div class="entry-step-header"><span class="entry-step-number">1</span><div><h2 class="h5 mb-0">@ProdTexts["Elige los orígenes"]</h2><span class="small text-body-secondary" data-entry-step-status>@ProdTexts["En captura"]</span></div></div>
             <div class="entry-step-body">
-                <p class="text-body-secondary">@ProdTexts["Puedes combinar ubicaciones de almacén con material libre que ya está en WIP. Los lotes se resuelven automáticamente."]</p>
+                <p class="text-body-secondary">@ProdTexts["Puedes combinar existencias de almacén con entregas WIP documentadas sin asignar. Los lotes se resuelven automáticamente."]</p>
                 <div class="lookup-field mb-3">
                     <label for="supply-source-scan" class="form-label">@ProdTexts["Escanear o escribir ubicación"]</label>
                     <div class="input-group input-group-lg"><input id="supply-source-scan" class="form-control" type="search" autocomplete="off" autocapitalize="characters" placeholder="@ProdTexts["Código de ubicación"]" data-source-scan autofocus /><button type="button" class="btn btn-outline-secondary" data-source-camera aria-label="@ProdTexts["Escanear ubicación con cámara"]"><svg class="app-icon" aria-hidden="true"><use href="#icon-camera" /></svg></button></div>
@@ -85,7 +85,7 @@
                     <div class="supply-source-row" data-source-row data-source-code="@source.LocationCode" data-prepared="@((detail.Selected.FirstOrDefault(x=>x.Kind==source.Kind&&x.LocationId==source.LocationId)?.Quantity??0).ToString(System.Globalization.CultureInfo.InvariantCulture))" data-destination="@detail.Line.Destination">
                         <input asp-for="Input.Sources[i].Kind" type="hidden" value="@source.Kind" />
                         <input asp-for="Input.Sources[i].LocationId" type="hidden" value="@source.LocationId" />
-                        <div><strong>@source.LocationCode</strong><span class="badge text-bg-@(source.Kind == ProductionSupplySourceKind.ExistingWip ? "info" : "secondary")">@(source.Kind == ProductionSupplySourceKind.ExistingWip ? ProdTexts["Ya en WIP"].Value : ProdTexts["Almacén"].Value)</span><small>@ProdTexts["Físico {0} · para esta orden {1} · otras órdenes {2}", source.Physical, source.ReservedForThisRequest, source.ReservedForOtherOrders]</small></div>
+                        <div><strong>@source.LocationCode</strong><span class="badge text-bg-@(source.Kind == ProductionSupplySourceKind.ExistingWip ? "info" : "secondary")">@(source.Kind == ProductionSupplySourceKind.ExistingWip ? ProdTexts["Entrega documental WIP"].Value : ProdTexts["Almacén"].Value)</span><small>@(source.Kind == ProductionSupplySourceKind.ExistingWip ? ProdTexts["Pendiente documental {0} · asignado a otras órdenes {1}", source.Physical, source.ReservedForOtherOrders] : ProdTexts["Físico {0} · para esta orden {1} · otras órdenes {2}", source.Physical, source.ReservedForThisRequest, source.ReservedForOtherOrders])</small></div>
                         <div><label asp-for="Input.Sources[i].Quantity" class="form-label">@ProdTexts["Cantidad"]</label><input asp-for="Input.Sources[i].Quantity" class="form-control form-control-lg" type="text" min="0" max="@source.Available" step="0.0001" inputmode="decimal" data-decimals="@(detail.AllowsDecimals?"true":"false")" data-source-quantity /><span class="form-text">@ProdTexts["Máximo {0} {1}", source.Available, detail.Line.Unit]</span></div>
                     </div>
                 }

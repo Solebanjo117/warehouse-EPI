@@ -1,0 +1,17 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Inventory.WipDocuments.ReverseModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> T
+@{ ViewData["Title"] = T["Revertir aplicación documental"].Value; }
+<div class="container py-4">
+    <a asp-page="/Reports/Wip/Index">@T["Volver a WIP"]</a>
+    <h1 class="h2 mt-3">@T["Revertir aplicación documental"]</h1>
+    <p>@Model.Summary</p>
+    <p>@T["El reverso restituye lo pendiente documental. Si hubo una entrada a bodega, también revierte esa entrada."]</p>
+    <form method="post" class="card card-body gap-3">
+        <div asp-validation-summary="All" class="text-danger" role="alert" tabindex="-1"></div>
+        <input asp-for="OriginalOperationId" type="hidden" /><input asp-for="OperationId" type="hidden" />
+        <label asp-for="Reason">@T["Motivo"]</label><textarea asp-for="Reason" required maxlength="500" class="form-control"></textarea>
+        <label asp-for="Pin">@T["NIP ADMIN"]</label><input asp-for="Pin" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" required />
+        <button class="btn btn-warning btn-lg align-self-start">@T["Confirmar reverso"]</button>
+    </form>
+</div>

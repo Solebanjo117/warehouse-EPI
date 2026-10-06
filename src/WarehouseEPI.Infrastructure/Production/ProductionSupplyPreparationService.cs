@@ -92,7 +92,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         if (line.SupplyRequest.Version != command.ExpectedRequestVersion) return Conflict(line.SupplyRequestId);
         var resolvedSelections = new List<ProductionSupplySourceSelection>();
         foreach (var source in selections)
-            resolvedSelections.Add(source.Plates is { Count: > 0 } ? source : source with
+            resolvedSelections.Add(source.Kind == ProductionSupplySourceKind.ExistingWip ? source with { Plates = [] } : source.Plates is { Count: > 0 } ? source : source with
             {
                 Plates = await ProductionPlateAllocation.SelectFreeAsync(db, line.ProductId, source.LocationId, source.Quantity, line.Id, token)
             });
@@ -218,9 +218,9 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
             foreach (var source in confirmedSources.Where(x => x.Kind == ProductionSupplySourceKind.Warehouse).OrderBy(x => x.LocationId))
             {
                 var movementCommand = new InventoryMovementCommand(Derive(command.OperationId, source.LocationId),
-                    InventoryMovementType.Transfer, command.Pin,
+                    InventoryMovementType.Exit, command.Pin,
                     [new InventoryMovementLineCommand(line.ProductId, source.Quantity, SourceLocationId: source.LocationId,
-                        DestinationLocationId: preparation.DestinationLocationId, Plates: source.Plates, AutomaticPalletHandling: true)], line.SupplyRequest.WorkOrder.Number,
+                        Plates: source.Plates, AutomaticPalletHandling: true)], line.SupplyRequest.WorkOrder.Number,
                     "Surtimiento guiado a producción", Purpose: InventoryMovementPurpose.ProductionIssue,
                     OperationalAreaId: preparation.DestinationLocationId);
                 var movementResult = await movements.ConfirmAuthorizedAsync(movementCommand, user,
@@ -229,30 +229,38 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
                     return await Abort(tx, Invalid(movementResult.ValidationErrors.FirstOrDefault() ?? "No fue posible confirmar el traslado."), token);
                 movementIds.Add(movementId);
                 var movementLine = await db.InventoryMovementLines.Include(x => x.BalanceChanges).SingleAsync(x => x.MovementId == movementId, token);
-                var issue = new ProductionMaterialIssueLink { WorkOrderId = line.SupplyRequest.WorkOrderId,
-                    WorkOrderStageId = line.SupplyRequest.WorkOrderStageId, SupplyRequestLineId = line.Id,
-                    InventoryMovementLineId = movementLine.Id, ProductId = line.ProductId,
-                    WipLocationId = preparation.DestinationLocationId, Quantity = source.Quantity,
-                    Source = ProductionMaterialSupplySource.Transfer, CreatedAt = timeProvider.GetUtcNow() };
-                foreach (var change in movementLine.BalanceChanges.Where(x => x.LocationId == preparation.DestinationLocationId && x.DeltaQuantity > 0 && x.LotId.HasValue))
-                    issue.Lots.Add(new ProductionMaterialIssueLot { LotId = change.LotId!.Value, Quantity = change.DeltaQuantity });
-                if (issue.InventoryMovementLineId is Guid plateLineId) issue.PlateAllocationsJson = await ProductionPlateAllocation.ReceivedAsync(db, plateLineId, issue.WipLocationId, token);
-                else await ProductionPlateAllocation.RecordAssignmentAsync(db, issue, command.OperationId, user.Id, timeProvider.GetUtcNow(), token);
+                var issue = new ProductionMaterialIssueLink
+                {
+                    WorkOrderId = line.SupplyRequest.WorkOrderId,
+                    WorkOrderStageId = line.SupplyRequest.WorkOrderStageId,
+                    SupplyRequestLineId = line.Id,
+                    InventoryMovementLineId = movementLine.Id,
+                    ProductId = line.ProductId,
+                    WipLocationId = preparation.DestinationLocationId,
+                    Quantity = source.Quantity,
+                    Source = ProductionMaterialSupplySource.Transfer,
+                    CreatedAt = timeProvider.GetUtcNow()
+                };
+                foreach (var change in movementLine.BalanceChanges.Where(x => x.DeltaQuantity < 0 && x.LotId.HasValue))
+                    issue.Lots.Add(new ProductionMaterialIssueLot { LotId = change.LotId!.Value, Quantity = -change.DeltaQuantity });
                 db.ProductionMaterialIssueLinks.Add(issue); issueLinks.Add(issue);
+                await new WipDocumentService(db, pins, timeProvider).AssignAsync(issue, token);
             }
             foreach (var source in confirmedSources.Where(x => x.Kind == ProductionSupplySourceKind.ExistingWip).OrderBy(x => x.LocationId))
             {
-                var assigned = await ProductionPlateAllocation.AssignAsync(db, line.ProductId, source.LocationId, source.Quantity, source.Plates, token);
-                var lots = assigned.Lots;
-                if (lots.Sum(x => x.Quantity) != source.Quantity) return await Abort(tx, Invalid("El saldo WIP libre cambió. Revisa la preparación."), token);
-                var issue = new ProductionMaterialIssueLink { WorkOrderId = line.SupplyRequest.WorkOrderId,
-                    WorkOrderStageId = line.SupplyRequest.WorkOrderStageId, SupplyRequestLineId = line.Id,
-                    ProductId = line.ProductId, WipLocationId = source.LocationId, Quantity = source.Quantity,
-                    Source = ProductionMaterialSupplySource.WipAssignment, CreatedAt = timeProvider.GetUtcNow(), PlateAllocationsJson = assigned.Plates,
-                    Lots = lots.Select(x => new ProductionMaterialIssueLot { LotId = x.LotId, Quantity = x.Quantity }).ToList() };
-                if (issue.InventoryMovementLineId is Guid plateLineId) issue.PlateAllocationsJson = await ProductionPlateAllocation.ReceivedAsync(db, plateLineId, issue.WipLocationId, token);
-                else await ProductionPlateAllocation.RecordAssignmentAsync(db, issue, command.OperationId, user.Id, timeProvider.GetUtcNow(), token);
+                var issue = new ProductionMaterialIssueLink
+                {
+                    WorkOrderId = line.SupplyRequest.WorkOrderId,
+                    WorkOrderStageId = line.SupplyRequest.WorkOrderStageId,
+                    SupplyRequestLineId = line.Id,
+                    ProductId = line.ProductId,
+                    WipLocationId = source.LocationId,
+                    Quantity = source.Quantity,
+                    Source = ProductionMaterialSupplySource.WipAssignment,
+                    CreatedAt = timeProvider.GetUtcNow()
+                };
                 db.ProductionMaterialIssueLinks.Add(issue); issueLinks.Add(issue);
+                await new WipDocumentService(db, pins, timeProvider).AssignAsync(issue, token);
             }
             ReleaseReservations(line, confirmedSources);
             preparation.Status = ProductionSupplyPreparationStatus.Confirmed; preparation.Version++; preparation.UpdatedAt = timeProvider.GetUtcNow();
@@ -328,6 +336,9 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         if (user?.Role.Code != "ADMIN") return new(ProductionSupplyCommandStatus.InvalidPin);
         if (command.Quantity <= 0 || decimal.Round(command.Quantity, 4) != command.Quantity) return Invalid("Indica una cantidad válida para anular.");
         if (string.IsNullOrWhiteSpace(command.Reason)) return Invalid("Indica el motivo de la anulación.");
+        await using var transaction = db.Database.IsRelational() ? await db.Database.BeginTransactionAsync(token) : null;
+        var locationId = await db.ProductionMaterialIssueLinks.Where(x => x.Id == command.IssueLinkId).Select(x => (Guid?)x.WipLocationId).SingleOrDefaultAsync(token);
+        if (transaction is not null && locationId.HasValue) await InventoryMovementStore.LockLocationsAsync([locationId.Value], transaction, token);
         var fp = Fingerprint(command with { Pin = string.Empty });
         var prior = await ExistingAsync(command.OperationId, fp, token); if (prior is not null) return prior;
         var line = await LoadLineAsync(command.LineId, token); if (line is null) return new(ProductionSupplyCommandStatus.NotFound);
@@ -339,11 +350,12 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         var available = issue.Quantity - issue.CancelledQuantity - used;
         if (command.Quantity > available) return Invalid("Solo puede anularse la cantidad todavía reservada y sin consumo o devolución dependiente.");
         issue.CancelledQuantity += command.Quantity;
-        await ProductionPlateAllocation.ReleaseAssignmentAsync(db, issue, command.OperationId, user.Id, timeProvider.GetUtcNow(), token);
+        await new WipDocumentService(db, pins, timeProvider).ReleaseAssignmentAsync(issue.Id, command.Quantity, token);
         AddEvent(line, command.OperationId, fp, ProductionSupplyEventType.WipAssignmentCancelled, user, command.Quantity, command.Reason);
         line.SupplyRequest.Version++; line.SupplyRequest.WorkOrder.Version++;
         ProductionSupplyService.UpdateStatus(line.SupplyRequest);
         await db.SaveChangesAsync(token);
+        if (transaction is not null) await transaction.CommitAsync(token);
         return new(ProductionSupplyCommandStatus.Success, line.SupplyRequestId);
     }
 
@@ -414,8 +426,9 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         var compatible = await CompatibleWipLocationsAsync(line, token);
         foreach (var location in compatible.Where(x => x.Id == destinationId))
         {
-            var physical = balances.Where(x => x.LocationId == location.Id).Sum(x => x.Physical);
-            var reserved = await ActiveWipQuantityAsync(line.ProductId, location.Id, token);
+            var documents = await new WipDocumentService(db, pins, timeProvider).Documents.AsNoTracking().Where(x => x.ProductId == line.ProductId && x.WipLocationId == location.Id).ToListAsync(token);
+            var physical = documents.Sum(WipDocumentService.Remaining);
+            var reserved = physical - documents.Sum(x => WipDocumentService.Available(x, null));
             result.Add(new(location.Id, location.Code, ProductionSupplySourceKind.ExistingWip, physical, 0, reserved, Math.Max(0, physical - reserved)));
         }
         return result.OrderByDescending(x => x.ReservedForThisRequest > 0)

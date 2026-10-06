@@ -113,7 +113,7 @@ public sealed class CycleCountServiceTests
     }
 
     [Fact]
-    public async Task Overlapping_open_campaign_is_rejected_and_wip_location_is_accepted()
+    public async Task Overlapping_open_campaign_and_wip_location_are_rejected()
     {
         await using var fixture = await Fixture.CreateAsync();
         var location = await fixture.AddLocationAsync("C-1-1");
@@ -130,7 +130,7 @@ public sealed class CycleCountServiceTests
         Assert.Equal(first.CampaignId, repeated.CampaignId);
         Assert.Equal(CycleCountStatus.ValidationFailed, overlapping.Status);
         Assert.Equal(CycleCountStatus.Success, simultaneous.Status);
-        Assert.Equal(CycleCountStatus.Success, wipCampaign.Status);
+        Assert.Equal(CycleCountStatus.ValidationFailed, wipCampaign.Status);
     }
 
     [Fact]

@@ -5311,4 +5311,44 @@
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
   <data name="Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="Aplicar corrección" xml:space="preserve"><value>Aplicar corrección</value></data>
+  <data name="Resultado" xml:space="preserve"><value>Resultado</value></data>
+  <data name="Selecciona" xml:space="preserve"><value>Selecciona</value></data>
+  <data name="Volver a WIP" xml:space="preserve"><value>Volver a WIP</value></data>
+  <data name="Apertura del corte" xml:space="preserve"><value>Apertura del corte</value></data>
+  <data name="Aplicaciones documentales" xml:space="preserve"><value>Aplicaciones documentales</value></data>
+  <data name="Cantidad documentada" xml:space="preserve"><value>Cantidad documentada</value></data>
+  <data name="Confirmar corte documental" xml:space="preserve"><value>Confirmar corte documental</value></data>
+  <data name="Confirmar reverso" xml:space="preserve"><value>Confirmar reverso</value></data>
+  <data name="Convierte las existencias WIP en seguimiento documental sin modificar las existencias del almacén." xml:space="preserve"><value>Convierte las existencias WIP en seguimiento documental sin modificar las existencias del almacén.</value></data>
+  <data name="Corte documental WIP" xml:space="preserve"><value>Corte documental WIP</value></data>
+  <data name="El corte documental ya fue aplicado." xml:space="preserve"><value>El corte documental ya fue aplicado.</value></data>
+  <data name="El pendiente documental no representa existencias físicas ni material disponible en almacén." xml:space="preserve"><value>El pendiente documental no representa existencias físicas ni material disponible en almacén.</value></data>
+  <data name="El reverso restituye lo pendiente documental. Si hubo una entrada a bodega, también revierte esa entrada." xml:space="preserve"><value>El reverso restituye lo pendiente documental. Si hubo una entrada a bodega, también revierte esa entrada.</value></data>
+  <data name="Entrega cancelada" xml:space="preserve"><value>Entrega cancelada</value></data>
+  <data name="Entrega documental WIP" xml:space="preserve"><value>Entrega documental WIP</value></data>
+  <data name="Entregas y pendiente documental" xml:space="preserve"><value>Entregas y pendiente documental</value></data>
+  <data name="Enviado sin devolución histórica" xml:space="preserve"><value>Enviado sin devolución histórica</value></data>
+  <data name="Merma" xml:space="preserve"><value>Merma</value></data>
+  <data name="Movimiento de origen" xml:space="preserve"><value>Movimiento de origen</value></data>
+  <data name="No hay entregas documentales con los filtros seleccionados." xml:space="preserve"><value>No hay entregas documentales con los filtros seleccionados.</value></data>
+  <data name="Pendiente documental" xml:space="preserve"><value>Pendiente documental</value></data>
+  <data name="Placas" xml:space="preserve"><value>Placas</value></data>
+  <data name="Revertida" xml:space="preserve"><value>Revertida</value></data>
+  <data name="Revertir aplicación documental" xml:space="preserve"><value>Revertir aplicación documental</value></data>
+  <data name="Sin lote identificado" xml:space="preserve"><value>Sin lote identificado</value></data>
+  <data name="Uso registrado" xml:space="preserve"><value>Uso registrado</value></data>
+  <data name="WIP · Sin control de existencias" xml:space="preserve"><value>WIP · Sin control de existencias</value></data>
+  <data name="Sin control de existencias" xml:space="preserve"><value>Sin control de existencias</value></data>
+  <data name="Consumption" xml:space="preserve"><value>Uso registrado</value></data>
+  <data name="Scrap" xml:space="preserve"><value>Merma</value></data>
+  <data name="WarehouseReturn" xml:space="preserve"><value>Regreso a bodega</value></data>
+  <data name="SupplierReturn" xml:space="preserve"><value>Devolución a proveedor</value></data>
+  <data name="Reversal" xml:space="preserve"><value>Reverso</value></data>
+  <data name="Seguimiento WIP pendiente" xml:space="preserve"><value>Seguimiento WIP pendiente</value></data>
+  <data name="Los compromisos por lote de una orden superan las existencias a convertir." xml:space="preserve"><value>Los compromisos por lote de una orden superan las existencias a convertir.</value></data>
+  <data name="Los lotes pendientes de una orden no coinciden con su cantidad documental." xml:space="preserve"><value>Los lotes pendientes de una orden no coinciden con su cantidad documental.</value></data>
+  <data name="Los compromisos documentales de una orden superan las existencias a convertir." xml:space="preserve"><value>Los compromisos documentales de una orden superan las existencias a convertir.</value></data>
+  <data name="Hay reservas de almacén en WIP. Resuélvelas antes del corte." xml:space="preserve"><value>Hay reservas de almacén en WIP. Resuélvelas antes del corte.</value></data>
+  <data name="WIP asociado" xml:space="preserve"><value>WIP asociado</value></data>
 </root>

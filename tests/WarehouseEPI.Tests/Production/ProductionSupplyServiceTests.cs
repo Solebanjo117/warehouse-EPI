@@ -137,8 +137,8 @@ public sealed partial class ProductionSupplyServiceTests
             prepared.PreparationVersion, prepared.Line.RequestVersion, fixture.OperatorPin));
 
         Assert.Equal(ProductionSupplyCommandStatus.Success, confirmed.Status);
-        Assert.Equal(fixture.Wip.Id, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == first.Id)).LocationId);
-        Assert.Equal(3, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == first.Id)).Quantity);
+        Assert.Equal(fixture.Source.Id, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == first.Id)).LocationId);
+        Assert.Equal(0, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == first.Id)).Quantity);
         Assert.Equal(fixture.Source.Id, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == second.Id)).LocationId);
         Assert.Equal(2, (await fixture.Db.PalletPlates.SingleAsync(x => x.Id == second.Id)).Quantity);
     }
@@ -266,7 +266,7 @@ public sealed partial class ProductionSupplyServiceTests
         var reopened = Assert.Single(await fixture.Supplies.GetQueueAsync());
         Assert.Equal(1, reopened.Pending);
         Assert.Equal(2, reopened.Delivered);
-        Assert.Equal(3, await fixture.Db.InventoryBalances.Where(x => x.LocationId == fixture.Wip.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(0, await fixture.Db.InventoryBalances.Where(x => x.LocationId == fixture.Wip.Id).SumAsync(x => x.Quantity));
         Assert.Equal(1, await fixture.Db.ProductionMaterialIssueLinks.Select(x => x.CancelledQuantity).SingleAsync());
     }
 
@@ -357,8 +357,17 @@ public sealed partial class ProductionSupplyServiceTests
 
         public async Task AddWipStockAsync(decimal quantity)
         {
-            Db.InventoryBalances.Add(new InventoryBalance { ProductId = Material.Id, LocationId = Wip.Id,
-                LotId = MaterialLot.Id, Quantity = quantity });
+            var user = await Db.Users.SingleAsync(x => x.RoleId == 1);
+            Db.WipDocuments.Add(new WipDocument
+            {
+                ProductId = Material.Id,
+                WipLocationId = Wip.Id,
+                Quantity = quantity,
+                ResponsibleUserId = user.Id,
+                OccurredAt = DateTimeOffset.UtcNow,
+                IsOpening = true,
+                Lots = [new WipDocumentLot { LotId = MaterialLot.Id, Quantity = quantity }]
+            });
             await Db.SaveChangesAsync();
         }
 

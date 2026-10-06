@@ -20,14 +20,7 @@ public sealed class Location
     public ICollection<ProductLocationAssignment> ProductAssignments { get; set; } = [];
 
     public bool IsOperational => IsPhysicallyPresent && IsActive && !IsBlocked;
-    public bool TracksInventory
-    {
-        get
-        {
-            _ = OperationalRole;
-            return true;
-        }
-    }
+    public bool TracksInventory => !IsWip;
     public bool IsWip => OperationalRole == LocationOperationalRole.Wip;
     public short? LevelNumber => PalletNumber is null ? null : (short)((PalletNumber.Value - 1) / 3 + 1);
     public short? HorizontalPosition => PalletNumber is null ? null : (short)((PalletNumber.Value - 1) % 3 + 1);

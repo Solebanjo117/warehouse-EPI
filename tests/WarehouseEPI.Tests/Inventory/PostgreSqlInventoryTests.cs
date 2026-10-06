@@ -23,10 +23,11 @@ public sealed class PostgreSqlInventoryCollection : ICollectionFixture<PostgreSq
 public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
 {
     [Fact]
-    public async Task Warehouse_map_saves_on_postgresql_without_an_expected_version()
+    public Task Warehouse_map_saves_on_postgresql_without_an_expected_version() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        var admin = await fixture.AddAdminAsync("Administrador del croquis", "3110");
-        await using var db = fixture.CreateDbContext();
+        var admin = await isolated.AddAdminAsync("Administrador del croquis", "3110");
+        await using var db = isolated.CreateDbContext();
         db.Locations.Add(new Location { Code = "PG-MAP-AREA", Kind = LocationKind.Area });
         await db.SaveChangesAsync();
         var pins = new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey));
@@ -75,7 +76,7 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(2, await db.WarehouseMapReferenceImages.CountAsync());
         Assert.Single(await db.WarehouseMapReferenceImages.Where(item => !item.IsArchived).ToListAsync());
         Assert.Equal(geometry.Length, await db.WarehouseMapElements.CountAsync());
-    }
+    });
 
     private static WarehouseMapReferenceImageState ReferenceState(char hashCharacter)
     {
@@ -85,9 +86,10 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
     }
 
     [Fact]
-    public async Task Phase_1194_migration_reverts_and_reapplies_without_touching_operational_rows()
+    public Task Phase_1194_migration_reverts_and_reapplies_without_touching_operational_rows() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        await using var db = fixture.CreateDbContext();
+        await using var db = isolated.CreateDbContext();
         db.Locations.Add(new Location { Code = "PG-MIGRATION-MAP", Kind = LocationKind.Area });
         await db.SaveChangesAsync();
         var locationCount = await db.Locations.CountAsync();
@@ -110,12 +112,13 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
             """).ToArrayAsync();
         Assert.Equal(["measurement_system", "scale_units_per_inch"], columns);
         Assert.True(await db.Database.SqlQueryRaw<bool>("SELECT to_regclass('public.warehouse_map_reference_images') IS NOT NULL AS \"Value\"").SingleAsync());
-    }
+    });
 
     [Fact]
-    public async Task Rack_physical_presence_migration_and_save_preserve_operational_rows()
+    public Task Rack_physical_presence_migration_and_save_preserve_operational_rows() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        await using var db = fixture.CreateDbContext();
+        await using var db = isolated.CreateDbContext();
         db.Locations.AddRange(Enumerable.Range(1, 9).Select(number => new Location
         {
             Code = $"Y-8-{number}",
@@ -135,7 +138,9 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         await migrator.MigrateAsync("20260825163000_AddLocationRackPhysicalPresence");
         Assert.Equal(locationCount, await db.Locations.CountAsync());
 
-        var admin = await fixture.AddAdminAsync("Administrador de rack físico", "3198");
+        // Current application services require the complete current schema.
+        await migrator.MigrateAsync();
+        var admin = await isolated.AddAdminAsync("Administrador de rack físico", "3198");
         var service = new LocationRackAdministrationService(db,
             new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
         var result = await service.SaveAsync(new(Guid.NewGuid(), admin.Id, "Y", 8,
@@ -147,12 +152,13 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(3, await db.Locations.CountAsync(item => item.RowCode == "Y" && item.RackNumber == 8 && !item.IsPhysicallyPresent));
         Assert.Equal(movementCount, await db.InventoryMovements.CountAsync());
         Assert.Single(await db.LocationRackRevisions.Where(item => item.RowCode == "Y" && item.RackNumber == 8).ToListAsync());
-    }
+    });
 
     [Fact]
-    public async Task Rack_wip_migration_reverts_and_reapplies_without_removing_operational_rows()
+    public Task Rack_wip_migration_reverts_and_reapplies_without_removing_operational_rows() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        await using var db = fixture.CreateDbContext();
+        await using var db = isolated.CreateDbContext();
         var rackWip = new Location
         {
             Code = "V-77-1",
@@ -170,8 +176,8 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         await migrator.MigrateAsync("20260831183516_AddWarehouseMapCanvasDimensions");
         db.ChangeTracker.Clear();
         Assert.Equal(locationCount, await db.Locations.CountAsync());
-        Assert.Equal(LocationOperationalRole.Storage,
-            (await db.Locations.SingleAsync(item => item.Id == rackWip.Id)).OperationalRole);
+        Assert.Equal("STORAGE",
+            await db.Database.SqlQuery<string>($"SELECT operational_role AS \"Value\" FROM locations WHERE id = {rackWip.Id}").SingleAsync());
         Assert.True(await db.Database.SqlQueryRaw<bool>("""
             SELECT EXISTS (
                 SELECT 1 FROM pg_constraint
@@ -185,7 +191,7 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
                 WHERE conname = 'ck_locations_wip_area') AS "Value"
             """).SingleAsync());
         Assert.Equal(locationCount, await db.Locations.CountAsync());
-    }
+    });
 
     [Fact]
     public async Task Queries_derive_zero_total_and_minimum_alert_without_a_balance_row()
@@ -532,20 +538,26 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(InventoryMovementStatus.Success, issue.Status);
 
         await using var db = fixture.CreateDbContext();
-        var supplier = await fixture.ConfirmAsync(new(
-            Guid.NewGuid(), InventoryMovementType.Exit, seed.Pin,
-            [new(seed.ProductId, 1m, SourceLocationId: wipAreaId)],
-            Reference: "PG-RMA", Purpose: InventoryMovementPurpose.WipSupplierReturn,
-            OperationalAreaId: wipAreaId));
+        var supplierOperationId = Guid.NewGuid();
+        var supplier = await new WipDocumentService(db,
+            new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System)
+            .ConfirmAsync(new(supplierOperationId, seed.ProductId, wipAreaId, 1m,
+                WipDocumentApplicationKind.SupplierReturn, seed.Pin, Reference: "PG-RMA"));
         Assert.Equal(InventoryMovementStatus.Success, supplier.Status);
 
         var reports = new WipReportService(db, new WarehouseClock(new WarehouseSettingsService(db)));
         var page = await reports.GetTrackedPageAsync(new(null, null, "PG-WIP-REPORT", wipAreaId), 1, 25);
         var recent = await reports.GetRecentIssuesAsync([wipAreaId]);
 
-        Assert.Contains(page.Inventory, row => row.ProductSku == "PG-WIP-REPORT" && row.Quantity == 3m);
-        Assert.Contains(page.Activity, row => row.MovementId == issue.MovementId && row.Delta == 4m && row.Category == "Recibido");
-        Assert.Contains(page.Activity, row => row.MovementId == supplier.MovementId && row.Delta == -1m && row.Category == "Devolución a proveedor");
+        var row = Assert.Single(page.Inventory);
+        Assert.Equal("PG-WIP-REPORT", row.ProductSku);
+        Assert.Equal(4m, row.Delivered);
+        Assert.Equal(1m, row.SupplierReturned);
+        Assert.Equal(3m, row.Quantity);
+        Assert.Equal(await db.InventoryMovementLines.Where(item => item.MovementId == issue.MovementId)
+            .Select(item => item.Id).SingleAsync(), row.MovementLineId);
+        Assert.Null(supplier.MovementId);
+        Assert.Equal(1m, await db.WipDocumentApplications.Where(item => item.OperationId == supplierOperationId).SumAsync(item => item.Quantity));
         Assert.Contains(recent, row => row.MovementId == issue.MovementId && row.WipAreaId == wipAreaId);
     }
 
@@ -695,6 +707,29 @@ public sealed class PostgreSqlInventoryFixture : IAsyncLifetime
         new DbContextOptionsBuilder<WarehouseDbContext>()
             .UseNpgsql(connectionString)
             .Options);
+
+    public async Task WithIsolatedDatabaseAsync(Func<PostgreSqlInventoryFixture, Task> verify)
+    {
+        var database = "warehouse_epi_inventory_test_" + Guid.NewGuid().ToString("N");
+        var adminBuilder = new NpgsqlConnectionStringBuilder(connectionString) { Database = "postgres", Pooling = false };
+        var testBuilder = new NpgsqlConnectionStringBuilder(connectionString) { Database = database, Pooling = false };
+        await using var admin = new NpgsqlConnection(adminBuilder.ConnectionString);
+        await admin.OpenAsync();
+        await using (var create = new NpgsqlCommand($"CREATE DATABASE \"{database}\"", admin))
+            await create.ExecuteNonQueryAsync();
+        try
+        {
+            var isolated = new PostgreSqlInventoryFixture { connectionString = testBuilder.ConnectionString };
+            await using (var db = isolated.CreateDbContext())
+                await db.Database.MigrateAsync();
+            await verify(isolated);
+        }
+        finally
+        {
+            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{database}\" WITH (FORCE)", admin) { CommandTimeout = 120 };
+            await drop.ExecuteNonQueryAsync();
+        }
+    }
 
     public async Task<InventoryMovementResult> ConfirmAsync(InventoryMovementCommand command)
     {

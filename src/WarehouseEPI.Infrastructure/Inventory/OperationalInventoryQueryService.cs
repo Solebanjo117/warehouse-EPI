@@ -219,7 +219,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
             return [];
 
         var normalized = LocationNormalization.NormalizeForLookup(term);
-        return await LocationQuery(true)
+        return await LocationQuery(true).Where(x => x.OperationalRole != LocationOperationalRole.Wip)
             .Where(location => location.Code.Contains(normalized) ||
                 (location.Description != null && location.Description.ToUpper().Contains(normalized)))
             .OrderBy(location => location.Code)
@@ -251,6 +251,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         var assignments = await dbContext.ProductLocationAssignments.AsNoTracking()
             .Where(assignment => assignment.ProductId == productId && assignment.IsActive &&
                 assignment.Product.IsActive && assignment.Product.BaseUnit.IsActive &&
+                assignment.Location.OperationalRole != LocationOperationalRole.Wip &&
                 assignment.Location.IsPhysicallyPresent && assignment.Location.IsActive && !assignment.Location.IsBlocked)
             .Select(assignment => new OperationalProductLocationResult(
                 assignment.LocationId,
@@ -266,6 +267,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
         var balances = await dbContext.InventoryBalances.AsNoTracking()
             .Where(balance => balance.ProductId == productId && balance.Quantity != 0 &&
                 balance.Product.IsActive && balance.Product.BaseUnit.IsActive &&
+                balance.Location.OperationalRole != LocationOperationalRole.Wip &&
                 balance.Location.IsPhysicallyPresent && balance.Location.IsActive && !balance.Location.IsBlocked)
             .Select(balance => new OperationalProductLocationResult(
                 balance.LocationId,
@@ -398,7 +400,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
     private static System.Linq.Expressions.Expression<Func<Location, OperationalLocationResult>> ToLocationResult() =>
         location => new(location.Id, location.Code, location.Description, location.IsActive, location.IsBlocked,
-            location.OperationalRole, true, location.OperationalRole == LocationOperationalRole.Wip, location.Kind);
+            location.OperationalRole, location.OperationalRole != LocationOperationalRole.Wip, location.OperationalRole == LocationOperationalRole.Wip, location.Kind);
 
     private static IReadOnlyList<OperationalProductLocationResult> MergeProductLocations(
         IEnumerable<OperationalProductLocationResult> assignments,

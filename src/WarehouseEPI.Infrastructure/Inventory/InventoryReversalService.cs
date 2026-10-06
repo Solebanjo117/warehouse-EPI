@@ -18,6 +18,22 @@ internal sealed class InventoryReversalService(
         CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
+        if (original.Purpose == InventoryMovementPurpose.WipDocumentCutover)
+            throw new PalletPlateException("El corte documental no admite reverso como movimiento ordinario.");
+        var wipIds = await dbContext.Locations.Where(x => x.OperationalRole == LocationOperationalRole.Wip).Select(x => x.Id).ToListAsync(cancellationToken);
+        var cutoverApplied = await dbContext.WipDocumentCutovers.AnyAsync(cancellationToken);
+        var documents = await dbContext.WipDocuments.Include(x => x.Applications).Where(x => x.MovementLine != null && x.MovementLine.MovementId == original.Id).ToListAsync(cancellationToken);
+        if (cutoverApplied && original.Purpose == InventoryMovementPurpose.ProductionIssue && original.Type == InventoryMovementType.Transfer &&
+            original.Lines.Any(line => !documents.Any(d => d.MovementLineId == line.Id && d.Quantity == line.Quantity)))
+            throw new PalletPlateException("El surtimiento histórico tiene aplicaciones o una apertura sin correspondencia completa. Concilia su trazabilidad antes de corregirlo.");
+        foreach (var document in documents)
+        {
+            if (WipDocumentService.Effective(document).Count > 0)
+                throw new PalletPlateException("Revierte primero los usos y devoluciones documentales de la entrega.");
+            document.IsCancelled = true;
+        }
+        bool IncludeChange(InventoryBalanceChange change) => !cutoverApplied || !wipIds.Contains(change.LocationId);
+
         if (dbContext.Database.CurrentTransaction is { } plateTransaction)
             await InventoryMovementStore.LockLocationsAsync(original.Lines.SelectMany(x => x.BalanceChanges).Select(x => x.LocationId).Distinct().Order().ToArray(), plateTransaction, cancellationToken);
         var plateError = await new PalletPlateEngine(dbContext).ReversalErrorAsync(original.Id, cancellationToken);
@@ -50,7 +66,7 @@ internal sealed class InventoryReversalService(
             legacyLots.Add(productId, lot);
         }
 
-        var keys = original.Lines.SelectMany(line => line.BalanceChanges.Select(change =>
+        var keys = original.Lines.SelectMany(line => line.BalanceChanges.Where(IncludeChange).Select(change =>
                 new InventoryBalanceKey(line.ProductId, change.LocationId,
                     change.LotId ?? legacyLots[line.ProductId].Id)))
             .Distinct()
@@ -74,13 +90,19 @@ internal sealed class InventoryReversalService(
             balances.Add(key, balance);
         }
 
+        var effectiveType = original.Type;
+        if (cutoverApplied && original.Type == InventoryMovementType.Transfer)
+        {
+            if (original.Lines.All(x => x.DestinationLocationId.HasValue && wipIds.Contains(x.DestinationLocationId.Value))) effectiveType = InventoryMovementType.Exit;
+            else if (original.Lines.All(x => x.SourceLocationId.HasValue && wipIds.Contains(x.SourceLocationId.Value))) effectiveType = InventoryMovementType.Entry;
+        }
         var reversal = new InventoryMovement
         {
             OperationId = Guid.NewGuid(),
             RequestFingerprint = InventoryFingerprint.Hash(correctionFingerprint + "|reversal"),
-            Type = ReverseType(original.Type),
+            Type = ReverseType(effectiveType),
             Purpose = original.Purpose,
-            OperationalAreaId = original.OperationalAreaId,
+            OperationalAreaId = original.Purpose == InventoryMovementPurpose.WipWarehouseReturn && effectiveType != InventoryMovementType.Transfer ? null : original.OperationalAreaId,
             ResponsibleUserId = authorizedById,
             Reference = original.Reference,
             Notes = "Reverso de " + original.Id.ToString("N"),
@@ -97,7 +119,7 @@ internal sealed class InventoryReversalService(
                 LotId = source.LotId,
                 LotAllocationMode = source.LotAllocationMode
             };
-            switch (original.Type)
+            switch (effectiveType)
             {
                 case InventoryMovementType.Entry:
                     line.Quantity = source.Quantity;
@@ -116,7 +138,7 @@ internal sealed class InventoryReversalService(
                     break;
             }
 
-            foreach (var change in source.BalanceChanges)
+            foreach (var change in source.BalanceChanges.Where(IncludeChange))
             {
                 var lotId = change.LotId ?? legacyLots[source.ProductId].Id;
                 var balance = balances[new(source.ProductId, change.LocationId, lotId)];
@@ -166,6 +188,26 @@ internal sealed class InventoryReversalService(
             assignablePairs, balances.Values.ToArray(), transfers, cancellationToken);
 
         await new PalletPlateEngine(dbContext).ReverseAsync(original, reversal, cancellationToken);
+        if (cutoverApplied && original.Purpose is InventoryMovementPurpose.WipConsumption or InventoryMovementPurpose.WipSupplierReturn or InventoryMovementPurpose.WipWarehouseReturn)
+        {
+            foreach (var source in original.Lines)
+            {
+                if (await dbContext.WipDocumentApplications.AnyAsync(x => x.InventoryMovementLineId == source.Id, cancellationToken) ||
+                    await dbContext.ProductionMaterialOperationLines.AnyAsync(x => x.InventoryMovementLineId == source.Id, cancellationToken)) continue;
+                var allocations = source.BalanceChanges.Where(x => wipIds.Contains(x.LocationId) && x.DeltaQuantity < 0).ToArray();
+                foreach (var group in allocations.GroupBy(x => x.LocationId))
+                    dbContext.WipDocuments.Add(new WipDocument
+                    {
+                        MovementLine = reversal.Lines.Single(x => x.LineNumber == source.LineNumber),
+                        ProductId = source.ProductId,
+                        WipLocationId = group.Key,
+                        ResponsibleUserId = authorizedById,
+                        OccurredAt = now,
+                        Quantity = -group.Sum(x => x.DeltaQuantity),
+                        Lots = group.GroupBy(x => x.LotId).Select(x => new WipDocumentLot { LotId = x.Key, Quantity = -x.Sum(c => c.DeltaQuantity) }).ToList()
+                    });
+            }
+        }
         dbContext.InventoryMovements.Add(reversal);
         return reversal;
     }

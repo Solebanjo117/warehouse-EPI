@@ -28,28 +28,47 @@ public sealed class InventoryMovementService(
         if (!RoleAccess.CanOperateWarehouse(user.Role.Code))
             return new(InventoryMovementStatus.RoleNotAllowed, Errors: [RoleAccess.WarehouseWarning]);
 
+        if (command.Purpose is InventoryMovementPurpose.WipWarehouseReturn or InventoryMovementPurpose.WipConsumption or InventoryMovementPurpose.WipSupplierReturn)
+            return new(InventoryMovementStatus.ValidationFailed, Errors: ["Registra la operación contra una entrega documental WIP."]);
+
         return await ConfirmAuthorizedAsync(command, user, cancellationToken: cancellationToken);
     }
 
     internal Task<InventoryMovementResult> ConfirmAuthorizedAsync(
         InventoryMovementCommand command, User user, bool allowReservedWip = false,
         Guid? productionSupplyLineId = null, CancellationToken cancellationToken = default) =>
-        ConfirmAuthorizedCoreAsync(command, user, allowReservedWip, productionSupplyLineId, false, cancellationToken);
+        ConfirmAuthorizedCoreAsync(command, user, allowReservedWip, productionSupplyLineId, false, null, cancellationToken);
+
+    // Import dates are accepted only by the ADMIN import path, before the immutable
+    // movement is first saved. Public movement commands cannot backdate captures.
+    internal Task<InventoryMovementResult> ConfirmImportedIssueAsync(
+        InventoryMovementCommand command, User user, DateTimeOffset occurredAt, CancellationToken cancellationToken)
+    {
+        if (user.Role.Code != "ADMIN" || command.Type != InventoryMovementType.Exit ||
+            command.Purpose != InventoryMovementPurpose.ProductionIssue || occurredAt > timeProvider.GetUtcNow())
+            return Task.FromResult(new InventoryMovementResult(InventoryMovementStatus.ValidationFailed));
+        return ConfirmAuthorizedCoreAsync(command, user, false, null, false, occurredAt.ToUniversalTime(), cancellationToken);
+    }
 
     // Only the daily-production reconciliation calls this path, for linked material consumption.
     internal Task<InventoryMovementResult> ConfirmDailyConsumptionAsync(
         InventoryMovementCommand command, User user, CancellationToken cancellationToken) =>
-        ConfirmAuthorizedCoreAsync(command, user, true, null, true, cancellationToken);
+        ConfirmAuthorizedCoreAsync(command, user, true, null, true, null, cancellationToken);
 
     private async Task<InventoryMovementResult> ConfirmAuthorizedCoreAsync(
         InventoryMovementCommand command, User user, bool allowReservedWip,
-        Guid? productionSupplyLineId, bool dailyConsumption, CancellationToken cancellationToken)
+        Guid? productionSupplyLineId, bool dailyConsumption, DateTimeOffset? importedOccurredAt, CancellationToken cancellationToken)
     {
         if (!user.IsActive) return new(InventoryMovementStatus.InvalidPin);
         if (!(dailyConsumption ? RoleAccess.CanCaptureProduction(user.Role.Code) : RoleAccess.CanOperateWarehouse(user.Role.Code)))
             return new(InventoryMovementStatus.RoleNotAllowed, Errors: [dailyConsumption ? RoleAccess.ProductionWarning : RoleAccess.WarehouseWarning]);
         if (dailyConsumption && (command.Type != InventoryMovementType.Exit || command.Purpose != InventoryMovementPurpose.WipConsumption ||
             command.Lines.Any(line => line.MaterialIssueLinkId is null))) return new(InventoryMovementStatus.ValidationFailed);
+        // Accept the former caller shape only when it names the same informational WIP.
+        // Persist the new issue as an exit; never pass a WIP destination to the stock engines.
+        if (command.Purpose == InventoryMovementPurpose.ProductionIssue && command.Type == InventoryMovementType.Transfer &&
+            command.OperationalAreaId.HasValue && command.Lines.All(x => x.DestinationLocationId == command.OperationalAreaId))
+            command = command with { Type = InventoryMovementType.Exit, Lines = command.Lines.Select(x => x with { DestinationLocationId = null, DestinationPlateId = null }).ToArray() };
         var normalized = InventoryMovementRules.Normalize(command);
         var structuralErrors = InventoryMovementRules.ValidateStructure(normalized);
         if (structuralErrors.Count > 0)
@@ -64,7 +83,7 @@ public sealed class InventoryMovementService(
         if (productErrors.Count > 0)
             return new(InventoryMovementStatus.ValidationFailed, Errors: productErrors);
 
-        return await ConfirmTrackedLotsAsync(normalized, user, products, allowReservedWip, productionSupplyLineId, cancellationToken);
+        return await ConfirmTrackedLotsAsync(normalized, user, products, allowReservedWip, productionSupplyLineId, importedOccurredAt, cancellationToken);
     }
 
     private async Task<InventoryMovementResult> ConfirmTrackedLotsAsync(
@@ -73,9 +92,10 @@ public sealed class InventoryMovementService(
         IReadOnlyDictionary<Guid, Product> products,
         bool allowReservedWip,
         Guid? productionSupplyLineId,
+        DateTimeOffset? importedOccurredAt,
         CancellationToken cancellationToken)
     {
-        var fingerprint = InventoryMovementRules.CreateFingerprint(command, user.Id);
+        var fingerprint = InventoryMovementRules.CreateFingerprint(command, user.Id, importedOccurredAt);
         var existing = await movementStore.GetExistingResultAsync(command.OperationId, fingerprint, cancellationToken);
         if (existing is not null)
             return existing;
@@ -95,7 +115,7 @@ public sealed class InventoryMovementService(
             var pairs = InventoryMovementRules.GetLocationPairs(command).ToArray();
             var locationIds = pairs.Select(pair => pair.LocationId).Distinct().Order().ToArray();
             if (transaction is not null)
-                await InventoryMovementStore.LockLocationsAsync(locationIds, transaction, cancellationToken);
+                await InventoryMovementStore.LockLocationsAsync(locationIds.Concat(command.OperationalAreaId is Guid area ? [area] : []).Distinct().Order().ToArray(), transaction, cancellationToken);
 
             var locations = await dbContext.Locations.AsNoTracking()
                 .Where(item => locationIds.Contains(item.Id))
@@ -117,8 +137,7 @@ public sealed class InventoryMovementService(
             if (warehouseReservationErrors.Count != 0)
                 return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed, Errors: warehouseReservationErrors), cancellationToken);
 
-            if (!allowReservedWip && command.Purpose is InventoryMovementPurpose.WipConsumption or
-                    InventoryMovementPurpose.WipWarehouseReturn or InventoryMovementPurpose.WipSupplierReturn)
+            if (!allowReservedWip && command.Purpose is InventoryMovementPurpose.WipConsumption or InventoryMovementPurpose.WipSupplierReturn)
             {
                 var freeErrors = await ValidateFreeWipAsync(command, cancellationToken);
                 if (freeErrors.Count != 0)
@@ -137,6 +156,9 @@ public sealed class InventoryMovementService(
                     return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed,
                         Errors: ["La zona WIP indicada no existe o no está disponible."]), cancellationToken);
                 }
+                if (await dbContext.InventoryBalances.AnyAsync(x => x.LocationId == operationalAreaId && x.Quantity != 0, cancellationToken))
+                    return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed,
+                        Errors: ["La zona WIP requiere el corte documental ADMIN antes de recibir nuevas entregas."]), cancellationToken);
             }
 
             var conflicts = await movementStore.FindSharingConflictsAsync(
@@ -185,8 +207,7 @@ public sealed class InventoryMovementService(
                 }
             }
 
-            // WIP relationships are deliberately optional. A movement can create a real WIP
-            // balance without silently turning it into a catalog assignment.
+            // Storage assignments follow physical inventory. WIP deliveries use the documentary ledger.
             var assignablePairs = pairs
                 .Where(pair => locations[pair.LocationId].OperationalRole != LocationOperationalRole.Wip)
                 .ToArray();
@@ -200,7 +221,7 @@ public sealed class InventoryMovementService(
                 ResponsibleUserId = user.Id,
                 Reference = command.Reference,
                 Notes = command.Notes,
-                OccurredAt = now,
+                OccurredAt = importedOccurredAt ?? now,
                 RecordedAt = now
             };
             foreach (var (commandLine, index) in command.Lines.Select((item, index) => (item, index)))
@@ -232,6 +253,8 @@ public sealed class InventoryMovementService(
                 assignablePairs, balances.Values.ToArray(), transfers, cancellationToken);
 
             dbContext.InventoryMovements.Add(movement);
+            if (movement.Purpose == InventoryMovementPurpose.ProductionIssue)
+                WipDocumentService.RecordIssue(dbContext, movement);
             await dbContext.SaveChangesAsync(cancellationToken);
             if (ownsTransaction && transaction is not null)
                 await transaction.CommitAsync(cancellationToken);
@@ -359,7 +382,7 @@ public sealed class InventoryMovementService(
     {
         var used = link.OperationLines
             .Where(x => x.Operation.Type != ProductionMaterialOperationType.Reversal && !reversed.Contains(x.Operation.Id))
-            .SelectMany(x => x.InventoryMovementLine.BalanceChanges)
+            .Where(x => x.InventoryMovementLineId.HasValue).SelectMany(x => x.InventoryMovementLine.BalanceChanges)
             .Where(x => x.LocationId == link.WipLocationId && x.DeltaQuantity < 0)
             .GroupBy(x => x.LotId!.Value).ToDictionary(x => x.Key, x => -x.Sum(y => y.DeltaQuantity));
         var cancelled = link.CancelledQuantity;

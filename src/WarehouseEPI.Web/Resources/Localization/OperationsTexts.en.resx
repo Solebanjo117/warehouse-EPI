@@ -691,4 +691,24 @@
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
   <data name="Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="El uso y las devoluciones no pueden superar lo pendiente documental. Un regreso suma únicamente al almacén y conserva los lotes de origen." xml:space="preserve"><value>Usage and returns cannot exceed the documentary outstanding quantity. A return adds stock only to the warehouse and preserves the original lots.</value></data>
+  <data name="Entrada al almacén ligada a la entrega original." xml:space="preserve"><value>Warehouse entry linked to the original delivery.</value></data>
+  <data name="Registra uso o devoluciones contra las entregas documentales WIP, sin un segundo descuento del almacén." xml:space="preserve"><value>Record usage or returns against WIP delivery documents without deducting warehouse stock a second time.</value></data>
+  <data name="Registro de uso sin movimiento de inventario." xml:space="preserve"><value>Usage record without an inventory movement.</value></data>
+  <data name="Registro documental con referencia obligatoria." xml:space="preserve"><value>Documentary record requiring a reference.</value></data>
+  <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>The quantity will be checked against the documentary outstanding quantity on confirmation.</value></data>
+  <data name="Merma" xml:space="preserve"><value>Scrap</value></data>
+  <data name="El material se descontará del almacén y quedará como entrega documental al WIP seleccionado." xml:space="preserve"><value>Material will be deducted from the warehouse and recorded as a documentary delivery to the selected WIP.</value></data>
+  <data name="La operación documental o su cantidad no es válida." xml:space="preserve"><value>The document operation or quantity is invalid.</value></data>
+  <data name="Indica una referencia o motivo válido para la operación." xml:space="preserve"><value>Provide a valid reference or reason for this operation.</value></data>
+  <data name="La operación ya fue utilizada con otros datos." xml:space="preserve"><value>This operation has already been used with different data.</value></data>
+  <data name="El producto, la unidad o el destino WIP no están disponibles." xml:space="preserve"><value>The product, unit or WIP destination is unavailable.</value></data>
+  <data name="Completa el corte documental ADMIN antes de procesar este WIP." xml:space="preserve"><value>Complete the ADMIN documentary cutover before processing this WIP.</value></data>
+  <data name="La cantidad supera lo pendiente documental. Revisa las entregas y sus asignaciones a órdenes." xml:space="preserve"><value>The quantity exceeds the documentary outstanding quantity. Review deliveries and their order assignments.</value></data>
+  <data name="Los lotes documentales no concuerdan con lo pendiente. Revisa la entrega." xml:space="preserve"><value>Document lots do not match the outstanding quantity. Review the delivery.</value></data>
+  <data name="Selecciona una ubicación de almacén para el regreso." xml:space="preserve"><value>Select a storage location for the return.</value></data>
+  <data name="El registro cambió. Vuelve a consultar la entrega." xml:space="preserve"><value>The record changed. Reload the delivery.</value></data>
+  <data name="Operación documental registrada. Las existencias del almacén no cambiaron." xml:space="preserve"><value>Document operation recorded. Warehouse stock did not change.</value></data>
+  <data name="Descuenta del rack y registra una entrega documental a WIP." xml:space="preserve"><value>Deducts rack stock and records a documentary delivery to WIP.</value></data>
+  <data name="El surtimiento conserva el destino WIP y los lotes del origen. Consulta el seguimiento documental de la entrega." xml:space="preserve"><value>The delivery retains its WIP destination and original lots. See the delivery documentary tracking.</value></data>
 </root>

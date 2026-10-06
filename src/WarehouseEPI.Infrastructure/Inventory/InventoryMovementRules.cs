@@ -28,6 +28,8 @@ internal static class InventoryMovementRules
     internal static List<string> ValidateStructure(InventoryMovementCommand command)
     {
         var errors = new List<string>();
+        if (command.Purpose == InventoryMovementPurpose.WipDocumentCutover)
+            errors.Add("El corte documental sólo puede registrarse desde su procedimiento ADMIN.");
         if (command.OperationId == Guid.Empty)
             errors.Add("El identificador de operación es obligatorio.");
         if (command.Lines.Count == 0)
@@ -40,11 +42,11 @@ internal static class InventoryMovementRules
             (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is not null))
             errors.Add("Una salida general no admite un área operativa destino.");
         if (command.Purpose == InventoryMovementPurpose.ProductionIssue &&
-            (command.Type != InventoryMovementType.Transfer || command.OperationalAreaId is null))
-            errors.Add("El surtimiento a producción requiere una transferencia y una zona WIP.");
+            (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is null))
+            errors.Add("El surtimiento a producción requiere una salida y una zona WIP informativa.");
         if (command.Purpose == InventoryMovementPurpose.WipWarehouseReturn &&
-            (command.Type != InventoryMovementType.Transfer || command.OperationalAreaId is null))
-            errors.Add("Un regreso WIP a bodega requiere una transferencia y una zona WIP origen.");
+            (command.Type != InventoryMovementType.Entry || command.OperationalAreaId is not null))
+            errors.Add("Un regreso WIP a bodega requiere una entrada vinculada a la entrega original.");
         if (command.Purpose == InventoryMovementPurpose.WipConsumption &&
             (command.Type != InventoryMovementType.Exit || command.OperationalAreaId is null))
             errors.Add("Un consumo WIP requiere una salida y una zona WIP origen.");
@@ -106,12 +108,8 @@ internal static class InventoryMovementRules
                     break;
             }
 
-            if (command.Purpose == InventoryMovementPurpose.ProductionIssue &&
-                line.DestinationLocationId != command.OperationalAreaId)
-                errors.Add($"{label}: el destino debe coincidir con la zona WIP del surtimiento.");
             if (command.Purpose is InventoryMovementPurpose.WipConsumption or
-                    InventoryMovementPurpose.WipSupplierReturn or
-                    InventoryMovementPurpose.WipWarehouseReturn &&
+                    InventoryMovementPurpose.WipSupplierReturn &&
                 line.SourceLocationId != command.OperationalAreaId)
                 errors.Add($"{label}: el origen debe coincidir con la zona WIP de la operación.");
         }
@@ -158,6 +156,8 @@ internal static class InventoryMovementRules
                 errors.Add($"La ubicación {location.Code} está inactiva.");
             else if (location.IsBlocked)
                 errors.Add($"La ubicación {location.Code} está bloqueada.");
+            else if (!location.TracksInventory)
+                errors.Add($"La ubicación {location.Code} es WIP y no controla existencias.");
         }
 
         return errors;
@@ -175,7 +175,7 @@ internal static class InventoryMovementRules
         .SelectMany(line => GetLocations(line, command.Type).Select(location => new InventoryAssignmentKey(line.ProductId, location)))
         .Distinct();
 
-    internal static string CreateFingerprint(InventoryMovementCommand command, Guid userId)
+    internal static string CreateFingerprint(InventoryMovementCommand command, Guid userId, DateTimeOffset? importedOccurredAt = null)
     {
         var builder = new StringBuilder();
         builder.Append(userId.ToString("N")).Append('|')
@@ -184,6 +184,8 @@ internal static class InventoryMovementRules
             .Append(command.Notes ?? string.Empty).Append('|')
             .Append(command.Purpose).Append('|')
             .Append(command.OperationalAreaId?.ToString("N") ?? string.Empty);
+        if (importedOccurredAt.HasValue)
+            builder.Append("|ImportedOccurredAt:").Append(importedOccurredAt.Value.ToString("O", CultureInfo.InvariantCulture));
         foreach (var line in command.Lines)
         {
             builder.Append("|L:").Append(line.ProductId.ToString("N"))

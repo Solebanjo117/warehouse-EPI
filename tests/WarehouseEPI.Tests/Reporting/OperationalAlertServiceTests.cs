@@ -67,7 +67,7 @@ public sealed class OperationalAlertServiceTests
     }
 
     [Fact]
-    public async Task Wip_reminder_uses_positive_balance_and_oldest_positive_lot_not_legacy_dispositions()
+    public async Task Wip_reminder_uses_pending_documents_and_delivery_date_instead_of_lot_age()
     {
         await using var db = CreateDbContext();
         var user = User();
@@ -78,10 +78,9 @@ public sealed class OperationalAlertServiceTests
         var newerLot = new ProductLot { Product = product, Number = "NEWER", NormalizedNumber = "NEWER", LotDate = DateOnly.FromDateTime(Now.AddDays(-1).Date) };
         var recentLot = new ProductLot { Product = recentProduct, Number = "RECENT", NormalizedNumber = "RECENT", LotDate = DateOnly.FromDateTime(Now.AddDays(-2).Date) };
         db.AddRange(user, product, recentProduct, wip, oldLot, newerLot, recentLot);
-        db.InventoryBalances.AddRange(
-            new InventoryBalance { Product = product, Location = wip, Lot = oldLot, Quantity = 6m },
-            new InventoryBalance { Product = product, Location = wip, Lot = newerLot, Quantity = 2m },
-            new InventoryBalance { Product = recentProduct, Location = wip, Lot = recentLot, Quantity = 4m });
+        db.WipDocuments.AddRange(
+            new WipDocument { Product = product, WipLocation = wip, ResponsibleUser = user, OccurredAt = Now.AddDays(-8), Quantity = 8 },
+            new WipDocument { Product = recentProduct, WipLocation = wip, ResponsibleUser = user, OccurredAt = Now.AddDays(-2), Quantity = 4 });
         await db.SaveChangesAsync();
 
         var snapshot = await Service(db).GetSnapshotAsync(OperationalAlertAudience.Admin);
@@ -90,7 +89,7 @@ public sealed class OperationalAlertServiceTests
         var conditions = await Service(db).GetActiveConditionsAsync();
 
         Assert.Equal(1, reminder.Count);
-        Assert.Equal("Saldo WIP estancado", reminder.Title);
+        Assert.Equal("Seguimiento WIP pendiente", reminder.Title);
         Assert.Equal(1, page.TotalCount);
         Assert.Contains(page.Items, x => x.PrimaryText == "ALERT-WIP" && x.ValueText!.Contains('8'));
         Assert.All(page.Items, x => Assert.Contains("/Reports/Wip?attention=aged", x.TargetUrl, StringComparison.Ordinal));

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Settings;
 
@@ -21,15 +22,15 @@ public sealed class ProductCatalogQueryService(WarehouseDbContext db, WarehouseS
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
             var term = filter.Search.Trim().ToUpperInvariant();
-            products = products.Where(p => p.Sku.ToUpper().Contains(term) || (p.Description != null && p.Description.ToUpper().Contains(term)) || (p.ExternalReference != null && p.ExternalReference.ToUpper().Contains(term)) || p.Barcodes.Any(b => b.Barcode.ToUpper().Contains(term)) || p.LocationAssignments.Any(a => a.IsActive && a.Location.Code.ToUpper().Contains(term)));
+            products = products.Where(p => p.Sku.ToUpper().Contains(term) || (p.Description != null && p.Description.ToUpper().Contains(term)) || (p.ExternalReference != null && p.ExternalReference.ToUpper().Contains(term)) || p.Barcodes.Any(b => b.Barcode.ToUpper().Contains(term)) || p.LocationAssignments.Any(a => a.IsActive && a.Location.OperationalRole != LocationOperationalRole.Wip && a.Location.Code.ToUpper().Contains(term)));
         }
         if (filter.UnitId is not null) products = products.Where(p => p.BaseUnitId == filter.UnitId);
         if (filter.TypeId is not null) products = products.Where(p => p.ProductTypeId == filter.TypeId);
         if (filter.ClassId is not null) products = products.Where(p => p.ProductClassId == filter.ClassId);
 
-        var baseRows = await products.Select(p => new { p.Id, p.Sku, p.Description, Reference = p.ExternalReference, Unit = p.BaseUnit.Code, Type = p.ProductType == null ? null : p.ProductType.Code, Class = p.ProductClass == null ? null : p.ProductClass.Code, p.MinimumStock, p.IsActive, HasAssignment = p.LocationAssignments.Any(a => a.IsActive) }).ToListAsync(token);
+        var baseRows = await products.Select(p => new { p.Id, p.Sku, p.Description, Reference = p.ExternalReference, Unit = p.BaseUnit.Code, Type = p.ProductType == null ? null : p.ProductType.Code, Class = p.ProductClass == null ? null : p.ProductClass.Code, p.MinimumStock, p.IsActive, HasAssignment = p.LocationAssignments.Any(a => a.IsActive && a.Location.OperationalRole != LocationOperationalRole.Wip) }).ToListAsync(token);
         var ids = baseRows.Select(p => p.Id).ToArray();
-        var balances = ids.Length == 0 ? [] : await db.InventoryBalances.AsNoTracking().Where(b => ids.Contains(b.ProductId)).GroupBy(b => b.ProductId).Select(g => new { ProductId = g.Key, Quantity = g.Sum(b => b.Quantity), Locations = g.Where(b => b.Quantity != 0).Select(b => b.LocationId).Distinct().Count(), Negative = g.Any(b => b.Quantity < 0) }).ToListAsync(token);
+        var balances = ids.Length == 0 ? [] : await db.InventoryBalances.AsNoTracking().Where(b => ids.Contains(b.ProductId) && b.Location.OperationalRole != LocationOperationalRole.Wip).GroupBy(b => b.ProductId).Select(g => new { ProductId = g.Key, Quantity = g.Sum(b => b.Quantity), Locations = g.Where(b => b.Quantity != 0).Select(b => b.LocationId).Distinct().Count(), Negative = g.Any(b => b.Quantity < 0) }).ToListAsync(token);
         var totals = balances.ToDictionary(b => b.ProductId);
         var all = baseRows.Select(p => { var balance = totals.GetValueOrDefault(p.Id); var quantity = balance?.Quantity ?? 0m; return new ProductCatalogRow(p.Id, p.Sku, p.Description, p.Reference, p.Unit, p.Type, p.Class, quantity, p.MinimumStock, balance?.Locations ?? 0, p.IsActive, balance?.Negative ?? false, quantity < p.MinimumStock, p.HasAssignment); }).ToArray();
         var active = all.Where(p => p.IsActive).ToArray();
@@ -56,13 +57,13 @@ public sealed class ProductCatalogQueryService(WarehouseDbContext db, WarehouseS
     {
         var product = await db.Products.AsNoTracking().Where(p => p.Id == id).Select(p => new { p.Id, p.Sku, p.Description, Reference = p.ExternalReference, Unit = p.BaseUnit.Code, Type = p.ProductType == null ? null : p.ProductType.Code, Class = p.ProductClass == null ? null : p.ProductClass.Code, p.IsActive, p.MinimumStock }).SingleOrDefaultAsync(token);
         if (product is null) return null;
-        var assignments = await db.ProductLocationAssignments.AsNoTracking().Where(a => a.ProductId == id && a.IsActive).Select(a => new { a.LocationId, a.Location.Code, a.Location.Description, a.Location.IsActive, a.Location.IsBlocked }).ToListAsync(token);
-        var balances = await db.InventoryBalances.AsNoTracking().Where(b => b.ProductId == id).GroupBy(b => new { b.LocationId, b.Location.Code, b.Location.Description, b.Location.IsActive, b.Location.IsBlocked }).Select(g => new { g.Key.LocationId, g.Key.Code, g.Key.Description, g.Key.IsActive, g.Key.IsBlocked, Quantity = g.Sum(b => b.Quantity) }).ToListAsync(token);
+        var assignments = await db.ProductLocationAssignments.AsNoTracking().Where(a => a.ProductId == id && a.IsActive && a.Location.OperationalRole != LocationOperationalRole.Wip).Select(a => new { a.LocationId, a.Location.Code, a.Location.Description, a.Location.IsActive, a.Location.IsBlocked }).ToListAsync(token);
+        var balances = await db.InventoryBalances.AsNoTracking().Where(b => b.ProductId == id && b.Location.OperationalRole != LocationOperationalRole.Wip).GroupBy(b => new { b.LocationId, b.Location.Code, b.Location.Description, b.Location.IsActive, b.Location.IsBlocked }).Select(g => new { g.Key.LocationId, g.Key.Code, g.Key.Description, g.Key.IsActive, g.Key.IsBlocked, Quantity = g.Sum(b => b.Quantity) }).ToListAsync(token);
         var assigned = assignments.ToDictionary(a => a.LocationId);
         var locations = balances.Where(b => b.Quantity != 0).Select(b => new ProductCatalogLocation(b.LocationId, b.Code, b.Description, b.Quantity, assigned.ContainsKey(b.LocationId), b.IsActive, b.IsBlocked)).Concat(assignments.Where(a => !balances.Any(b => b.LocationId == a.LocationId && b.Quantity != 0)).Select(a => new ProductCatalogLocation(a.LocationId, a.Code, a.Description, 0m, true, a.IsActive, a.IsBlocked))).OrderBy(l => l.Code, StringComparer.Ordinal).ToArray();
         var lots = await db.ProductLots.AsNoTracking().Where(l => l.ProductId == id).Select(l => new { l.Id, l.Number, l.LotDate }).ToListAsync(token);
         var lotIds = lots.Select(l => l.Id).ToArray();
-        var lotTotals = lotIds.Length == 0 ? [] : await db.InventoryBalances.AsNoTracking().Where(b => b.LotId != null && lotIds.Contains(b.LotId.Value)).GroupBy(b => b.LotId!.Value).Select(g => new { Id = g.Key, Quantity = g.Sum(b => b.Quantity) }).ToListAsync(token);
+        var lotTotals = lotIds.Length == 0 ? [] : await db.InventoryBalances.AsNoTracking().Where(b => b.LotId != null && lotIds.Contains(b.LotId.Value) && b.Location.OperationalRole != LocationOperationalRole.Wip).GroupBy(b => b.LotId!.Value).Select(g => new { Id = g.Key, Quantity = g.Sum(b => b.Quantity) }).ToListAsync(token);
         var quantities = lotTotals.ToDictionary(l => l.Id, l => l.Quantity);
         var lotRows = lots.Select(l => new ProductCatalogLot(l.Id, l.Number, l.LotDate, quantities.GetValueOrDefault(l.Id))).OrderByDescending(l => l.Date).ThenBy(l => l.Number).ToArray();
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await settings.GetAsync(token)).TimeZoneId);

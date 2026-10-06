@@ -13,11 +13,11 @@ namespace WarehouseEPI.Web.Pages.Operations;
 
 public sealed class WipProcessModel(
     WarehouseDbContext dbContext,
-    InventoryMovementService movementService,
+    WipDocumentService documents,
     OperationalInventoryQueryService operationalQuery,
-    InventoryQueryService inventoryQuery,
     ProductionMaterialService productionMaterials, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
+    [TempData] public string? Message { get; set; }
     [BindProperty] public InputModel Input { get; set; } = new();
     public IReadOnlyList<WipOption> WipLocations { get; private set; } = [];
     public IReadOnlyList<SharedLocationConflict> SharingConflicts { get; private set; } = [];
@@ -27,13 +27,15 @@ public sealed class WipProcessModel(
     public InventoryBalanceSnapshot? SourceBalance { get; private set; }
     public ProductionMaterialAvailability? Availability { get; private set; }
 
-    public async Task OnGetAsync(string? action, string? wipCode, string? productCode, CancellationToken cancellationToken)
+    public async Task OnGetAsync(string? action, string? wipCode, string? productCode, CancellationToken cancellationToken, Guid? documentId = null)
     {
         Input.OperationId = Guid.NewGuid();
+        Input.DocumentId = documentId;
         Input.Action = action?.ToLowerInvariant() switch
         {
             "return" => WipProcessAction.WarehouseReturn,
             "supplier" => WipProcessAction.SupplierReturn,
+            "scrap" => WipProcessAction.Scrap,
             _ => WipProcessAction.Consumption
         };
         Input.WipCode = wipCode?.Trim() ?? string.Empty;
@@ -53,33 +55,22 @@ public sealed class WipProcessModel(
             return Page();
         }
 
-        var type = Input.Action == WipProcessAction.WarehouseReturn
-            ? InventoryMovementType.Transfer
-            : InventoryMovementType.Exit;
-        var purpose = Input.Action switch
+        var kind = Input.Action switch
         {
-            WipProcessAction.Consumption => InventoryMovementPurpose.WipConsumption,
-            WipProcessAction.WarehouseReturn => InventoryMovementPurpose.WipWarehouseReturn,
-            WipProcessAction.SupplierReturn => InventoryMovementPurpose.WipSupplierReturn,
-            _ => InventoryMovementPurpose.WipConsumption
+            WipProcessAction.WarehouseReturn => WipDocumentApplicationKind.WarehouseReturn,
+            WipProcessAction.SupplierReturn => WipDocumentApplicationKind.SupplierReturn,
+            WipProcessAction.Scrap => WipDocumentApplicationKind.Scrap,
+            _ => WipDocumentApplicationKind.Consumption
         };
-        var line = type == InventoryMovementType.Transfer
-            ? new InventoryMovementLineCommand(Product!.Id, Input.Quantity, Source!.Id, Destination!.Id)
-            : new InventoryMovementLineCommand(Product!.Id, Input.Quantity, SourceLocationId: Source!.Id);
-        var result = await movementService.ConfirmAsync(new(
-            Input.OperationId,
-            type,
-            pin,
-            [line with { AutomaticPalletHandling = true }],
-            Input.Reference,
-            Input.Notes,
-            Input.ApprovedSharedLocationIds.Distinct()
-                .Select(id => new SharedAssignmentApproval(Product.Id, id)).ToArray(),
-            purpose,
-            Source.Id), cancellationToken);
-
-        if (result.Status == InventoryMovementStatus.Success && result.MovementId is Guid movementId)
-            return RedirectToPage("/Operations/Receipt", new { id = movementId });
+        var result = await documents.ConfirmAsync(new(Input.OperationId, Product!.Id, Source!.Id,
+            Input.Quantity, kind, pin, Destination?.Id, DocumentId: Input.DocumentId, Reference: Input.Reference, Notes: Input.Notes,
+            ApproveSharedDestination: Destination is not null && Input.ApprovedSharedLocationIds.Contains(Destination.Id)), cancellationToken);
+        if (result.Status == InventoryMovementStatus.Success)
+        {
+            if (result.MovementId is Guid movementId) return RedirectToPage("/Operations/Receipt", new { id = movementId });
+            Message = "Operación documental registrada. Las existencias del almacén no cambiaron.";
+            return RedirectToPage(new { wipCode = Source.Code, productCode = Product.Sku, documentId = Input.DocumentId });
+        }
 
         if (result.Status == InventoryMovementStatus.InvalidPin)
             ModelState.AddModelError(string.Empty, texts["No fue posible validar el NIP o el usuario."]);
@@ -104,13 +95,14 @@ public sealed class WipProcessModel(
             : null;
         if (Product is not null && Source is not null)
         {
-            SourceBalance = await inventoryQuery.GetBalanceAsync(Product.Id, Source.Id, cancellationToken);
             Availability = await productionMaterials.GetAvailabilityAsync(Product.Id, Source.Id, cancellationToken);
         }
     }
 
     private void ValidateResolved()
     {
+        if (!Enum.IsDefined(Input.Action))
+            ModelState.AddModelError("Input.Action", texts["La operación no es válida."]);
         if (Input.OperationId == Guid.Empty)
             ModelState.AddModelError(string.Empty, texts["La operación no es válida."]);
         if (Product is null)
@@ -142,6 +134,7 @@ public sealed class WipProcessModel(
     public sealed class InputModel
     {
         public Guid OperationId { get; set; }
+        public Guid? DocumentId { get; set; }
         public WipProcessAction Action { get; set; }
         [Required, StringLength(100)] public string WipCode { get; set; } = string.Empty;
         [Required, StringLength(160)] public string ProductCode { get; set; } = string.Empty;
@@ -160,5 +153,6 @@ public enum WipProcessAction
 {
     Consumption,
     WarehouseReturn,
-    SupplierReturn
+    SupplierReturn,
+    Scrap
 }

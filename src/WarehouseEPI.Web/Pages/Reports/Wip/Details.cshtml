@@ -21,7 +21,7 @@
         <div class="col"><div class="card card-body"><span>@CatTexts["Enviado"]</span><strong>@Model.Issue.Issued.ToString("0.####") @Model.Issue.Unit</strong></div></div>
         <div class="col"><div class="card card-body"><span>@CatTexts["Devuelto a bodega"]</span><strong>@Model.Issue.WarehouseReturned.ToString("0.####") @Model.Issue.Unit</strong></div></div>
         <div class="col"><div class="card card-body"><span>@CatTexts["Devuelto a proveedor"]</span><strong>@Model.Issue.SupplierReturned.ToString("0.####") @Model.Issue.Unit</strong></div></div>
-        <div class="col"><div class="card card-body border-warning"><span>@CatTexts["Consumo asumido"]</span><strong>@Model.Issue.AssumedConsumed.ToString("0.####") @Model.Issue.Unit</strong></div></div>
+        <div class="col"><div class="card card-body border-warning"><span>@CatTexts["Enviado sin devolución histórica"]</span><strong>@Model.Issue.AssumedConsumed.ToString("0.####") @Model.Issue.Unit</strong></div></div>
     </div>
 
     <h2 class="h4">@CatTexts["Devoluciones y compensaciones"]</h2>

@@ -194,7 +194,8 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         Assert.Equal(HttpStatusCode.OK, query.StatusCode);
         Assert.Contains(seed.Sku, queryBody);
         Assert.Contains(seed.LocationCode, queryBody);
-        Assert.Contains(seed.SecondLocationCode!, queryBody);
+        // A zero balance without an assignment is no longer an inventory position.
+        Assert.DoesNotContain(seed.SecondLocationCode!, queryBody);
     }
 
     [Fact]
@@ -349,7 +350,7 @@ public sealed class OperationalRouteTests : IClassFixture<AdminRouteTests.Wareho
         }
 
         using var client = CreateClient();
-        var publicHtml = await client.GetStringAsync($"/Inventory?productId={seed.ProductId}");
+        var publicHtml = WebUtility.HtmlDecode(await client.GetStringAsync($"/Inventory?productId={seed.ProductId}"));
         Assert.Contains("Asignado · saldo cero", publicHtml, StringComparison.Ordinal);
         Assert.Contains("Saldo sin asignación", publicHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("/Admin/Catalogs/Products/Details", publicHtml, StringComparison.Ordinal);

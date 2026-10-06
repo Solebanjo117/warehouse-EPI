@@ -1,21 +1,20 @@
 @inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @model WarehouseEPI.Web.Pages.Reports.Wip.IndexModel
-
-<section class="mb-5" aria-labelledby="wip-current-title">
-    <h2 class="h4" id="wip-current-title">@CatTexts["Inventario actual"]</h2>
-    <div class="table-responsive mb-4"><table class="table table-striped align-middle report-cards"><thead><tr><th>WIP</th><th>@CatTexts["Producto"]</th><th class="text-end">@CatTexts["Existencia"]</th><th>@CatTexts["Lote positivo más antiguo"]</th><th>@CatTexts["Actualizado"]</th></tr></thead><tbody>
-        @if (Model.TrackedReport.Inventory.Count == 0) { <tr class="report-empty-row"><td colspan="5" class="analytics-empty">@CatTexts["No hay existencias WIP con los filtros seleccionados."]</td></tr> }
-        @foreach (var row in Model.TrackedReport.Inventory) { <tr><td data-label="WIP"><span class="badge text-bg-warning">@row.WipArea</span></td><td data-label="@CatTexts["Producto"]"><strong>@row.ProductSku</strong><div class="small text-muted">@row.ProductDescription</div></td><td data-label="@CatTexts["Existencia"]" class="text-end fw-bold @(row.Quantity < 0 ? "text-danger" : null)">@row.Quantity.ToString("0.####") @row.Unit</td><td data-label="@CatTexts["Lote más antiguo"]">@(row.OldestPositiveLotDate?.ToString("dd/MM/yyyy") ?? "—")</td><td data-label="@CatTexts["Actualizado"]">@row.UpdatedAt.ToString("dd/MM/yyyy HH:mm")</td></tr> }
-    </tbody></table></div>
-
-    <h2 class="h4">@CatTexts["Actividad efectiva del periodo"]</h2>
-    <div class="table-responsive"><table class="table align-middle report-cards"><thead><tr><th>@CatTexts["Fecha / folio"]</th><th>WIP</th><th>@CatTexts["Producto"]</th><th>@CatTexts["Clasificación"]</th><th>@CatTexts["Trayecto"]</th><th class="text-end">@CatTexts["Cambio"]</th></tr></thead><tbody>
-        @if (Model.TrackedReport.Activity.Count == 0) { <tr class="report-empty-row"><td colspan="6" class="analytics-empty">@CatTexts["No hay cambios efectivos WIP dentro del periodo."]</td></tr> }
-        @foreach (var row in Model.TrackedReport.Activity) { <tr><td data-label="@CatTexts["Fecha / folio"]">@row.OccurredAt.ToString("dd/MM/yyyy HH:mm")<div class="small text-muted"><a asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@row.MovementId">@row.MovementId.ToString()[..8]…</a></div></td><td data-label="WIP"><span class="badge text-bg-warning">@row.WipArea</span></td><td data-label="@CatTexts["Producto"]"><strong>@row.ProductSku</strong><div class="small text-muted">@row.Responsible @row.Reference</div></td><td data-label="@CatTexts["Clasificación"]">@row.Category</td><td data-label="@CatTexts["Trayecto"]">@(row.SourceLocation ?? CatTexts["Exterior"].Value) → @(row.DestinationLocation ?? CatTexts["Exterior"].Value)</td><td data-label="@CatTexts["Cambio"]" class="text-end fw-bold @(row.Delta < 0 ? "text-danger" : "text-success")">@row.Delta.ToString("+0.####;-0.####;0") @row.Unit</td></tr> }
-    </tbody></table></div>
-</section>
-
-<section class="alert alert-secondary" aria-labelledby="wip-legacy-title">
-    <h2 class="h5" id="wip-legacy-title">@CatTexts["Modelo anterior al control de saldo"]</h2>
-    <p class="mb-0">@CatTexts["Los resúmenes y surtimientos mostrados después de los filtros conservan el consumo asumido sólo como estimación legado. No se incorporan al saldo ni al consumo registrado actual."]</p>
+<section class="mb-4" aria-labelledby="wip-current-title">
+    <h2 class="h4" id="wip-current-title">@CatTexts["Entregas y pendiente documental"]</h2>
+    <p>@CatTexts["El pendiente documental no representa existencias físicas ni material disponible en almacén."]</p>
+    <div class="table-responsive"><table class="table align-middle report-cards">
+        <thead><tr><th scope="col">@CatTexts["Fecha / folio"]</th><th scope="col">WIP</th><th scope="col">@CatTexts["Producto"]</th><th scope="col">@CatTexts["Cantidad documentada"]</th><th scope="col">@CatTexts["Uso registrado"]</th><th scope="col">@CatTexts["Merma"]</th><th scope="col">@CatTexts["A bodega"]</th><th scope="col">@CatTexts["A proveedor"]</th><th scope="col">@CatTexts["Pendiente documental"]</th></tr></thead>
+        <tbody>
+        @if(Model.TrackedReport.Inventory.Count == 0){<tr class="report-empty-row"><td colspan="9">@CatTexts["No hay entregas documentales con los filtros seleccionados."]</td></tr>}
+        @foreach(var row in Model.TrackedReport.Inventory)
+        {
+            <tr>
+                <td data-label="@CatTexts["Fecha / folio"]">@row.UpdatedAt.ToString("dd/MM/yyyy HH:mm")<div><a asp-page="Document" asp-route-id="@row.DocumentId">@row.DocumentId.ToString()[..8]</a></div>@if(row.IsOpening){<span class="badge text-bg-secondary">@CatTexts["Apertura del corte"]</span>}</td>
+                <td data-label="WIP">@row.WipArea</td><td data-label="@CatTexts["Producto"]"><strong>@row.ProductSku</strong><div>@row.Unit · @row.Responsible</div></td>
+                <td data-label="@CatTexts["Cantidad documentada"]">@row.Delivered.ToString("0.####")</td><td data-label="@CatTexts["Uso registrado"]">@row.Used.ToString("0.####")</td><td data-label="@CatTexts["Merma"]">@row.Scrapped.ToString("0.####")</td><td data-label="@CatTexts["A bodega"]">@row.WarehouseReturned.ToString("0.####")</td><td data-label="@CatTexts["A proveedor"]">@row.SupplierReturned.ToString("0.####")</td><td data-label="@CatTexts["Pendiente documental"]"><strong>@row.Quantity.ToString("0.####")</strong></td>
+            </tr>
+        }
+        </tbody>
+    </table></div>
 </section>

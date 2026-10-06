@@ -13,6 +13,8 @@ public sealed class DetailsModel(WipReportService reportService, WarehouseDbCont
     public IReadOnlyList<DispositionRow> Dispositions { get; private set; } = [];
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken token)
     {
+        var documentId = await dbContext.WipDocuments.Where(x => x.MovementLineId == id).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(token);
+        if (documentId.HasValue) return RedirectToPage("Document", new { id = documentId.Value });
         var issue = await reportService.GetIssueAsync(id, token);
         if (issue is null) return NotFound();
         Issue = issue;

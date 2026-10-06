@@ -1,0 +1,21 @@
+@page
+@model WarehouseEPI.Web.Pages.Reports.Wip.DocumentModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> T
+@{ ViewData["Title"] = T["Entrega documental WIP"].Value; }
+<div class="container py-4">
+    <a asp-page="Index" asp-route-wipAreaId="@Model.Document.WipLocationId">@T["Volver a WIP"]</a>
+    <h1 class="h2 mt-3">@Model.Document.Product.Sku · @Model.Document.WipLocation.Code</h1>
+    <p>@Model.Date.ToString("dd/MM/yyyy HH:mm") · @Model.Document.ResponsibleUser.FullName</p>
+    <p class="badge text-bg-light border">@T["WIP · Sin control de existencias"]</p>
+    @if(Model.Document.IsOpening){<p>@T["Apertura del corte"]</p>}
+    @if(Model.Document.IsCancelled){<p class="alert alert-warning">@T["Entrega cancelada"]</p>}
+    <dl><dt>@T["Cantidad documentada"]</dt><dd>@Model.Document.Quantity.ToString("0.####") @Model.Document.Product.BaseUnit.Code</dd><dt>@T["Pendiente documental"]</dt><dd>@Model.Pending.ToString("0.####") @Model.Document.Product.BaseUnit.Code</dd></dl>
+    @if(Model.Document.MovementLineId is Guid lineId){<a asp-page="/Operations/Receipt" asp-route-id="@Model.Document.MovementLine!.MovementId">@T["Movimiento de origen"]</a>}
+    <ul>@foreach(var lot in Model.Document.Lots){<li>@(lot.Lot?.Number ?? T["Sin lote identificado"].Value): @lot.Quantity.ToString("0.####") @Model.Document.Product.BaseUnit.Code</li>}</ul>
+    @if(!Model.Document.IsCancelled && Model.Pending > 0){<a class="btn btn-primary btn-lg mb-3" asp-page="/Operations/WipProcess" asp-route-documentId="@Model.Document.Id" asp-route-wipCode="@Model.Document.WipLocation.Code" asp-route-productCode="@Model.Document.Product.Sku">@T["Procesar WIP"]</a>}
+    <h2 class="h4">@T["Aplicaciones documentales"]</h2>
+    <div class="table-responsive"><table class="table"><thead><tr><th scope="col">@T["Fecha"]</th><th scope="col">@T["Acción"]</th><th scope="col">@T["Cantidad"]</th><th scope="col">@T["Referencia"]</th></tr></thead><tbody>
+        @foreach(var row in Model.Applications){<tr><td>@row.Date.ToString("dd/MM/yyyy HH:mm")</td><td>@T[row.Kind.ToString()] @if(row.Reversed){<span class="badge text-bg-secondary">@T["Revertida"]</span>}</td><td>@row.Quantity.ToString("0.####")</td><td>@row.Reference <div>@row.Notes</div>@if(User.IsInRole("ADMIN") && !row.LinkedToOrder && !row.Reversed && row.Kind != WarehouseEPI.Core.Entities.WipDocumentApplicationKind.Reversal){<a class="btn btn-outline-warning btn-sm" asp-page="/Admin/Inventory/WipDocuments/Reverse" asp-route-id="@row.OperationId">@T["Revertir aplicación documental"]</a>}</td></tr>}
+    </tbody></table></div>
+    <nav aria-label="@T["Paginación WIP"]">@if(Model.PageNumber > 1){<a class="btn btn-outline-secondary" asp-route-id="@Model.Document.Id" asp-route-pageNumber="@(Model.PageNumber - 1)">@T["Anterior"]</a>} @if(Model.PageNumber < Model.TotalPages){<a class="btn btn-outline-secondary" asp-route-id="@Model.Document.Id" asp-route-pageNumber="@(Model.PageNumber + 1)">@T["Siguiente"]</a>}</nav>
+</div>

@@ -99,13 +99,17 @@ public sealed class ProductionBlockAPostTests
         var rejected = await client.PostAsync(page + "&handler=Material", new FormUrlEncodedContent(forbiddenConsumption));
         Assert.Contains("Registra el consumo junto", await rejected.Content.ReadAsStringAsync());
         Assert.Empty(await db.ProductionMaterialOperations.ToListAsync());
-        var destination=new Location {Code="BLOCK-A-DEST",Kind=LocationKind.Area};
-        db.Locations.Add(destination);db.ProductLocationAssignments.Add(new(){ProductId=material.Id,Location=destination});await db.SaveChangesAsync();
-        html=await client.GetStringAsync(page);
-        var receipt=new Dictionary<string,string>{["__RequestVerificationToken"]=Token(html),["Warehouse.OperationId"]=Guid.NewGuid().ToString(),["Warehouse.BatchId"]=batch.Id.Value.ToString(),["Warehouse.FinalStageId"]=order.Stages.Single().Id.ToString(),["Warehouse.Quantity"]="1",["Warehouse.DestinationLocationId"]=destination.Id.ToString(),["Warehouse.Pin"]="6724",["Warehouse.ExpectedVersion"]=(await db.ProductionWorkOrders.SingleAsync(x=>x.Id==order.Id)).Version.ToString()};
-        var review=await client.PostAsync(page+"&handler=Warehouse",new FormUrlEncodedContent(receipt));
-        var reviewHtml=await review.Content.ReadAsStringAsync();
-        Assert.Contains("Revisar ubicación compartida",WebUtility.HtmlDecode(reviewHtml));
+        var destination = new Location { Code = "BLOCK-A-DEST", Kind = LocationKind.Area };
+        db.Locations.Add(destination);
+        db.ProductLocationAssignments.Add(new() { ProductId = material.Id, Location = destination });
+        // Sharing requires physical stock; an empty assignment does not occupy a location.
+        db.InventoryBalances.Add(new() { ProductId = material.Id, Location = destination, Quantity = 1 });
+        await db.SaveChangesAsync();
+        html = await client.GetStringAsync(page);
+        var receipt = new Dictionary<string, string> { ["__RequestVerificationToken"] = Token(html), ["Warehouse.OperationId"] = Guid.NewGuid().ToString(), ["Warehouse.BatchId"] = batch.Id.Value.ToString(), ["Warehouse.FinalStageId"] = order.Stages.Single().Id.ToString(), ["Warehouse.Quantity"] = "1", ["Warehouse.DestinationLocationId"] = destination.Id.ToString(), ["Warehouse.Pin"] = "6724", ["Warehouse.ExpectedVersion"] = (await db.ProductionWorkOrders.SingleAsync(x => x.Id == order.Id)).Version.ToString() };
+        var review = await client.PostAsync(page + "&handler=Warehouse", new FormUrlEncodedContent(receipt));
+        var reviewHtml = await review.Content.ReadAsStringAsync();
+        Assert.Contains("Revisar ubicación compartida", WebUtility.HtmlDecode(reviewHtml));
         Assert.Empty(await db.InventoryMovements.ToListAsync());
         receipt["__RequestVerificationToken"] = Token(reviewHtml); receipt["Warehouse.Approvals[0].Selected"] = "true"; receipt["Warehouse.Approvals[0].ProductId"] = product.Id.ToString(); receipt["Warehouse.Approvals[0].LocationId"] = destination.Id.ToString();
         await client.PostAsync(page + "&handler=Warehouse", new FormUrlEncodedContent(receipt));

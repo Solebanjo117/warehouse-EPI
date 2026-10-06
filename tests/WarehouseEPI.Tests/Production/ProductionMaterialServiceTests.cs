@@ -141,7 +141,7 @@ public sealed partial class ProductionMaterialServiceTests
         Assert.Equal(6, row.Issued);
         Assert.Equal(4, row.Consumed);
         Assert.Equal(2, row.Pending);
-        Assert.Equal(2, await fixture.Db.InventoryBalances
+        Assert.Equal(0, await fixture.Db.InventoryBalances
             .Where(x => x.ProductId == fixture.Material.Id && x.LocationId == fixture.Wip.Id)
             .SumAsync(x => x.Quantity));
     }
@@ -166,14 +166,12 @@ public sealed partial class ProductionMaterialServiceTests
         await using var fixture = await Fixture.CreateAsync();
         await fixture.IssueAsync(6);
 
-        var result = await fixture.Movements.ConfirmAsync(new InventoryMovementCommand(
-            Guid.NewGuid(), InventoryMovementType.Exit, fixture.OperatorPin,
-            [new InventoryMovementLineCommand(fixture.Material.Id, 1, SourceLocationId: fixture.Wip.Id)],
-            Purpose: InventoryMovementPurpose.WipConsumption, OperationalAreaId: fixture.Wip.Id));
+        var result = await new WipDocumentService(fixture.Db, fixture.Pins, TimeProvider.System).ConfirmAsync(new(
+            Guid.NewGuid(), fixture.Material.Id, fixture.Wip.Id, 1, WipDocumentApplicationKind.Consumption, fixture.OperatorPin));
 
         Assert.Equal(InventoryMovementStatus.ValidationFailed, result.Status);
-        Assert.Contains(result.ValidationErrors, x => x.Contains("reservado", StringComparison.OrdinalIgnoreCase));
-        Assert.Equal(6, await fixture.Db.InventoryBalances
+        Assert.Contains(result.ValidationErrors, x => x.Contains("órdenes", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(0, await fixture.Db.InventoryBalances
             .Where(x => x.ProductId == fixture.Material.Id && x.LocationId == fixture.Wip.Id)
             .SumAsync(x => x.Quantity));
     }
@@ -196,7 +194,7 @@ public sealed partial class ProductionMaterialServiceTests
         Assert.Equal(ProductionMaterialStatus.Success, reversed.Status);
         Assert.Equal(versionAfterConsumption + 1, fixture.Order.Version);
         Assert.Equal(5, Assert.Single(await fixture.Materials.GetIssuesAsync(fixture.Order.Id)).Pending);
-        Assert.Equal(5, await fixture.Db.InventoryBalances
+        Assert.Equal(0, await fixture.Db.InventoryBalances
             .Where(x => x.ProductId == fixture.Material.Id && x.LocationId == fixture.Wip.Id)
             .SumAsync(x => x.Quantity));
     }
@@ -223,8 +221,8 @@ public sealed partial class ProductionMaterialServiceTests
         var link = await fixture.Db.ProductionMaterialIssueLinks.SingleAsync();
         var consumed = await fixture.Materials.ApplyAsync(new ProductionMaterialCommand(Guid.NewGuid(),
             fixture.Order.Id, fixture.OrderStage.Id, fixture.Order.Version,
-            ProductionMaterialOperationType.Consumption,
-            [new ProductionMaterialSelection(link.Id, 1)], fixture.OperatorPin));
+            ProductionMaterialOperationType.WarehouseReturn,
+            [new ProductionMaterialSelection(link.Id, 1)], fixture.OperatorPin, DestinationLocationId: fixture.Source.Id));
         var corrections = new InventoryCorrectionService(fixture.Db, fixture.Pins, fixture.Movements,
             TimeProvider.System);
 

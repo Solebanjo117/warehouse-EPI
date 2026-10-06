@@ -76,7 +76,7 @@ public sealed class CycleCountService(
             });
 
         var pendingKeys = dbContext.CycleCountPlans.AsNoTracking()
-            .Where(item => item.IsActive &&
+            .Where(item => item.IsActive && item.Location.OperationalRole != LocationOperationalRole.Wip &&
                 (filter.Overdue ? item.NextDueDate < filter.Today : item.NextDueDate >= filter.From && item.NextDueDate <= filter.To) &&
                 !item.Dispatches.Any(dispatch => OpenCampaignStatuses.Contains(dispatch.CycleCountLocation.Campaign.Status)))
             .Select(item => new

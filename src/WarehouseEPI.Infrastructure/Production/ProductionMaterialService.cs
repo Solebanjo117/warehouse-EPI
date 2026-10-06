@@ -39,9 +39,9 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
     public async Task<ProductionMaterialAvailability> GetAvailabilityAsync(Guid productId, Guid locationId,
         CancellationToken token = default)
     {
-        var total = await db.InventoryBalances.AsNoTracking()
-            .Where(x => x.ProductId == productId && x.LocationId == locationId)
-            .SumAsync(x => x.Quantity, token);
+        var documents = await new WipDocumentService(db, pins, timeProvider).Documents.AsNoTracking()
+            .Where(x => x.ProductId == productId && x.WipLocationId == locationId).ToListAsync(token);
+        var total = documents.Sum(WipDocumentService.Remaining);
         var reversed = await db.ProductionMaterialOperations.AsNoTracking()
             .Where(x => x.ReversesOperationId != null).Select(x => x.ReversesOperationId!.Value).ToListAsync(token);
         var links = await db.ProductionMaterialIssueLinks.AsNoTracking()
@@ -88,7 +88,7 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
         uint? expectedSupplyVersion = null, CancellationToken token = default)
     {
         if (command.Purpose != InventoryMovementPurpose.ProductionIssue || command.Lines.Count != 1 ||
-            command.Lines[0].DestinationLocationId is not Guid destinationId)
+            command.OperationalAreaId is not Guid destinationId)
             return InvalidMovement("El surtimiento vinculado no es válido.");
         var priorMovement = await db.InventoryMovements.AsNoTracking()
             .Include(x => x.Lines).ThenInclude(x => x.MaterialIssueLink)
@@ -150,16 +150,23 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
             var existing = await db.ProductionMaterialIssueLinks.SingleOrDefaultAsync(x => x.InventoryMovementLineId == line.Id, token);
             if (existing is null)
             {
-                db.ProductionMaterialIssueLinks.Add(new ProductionMaterialIssueLink
+                var issue = new ProductionMaterialIssueLink
                 {
-                    WorkOrderId = workOrderId, WorkOrderStageId = stageId,
-                    InventoryMovementLineId = line.Id, SupplyRequestLineId = supplyLine?.Id,
-                    ProductId = line.ProductId, WipLocationId = destinationId, Quantity = line.Quantity,
-                    Source = ProductionMaterialSupplySource.Transfer, CreatedAt = timeProvider.GetUtcNow(),
-                    PlateAllocationsJson = await ProductionPlateAllocation.ReceivedAsync(db, line.Id, destinationId, token),
-                    Lots = line.BalanceChanges.Where(x => x.LocationId == destinationId && x.DeltaQuantity > 0 && x.LotId.HasValue)
-                        .Select(x => new ProductionMaterialIssueLot { LotId = x.LotId!.Value, Quantity = x.DeltaQuantity }).ToList()
-                });
+                    WorkOrderId = workOrderId,
+                    WorkOrderStageId = stageId,
+                    InventoryMovementLineId = line.Id,
+                    SupplyRequestLineId = supplyLine?.Id,
+                    ProductId = line.ProductId,
+                    WipLocationId = destinationId,
+                    Quantity = line.Quantity,
+                    Source = ProductionMaterialSupplySource.Transfer,
+                    CreatedAt = timeProvider.GetUtcNow(),
+                    PlateAllocationsJson = "[]",
+                    Lots = line.BalanceChanges.Where(x => x.DeltaQuantity < 0 && x.LotId.HasValue)
+                        .Select(x => new ProductionMaterialIssueLot { LotId = x.LotId!.Value, Quantity = -x.DeltaQuantity }).ToList()
+                };
+                db.ProductionMaterialIssueLinks.Add(issue);
+                await new WipDocumentService(db, pins, timeProvider).AssignAsync(issue, token);
                 if (supplyLine is not null && result.ResponsibleUserId is Guid userId)
                 {
                     var user = await db.Users.SingleAsync(x => x.Id == userId, token);
@@ -304,42 +311,29 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                 RecordedAt = timeProvider.GetUtcNow()
             };
             var movementIds = new List<Guid>();
-            foreach (var group in links.OrderBy(x => x.WipLocationId).ThenBy(x => x.ProductId).ThenBy(x => x.Id)
-                         .GroupBy(x => x.WipLocationId))
+            foreach (var link in links.OrderBy(x => x.WipLocationId).ThenBy(x => x.Id))
             {
-                var movementType = command.Type == ProductionMaterialOperationType.WarehouseReturn
-                    ? InventoryMovementType.Transfer : InventoryMovementType.Exit;
-                var purpose = command.Type is ProductionMaterialOperationType.Consumption or ProductionMaterialOperationType.Scrap ? InventoryMovementPurpose.WipConsumption :
-                    command.Type == ProductionMaterialOperationType.WarehouseReturn ? InventoryMovementPurpose.WipWarehouseReturn : InventoryMovementPurpose.WipSupplierReturn;
-                var plateSelections = new Dictionary<Guid, IReadOnlyList<PalletSelection>>();
-                foreach (var link in group)
+                var kind = command.Type switch
                 {
-                    var selected = command.Lines.Single(x => x.IssueLinkId == link.Id).Plates;
-                    plateSelections[link.Id] = selected is { Count: > 0 } ? selected : await ProductionPlateAllocation.SelectAsync(db, link, requested[link.Id], token);
-                }
-                var movementCommand = new InventoryMovementCommand(Derive(command.OperationId, group.Key), movementType, command.Pin,
-                    group.Select(link => new InventoryMovementLineCommand(link.ProductId,
-                        requested[link.Id], SourceLocationId: group.Key,
-                        DestinationLocationId: command.Type == ProductionMaterialOperationType.WarehouseReturn ? command.DestinationLocationId : null,
-                        Lots: plateSelections[link.Id].Count > 0 ? null : AllocateLots(link, requested[link.Id], reversed), Plates: plateSelections[link.Id], MaterialIssueLinkId: link.Id,
-                        AutomaticPalletHandling: true)).ToArray(),
-                    command.Reference, command.Notes,
-                    command.ApproveSharedDestination && command.DestinationLocationId is Guid destinationId
-                        ? group.Select(link => new SharedAssignmentApproval(link.ProductId, destinationId)).ToArray()
-                        : [],
-                    Purpose: purpose, OperationalAreaId: group.Key);
-                var movementResult = dailyCapture ? await movements.ConfirmDailyConsumptionAsync(movementCommand, user, token)
-                    : await movements.ConfirmAuthorizedAsync(movementCommand, user, allowReservedWip: true, cancellationToken: token);
-                if (movementResult.Status != InventoryMovementStatus.Success || movementResult.MovementId is not Guid movementId)
-                    return await Abort(transaction, Invalid(movementResult.ValidationErrors.FirstOrDefault() ?? "No fue posible mover el material WIP."), token);
-                movementIds.Add(movementId);
-                var movementLines = await db.InventoryMovementLines.Where(x => x.MovementId == movementId).OrderBy(x => x.LineNumber).ToListAsync(token);
-                foreach (var pair in group.Zip(movementLines))
+                    ProductionMaterialOperationType.Consumption => WipDocumentApplicationKind.Consumption,
+                    ProductionMaterialOperationType.Scrap => WipDocumentApplicationKind.Scrap,
+                    ProductionMaterialOperationType.WarehouseReturn => WipDocumentApplicationKind.WarehouseReturn,
+                    _ => WipDocumentApplicationKind.SupplierReturn
+                };
+                var applications = await new WipDocumentService(db, pins, timeProvider).ApplyAuthorizedAsync(new(
+                    Derive(command.OperationId, link.Id), link.ProductId, link.WipLocationId, requested[link.Id], kind, "",
+                    command.DestinationLocationId, IssueLinkId: link.Id, Reference: command.Reference, Notes: command.Notes,
+                    ApproveSharedDestination: command.ApproveSharedDestination), user, token);
+                foreach (var application in applications)
+                {
+                    if (application.InventoryMovementLine is { } inventoryLine) movementIds.Add(inventoryLine.MovementId);
                     operation.Lines.Add(new ProductionMaterialOperationLine
                     {
-                        IssueLinkId = pair.First.Id, InventoryMovementLineId = pair.Second.Id,
-                        Quantity = requested[pair.First.Id]
+                        IssueLinkId = link.Id,
+                        InventoryMovementLineId = application.InventoryMovementLine?.Id,
+                        Quantity = application.Quantity
                     });
+                }
             }
             if (command.Type == ProductionMaterialOperationType.WarehouseReturn && command.ReturnEffect == ProductionMaterialReturnEffect.Replenish)
             {
@@ -385,46 +379,98 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
         await using var transaction = ownsTransaction ? await db.Database.BeginTransactionAsync(token) : null;
         try
         {
-        var original = await db.ProductionMaterialOperations.Include(x => x.WorkOrder).Include(x => x.Lines)
-            .ThenInclude(x => x.InventoryMovementLine).ThenInclude(x => x.Movement).ThenInclude(x => x.Lines)
-            .ThenInclude(x => x.BalanceChanges).SingleOrDefaultAsync(x => x.Id == materialOperationId, token);
-        if (original is null || original.Type == ProductionMaterialOperationType.Reversal ||
-            await db.ProductionMaterialOperations.AnyAsync(x => x.ReversesOperationId == original.Id, token))
-            return await Abort(transaction, Invalid("La operación no existe o ya fue revertida."), token);
-        if (original.WorkOrder.Status == ProductionWorkOrderStatus.Closed) return await Abort(transaction, Invalid("Reabre la orden antes de corregir material."), token);
-        if (original.WorkOrder.Version != expectedVersion)
-            return await Abort(transaction, new(ProductionMaterialStatus.ConcurrencyConflict), token);
-        var reversal = new ProductionMaterialOperation { OperationId = operationId, RequestFingerprint = fingerprint,
-            WorkOrderId = original.WorkOrderId, WorkOrderStageId = original.WorkOrderStageId,
-            Type = ProductionMaterialOperationType.Reversal, ResponsibleUserId = user.Id,
-            ReversesOperationId = original.Id, Notes = reason.Trim(), RecordedAt = timeProvider.GetUtcNow() };
-        var reversalService = new InventoryReversalService(db, timeProvider);
-        foreach (var movement in original.Lines.Select(x => x.InventoryMovementLine.Movement)
-                     .DistinctBy(x => x.Id).OrderBy(x => x.Id))
-        {
-            var reversedMovement = await reversalService.CreateAsync(movement, user.Id, fingerprint, token);
-            foreach (var originalLine in original.Lines.Where(x => x.InventoryMovementLine.MovementId == movement.Id))
+            var original = await db.ProductionMaterialOperations.Include(x => x.WorkOrder).Include(x => x.Lines)
+                .ThenInclude(x => x.InventoryMovementLine).ThenInclude(x => x.Movement).ThenInclude(x => x.Lines)
+                .ThenInclude(x => x.BalanceChanges).SingleOrDefaultAsync(x => x.Id == materialOperationId, token);
+            if (original is null || original.Type == ProductionMaterialOperationType.Reversal ||
+                await db.ProductionMaterialOperations.AnyAsync(x => x.ReversesOperationId == original.Id, token))
+                return await Abort(transaction, Invalid("La operación no existe o ya fue revertida."), token);
+            if (original.WorkOrder.Status == ProductionWorkOrderStatus.Closed) return await Abort(transaction, Invalid("Reabre la orden antes de corregir material."), token);
+            if (original.WorkOrder.Version != expectedVersion)
+                return await Abort(transaction, new(ProductionMaterialStatus.ConcurrencyConflict), token);
+            var reversal = new ProductionMaterialOperation
             {
-                var reversedLine = reversedMovement.Lines.Single(x => x.LineNumber == originalLine.InventoryMovementLine.LineNumber);
-                reversal.Lines.Add(new ProductionMaterialOperationLine { IssueLinkId = originalLine.IssueLinkId,
-                    InventoryMovementLine = reversedLine, Quantity = originalLine.Quantity });
-            }
-        }
-        db.ProductionMaterialOperations.Add(reversal); original.WorkOrder.Version++;
-        if (original.Type == ProductionMaterialOperationType.WarehouseReturn && original.ReturnEffect == ProductionMaterialReturnEffect.Replenish)
-        {
-            var issueIds = original.Lines.Select(x => x.IssueLinkId).ToArray();
-            var supplyLines = await db.ProductionMaterialIssueLinks.Include(x => x.SupplyRequestLine).ThenInclude(x => x!.SupplyRequest)
-                .Where(x => issueIds.Contains(x.Id) && x.SupplyRequestLine != null).ToListAsync(token);
-            foreach (var group in original.Lines.Join(supplyLines, x => x.IssueLinkId, x => x.Id, (operationLine, issue) => new { operationLine, issue }).GroupBy(x => x.issue.SupplyRequestLine!))
+                OperationId = operationId,
+                RequestFingerprint = fingerprint,
+                WorkOrderId = original.WorkOrderId,
+                WorkOrderStageId = original.WorkOrderStageId,
+                Type = ProductionMaterialOperationType.Reversal,
+                ResponsibleUserId = user.Id,
+                ReversesOperationId = original.Id,
+                Notes = reason.Trim(),
+                RecordedAt = timeProvider.GetUtcNow()
+            };
+            var reversalService = new InventoryReversalService(db, timeProvider);
+            foreach (var movement in original.Lines.Where(x => x.InventoryMovementLineId.HasValue).Select(x => x.InventoryMovementLine.Movement)
+                         .DistinctBy(x => x.Id).OrderBy(x => x.Id))
             {
-                group.Key.ReopenedQuantity = Math.Max(0, group.Key.ReopenedQuantity - group.Sum(x => x.operationLine.Quantity));
-                ProductionSupplyService.UpdateStatus(group.Key.SupplyRequest);
-                group.Key.SupplyRequest.Version++;
+                var reversedMovement = await reversalService.CreateAsync(movement, user.Id, fingerprint, token);
+                db.InventoryMovementCorrections.Add(new InventoryMovementCorrection
+                {
+                    OperationId = Guid.NewGuid(),
+                    RequestFingerprint = Hash(fingerprint + "|" + movement.Id),
+                    Type = InventoryMovementCorrectionType.Reversal,
+                    OriginalMovementId = movement.Id,
+                    ReversalMovement = reversedMovement,
+                    Reason = reason.Trim(),
+                    RequestedByUserId = user.Id,
+                    AuthorizedByUserId = user.Id,
+                    RecordedAt = timeProvider.GetUtcNow()
+                });
+                foreach (var originalLine in original.Lines.Where(x => x.InventoryMovementLineId.HasValue && x.InventoryMovementLine.MovementId == movement.Id))
+                {
+                    var reversedLine = reversedMovement.Lines.Single(x => x.LineNumber == originalLine.InventoryMovementLine.LineNumber);
+                    reversal.Lines.Add(new ProductionMaterialOperationLine
+                    {
+                        IssueLinkId = originalLine.IssueLinkId,
+                        InventoryMovementLine = reversedLine,
+                        Quantity = originalLine.Quantity
+                    });
+                }
             }
-        }
-        await db.SaveChangesAsync(token); if (transaction is not null) await transaction.CommitAsync(token);
-        return new(ProductionMaterialStatus.Success, reversal.Id);
+            foreach (var line in original.Lines.Where(x => !x.InventoryMovementLineId.HasValue))
+                reversal.Lines.Add(new ProductionMaterialOperationLine { IssueLinkId = line.IssueLinkId, Quantity = line.Quantity });
+            var documentaryOperationIds = original.Lines.Select(x => Derive(original.OperationId, x.IssueLinkId)).Distinct().ToArray();
+            var cutover = await db.WipDocumentCutovers.SingleOrDefaultAsync(token);
+            if (cutover is not null && !await db.WipDocumentApplications.AnyAsync(x => documentaryOperationIds.Contains(x.OperationId), token))
+            {
+                foreach (var originalLine in original.Lines.Where(x => x.InventoryMovementLineId.HasValue))
+                {
+                    var issue = await db.ProductionMaterialIssueLinks.SingleAsync(x => x.Id == originalLine.IssueLinkId, token);
+                    var allocations = originalLine.InventoryMovementLine.BalanceChanges.Where(x => x.LocationId == issue.WipLocationId && x.DeltaQuantity < 0).ToArray();
+                    if (-allocations.Sum(x => x.DeltaQuantity) != originalLine.Quantity)
+                        throw new PalletPlateException("Los lotes históricos no permiten restituir la aplicación documental.");
+                    db.WipDocuments.Add(new WipDocument
+                    {
+                        MovementLineId = originalLine.InventoryMovementLineId,
+                        CutoverId = cutover.Id,
+                        ProductId = issue.ProductId,
+                        WipLocationId = issue.WipLocationId,
+                        ResponsibleUserId = user.Id,
+                        OccurredAt = timeProvider.GetUtcNow(),
+                        Quantity = originalLine.Quantity,
+                        Lots = allocations.Select(x => new WipDocumentLot { LotId = x.LotId, Quantity = -x.DeltaQuantity }).ToList(),
+                        Assignments = [new WipDocumentAssignment { IssueLinkId = issue.Id, Quantity = originalLine.Quantity }]
+                    });
+                }
+            }
+            await new WipDocumentService(db, pins, timeProvider).ReverseApplicationsAsync(
+                original.Lines.Select(x => Derive(original.OperationId, x.IssueLinkId)).Distinct().ToArray(), operationId, user, reason, token);
+            db.ProductionMaterialOperations.Add(reversal); original.WorkOrder.Version++;
+            if (original.Type == ProductionMaterialOperationType.WarehouseReturn && original.ReturnEffect == ProductionMaterialReturnEffect.Replenish)
+            {
+                var issueIds = original.Lines.Select(x => x.IssueLinkId).ToArray();
+                var supplyLines = await db.ProductionMaterialIssueLinks.Include(x => x.SupplyRequestLine).ThenInclude(x => x!.SupplyRequest)
+                    .Where(x => issueIds.Contains(x.Id) && x.SupplyRequestLine != null).ToListAsync(token);
+                foreach (var group in original.Lines.Join(supplyLines, x => x.IssueLinkId, x => x.Id, (operationLine, issue) => new { operationLine, issue }).GroupBy(x => x.issue.SupplyRequestLine!))
+                {
+                    group.Key.ReopenedQuantity = Math.Max(0, group.Key.ReopenedQuantity - group.Sum(x => x.operationLine.Quantity));
+                    ProductionSupplyService.UpdateStatus(group.Key.SupplyRequest);
+                    group.Key.SupplyRequest.Version++;
+                }
+            }
+            await db.SaveChangesAsync(token); if (transaction is not null) await transaction.CommitAsync(token);
+            return new(ProductionMaterialStatus.Success, reversal.Id);
         }
         catch (DbUpdateConcurrencyException)
         {
@@ -465,6 +511,7 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
         command.DestinationLocationId, Normalize(command.Reference), Normalize(command.Notes), command.ApproveSharedDestination, command.ReturnEffect, command.ReworkCaseId,
         string.Join(';', command.Lines.OrderBy(x => x.IssueLinkId).Select(x => $"{x.IssueLinkId:N}:{x.Quantity.ToString("G29", CultureInfo.InvariantCulture)}{(x.Plates is { Count: > 0 } ? ":" + System.Text.Json.JsonSerializer.Serialize(x.Plates) : string.Empty)}")));
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+    internal static Guid DocumentOperationId(Guid operationId, Guid group) => Derive(operationId, group);
     private static Guid Derive(Guid operationId, Guid group) => new(SHA256.HashData(Encoding.UTF8.GetBytes($"{operationId:N}|{group:N}"))[..16]);
     private static IReadOnlyList<InventoryLotSelection> AllocateLots(
         ProductionMaterialIssueLink link, decimal quantity, IReadOnlyCollection<Guid> reversed)

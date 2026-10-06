@@ -255,6 +255,30 @@ public sealed class InventoryMovementServiceTests
         Assert.Equal(2, await fixture.Db.ProductLocationAssignments.CountAsync());
     }
 
+    [Theory]
+    [InlineData(InventoryMovementPurpose.Standard, LocationKind.Area)]
+    [InlineData(InventoryMovementPurpose.Standard, LocationKind.Rack)]
+    [InlineData(InventoryMovementPurpose.ProductionIssue, LocationKind.Area)]
+    [InlineData(InventoryMovementPurpose.ProductionIssue, LocationKind.Rack)]
+    public async Task Only_production_issues_accept_wip_and_never_create_stock(
+        InventoryMovementPurpose purpose, LocationKind destinationKind)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var added = await fixture.AddProductAsync("WIP-ADDED");
+        var source = await fixture.AddLocationAsync("SOURCE", kind: LocationKind.Rack);
+        var destination = await fixture.AddLocationAsync("DESTINATION", LocationOperationalRole.Wip, destinationKind);
+        await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(added.Id, 5m, DestinationLocationId: source.Id)]));
+        var result = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Transfer, fixture.OperatorPin,
+            [new(added.Id, 3m, source.Id, destination.Id)], Purpose: purpose,
+            OperationalAreaId: purpose == InventoryMovementPurpose.ProductionIssue ? destination.Id : null));
+        Assert.Equal(purpose == InventoryMovementPurpose.ProductionIssue ? InventoryMovementStatus.Success : InventoryMovementStatus.ValidationFailed, result.Status);
+        Assert.Empty(result.Conflicts);
+        Assert.False(await fixture.Db.InventoryBalances.AnyAsync(x => x.LocationId == destination.Id));
+        Assert.Equal(purpose == InventoryMovementPurpose.ProductionIssue ? 2m : 5m,
+            await fixture.Db.InventoryBalances.Where(x => x.LocationId == source.Id).SumAsync(x => x.Quantity));
+    }
+
     [Fact]
     public async Task Zero_balance_assignment_does_not_require_shared_location_approval()
     {
@@ -559,7 +583,7 @@ public sealed class InventoryMovementServiceTests
     }
 
     [Fact]
-    public async Task Wip_issue_consumption_warehouse_return_and_supplier_return_change_real_balances()
+    public async Task Wip_operations_share_documentary_limits_and_only_return_changes_warehouse()
     {
         await using var fixture = await Fixture.CreateAsync();
         var product = await fixture.AddProductAsync("WIP-MATERIAL");
@@ -576,44 +600,30 @@ public sealed class InventoryMovementServiceTests
         Assert.Equal(InventoryMovementStatus.Success, issue.Status);
         Assert.Equal(80m, (await fixture.Db.InventoryBalances.Where(item => item.LocationId == rack.Id)
             .SumAsync(item => item.Quantity)));
-        Assert.Equal(20m, await fixture.Db.InventoryBalances.Where(item => item.LocationId == wip.Id)
+        Assert.Equal(0m, await fixture.Db.InventoryBalances.Where(item => item.LocationId == wip.Id)
             .SumAsync(item => item.Quantity));
         Assert.False(await fixture.Db.ProductLocationAssignments.AnyAsync(item => item.LocationId == wip.Id));
 
-        var consumption = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Exit,
-            fixture.OperatorPin, [new(product.Id, 8m, SourceLocationId: wip.Id)], Purpose:
-            InventoryMovementPurpose.WipConsumption, OperationalAreaId: wip.Id));
-
-        var warehouseOperation = Guid.NewGuid();
-        var warehouse = await fixture.Service.ConfirmAsync(new(warehouseOperation, InventoryMovementType.Transfer,
-            fixture.OperatorPin, [new(product.Id, 5m, wip.Id, returnRack.Id)], Purpose:
-            InventoryMovementPurpose.WipWarehouseReturn, OperationalAreaId: wip.Id));
-        var repeated = await fixture.Service.ConfirmAsync(new(warehouseOperation, InventoryMovementType.Transfer,
-            fixture.OperatorPin, [new(product.Id, 5m, wip.Id, returnRack.Id)], Purpose:
-            InventoryMovementPurpose.WipWarehouseReturn, OperationalAreaId: wip.Id));
-        var supplier = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Exit,
-            fixture.OperatorPin, [new(product.Id, 3m, SourceLocationId: wip.Id)], Reference: "RMA-1", Purpose:
-            InventoryMovementPurpose.WipSupplierReturn, OperationalAreaId: wip.Id));
-        var missingReference = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Exit,
-            fixture.OperatorPin, [new(product.Id, 1m, SourceLocationId: wip.Id)], Purpose:
-            InventoryMovementPurpose.WipSupplierReturn, OperationalAreaId: wip.Id));
-
-        Assert.Equal(InventoryMovementStatus.Success, consumption.Status);
+        var documents = new WipDocumentService(fixture.Db, new UserPinService(fixture.Db, new PinProtector(Fixture.LookupKey)), TimeProvider.System);
+        Assert.Equal(InventoryMovementStatus.Success, (await documents.ConfirmAsync(new(Guid.NewGuid(), product.Id, wip.Id, 8m,
+            WipDocumentApplicationKind.Consumption, fixture.OperatorPin))).Status);
+        var warehouseCommand = new WipDocumentCommand(Guid.NewGuid(), product.Id, wip.Id, 5m,
+            WipDocumentApplicationKind.WarehouseReturn, fixture.OperatorPin, returnRack.Id);
+        var warehouse = await documents.ConfirmAsync(warehouseCommand);
         Assert.Equal(InventoryMovementStatus.Success, warehouse.Status);
-        Assert.Equal(warehouse.MovementId, repeated.MovementId);
+        Assert.Equal(warehouse.MovementId, (await documents.ConfirmAsync(warehouseCommand)).MovementId);
+        var supplier = await documents.ConfirmAsync(new(Guid.NewGuid(), product.Id, wip.Id, 3m,
+            WipDocumentApplicationKind.SupplierReturn, fixture.OperatorPin, Reference: "RMA-1"));
         Assert.Equal(InventoryMovementStatus.Success, supplier.Status);
-        Assert.Equal(InventoryMovementStatus.ValidationFailed, missingReference.Status);
-        Assert.Equal(5m, await fixture.Db.InventoryBalances.Where(item => item.LocationId == returnRack.Id)
-            .SumAsync(item => item.Quantity));
-        Assert.Equal(4m, await fixture.Db.InventoryBalances.Where(item => item.LocationId == wip.Id)
-            .SumAsync(item => item.Quantity));
-        Assert.Empty(await fixture.Db.WipDispositions.ToListAsync());
-        var report = await new WipReportService(fixture.Db,
-            new WarehouseClock(new WarehouseSettingsService(fixture.Db)))
+        Assert.Null(supplier.MovementId);
+        Assert.Equal(InventoryMovementStatus.ValidationFailed, (await documents.ConfirmAsync(new(Guid.NewGuid(), product.Id, wip.Id, 1m,
+            WipDocumentApplicationKind.SupplierReturn, fixture.OperatorPin))).Status);
+        Assert.Equal(5m, await fixture.Db.InventoryBalances.Where(x => x.LocationId == returnRack.Id).SumAsync(x => x.Quantity));
+        Assert.False(await fixture.Db.InventoryBalances.AnyAsync(x => x.LocationId == wip.Id));
+        var report = await new WipReportService(fixture.Db, new WarehouseClock(new WarehouseSettingsService(fixture.Db)))
             .GetTrackedPageAsync(new(null, null, "WIP-MATERIAL", wip.Id), 1, 25);
-        Assert.Contains(report.Inventory, item => item.ProductId == product.Id && item.Quantity == 4m);
-        Assert.Contains(report.Activity, item => item.MovementId == issue.MovementId && item.Delta == 20m);
-        Assert.Contains(report.Activity, item => item.MovementId == supplier.MovementId && item.Delta == -3m);
+        var row = Assert.Single(report.Inventory);
+        Assert.Equal(4m, row.Quantity); Assert.Equal(8m, row.Used); Assert.Equal(5m, row.WarehouseReturned); Assert.Equal(3m, row.SupplierReturned);
     }
 
     [Fact]

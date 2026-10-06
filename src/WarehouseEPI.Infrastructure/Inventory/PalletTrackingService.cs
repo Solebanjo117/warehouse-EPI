@@ -42,12 +42,12 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
         return await db.ProductionWorkOrders.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Number).Select(x => new PalletOrderLink(x.Id, x.Number)).ToListAsync(token);
     }
     public async Task<IReadOnlyList<Location>> LocationsAsync(CancellationToken token = default) =>
-        await db.Locations.AsNoTracking().Where(x => x.IsActive && !x.IsBlocked && x.IsPhysicallyPresent).OrderBy(x => x.Code).ToListAsync(token);
+        await db.Locations.AsNoTracking().Where(x => x.IsActive && !x.IsBlocked && x.IsPhysicallyPresent && x.OperationalRole != LocationOperationalRole.Wip).OrderBy(x => x.Code).ToListAsync(token);
 
     public async Task<IReadOnlyList<PalletIdentificationProduct>> IdentificationProductsAsync(Guid locationId, CancellationToken token = default)
     {
         var productIds = await db.InventoryBalances.AsNoTracking()
-            .Where(x => x.LocationId == locationId && x.Product.IsActive)
+            .Where(x => x.LocationId == locationId && x.Product.IsActive && x.Location.OperationalRole != LocationOperationalRole.Wip)
             .GroupBy(x => x.ProductId)
             .Where(x => x.Sum(y => y.Quantity) > 0)
             .Select(x => x.Key).ToListAsync(token);
@@ -88,7 +88,7 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
     {
         var term = search?.Trim().ToUpperInvariant();
         var query = db.InventoryBalances.AsNoTracking().Where(x => x.Product.IsActive && x.Product.BaseUnit.IsActive &&
-            x.Location.IsActive && !x.Location.IsBlocked && x.Location.IsPhysicallyPresent);
+            x.Location.IsActive && !x.Location.IsBlocked && x.Location.IsPhysicallyPresent && x.Location.OperationalRole != LocationOperationalRole.Wip);
         if (locationId.HasValue) query = query.Where(x => x.LocationId == locationId.Value);
         if (!string.IsNullOrWhiteSpace(term)) query = query.Where(x => x.Product.Sku.Contains(term) ||
             (x.Product.Description != null && x.Product.Description.ToUpper().Contains(term)) ||
@@ -106,7 +106,7 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
     {
         var term = search?.Trim().ToUpperInvariant();
         var query = db.InventoryBalances.AsNoTracking().Where(x => x.Product.IsActive && x.Product.BaseUnit.IsActive &&
-            x.Location.IsActive && !x.Location.IsBlocked && x.Location.IsPhysicallyPresent);
+            x.Location.IsActive && !x.Location.IsBlocked && x.Location.IsPhysicallyPresent && x.Location.OperationalRole != LocationOperationalRole.Wip);
         if (productId.HasValue) query = query.Where(x => x.ProductId == productId.Value);
         if (!string.IsNullOrWhiteSpace(term)) query = query.Where(x => x.Location.Code.Contains(term) ||
             (x.Location.Description != null && x.Location.Description.ToUpper().Contains(term)));
@@ -140,7 +140,7 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
                 ? new(InventoryMovementStatus.Success, Plates: [await ExistingResultAsync(prior.PlateId, token)])
                 : new(InventoryMovementStatus.IdempotencyConflict);
             var location = await db.Locations.SingleOrDefaultAsync(x => x.Id == command.LocationId, token);
-            if (location is null || !location.IsOperational) return Invalid("Selecciona una ubicación activa, físicamente presente y no bloqueada.");
+            if (location is null || !location.IsOperational || !location.TracksInventory) return Invalid("Selecciona una ubicación activa, físicamente presente y no bloqueada.");
             var product = await db.Products.Include(x => x.BaseUnit).SingleOrDefaultAsync(x => x.Id == command.ProductId && x.IsActive, token);
             if (product is null) return Invalid("Selecciona un producto activo con existencia positiva en la ubicación.");
             if (!product.BaseUnit.AllowsDecimals && decimal.Truncate(command.Quantity) != command.Quantity)
@@ -153,6 +153,8 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
                 return Invalid("El saldo libre sin placa no cubre la cantidad. Revisa reservas, preparaciones y asignaciones de producción.");
 
             var now = timeProvider.GetUtcNow();
+            if (await db.Locations.AnyAsync(x => x.Id == command.LocationId && x.OperationalRole == LocationOperationalRole.Wip, token))
+                return Invalid("WIP no mantiene placas con existencias.");
             var active = await db.PalletPlates.Include(x => x.Lots)
                 .Where(x => x.ProductId == command.ProductId && x.LocationId == command.LocationId && !x.IsVoided && x.Quantity > 0)
                 .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(token);
@@ -220,6 +222,8 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
             if (prior is not null) return prior.Fingerprint == fingerprint
                 ? new(InventoryMovementStatus.Success, Plates: [await ExistingResultAsync(prior.PlateId, token)])
                 : new(InventoryMovementStatus.IdempotencyConflict);
+            if (await db.Locations.AnyAsync(x => x.Id == command.LocationId && x.OperationalRole == LocationOperationalRole.Wip, token))
+                return Invalid("WIP no mantiene placas con existencias.");
             var active = await db.PalletPlates.Include(x => x.Lots)
                 .Where(x => x.ProductId == command.ProductId && x.LocationId == command.LocationId && !x.IsVoided && x.Quantity > 0)
                 .OrderBy(x => x.CreatedAt).ThenBy(x => x.Id).ToListAsync(token);
@@ -432,7 +436,7 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
             var source = movement.Lines.Single();
             if (!source.Product.BaseUnit.AllowsDecimals && decimal.Truncate(command.Quantity) != command.Quantity) return Invalid("La unidad no permite decimales.");
             var location = await db.Locations.SingleOrDefaultAsync(x => x.Id == command.LocationId, token);
-            if (location is null || !location.IsOperational) return Invalid("Selecciona una ubicación operativa.");
+            if (location is null || !location.IsOperational || !location.TracksInventory) return Invalid("Selecciona una ubicación operativa.");
             var balances = await db.InventoryBalances.Include(x => x.Lot).Where(x => x.ProductId == source.ProductId && x.LocationId == command.LocationId && x.LotId != null).ToListAsync(token);
             var assigned = await db.PalletPlateLots.Where(x => x.Plate.ProductId == source.ProductId && x.Plate.LocationId == command.LocationId && !x.Plate.IsVoided).ToListAsync(token);
             var free = balances.ToDictionary(x => x.LotId!.Value, x => x.Quantity - assigned.Where(a => a.LotId == x.LotId).Sum(a => a.Quantity));

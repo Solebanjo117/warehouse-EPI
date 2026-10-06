@@ -1,0 +1,32 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Inventory.WipCutoverModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> T
+@{ ViewData["Title"] = T["Corte documental WIP"].Value; }
+<div class="container py-4">
+    <a asp-page="/Reports/Wip/Index">@T["Volver a WIP"]</a>
+    <h1 class="h2 mt-3">@T["Corte documental WIP"]</h1>
+    <p>@T["Convierte las existencias WIP en seguimiento documental sin modificar las existencias del almacén."]</p>
+    @if (Model.Message is not null) { <div class="alert alert-success" role="status">@T[Model.Message]</div> }
+    <div asp-validation-summary="All" class="text-danger" role="alert" tabindex="-1"></div>
+    @if (Model.Preview.Completed)
+    {
+        <p class="alert alert-info">@T["El corte documental ya fue aplicado."]</p>
+    }
+    else
+    {
+        @foreach (var error in Model.Preview.Errors) { <p class="alert alert-warning" role="alert">@T[error]</p> }
+        <div class="table-responsive"><table class="table">
+            <thead><tr><th scope="col">WIP</th><th scope="col">@T["Producto"]</th><th scope="col">@T["Lote"]</th><th scope="col">@T["Cantidad"]</th><th scope="col">@T["Placas"]</th></tr></thead>
+            <tbody>@foreach (var row in Model.Preview.Rows) { <tr><td>@row.Location</td><td>@row.Product</td><td>@row.LotId</td><td>@row.Quantity.ToString("0.####") @row.Unit</td><td>@row.PlateQuantity.ToString("0.####") @row.Unit</td></tr> }</tbody>
+        </table></div>
+        @if (Model.Preview.Errors.Count == 0)
+        {
+            <form method="post" class="card card-body gap-3">
+                <input type="hidden" asp-for="OperationId" /><input type="hidden" asp-for="Revision" />
+                <label asp-for="Reason">@T["Motivo"]</label><textarea asp-for="Reason" class="form-control" maxlength="500" required></textarea>
+                <label asp-for="Pin">@T["NIP ADMIN"]</label><input asp-for="Pin" type="password" inputmode="numeric" autocomplete="off" class="form-control form-control-lg" required />
+                <button class="btn btn-primary btn-lg align-self-start">@T["Confirmar corte documental"]</button>
+            </form>
+        }
+    }
+</div>
