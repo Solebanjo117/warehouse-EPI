@@ -5311,46 +5311,6 @@
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
   <data name="Closed" xml:space="preserve"><value>Closed</value></data>
-  <data name="Aplicar corrección" xml:space="preserve"><value>Apply correction</value></data>
-  <data name="Resultado" xml:space="preserve"><value>Result</value></data>
-  <data name="Selecciona" xml:space="preserve"><value>Select</value></data>
-  <data name="Volver a WIP" xml:space="preserve"><value>Back to WIP</value></data>
-  <data name="Apertura del corte" xml:space="preserve"><value>Cutover opening</value></data>
-  <data name="Aplicaciones documentales" xml:space="preserve"><value>Document applications</value></data>
-  <data name="Cantidad documentada" xml:space="preserve"><value>Documented quantity</value></data>
-  <data name="Confirmar corte documental" xml:space="preserve"><value>Confirm documentary cutover</value></data>
-  <data name="Confirmar reverso" xml:space="preserve"><value>Confirm reversal</value></data>
-  <data name="Convierte las existencias WIP en seguimiento documental sin modificar las existencias del almacén." xml:space="preserve"><value>Converts WIP stock into documentary tracking without changing warehouse stock.</value></data>
-  <data name="Corte documental WIP" xml:space="preserve"><value>WIP documentary cutover</value></data>
-  <data name="El corte documental ya fue aplicado." xml:space="preserve"><value>The documentary cutover has already been applied.</value></data>
-  <data name="El pendiente documental no representa existencias físicas ni material disponible en almacén." xml:space="preserve"><value>The documentary outstanding quantity does not represent physical stock or material available in the warehouse.</value></data>
-  <data name="El reverso restituye lo pendiente documental. Si hubo una entrada a bodega, también revierte esa entrada." xml:space="preserve"><value>Reversal restores the documentary outstanding quantity. If material was returned to the warehouse, that entry is also reversed.</value></data>
-  <data name="Entrega cancelada" xml:space="preserve"><value>Cancelled delivery</value></data>
-  <data name="Entrega documental WIP" xml:space="preserve"><value>WIP delivery document</value></data>
-  <data name="Entregas y pendiente documental" xml:space="preserve"><value>Deliveries and documentary outstanding quantities</value></data>
-  <data name="Enviado sin devolución histórica" xml:space="preserve"><value>Historical deliveries without recorded return</value></data>
-  <data name="Merma" xml:space="preserve"><value>Scrap</value></data>
-  <data name="Movimiento de origen" xml:space="preserve"><value>Original movement</value></data>
-  <data name="No hay entregas documentales con los filtros seleccionados." xml:space="preserve"><value>No delivery documents match the selected filters.</value></data>
-  <data name="Pendiente documental" xml:space="preserve"><value>Documentary outstanding quantity</value></data>
-  <data name="Placas" xml:space="preserve"><value>Pallet plates</value></data>
-  <data name="Revertida" xml:space="preserve"><value>Reversed</value></data>
-  <data name="Revertir aplicación documental" xml:space="preserve"><value>Reverse document application</value></data>
-  <data name="Sin lote identificado" xml:space="preserve"><value>No identified lot</value></data>
-  <data name="Uso registrado" xml:space="preserve"><value>Recorded usage</value></data>
-  <data name="WIP · Sin control de existencias" xml:space="preserve"><value>WIP · No inventory tracking</value></data>
-  <data name="Sin control de existencias" xml:space="preserve"><value>No inventory tracking</value></data>
-  <data name="Consumption" xml:space="preserve"><value>Recorded usage</value></data>
-  <data name="Scrap" xml:space="preserve"><value>Scrap</value></data>
-  <data name="WarehouseReturn" xml:space="preserve"><value>Warehouse return</value></data>
-  <data name="SupplierReturn" xml:space="preserve"><value>Supplier return</value></data>
-  <data name="Reversal" xml:space="preserve"><value>Reversal</value></data>
-  <data name="Seguimiento WIP pendiente" xml:space="preserve"><value>Outstanding WIP documentary tracking</value></data>
-  <data name="Los compromisos por lote de una orden superan las existencias a convertir." xml:space="preserve"><value>Order commitments by lot exceed the stock to convert.</value></data>
-  <data name="Los lotes pendientes de una orden no coinciden con su cantidad documental." xml:space="preserve"><value>The outstanding lots for an order do not match its documented quantity.</value></data>
-  <data name="Los compromisos documentales de una orden superan las existencias a convertir." xml:space="preserve"><value>Order documentary commitments exceed the stock to convert.</value></data>
-  <data name="Hay reservas de almacén en WIP. Resuélvelas antes del corte." xml:space="preserve"><value>WIP contains warehouse reservations. Resolve them before cutover.</value></data>
-  <data name="WIP asociado" xml:space="preserve"><value>Associated WIP</value></data>
   <data name="{0} producto(s)" xml:space="preserve"><value>{0} product(s)</value></data>
   <data name="+{0} producto(s)" xml:space="preserve"><value>+{0} product(s)</value></data>
   <data name="+{0} asignado(s)" xml:space="preserve"><value>+{0} assigned</value></data>
@@ -5374,47 +5334,13 @@
   <data name="Las posiciones seleccionadas deben quedar dentro del formato del rack." xml:space="preserve"><value>Selected positions must fit within the rack format.</value></data>
   <data name="Niveles del rack" xml:space="preserve"><value>Rack levels</value></data>
   <data name="Selecciona entre una y tres columnas y entre uno y tres niveles." xml:space="preserve"><value>Select one to three columns and one to three levels.</value></data>
-  <data name="Seguimiento documental WIP" xml:space="preserve"><value>WIP documentary tracking</value></data>
-  <data name="Sin asociación" xml:space="preserve"><value>No association</value></data>
-  <data name="(no disponible)" xml:space="preserve"><value>(unavailable)</value></data>
-  <data name="Aplica únicamente a las posiciones WIP presentes. Surte al área WIP para consultar el reporte compartido." xml:space="preserve"><value>Applies only to present WIP positions. Supply the WIP area to use its shared report.</value></data>
-  <data name="WIP asociado actual" xml:space="preserve"><value>Current associated WIP</value></data>
-  <data name="WIP asociado solicitado" xml:space="preserve"><value>Requested associated WIP</value></data>
-  <data name="Se quitará la asociación WIP del rack. Los documentos conservan su destino original." xml:space="preserve"><value>The rack WIP association will be removed. Documents retain their original destination.</value></data>
-  <data name="Posiciones WIP asociadas a {0}" xml:space="preserve"><value>WIP positions associated with {0}</value></data>
-  <data name="El WIP asociado no está disponible para nuevas operaciones." xml:space="preserve"><value>The associated WIP is unavailable for new operations.</value></data>
-  <data name="Ver surtimientos de {0}" xml:space="preserve"><value>View deliveries to {0}</value></data>
-  <data name="El reporte de esta posición conserva únicamente las entregas registradas directamente en ella." xml:space="preserve"><value>This position report retains only deliveries recorded directly to it.</value></data>
-  <data name="Reporte compartido del WIP; sin distribución por rack o posición" xml:space="preserve"><value>Shared WIP report; no allocation by rack or position</value></data>
-  <data name="Desconecta los racks asociados antes de cambiar la función del área WIP." xml:space="preserve"><value>Disconnect associated racks before changing the WIP area role.</value></data>
-  <data name="Tiene racks asociados. Desconéctalos antes de eliminar el área WIP." xml:space="preserve"><value>It has associated racks. Disconnect them before deleting the WIP area.</value></data>
-  <data name="La asociación WIP cambió mientras editabas. Recarga y vuelve a revisar." xml:space="preserve"><value>The WIP association changed while you were editing. Reload and review again.</value></data>
-  <data name="Selecciona al menos una posición WIP presente para asociar el rack." xml:space="preserve"><value>Select at least one present WIP position to associate the rack.</value></data>
-  <data name="Selecciona un área WIP activa, presente y sin bloqueo." xml:space="preserve"><value>Select an active, present and unblocked WIP area.</value></data>
-  <data name="Selecciona un área para corregir sus datos, procesos o disponibilidad." xml:space="preserve"><value>Select an area to update its details, processes or availability.</value></data>
-  <data name="Buscar área" xml:space="preserve"><value>Search areas</value></data>
-  <data name="No hay áreas con estos filtros." xml:space="preserve"><value>No areas match these filters.</value></data>
-  <data name="Busca otro código o limpia los filtros para ver todas las áreas." xml:space="preserve"><value>Search for another code or clear the filters to see all areas.</value></data>
-  <data name="Ver todas las áreas" xml:space="preserve"><value>View all areas</value></data>
-  <data name="Editar área {0}" xml:space="preserve"><value>Edit area {0}</value></data>
-  <data name="Área activa" xml:space="preserve"><value>Active area</value></data>
-  <data name="Área bloqueada" xml:space="preserve"><value>Blocked area</value></data>
-  <data name="Motivo de bloqueo" xml:space="preserve"><value>Block reason</value></data>
-  <data name="El bloqueo requiere un motivo. Al desactivar el área se limpia el bloqueo; no se eliminan sus registros." xml:space="preserve"><value>Blocking requires a reason. Deactivating the area clears its block and preserves its records.</value></data>
-  <data name="WIP da seguimiento documental al material recibido; no controla existencias de almacén." xml:space="preserve"><value>WIP tracks received material through documents; it does not track warehouse stock.</value></data>
-  <data name="Selecciona una función operativa válida." xml:space="preserve"><value>Select a valid operational role.</value></data>
-  <data name="El área cambió mientras editabas. Recarga la página y revisa los cambios antes de guardar." xml:space="preserve"><value>The area changed while you were editing. Reload the page and review the changes before saving.</value></data>
-  <data name="Se guardó el área {0}." xml:space="preserve"><value>Area {0} was saved.</value></data>
-  <data name="No hay procesos disponibles para asociar." xml:space="preserve"><value>No processes are available to associate.</value></data>
-  <data name="Últimas entregas a {0}" xml:space="preserve"><value>Latest deliveries to {0}</value></data>
-  <data name="Hasta 5 entregas, de más reciente a más antigua" xml:space="preserve"><value>Up to 5 deliveries, newest first</value></data>
-  <data name="Enviado sin devolución histórica:" xml:space="preserve"><value>Sent with no historical return:</value></data>
-  <data name="Seguimiento documental y últimos surtimientos" xml:space="preserve"><value>Document tracking and latest supplies</value></data>
   <data name="Algunas ubicaciones quedarán con saldo negativo. Esto advierte una diferencia y no bloquea la importación." xml:space="preserve"><value>Some locations will have a negative balance. This warns of a discrepancy and does not block the import.</value></data>
   <data name="Aplicar a" xml:space="preserve"><value>Apply to</value></data>
+  <data name="Aplicar corrección" xml:space="preserve"><value>Apply correction</value></data>
   <data name="Autorizo compartir los racks de origen con otros productos si fuera necesario." xml:space="preserve"><value>I authorize sharing source racks with other products if needed.</value></data>
   <data name="Carga TRANSFER LOG, corrige las ubicaciones y revisa las existencias antes de confirmar con NIP ADMIN." xml:space="preserve"><value>Upload TRANSFER LOG, correct locations and review stock before confirming with an ADMIN PIN.</value></data>
   <data name="Con errores" xml:space="preserve"><value>With errors</value></data>
+  <data name="Confirmar importación de {0} salidas" xml:space="preserve"><value>Confirm import of {0} issues</value></data>
   <data name="Conservar destino actual" xml:space="preserve"><value>Keep current destination</value></data>
   <data name="Conservar origen actual" xml:space="preserve"><value>Keep current source</value></data>
   <data name="Corregir fila {0}" xml:space="preserve"><value>Correct row {0}</value></data>
@@ -5440,17 +5366,21 @@
   <data name="Origen prellenado: única ubicación disponible del producto." xml:space="preserve"><value>Source prefilled: the product has only one available location.</value></data>
   <data name="Para confirmar, debe haber filas pendientes y todas deben estar corregidas. Corrige el archivo y vuelve a cargarlo, o excluye las filas que no correspondan." xml:space="preserve"><value>To confirm, there must be pending rows and all must be corrected. Correct and upload the file again, or exclude rows that do not apply.</value></data>
   <data name="Producto del archivo" xml:space="preserve"><value>Product in the file</value></data>
+  <data name="Proyección de las filas válidas pendientes. Resta del origen y suma al destino WIP, sin consumir el material. Las filas excluidas, inválidas o ya importadas no se suman." xml:space="preserve"><value>Projection for valid pending rows. Deducts from the source and adds to WIP without consuming material. Excluded, invalid or previously imported rows are not counted.</value></data>
   <data name="Rack de origen" xml:space="preserve"><value>Source rack</value></data>
   <data name="Reporte de transferencias WIP (.xlsx)" xml:space="preserve"><value>WIP transfer report (.xlsx)</value></data>
+  <data name="Resultado" xml:space="preserve"><value>Result</value></data>
   <data name="Revisión de {0}" xml:space="preserve"><value>Review of {0}</value></data>
   <data name="Revisé las filas, las exclusiones y el efecto en existencias." xml:space="preserve"><value>I reviewed the rows, exclusions and stock impact.</value></data>
   <data name="Se omiten entregas idénticas ya importadas por esta sección. Revisa las salidas capturadas manualmente y exclúyelas para evitar descontarlas otra vez. Cambiar fecha, producto, cantidad, unidad o área original en Excel puede identificar una entrega nueva." xml:space="preserve"><value>Identical deliveries already imported here are skipped. Review and exclude manually recorded issues to avoid deducting them again. Changing the date, product, quantity, unit or original area in Excel may identify a new delivery.</value></data>
+  <data name="Selecciona" xml:space="preserve"><value>Select</value></data>
   <data name="Sin área" xml:space="preserve"><value>No area</value></data>
   <data name="Solo cambia los campos seleccionados. No modifica filas excluidas ni ya importadas." xml:space="preserve"><value>Only changes selected fields. Excluded or previously imported rows are not changed.</value></data>
   <data name="Todas las filas con errores" xml:space="preserve"><value>All rows with errors</value></data>
   <data name="Todas las filas pendientes" xml:space="preserve"><value>All pending rows</value></data>
   <data name="Varias ubicaciones: elige el origen para las filas pendientes de este producto." xml:space="preserve"><value>Multiple locations: choose the source for this product's pending rows.</value></data>
   <data name="Ver saldos por producto y ubicación ({0})" xml:space="preserve"><value>View balances by product and location ({0})</value></data>
+  <data name="Volver a WIP" xml:space="preserve"><value>Back to WIP</value></data>
   <data name="Ya importada; no se descuenta otra vez." xml:space="preserve"><value>Already imported; will not be deducted again.</value></data>
   <data name="Ya importadas" xml:space="preserve"><value>Already imported</value></data>
   <data name="{0} filas · {1} pendientes · {2} con errores · {3} excluidas · {4} ya importadas" xml:space="preserve"><value>{0} rows · {1} pending · {2} with errors · {3} excluded · {4} already imported</value></data>
@@ -5476,16 +5406,88 @@
   <data name="Periodo seleccionado" xml:space="preserve"><value>Selected period</value></data>
   <data name="Las fechas corresponden a la entrega en el Excel. Deja un extremo vacío para no limitarlo. Al filtrar por fecha se omiten las filas sin fecha." xml:space="preserve"><value>Dates refer to the delivery in Excel. Leave either end blank for no limit. Rows without a date are omitted when filtering by date.</value></data>
   <data name="Este producto no tiene racks disponibles con stock positivo fuera de WIP." xml:space="preserve"><value>This product has no available racks with positive stock outside WIP.</value></data>
+  <data name="Apertura del corte" xml:space="preserve"><value>Cutover opening</value></data>
+  <data name="Aplicaciones documentales" xml:space="preserve"><value>Document applications</value></data>
+  <data name="Cantidad documentada" xml:space="preserve"><value>Documented quantity</value></data>
+  <data name="Confirmar corte documental" xml:space="preserve"><value>Confirm documentary cutover</value></data>
+  <data name="Confirmar reverso" xml:space="preserve"><value>Confirm reversal</value></data>
+  <data name="Convierte las existencias WIP en seguimiento documental sin modificar las existencias del almacén." xml:space="preserve"><value>Converts WIP stock into documentary tracking without changing warehouse stock.</value></data>
+  <data name="Corte documental WIP" xml:space="preserve"><value>WIP documentary cutover</value></data>
+  <data name="El corte documental ya fue aplicado." xml:space="preserve"><value>The documentary cutover has already been applied.</value></data>
+  <data name="El pendiente documental no representa existencias físicas ni material disponible en almacén." xml:space="preserve"><value>The documentary outstanding quantity does not represent physical stock or material available in the warehouse.</value></data>
+  <data name="El reverso restituye lo pendiente documental. Si hubo una entrada a bodega, también revierte esa entrada." xml:space="preserve"><value>Reversal restores the documentary outstanding quantity. If material was returned to the warehouse, that entry is also reversed.</value></data>
+  <data name="Entrega cancelada" xml:space="preserve"><value>Cancelled delivery</value></data>
+  <data name="Entrega documental WIP" xml:space="preserve"><value>WIP delivery document</value></data>
   <data name="Entregas WIP pendientes durante {0} días o más." xml:space="preserve"><value>WIP deliveries outstanding for {0} days or more.</value></data>
   <data name="Entregas a producción, uso registrado y devoluciones. El pendiente documental no representa existencias." xml:space="preserve"><value>Production deliveries, recorded usage and returns. Documentary outstanding quantities do not represent stock.</value></data>
+  <data name="Entregas y pendiente documental" xml:space="preserve"><value>Deliveries and documentary outstanding quantities</value></data>
+  <data name="Enviado sin devolución histórica" xml:space="preserve"><value>Historical deliveries without recorded return</value></data>
   <data name="Hay existencias WIP anteriores pendientes de conversión. Solicita el corte documental ADMIN." xml:space="preserve"><value>Historical WIP stock is awaiting conversion. Request the ADMIN documentary cutover.</value></data>
   <data name="La antigüedad se calcula desde la entrega o la apertura documental del corte." xml:space="preserve"><value>Age is calculated from the delivery or the documentary opening at cutover.</value></data>
+  <data name="Merma" xml:space="preserve"><value>Scrap</value></data>
+  <data name="Movimiento de origen" xml:space="preserve"><value>Original movement</value></data>
+  <data name="No hay entregas documentales con los filtros seleccionados." xml:space="preserve"><value>No delivery documents match the selected filters.</value></data>
+  <data name="Pendiente documental" xml:space="preserve"><value>Documentary outstanding quantity</value></data>
+  <data name="Placas" xml:space="preserve"><value>Pallet plates</value></data>
+  <data name="Revertida" xml:space="preserve"><value>Reversed</value></data>
+  <data name="Revertir aplicación documental" xml:space="preserve"><value>Reverse document application</value></data>
+  <data name="Seguimiento documental WIP" xml:space="preserve"><value>WIP documentary tracking</value></data>
+  <data name="Sin lote identificado" xml:space="preserve"><value>No identified lot</value></data>
+  <data name="Uso registrado" xml:space="preserve"><value>Recorded usage</value></data>
+  <data name="WIP · Sin control de existencias" xml:space="preserve"><value>WIP · No inventory tracking</value></data>
+  <data name="Sin control de existencias" xml:space="preserve"><value>No inventory tracking</value></data>
+  <data name="Consumption" xml:space="preserve"><value>Recorded usage</value></data>
+  <data name="Scrap" xml:space="preserve"><value>Scrap</value></data>
+  <data name="WarehouseReturn" xml:space="preserve"><value>Warehouse return</value></data>
+  <data name="SupplierReturn" xml:space="preserve"><value>Supplier return</value></data>
+  <data name="Reversal" xml:space="preserve"><value>Reversal</value></data>
   <data name="Proyección de las filas válidas pendientes. Descuenta del almacén y registra la entrega documental a WIP. Las filas excluidas, inválidas o ya importadas no se suman." xml:space="preserve"><value>Projection of valid pending rows. Deducts warehouse stock and records documentary delivery to WIP. Excluded, invalid or previously imported rows are not included.</value></data>
+  <data name="Seguimiento WIP pendiente" xml:space="preserve"><value>Outstanding WIP documentary tracking</value></data>
+  <data name="Los compromisos por lote de una orden superan las existencias a convertir." xml:space="preserve"><value>Order commitments by lot exceed the stock to convert.</value></data>
+  <data name="Los lotes pendientes de una orden no coinciden con su cantidad documental." xml:space="preserve"><value>The outstanding lots for an order do not match its documented quantity.</value></data>
+  <data name="Los compromisos documentales de una orden superan las existencias a convertir." xml:space="preserve"><value>Order documentary commitments exceed the stock to convert.</value></data>
+  <data name="Hay reservas de almacén en WIP. Resuélvelas antes del corte." xml:space="preserve"><value>WIP contains warehouse reservations. Resolve them before cutover.</value></data>
   <data name="Capturado el" xml:space="preserve"><value>Recorded on</value></data>
   <data name="Ver documento WIP" xml:space="preserve"><value>View WIP document</value></data>
   <data name="Las fechas filtran la entrega original, no el día de captura. Sin fechas se muestra todo el historial." xml:space="preserve"><value>Dates filter the original delivery, not the recording date. Leave dates empty to show all history.</value></data>
   <data name="Excluir las ya importadas" xml:space="preserve"><value>Exclude already imported</value></data>
+  <data name="WIP asociado" xml:space="preserve"><value>Associated WIP</value></data>
+  <data name="Sin asociación" xml:space="preserve"><value>No association</value></data>
+  <data name="(no disponible)" xml:space="preserve"><value>(unavailable)</value></data>
+  <data name="Aplica únicamente a las posiciones WIP presentes. Surte al área WIP para consultar el reporte compartido." xml:space="preserve"><value>Applies only to present WIP positions. Supply the WIP area to use its shared report.</value></data>
+  <data name="WIP asociado actual" xml:space="preserve"><value>Current associated WIP</value></data>
+  <data name="WIP asociado solicitado" xml:space="preserve"><value>Requested associated WIP</value></data>
+  <data name="Se quitará la asociación WIP del rack. Los documentos conservan su destino original." xml:space="preserve"><value>The rack WIP association will be removed. Documents retain their original destination.</value></data>
+  <data name="Posiciones WIP asociadas a {0}" xml:space="preserve"><value>WIP positions associated with {0}</value></data>
+  <data name="El WIP asociado no está disponible para nuevas operaciones." xml:space="preserve"><value>The associated WIP is unavailable for new operations.</value></data>
+  <data name="Ver surtimientos de {0}" xml:space="preserve"><value>View deliveries to {0}</value></data>
+  <data name="El reporte de esta posición conserva únicamente las entregas registradas directamente en ella." xml:space="preserve"><value>This position report retains only deliveries recorded directly to it.</value></data>
   <data name="Racks asociados actualmente" xml:space="preserve"><value>Currently associated racks</value></data>
+  <data name="Reporte compartido del WIP; sin distribución por rack o posición" xml:space="preserve"><value>Shared WIP report; no allocation by rack or position</value></data>
+  <data name="Desconecta los racks asociados antes de cambiar la función del área WIP." xml:space="preserve"><value>Disconnect associated racks before changing the WIP area role.</value></data>
+  <data name="Tiene racks asociados. Desconéctalos antes de eliminar el área WIP." xml:space="preserve"><value>It has associated racks. Disconnect them before deleting the WIP area.</value></data>
+  <data name="La asociación WIP cambió mientras editabas. Recarga y vuelve a revisar." xml:space="preserve"><value>The WIP association changed while you were editing. Reload and review again.</value></data>
+  <data name="Selecciona al menos una posición WIP presente para asociar el rack." xml:space="preserve"><value>Select at least one present WIP position to associate the rack.</value></data>
+  <data name="Selecciona un área WIP activa, presente y sin bloqueo." xml:space="preserve"><value>Select an active, present and unblocked WIP area.</value></data>
+  <data name="Selecciona un área para corregir sus datos, procesos o disponibilidad." xml:space="preserve"><value>Select an area to update its details, processes or availability.</value></data>
+  <data name="Buscar área" xml:space="preserve"><value>Search areas</value></data>
+  <data name="No hay áreas con estos filtros." xml:space="preserve"><value>No areas match these filters.</value></data>
+  <data name="Busca otro código o limpia los filtros para ver todas las áreas." xml:space="preserve"><value>Search for another code or clear the filters to see all areas.</value></data>
+  <data name="Ver todas las áreas" xml:space="preserve"><value>View all areas</value></data>
+  <data name="Editar área {0}" xml:space="preserve"><value>Edit area {0}</value></data>
+  <data name="Área activa" xml:space="preserve"><value>Active area</value></data>
+  <data name="Área bloqueada" xml:space="preserve"><value>Blocked area</value></data>
+  <data name="Motivo de bloqueo" xml:space="preserve"><value>Block reason</value></data>
+  <data name="El bloqueo requiere un motivo. Al desactivar el área se limpia el bloqueo; no se eliminan sus registros." xml:space="preserve"><value>Blocking requires a reason. Deactivating the area clears its block and preserves its records.</value></data>
+  <data name="WIP da seguimiento documental al material recibido; no controla existencias de almacén." xml:space="preserve"><value>WIP tracks received material through documents; it does not track warehouse stock.</value></data>
+  <data name="Selecciona una función operativa válida." xml:space="preserve"><value>Select a valid operational role.</value></data>
+  <data name="El área cambió mientras editabas. Recarga la página y revisa los cambios antes de guardar." xml:space="preserve"><value>The area changed while you were editing. Reload the page and review the changes before saving.</value></data>
+  <data name="Se guardó el área {0}." xml:space="preserve"><value>Area {0} was saved.</value></data>
+  <data name="No hay procesos disponibles para asociar." xml:space="preserve"><value>No processes are available to associate.</value></data>
+  <data name="Últimas entregas a {0}" xml:space="preserve"><value>Latest deliveries to {0}</value></data>
+  <data name="Hasta 5 entregas, de más reciente a más antigua" xml:space="preserve"><value>Up to 5 deliveries, newest first</value></data>
+  <data name="Enviado sin devolución histórica:" xml:space="preserve"><value>Sent with no historical return:</value></data>
+  <data name="Seguimiento documental y últimos surtimientos" xml:space="preserve"><value>Document tracking and latest supplies</value></data>
   <data name="Exportar productos" xml:space="preserve"><value>Export products</value></data>
   <data name="El Excel incluye todos los productos activos e inactivos, sin aplicar filtros ni paginación. PACKED BY (AREA) queda vacío porque ese dato no está guardado." xml:space="preserve"><value>The Excel file includes all active and inactive products, regardless of filters or pagination. PACKED BY (AREA) is blank because this data is not stored.</value></data>
   <data name="El catálogo supera el límite de 10,000 productos por archivo. No se exportó una lista parcial." xml:space="preserve"><value>The catalogue exceeds the limit of 10,000 products per file. No partial list was exported.</value></data>
