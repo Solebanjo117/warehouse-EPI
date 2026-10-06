@@ -68,7 +68,7 @@ public sealed class ProductionImportReplacementPostgreSqlTests
         }
         finally
         {
-            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{name}\" WITH (FORCE)", admin);
+            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{name}\" WITH (FORCE)", admin) { CommandTimeout = 120 };
             await drop.ExecuteNonQueryAsync();
         }
     }

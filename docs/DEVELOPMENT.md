@@ -26,7 +26,30 @@ El comando restaura herramientas y paquetes bloqueados, revisa espacios en
 blanco y formato, compila en Release, valida el modelo de migraciones, genera
 SQL idempotente y ejecuta las pruebas con cobertura. Los resultados quedan en
 `artifacts/`, que no se versiona. La suite incluye pruebas web, de dominio y de
-PostgreSQL.
+PostgreSQL. Por defecto excluye únicamente `Category=PostgreSQLPerformance`;
+conserva la cobertura mínima de 85 % de líneas y 45 % de ramas. Cada corrida
+guarda resultados en `artifacts/test-results/quality-<identificador>` sin borrar
+la evidencia anterior.
+
+Para medir rendimiento aparte, con la compilación Release ya preparada y
+`WAREHOUSE_EPI_TEST_CONNECTION` apuntando explícitamente a `warehouse_epi_test`:
+
+```powershell
+pwsh ./scripts/Test-Performance.ps1
+```
+
+Esta medición crea 48 bases temporales y aplica sus migraciones. No recoge
+cobertura para evitar distorsionar los tiempos, y conserva su TRX en un directorio
+propio. No forma parte del despliegue habitual. Para incluirla también en el ciclo
+completo de calidad, usa `pwsh ./scripts/quality.ps1 -IncludePerformance`.
+
+xUnit ejecuta como máximo cuatro colecciones en paralelo para no saturar
+PostgreSQL durante las corridas con cobertura. La colección de rendimiento
+se ejecuta sin otras colecciones simultáneas; sus mediciones usan bases
+temporales. Los casos de concurrencia conservan sus operaciones simultáneas
+dentro de cada prueba. La eliminación de bases temporales dispone de hasta
+120 segundos para completar los checkpoints; este límite no modifica los
+tiempos de espera de la aplicación.
 
 Los comandos de MSBuild ejecutados por linea de comandos guardan automaticamente
 un binlog unico en `.binlogs/` mediante `Directory.Build.rsp`. El directorio

@@ -67,7 +67,12 @@ public sealed class ProductionScheduleCarryoverPostgreSqlTests
         }
         finally
         {
-            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{name}\" WITH (FORCE)", admin);
+            // Dropping a database can wait for a checkpoint while other isolated
+            // migration tests run. Keep cleanup bounded without changing app timeouts.
+            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{name}\" WITH (FORCE)", admin)
+            {
+                CommandTimeout = 120
+            };
             await drop.ExecuteNonQueryAsync();
         }
     }

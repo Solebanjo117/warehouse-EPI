@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$IncludePerformance)
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -24,7 +24,7 @@ $solution = Join-Path $repositoryRoot 'WarehouseEPI.sln'
 $migrationProject = Join-Path $repositoryRoot 'src/WarehouseEPI.Infrastructure/WarehouseEPI.Infrastructure.csproj'
 $startupProject = Join-Path $repositoryRoot 'src/WarehouseEPI.Web/WarehouseEPI.Web.csproj'
 $artifactsDirectory = Join-Path $repositoryRoot 'artifacts'
-$testResultsDirectory = Join-Path $artifactsDirectory 'test-results'
+$testResultsDirectory = Join-Path $artifactsDirectory ('test-results/quality-' + [Guid]::NewGuid().ToString('N'))
 $migrationScript = Join-Path $artifactsDirectory 'migrations.sql'
 
 Set-Location $repositoryRoot
@@ -59,10 +59,6 @@ Write-Host '==> Compilación Release'
 Invoke-NativeCommand 'dotnet build Release' { dotnet build $solution --configuration Release --no-restore }
 
 New-Item -ItemType Directory -Force -Path $artifactsDirectory | Out-Null
-if (Test-Path -LiteralPath $testResultsDirectory) {
-    Remove-Item -LiteralPath $testResultsDirectory -Recurse -Force
-}
-
 New-Item -ItemType Directory -Force -Path $testResultsDirectory | Out-Null
 
 Write-Host '==> Modelo de migraciones'
@@ -76,8 +72,10 @@ Invoke-NativeCommand 'dotnet ef migrations script --idempotent' {
 }
 
 Write-Host '==> Pruebas y cobertura'
+$testFilter = if ($IncludePerformance) { @() } else { @('--filter', 'Category!=PostgreSQLPerformance') }
+Write-Host "Rendimiento incluido: $IncludePerformance. Resultados: $testResultsDirectory"
 Invoke-NativeCommand 'dotnet test con cobertura' {
-    dotnet test $solution --configuration Release --no-build --no-restore --logger 'trx;LogFileName=test-results.trx' --results-directory $testResultsDirectory --collect:'XPlat Code Coverage'
+    dotnet test $solution --configuration Release --no-build --no-restore @testFilter --logger 'trx;LogFileName=test-results.trx' --results-directory $testResultsDirectory --collect:'XPlat Code Coverage'
 }
 
 # VSTest puede copiar adjuntos temporales del recolector a un subdirectorio In.

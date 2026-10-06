@@ -43,7 +43,7 @@ public sealed class ProductionDailyBalanceTests
         }
         finally
         {
-            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{database}\" WITH (FORCE)", admin);
+            await using var drop = new NpgsqlCommand($"DROP DATABASE \"{database}\" WITH (FORCE)", admin) { CommandTimeout = 120 };
             await drop.ExecuteNonQueryAsync();
         }
     }
