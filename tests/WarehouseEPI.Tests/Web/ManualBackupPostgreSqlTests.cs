@@ -21,6 +21,13 @@ public sealed class ManualBackupPostgreSqlTests
 {
     [WindowsBackupFact]
     public async Task Read_only_application_role_can_create_a_portable_backup_and_recover_its_paired_pin_key()
+        => await VerifyInPrivateClusterAsync(developmentOnly: false);
+
+    [WindowsBackupFact]
+    public async Task Development_restore_imports_and_recovers_only_its_private_application()
+        => await VerifyInPrivateClusterAsync(developmentOnly: true);
+
+    private static async Task VerifyInPrivateClusterAsync(bool developmentOnly)
     {
         using var clusterFixture = new ManualBackupTests.BackupFixture();
         var pgBin = @"C:\Program Files\PostgreSQL\18\bin";
@@ -33,7 +40,7 @@ public sealed class ManualBackupPostgreSqlTests
         var started = await RunAsync(Path.Combine(pgBin, "pg_ctl.exe"),
             ["-D", cluster, "-l", Path.Combine(clusterFixture.Directory, "postgres.log"), "-o", $"-h 127.0.0.1 -p {port}", "-w", "start"]);
         Assert.True(started.ExitCode == 0, started.Output);
-        try { await VerifyAsync($"Host=127.0.0.1;Port={port};Username=backup_test_admin;Database=postgres"); }
+        try { await VerifyAsync($"Host=127.0.0.1;Port={port};Username=backup_test_admin;Database=postgres", developmentOnly); }
         finally
         {
             var stopped = await RunAsync(Path.Combine(pgBin, "pg_ctl.exe"), ["-D", cluster, "-w", "-m", "immediate", "stop"]);
@@ -41,7 +48,7 @@ public sealed class ManualBackupPostgreSqlTests
         }
     }
 
-    private static async Task VerifyAsync(string source)
+    private static async Task VerifyAsync(string source, bool developmentOnly)
     {
         var name = "warehouse_epi_manual_backup_test_" + Guid.NewGuid().ToString("N");
         var role = "epi_backup_test_" + Guid.NewGuid().ToString("N");
@@ -177,18 +184,30 @@ public sealed class ManualBackupPostgreSqlTests
             }
             finally
             {
-                await using var drop = new NpgsqlCommand($"DROP DATABASE \"{restoredName}\" WITH (FORCE)", admin); await drop.ExecuteNonQueryAsync();
+                await using var drop = new NpgsqlCommand($"DROP DATABASE \"{restoredName}\" WITH (FORCE)", admin) { CommandTimeout = 120 }; await drop.ExecuteNonQueryAsync();
             }
             var migrationsPath = Path.Combine(fixture.Directory, "migration-ids.json");
             await using (var sourceDb = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>().UseNpgsql(testBuilder.ConnectionString).Options))
                 await File.WriteAllTextAsync(migrationsPath, JsonSerializer.Serialize(await sourceDb.Database.GetAppliedMigrationsAsync()));
-            var restoreFlow = await RunAsync("pwsh", ["-NoProfile", "-File", Path.Combine(root, "tests", "powershell", "BackupRestore.PostgreSql.ps1"),
+            if (!developmentOnly)
+            {
+                var restoreFlow = await RunAsync("pwsh", ["-NoProfile", "-File", Path.Combine(root, "tests", "powershell", "BackupRestore.PostgreSql.ps1"),
                 "-RepositoryRoot", root, "-FixtureRoot", Path.Combine(fixture.Directory, "restore-server-fixture"), "-Port", adminBuilder.Port.ToString(),
                 "-SourceDatabase", name, "-PackagePath", migration, "-KeyPath", Path.Combine(destination, "pinlookupkey.json"),
                 "-LogoPath", Path.Combine(values["Branding:StorageDirectory"]!, logoName), "-ReferencePath", referencePath,
                 "-MigrationIdsPath", migrationsPath]);
-            Assert.True(restoreFlow.ExitCode == 0, restoreFlow.Output);
-            Assert.Contains("interrupted rename: passed", restoreFlow.Output);
+                Assert.True(restoreFlow.ExitCode == 0, restoreFlow.Output);
+                Assert.Contains("interrupted rename: passed", restoreFlow.Output);
+            }
+            else
+            {
+                var developmentFlow = await RunAsync("pwsh", ["-NoProfile", "-File", Path.Combine(root, "tests", "powershell", "DevelopmentRestore.PostgreSql.ps1"),
+                "-RepositoryRoot", root, "-FixtureRoot", Path.Combine(fixture.Directory, "development-fixture"),
+                "-PackagePath", migration, "-KeyPath", Path.Combine(destination, "pinlookupkey.json"), "-MigrationIdsPath", migrationsPath,
+                "-WebDllPath", typeof(Program).Assembly.Location]);
+                Assert.True(developmentFlow.ExitCode == 0, developmentFlow.Output);
+                Assert.Contains("development isolation, import and rollback: passed", developmentFlow.Output);
+            }
             File.Delete(referencePath);
             var missingWork = Path.Combine(fixture.Directory, "missing-work"); Directory.CreateDirectory(missingWork);
             var missingKey = ManualBackupEncryption.DeriveKey(ManualBackupTests.Password, salt);
@@ -202,7 +221,7 @@ public sealed class ManualBackupPostgreSqlTests
         }
         finally
         {
-            await using (var drop = new NpgsqlCommand($"DROP DATABASE \"{name}\" WITH (FORCE)", admin)) await drop.ExecuteNonQueryAsync();
+            await using (var drop = new NpgsqlCommand($"DROP DATABASE \"{name}\" WITH (FORCE)", admin) { CommandTimeout = 120 }) await drop.ExecuteNonQueryAsync();
             if (roleCreated) { await using var drop = new NpgsqlCommand($"DROP ROLE \"{role}\"", admin); await drop.ExecuteNonQueryAsync(); }
         }
     }

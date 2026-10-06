@@ -16,6 +16,51 @@
 Si `dotnet` no esta en `PATH`, antepone
 `& "C:\Program Files\dotnet\dotnet.exe"` a los comandos.
 
+## Probar la importación de respaldos sin cambiar producción
+
+Desde la raíz, en PowerShell 7.4 o posterior, sin elevar a administrador:
+
+```powershell
+pwsh ./scripts/Start-WarehouseEpiLocal.ps1 -EnableRestore
+```
+
+Este inicio crea una instancia PostgreSQL 18 propia en `127.0.0.1:55432`,
+con la base `warehouse_epi_restore_dev`, y abre la aplicación en modo
+`Development` en `http://127.0.0.1:5143`. La primera ejecución prepara el
+esquema y solicita crear un ADMIN de pruebas. Después puede ingresar a
+**Administración → Respaldos → Cargar respaldo** y probar un `.webackup`.
+La confirmación usa el NIP de un ADMIN incluido en el respaldo.
+
+La base, contraseñas generadas, clave de NIP, logo, croquis, respaldos y
+recuperación quedan exclusivamente en `artifacts/local-restore`, que Git
+ignora y cuyos permisos se restringen al usuario, SYSTEM y Administradores.
+No se leen los secretos del servicio ni se instala una tarea de Windows.
+El proceso supervisor solo detiene y reinicia su propia aplicación. Ctrl+C
+cierra la aplicación y su PostgreSQL; conserva los datos para la siguiente
+ejecución. No entregar ni publicar esa carpeta: contiene datos y secretos.
+
+Se rechaza el puerto PostgreSQL 5432, cualquier base o rol distintos de los
+de desarrollo y un servidor cuyo directorio de datos no pertenezca a esa
+carpeta. Esta configuración también se rechaza al iniciar en `Production`.
+Si un puerto local ya está ocupado, el inicio falla sin modificar ese proceso.
+Para elegir otros puertos libres puede ejecutar directamente:
+
+```powershell
+pwsh ./scripts/development/Start-WarehouseEpiRestoreDevelopment.ps1 `
+  -PostgreSqlPort 55433 -WebPort 5144
+```
+
+Las siguientes ejecuciones deben conservar el puerto PostgreSQL elegido.
+El inicio con restauración no admite `-Watch`; al cambiar código, cierre y
+vuelva a ejecutar el comando para compilar. El inicio habitual sin
+`-EnableRestore` conserva su configuración existente.
+
+La importación comprueba las migraciones exactas del código compilado antes
+de sustituir la base de pruebas. Mantiene el estado anterior en su carpeta
+`Recovery` y en una base privada anterior; ante un fallo intenta recuperarlo.
+Si requiere revisión, conserva los marcadores de mantenimiento y detiene
+este inicio local. No modifica ni reinicia el servicio `WarehouseEPI`.
+
 ## Ciclo de verificacion
 
 ```powershell

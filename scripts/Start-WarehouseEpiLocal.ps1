@@ -1,11 +1,18 @@
 [CmdletBinding()]
 param(
     [string]$PostgreSqlUser = 'postgres',
-    [switch]$Watch
+    [switch]$Watch,
+    [switch]$EnableRestore
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($EnableRestore) {
+    if ($Watch) { throw 'El inicio con restauración controla los reinicios. Use -EnableRestore sin -Watch.' }
+    & (Join-Path $PSScriptRoot 'development\Start-WarehouseEpiRestoreDevelopment.ps1')
+    return
+}
 
 $repositoryPath = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $repositoryPath 'src\WarehouseEPI.Web\WarehouseEPI.Web.csproj'

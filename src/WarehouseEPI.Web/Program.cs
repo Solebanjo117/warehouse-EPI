@@ -27,6 +27,7 @@ using WarehouseEPI.Web.Reporting;
 using WarehouseEPI.Web.Security;
 
 var builder = WebApplication.CreateBuilder(args);
+var developmentRestoreEnabled = DevelopmentRestoreConfiguration.Configure(builder.Environment, builder.Configuration);
 builder.Services.AddWindowsService(options => options.ServiceName = "WarehouseEPI");
 var isIntegrationTestHost = AppDomain.CurrentDomain.GetAssemblies().Any(assembly =>
     string.Equals(assembly.GetName().Name, "Microsoft.AspNetCore.Mvc.Testing", StringComparison.Ordinal));
@@ -248,7 +249,8 @@ builder.Services
     {
         options.LoginPath = "/Admin/Login";
         options.AccessDeniedPath = "/AccessDenied";
-        options.Cookie.Name = productionSecurity is null ? "WarehouseEPI.Admin" : "__Host-WarehouseEPI.Admin";
+        options.Cookie.Name = developmentRestoreEnabled ? "WarehouseEPI.DevelopmentRestore.Admin" :
+            productionSecurity is null ? "WarehouseEPI.Admin" : "__Host-WarehouseEPI.Admin";
         options.Cookie.HttpOnly = true;
         options.Cookie.SameSite = SameSiteMode.Strict;
         options.Cookie.SecurePolicy = productionSecurity is null
@@ -289,7 +291,8 @@ builder.Services
 builder.Services.AddAuthorization(WarehouseEPI.Web.Security.PageAccess.ConfigurePolicies);
 builder.Services.AddAntiforgery(options =>
 {
-    options.Cookie.Name = productionSecurity is null ? "WarehouseEPI.Antiforgery" : "__Host-WarehouseEPI.Antiforgery";
+    options.Cookie.Name = developmentRestoreEnabled ? "WarehouseEPI.DevelopmentRestore.Antiforgery" :
+        productionSecurity is null ? "WarehouseEPI.Antiforgery" : "__Host-WarehouseEPI.Antiforgery";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.Cookie.SecurePolicy = productionSecurity is null
@@ -311,6 +314,17 @@ else if (builder.Environment.IsDevelopment() &&
 
 var app = builder.Build();
 
+if (args.Contains("--prepare-development-restore", StringComparer.OrdinalIgnoreCase))
+{
+    if (!developmentRestoreEnabled)
+        throw new InvalidOperationException("Use Start-WarehouseEpiLocal.ps1 -EnableRestore para preparar la base aislada.");
+    await using var scope = app.Services.CreateAsyncScope();
+    var database = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+    await database.Database.MigrateAsync();
+    if (!await database.Users.AnyAsync()) await AdminBootstrapper.RunAsync(app.Services);
+    return;
+}
+
 if (args.Contains("--validate-production", StringComparer.OrdinalIgnoreCase))
 {
     if (!isProtectedProduction || productionSecurity is null)
@@ -331,7 +345,7 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Error");
     app.UseHsts();
 }
-app.UseHttpsRedirection();
+if (!developmentRestoreEnabled) app.UseHttpsRedirection();
 
 app.UseRouting();
 
