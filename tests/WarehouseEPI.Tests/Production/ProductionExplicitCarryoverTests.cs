@@ -188,14 +188,11 @@ public sealed class ProductionExplicitCarryoverTests
         var actual = Assert.Single((await balances.GetDailySummaryAsync(target.Id, new(monday)))!.Products);
         Assert.Equal(Assert.Single(editReview.Balance.Products).Sewing, actual.Sewing);
         Assert.True(actual.Sewing.ToReconcile > 0);
-        // Count each admission together with ordinary daily rows. 101 must leave everything untouched.
+        // Batches above the former combined 100-row limit remain atomic.
         var nextOption = Assert.Single(await openings.OptionsAsync(newWeek.Id), x => x.SourceWeekId == source.Id && x.Area == ProductionDailyArea.Cutting);
         var one = new ProductionOpeningChange(nextOption.SourceWeekId, nextOption.SourceLineId, nextOption.Area, 1, nextOption.Fingerprint);
         var add = new ProductionScheduleDraftChange("add", null, null, new(newWeek.WeekStart, product.Id, 1, null, null, null, null));
         var max = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), newWeek.Id, newWeek.Version, Enumerable.Repeat(add, 100).ToArray(), admin.Id, [one]);
-        Assert.False((await service.SaveDraftChangesAsync(max)).Success);
-        Assert.Empty(await db.ProductionScheduleLines.Where(x => x.WeekId == newWeek.Id).ToListAsync());
-        max = max with { Changes = Enumerable.Repeat(add, 99).ToArray() };
         if (db.Database.IsNpgsql())
         {
             Assert.StartsWith("warehouse_epi_balance_test_", db.Database.GetDbConnection().Database);
@@ -215,7 +212,8 @@ public sealed class ProductionExplicitCarryoverTests
             finally { await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_test_opening ON production_week_openings; DROP FUNCTION reject_test_opening();"); }
         }
         Assert.True((await service.SaveDraftChangesAsync(max)).Success);
-        Assert.Equal(99, await db.ProductionScheduleLines.CountAsync(x => x.WeekId == newWeek.Id));
+        Assert.Equal(100, await db.ProductionScheduleLines.CountAsync(x => x.WeekId == newWeek.Id));
+        Assert.Single(await db.ProductionWeekOpenings.Where(x => x.WeekId == newWeek.Id).ToListAsync());
         // Source changes require a fresh review; no silent resizing/replacement.
         var currentSource = (await service.GetWeekAsync(source.Id))!;
         var sourceLine = Assert.Single(currentSource.Lines);

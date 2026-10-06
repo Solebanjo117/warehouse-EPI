@@ -114,7 +114,7 @@ public sealed class ExecutiveReportServiceTests
         Assert.Contains("from=2026-08-10", report.EvidenceLinks.EffectiveMovementsUrl, StringComparison.Ordinal);
         Assert.Contains("to=2026-08-10", report.EvidenceLinks.EffectiveMovementsUrl, StringComparison.Ordinal);
         Assert.Contains("coverageClass=Critical", report.EvidenceLinks.CriticalCoverageUrl, StringComparison.Ordinal);
-        Assert.Contains("stagnantCategory=90plus", report.EvidenceLinks.StagnantUrl, StringComparison.Ordinal);
+        Assert.Equal("/Admin/Inventory/Alerts?category=StagnantInventory", report.EvidenceLinks.StagnantUrl);
 
         // 4. Top demandados
         Assert.Single(report.TopDemandedSkus);

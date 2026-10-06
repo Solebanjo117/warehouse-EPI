@@ -53,9 +53,10 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
     }
 
     [Fact]
-    public async Task Existing_order_survives_P2_migration_down_and_up_without_backfill()
+    public Task Existing_order_survives_P2_migration_down_and_up_without_backfill() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        await using var db = fixture.CreateDbContext();
+        await using var db = isolated.CreateDbContext();
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         var user = new User { FullName = $"Admin legado P2 {suffix}", RoleId = 1, PinLookup = $"p2-{suffix}", PinHash = "legacy" };
         var product = new Product { Sku = $"P2-LEG-{suffix}", BaseUnitId = 1 };
@@ -86,12 +87,13 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
         Assert.Equal(ProductionWorkOrderStatus.Released, restored.Status);
         Assert.Empty(await db.ProductionOrderMaterialPlans.Where(x => x.WorkOrderId == orderId).ToListAsync());
         Assert.True(await db.Database.CanConnectAsync());
-    }
+    });
 
     [Fact]
-    public async Task Recipe_draft_migration_down_fails_safely_when_an_unassigned_material_exists()
+    public Task Recipe_draft_migration_down_fails_safely_when_an_unassigned_material_exists() =>
+        fixture.WithIsolatedDatabaseAsync(async isolated =>
     {
-        await using var db = fixture.CreateDbContext();
+        await using var db = isolated.CreateDbContext();
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         var admin = new User
         {
@@ -131,5 +133,5 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
             db.Users.Remove(await db.Users.SingleAsync(x => x.Id == admin.Id));
             await db.SaveChangesAsync();
         }
-    }
+    });
 }

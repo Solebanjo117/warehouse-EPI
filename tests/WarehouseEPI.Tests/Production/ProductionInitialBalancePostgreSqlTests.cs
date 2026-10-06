@@ -18,7 +18,9 @@ public sealed class ProductionInitialBalancePostgreSqlTests
         ProductionScheduleCarryoverPostgreSqlTests.WithDatabaseAsync(async db =>
         {
             var migrations = db.Database.GetMigrations().ToArray();
-            await db.GetService<IMigrator>().MigrateAsync(migrations[^2]);
+            var targetIndex = Array.IndexOf(migrations, "20261001173021_EditableInitialCarryover");
+            Assert.True(targetIndex > 0);
+            await db.GetService<IMigrator>().MigrateAsync(migrations[targetIndex - 1]);
             var (_, actor, product) = await ProductionScheduleCarryoverCopyTests.SeedAsync(db);
             var source = new ProductionScheduleWeek
             {

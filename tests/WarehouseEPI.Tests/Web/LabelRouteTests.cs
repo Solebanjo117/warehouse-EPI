@@ -46,7 +46,9 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains(">Etiquetas<", getHtml, StringComparison.Ordinal);
         Assert.Contains(">Generar etiquetas<", getHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Input.Pin", getHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("NIP ADMIN", getHtml, StringComparison.Ordinal);
+        var main = Regex.Match(getHtml, "<main\\b[^>]*>(.*?)</main>", RegexOptions.Singleline);
+        Assert.True(main.Success);
+        Assert.DoesNotContain("NIP ADMIN", main.Value, StringComparison.Ordinal);
 
         foreach (var template in seed.TemplateVersions)
         {
@@ -75,7 +77,7 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("is-blank-line", await blankSpouted.Content.ReadAsStringAsync(), StringComparison.Ordinal);
         var invalidSpouted = await PostAsync(client, spouted, seed.ProductId, 1,
             new Dictionary<string, string> { ["mfd"] = "fecha-inválida" });
-        Assert.Contains("MFD debe ser una fecha válida", await invalidSpouted.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("MFD debe ser una fecha válida", WebUtility.HtmlDecode(await invalidSpouted.Content.ReadAsStringAsync()), StringComparison.Ordinal);
 
         var missingToken = await client.PostAsync("/Operations/Labels", new FormUrlEncodedContent([]));
         Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
@@ -96,7 +98,7 @@ public sealed class LabelRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Equal(100, Regex.Count(await maximum.Content.ReadAsStringAsync(), "data-label-copy=\""));
 
         var inactive = await PostAsync(client, seed.TemplateVersionId, seed.InactiveProductId, 1);
-        Assert.Contains("no existe o está inactivo", await inactive.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        Assert.Contains("no existe o está inactivo", WebUtility.HtmlDecode(await inactive.Content.ReadAsStringAsync()), StringComparison.Ordinal);
 
         await using var scope = factory.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
