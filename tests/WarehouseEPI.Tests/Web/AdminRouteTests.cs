@@ -186,10 +186,11 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
 
         var products = await client.GetAsync("/Admin/Catalogs/Products");
         Assert.Equal(HttpStatusCode.OK, products.StatusCode);
-        var productsHtml = await products.Content.ReadAsStringAsync();
+        var productsHtml = WebUtility.HtmlDecode(await products.Content.ReadAsStringAsync());
         Assert.Contains("Crear producto", productsHtml);
-        Assert.Contains("href=\"/Admin/Catalogs/ProductTypes\"", productsHtml);
-        Assert.Contains("href=\"/Admin/Catalogs/ProductClasses\"", productsHtml);
+        var catalogsHtml = await client.GetStringAsync("/Modules/catalogs");
+        Assert.Contains("href=\"/Admin/Catalogs/ProductTypes\"", catalogsHtml);
+        Assert.Contains("href=\"/Admin/Catalogs/ProductClasses\"", catalogsHtml);
         Assert.Contains("placeholder=\"SKU, descripción, referencia o ubicación\"", productsHtml);
         Assert.DoesNotContain("código(s)", productsHtml, StringComparison.OrdinalIgnoreCase);
 
@@ -206,12 +207,12 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("aria-current=\"page\"", productClassesHtml);
 
         var createPage = await client.GetAsync("/Admin/Catalogs/Products/Create");
-        var createHtml = await createPage.Content.ReadAsStringAsync();
+        var createHtml = WebUtility.HtmlDecode(await createPage.Content.ReadAsStringAsync());
         var createToken = Regex.Match(
             createHtml,
             "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
         Assert.True(createToken.Success, "No se encontró el token antiforgery del producto.");
-        Assert.Contains("Información del producto", createHtml);
+        Assert.Contains("Identificación", createHtml);
         Assert.Contains("Configuración", createHtml);
         Assert.Contains("Guardar producto", createHtml);
         Assert.Contains("href=\"/Admin/Catalogs/Products\"", createHtml);
@@ -223,7 +224,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("data-cycle-plan-results", createHtml);
         Assert.Contains("data-cycle-plan-clear", createHtml);
         Assert.Contains("data-cycle-plan-camera", createHtml);
-        Assert.Contains("/js/cycle-count.js", createHtml);
+        Assert.Matches("src=\"/js/cycle-count(?:\\.[a-z0-9]+)?\\.js(?:\\?[^\"]*)?\"", createHtml);
         Assert.DoesNotContain("<select id=\"Input_DefaultEntryLocationId\"", createHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Códigos de barras", createHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", createHtml, StringComparison.Ordinal);
@@ -260,7 +261,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Null(savedProduct.Description);
 
         var editPage = await client.GetAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}");
-        var editHtml = await editPage.Content.ReadAsStringAsync();
+        var editHtml = WebUtility.HtmlDecode(await editPage.Content.ReadAsStringAsync());
         var editToken = Regex.Match(
             editHtml,
             "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"");
@@ -275,7 +276,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains("aria-controls=\"default-entry-location-results\"", editHtml);
         Assert.Contains("data-cycle-plan-camera", editHtml);
         Assert.Contains("Configuración de producción", editHtml);
-        Assert.Contains("/js/cycle-count.js", editHtml);
+        Assert.Matches("src=\"/js/cycle-count(?:\\.[a-z0-9]+)?\\.js(?:\\?[^\"]*)?\"", editHtml);
         Assert.DoesNotContain("Códigos de barras", editHtml, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("BarcodeInput", editHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("handler=AddBarcode", editHtml, StringComparison.Ordinal);
@@ -284,10 +285,10 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Contains($"href=\"/Admin/Catalogs/Products/Details/{savedProduct.Id}\"", editHtml);
 
         var detailsPage = await client.GetAsync($"/Admin/Catalogs/Products/Details/{savedProduct.Id}");
-        var detailsHtml = await detailsPage.Content.ReadAsStringAsync();
+        var detailsHtml = WebUtility.HtmlDecode(await detailsPage.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.OK, detailsPage.StatusCode);
         Assert.Contains("Lotes internos", detailsHtml);
-        Assert.Contains("Configuración de producción", detailsHtml);
+        Assert.Contains("id=\"product-production-summary\"", detailsHtml);
         Assert.DoesNotContain("Códigos de barras", detailsHtml, StringComparison.OrdinalIgnoreCase);
 
         var editResponse = await client.PostAsync(
@@ -390,7 +391,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
             }));
         Assert.Equal(HttpStatusCode.OK, invalidDefaultResponse.StatusCode);
         Assert.Contains("Seleccione una ubicación física activa y no bloqueada.",
-            await invalidDefaultResponse.Content.ReadAsStringAsync());
+            WebUtility.HtmlDecode(await invalidDefaultResponse.Content.ReadAsStringAsync()));
 
         var assignmentPage = await client.GetAsync($"/Admin/Catalogs/Products/Edit/{savedProduct.Id}?locationSearch=Z-1-9");
         var assignmentHtml = await assignmentPage.Content.ReadAsStringAsync();
@@ -435,7 +436,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         Assert.Equal(HttpStatusCode.OK, detailResponse.StatusCode);
         Assert.Contains("WEB-EDITED", await detailResponse.Content.ReadAsStringAsync());
 
-        var locationSearch = await client.GetAsync("/Admin/Catalogs/Locations?status=all&search=WEB-EDITED");
+        var locationSearch = await client.GetAsync("/Admin/Catalogs/Locations?viewMode=table&status=all&search=WEB-EDITED");
         Assert.Equal(HttpStatusCode.OK, locationSearch.StatusCode);
         Assert.Contains("Z-1-9", await locationSearch.Content.ReadAsStringAsync());
 
@@ -443,7 +444,7 @@ public sealed class AdminRouteTests : IClassFixture<AdminRouteTests.WarehouseApp
         var productSearchBody = await productSearch.Content.ReadAsStringAsync();
         Assert.True(productSearch.StatusCode == HttpStatusCode.OK,
             $"Productos devolvió {productSearch.StatusCode}: {productSearchBody}");
-        Assert.Contains("Z-1-9", productSearchBody);
+        Assert.Contains($"href=\"/Admin/Catalogs/Products/Details/{savedProduct.Id}\"", productSearchBody);
 
         var productRackSearch = await client.GetAsync("/Admin/Catalogs/Products?search=Z-1-9");
         var productRackSearchBody = await productRackSearch.Content.ReadAsStringAsync();

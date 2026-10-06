@@ -11,7 +11,8 @@ internal static class ProductPageSupport
 {
     public static void Normalize(ProductInputModel input)
     {
-        input.Sku = CatalogNormalization.NormalizeCode(input.Sku);
+        // MVC binds an empty text field to null, even on a non-nullable property.
+        input.Sku = CatalogNormalization.NormalizeCode(input.Sku ?? string.Empty);
         input.Description = CatalogNormalization.NormalizeOptional(input.Description);
         input.ExternalReference = CatalogNormalization.NormalizeOptional(input.ExternalReference);
     }

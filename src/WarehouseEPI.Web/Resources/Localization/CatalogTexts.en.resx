@@ -5486,4 +5486,7 @@
   <data name="Las fechas filtran la entrega original, no el día de captura. Sin fechas se muestra todo el historial." xml:space="preserve"><value>Dates filter the original delivery, not the recording date. Leave dates empty to show all history.</value></data>
   <data name="Excluir las ya importadas" xml:space="preserve"><value>Exclude already imported</value></data>
   <data name="Racks asociados actualmente" xml:space="preserve"><value>Currently associated racks</value></data>
+  <data name="Exportar productos" xml:space="preserve"><value>Export products</value></data>
+  <data name="El Excel incluye todos los productos activos e inactivos, sin aplicar filtros ni paginación. PACKED BY (AREA) queda vacío porque ese dato no está guardado." xml:space="preserve"><value>The Excel file includes all active and inactive products, regardless of filters or pagination. PACKED BY (AREA) is blank because this data is not stored.</value></data>
+  <data name="El catálogo supera el límite de 10,000 productos por archivo. No se exportó una lista parcial." xml:space="preserve"><value>The catalogue exceeds the limit of 10,000 products per file. No partial list was exported.</value></data>
 </root>

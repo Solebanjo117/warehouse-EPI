@@ -17,10 +17,15 @@
         <p class="text-body-secondary mb-0">@CatTexts["Existencias, ubicaciones y recetas de producción."]</p>
     </div>
     <div class="product-catalog-header-actions">
+        @if (User.IsInRole("ADMIN")) { <a asp-page="Index" asp-page-handler="Export" class="btn btn-outline-primary" aria-describedby="product-export-help">@CatTexts["Exportar productos"]</a> }
         @if (User.IsInRole("ADMIN")) { <a asp-page="Import" class="btn btn-outline-secondary">@CatTexts["Importar Excel"]</a> }
         @if (User.IsInRole("ADMIN")) { <a asp-page="Create" class="btn btn-primary">@CatTexts["Crear producto"]</a> }
     </div>
 </header>
+@if (User.IsInRole("ADMIN"))
+{
+    <p id="product-export-help" class="small text-body-secondary mb-3">@CatTexts["El Excel incluye todos los productos activos e inactivos, sin aplicar filtros ni paginación. PACKED BY (AREA) queda vacío porque ese dato no está guardado."]</p>
+}
 
 <nav class="product-catalog-metrics mb-3" aria-label="@CatTexts["Filtros rápidos del catálogo"]">
     <a asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId" asp-route-typeId="@Model.TypeId" asp-route-classId="@Model.ClassId" asp-route-status="active" asp-route-stock="all" asp-route-assignment="all" asp-route-pageNumber="1"

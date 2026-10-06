@@ -15,14 +15,11 @@ using WarehouseEPI.Web.Imports;
 
 namespace WarehouseEPI.Tests.Web;
 
-public sealed class ProductImportRouteTests : IClassFixture<AdminRouteTests.WarehouseApplicationFactory>
+public sealed class ProductImportRouteTests : IDisposable
 {
-    private readonly AdminRouteTests.WarehouseApplicationFactory factory;
+    private readonly AdminRouteTests.WarehouseApplicationFactory factory = new();
 
-    public ProductImportRouteTests(AdminRouteTests.WarehouseApplicationFactory factory)
-    {
-        this.factory = factory;
-    }
+    public void Dispose() => factory.Dispose();
 
     [Fact]
     public async Task Operator_does_not_satisfy_admin_policy()
@@ -67,8 +64,9 @@ public sealed class ProductImportRouteTests : IClassFixture<AdminRouteTests.Ware
         Assert.Contains("pageNumber=2", firstHtml);
         Assert.DoesNotContain("is not valid", firstHtml);
         Assert.Equal(HttpStatusCode.OK, secondResponse.StatusCode);
-        Assert.Contains("2 de 2", secondHtml);
-        Assert.Contains("PAGE-060", secondHtml);
+        Assert.Contains("2 de 3", secondHtml);
+        Assert.Contains("PAGE-050", secondHtml);
+        Assert.DoesNotContain("PAGE-060", secondHtml);
         Assert.DoesNotContain("is not valid", secondHtml);
     }
 

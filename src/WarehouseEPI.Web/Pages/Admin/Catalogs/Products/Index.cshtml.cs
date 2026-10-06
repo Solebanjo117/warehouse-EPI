@@ -97,6 +97,22 @@ public sealed class IndexModel(ProductCatalogQueryService catalog, WarehouseDbCo
         return summary is null ? NotFound() : new JsonResult(summary);
     }
 
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken token)
+    {
+        if (!User.IsInRole("ADMIN")) return Forbid();
+        try
+        {
+            var bytes = await new ProductCatalogExportService(dbContext).ExportAsync(token);
+            Response.Headers.CacheControl = "no-store";
+            return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "Productos.xlsx");
+        }
+        catch (InvalidOperationException error) when (error.Message == ProductCatalogExportService.LimitMessage)
+        {
+            var texts = HttpContext.RequestServices.GetRequiredService<Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts>>();
+            return BadRequest(texts[ProductCatalogExportService.LimitMessage].Value);
+        }
+    }
+
     private static short? Known(IReadOnlyList<SelectListItem> options, short? value) =>
         value is null || options.Any(option => option.Value == value.Value.ToString(CultureInfo.InvariantCulture)) ? value : null;
 
