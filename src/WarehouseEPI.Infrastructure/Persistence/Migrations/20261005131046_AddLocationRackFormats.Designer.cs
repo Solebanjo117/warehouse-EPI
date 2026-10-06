@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using WarehouseEPI.Infrastructure.Persistence;
 namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WarehouseDbContext))]
-    partial class WarehouseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005131046_AddLocationRackFormats")]
+    partial class AddLocationRackFormats
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -855,9 +858,9 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 
                     b.ToTable("inventory_movements", null, t =>
                         {
-                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR (purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR (purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL) OR (purpose = 'WIP_DOCUMENT_CUTOVER' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
+                            t.HasCheckConstraint("ck_inventory_movements_operational_shape", "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR (purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (purpose = 'WIP_WAREHOUSE_RETURN' AND ((type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR (type = 'TRANSFER' AND operational_area_id IS NOT NULL))) OR (purpose = 'WIP_CONSUMPTION' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL) OR (purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR (purpose = 'STANDARD' AND operational_area_id IS NULL) OR (purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR (purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL)");
 
-                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT', 'WIP_DOCUMENT_CUTOVER')");
+                            t.HasCheckConstraint("ck_inventory_movements_purpose", "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT')");
 
                             t.HasCheckConstraint("ck_inventory_movements_type", "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
                         });
@@ -1523,31 +1526,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_location_rack_revisions_reason", "reason = btrim(reason) AND reason <> ''");
 
                             t.HasCheckConstraint("ck_location_rack_revisions_row", "row_code ~ '^[A-Z]$'");
-                        });
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.LocationRackWipAssociation", b =>
-                {
-                    b.Property<string>("RowCode")
-                        .HasMaxLength(1)
-                        .HasColumnType("character varying(1)")
-                        .HasColumnName("row_code");
-
-                    b.Property<short>("RackNumber")
-                        .HasColumnType("smallint")
-                        .HasColumnName("rack_number");
-
-                    b.Property<Guid>("WipAreaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("wip_area_id");
-
-                    b.HasKey("RowCode", "RackNumber");
-
-                    b.HasIndex("WipAreaId");
-
-                    b.ToTable("location_rack_wip_associations", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_location_rack_wip_identity", "row_code ~ '^[A-Z]$' AND rack_number > 0");
                         });
                 });
 
@@ -3670,7 +3648,7 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
-                    b.Property<Guid?>("InventoryMovementLineId")
+                    b.Property<Guid>("InventoryMovementLineId")
                         .HasColumnType("uuid")
                         .HasColumnName("inventory_movement_line_id");
 
@@ -7082,207 +7060,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("CutoverId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsCancelled")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsOpening")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("MovementLineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("OccurredAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<Guid>("ResponsibleUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("WipLocationId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("MovementLineId")
-                        .IsUnique();
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ResponsibleUserId");
-
-                    b.HasIndex("WipLocationId", "ProductId", "OccurredAt");
-
-                    b.ToTable("wip_documents", (string)null);
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentApplication", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Fingerprint")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("InventoryMovementLineId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("IssueLinkId")
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Kind")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("LotId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("OperationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.Property<DateTimeOffset>("RecordedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Reference")
-                        .HasColumnType("text");
-
-                    b.Property<Guid>("ResponsibleUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("ReversesApplicationId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentId");
-
-                    b.HasIndex("InventoryMovementLineId");
-
-                    b.HasIndex("OperationId");
-
-                    b.HasIndex("ReversesApplicationId")
-                        .IsUnique();
-
-                    b.ToTable("wip_document_applications", (string)null);
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("IssueLinkId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("IssueLinkId");
-
-                    b.HasIndex("DocumentId", "IssueLinkId")
-                        .IsUnique();
-
-                    b.ToTable("wip_document_assignments", (string)null);
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentCutover", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("OperationId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("RecordedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ResponsibleUserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Revision")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("Singleton")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SnapshotJson")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperationId")
-                        .IsUnique();
-
-                    b.HasIndex("Singleton")
-                        .IsUnique();
-
-                    b.ToTable("wip_document_cutovers", (string)null);
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentLot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("LotId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Quantity")
-                        .HasPrecision(18, 4)
-                        .HasColumnType("numeric(18,4)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentId");
-
-                    b.HasIndex("LotId");
-
-                    b.ToTable("wip_document_lots", (string)null);
-                });
-
             modelBuilder.Entity("WarehouseEPI.Core.Entities.BusinessSettings", b =>
                 {
                     b.HasOne("WarehouseEPI.Core.Entities.User", "UpdatedByUser")
@@ -7830,17 +7607,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("AuthorizedByUser");
 
                     b.Navigation("RequestedByUser");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.LocationRackWipAssociation", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.Location", "WipArea")
-                        .WithMany()
-                        .HasForeignKey("WipAreaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("WipArea");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionCase", b =>
@@ -8647,7 +8413,8 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "InventoryMovementLine")
                         .WithMany()
                         .HasForeignKey("InventoryMovementLineId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
                         .WithMany("OperationLines")
@@ -9723,100 +9490,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("ReversesDisposition");
                 });
 
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocument", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "MovementLine")
-                        .WithMany()
-                        .HasForeignKey("MovementLineId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("WarehouseEPI.Core.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.User", "ResponsibleUser")
-                        .WithMany()
-                        .HasForeignKey("ResponsibleUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.Location", "WipLocation")
-                        .WithMany()
-                        .HasForeignKey("WipLocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("MovementLine");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("ResponsibleUser");
-
-                    b.Navigation("WipLocation");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentApplication", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.WipDocument", "Document")
-                        .WithMany("Applications")
-                        .HasForeignKey("DocumentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.InventoryMovementLine", "InventoryMovementLine")
-                        .WithMany()
-                        .HasForeignKey("InventoryMovementLineId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("WarehouseEPI.Core.Entities.WipDocumentApplication", null)
-                        .WithMany()
-                        .HasForeignKey("ReversesApplicationId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Document");
-
-                    b.Navigation("InventoryMovementLine");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentAssignment", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.WipDocument", "Document")
-                        .WithMany("Assignments")
-                        .HasForeignKey("DocumentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.ProductionMaterialIssueLink", "IssueLink")
-                        .WithMany()
-                        .HasForeignKey("IssueLinkId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Document");
-
-                    b.Navigation("IssueLink");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocumentLot", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.WipDocument", "Document")
-                        .WithMany("Lots")
-                        .HasForeignKey("DocumentId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("WarehouseEPI.Core.Entities.ProductLot", "Lot")
-                        .WithMany()
-                        .HasForeignKey("LotId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Document");
-
-                    b.Navigation("Lot");
-                });
-
             modelBuilder.Entity("WarehouseEPI.Core.Entities.CycleCountAttempt", b =>
                 {
                     b.Navigation("Entries");
@@ -10093,15 +9766,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("Layers");
 
                     b.Navigation("ReferenceImages");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.WipDocument", b =>
-                {
-                    b.Navigation("Applications");
-
-                    b.Navigation("Assignments");
-
-                    b.Navigation("Lots");
                 });
 #pragma warning restore 612, 618
         }

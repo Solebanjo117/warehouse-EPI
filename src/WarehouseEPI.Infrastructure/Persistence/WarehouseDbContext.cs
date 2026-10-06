@@ -21,6 +21,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<ProductBarcode> ProductBarcodes => Set<ProductBarcode>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<LocationRackRevision> LocationRackRevisions => Set<LocationRackRevision>();
+    public DbSet<LocationRackFormat> LocationRackFormats => Set<LocationRackFormat>();
+    public DbSet<LocationRackWipAssociation> LocationRackWipAssociations => Set<LocationRackWipAssociation>();
     public DbSet<ProductLocationAssignment> ProductLocationAssignments => Set<ProductLocationAssignment>();
     public DbSet<ProductLot> ProductLots => Set<ProductLot>();
     public DbSet<InventoryMovement> InventoryMovements => Set<InventoryMovement>();
@@ -29,6 +31,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     public DbSet<InventoryBalance> InventoryBalances => Set<InventoryBalance>();
     public DbSet<InventoryMovementCorrection> InventoryMovementCorrections => Set<InventoryMovementCorrection>();
     public DbSet<WipDisposition> WipDispositions => Set<WipDisposition>();
+    public DbSet<WipDocument> WipDocuments => Set<WipDocument>();
+    public DbSet<WipDocumentLot> WipDocumentLots => Set<WipDocumentLot>();
+    public DbSet<WipDocumentAssignment> WipDocumentAssignments => Set<WipDocumentAssignment>();
+    public DbSet<WipDocumentApplication> WipDocumentApplications => Set<WipDocumentApplication>();
+    public DbSet<WipDocumentCutover> WipDocumentCutovers => Set<WipDocumentCutover>();
     public DbSet<ProductLotDateChange> ProductLotDateChanges => Set<ProductLotDateChange>();
     public DbSet<WarehouseMapLayout> WarehouseMapLayouts => Set<WarehouseMapLayout>();
     public DbSet<WarehouseMapElement> WarehouseMapElements => Set<WarehouseMapElement>();
@@ -126,6 +133,15 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureProductBarcode(modelBuilder);
         ConfigureLocation(modelBuilder);
         ConfigureLocationRackRevision(modelBuilder);
+        ConfigureLocationRackFormat(modelBuilder);
+        var rackWip = modelBuilder.Entity<LocationRackWipAssociation>();
+        rackWip.ToTable("location_rack_wip_associations", table =>
+            table.HasCheckConstraint("ck_location_rack_wip_identity", "row_code ~ '^[A-Z]$' AND rack_number > 0"));
+        rackWip.HasKey(x => new { x.RowCode, x.RackNumber });
+        rackWip.Property(x => x.RowCode).HasColumnName("row_code").HasMaxLength(1);
+        rackWip.Property(x => x.RackNumber).HasColumnName("rack_number");
+        rackWip.Property(x => x.WipAreaId).HasColumnName("wip_area_id");
+        rackWip.HasOne(x => x.WipArea).WithMany().HasForeignKey(x => x.WipAreaId).OnDelete(DeleteBehavior.Restrict);
         ConfigureProductLocationAssignment(modelBuilder);
         ConfigureProductLot(modelBuilder);
         ConfigureInventoryMovement(modelBuilder);
@@ -134,6 +150,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         ConfigureInventoryBalance(modelBuilder);
         ConfigureInventoryMovementCorrection(modelBuilder);
         ConfigureWipDisposition(modelBuilder);
+        WipDocumentConfiguration.Configure(modelBuilder);
         ConfigureProductLotDateChange(modelBuilder);
         ConfigureWarehouseMap(modelBuilder);
         ConfigureCycleCounts(modelBuilder);
@@ -618,6 +635,21 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
             .IsUnique().HasFilter("kind = 'RACK'");
     }
 
+    private static void ConfigureLocationRackFormat(ModelBuilder modelBuilder)
+    {
+        var entity = modelBuilder.Entity<LocationRackFormat>();
+        entity.ToTable("location_rack_formats", table =>
+        {
+            table.HasCheckConstraint("ck_location_rack_formats_identity", "row_code ~ '^[A-Z]$' AND rack_number > 0");
+            table.HasCheckConstraint("ck_location_rack_formats_dimensions", "columns BETWEEN 1 AND 3 AND levels BETWEEN 1 AND 3");
+        });
+        entity.HasKey(item => new { item.RowCode, item.RackNumber });
+        entity.Property(item => item.RowCode).HasColumnName("row_code").HasMaxLength(1);
+        entity.Property(item => item.RackNumber).HasColumnName("rack_number");
+        entity.Property(item => item.Columns).HasColumnName("columns");
+        entity.Property(item => item.Levels).HasColumnName("levels");
+    }
+
     private static void ConfigureLocationRackRevision(ModelBuilder modelBuilder)
     {
         var entity = modelBuilder.Entity<LocationRackRevision>();
@@ -700,7 +732,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "ck_inventory_movements_type",
                 "type IN ('ENTRY', 'EXIT', 'TRANSFER', 'ADJUSTMENT')");
             table.HasCheckConstraint("ck_inventory_movements_purpose",
-                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT')");
+                "purpose IN ('STANDARD', 'GENERAL_EXIT', 'PRODUCTION_ISSUE', 'WIP_WAREHOUSE_RETURN', 'WIP_CONSUMPTION', 'WIP_SUPPLIER_RETURN', 'CYCLE_COUNT_ADJUSTMENT', 'DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT', 'WIP_DOCUMENT_CUTOVER')");
             table.HasCheckConstraint("ck_inventory_movements_operational_shape",
                 "(purpose = 'PRODUCTION_ISSUE' AND type IN ('ENTRY', 'EXIT', 'TRANSFER') AND operational_area_id IS NOT NULL) OR " +
                 "(purpose = 'GENERAL_EXIT' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NULL) OR " +
@@ -709,7 +741,8 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                 "(purpose = 'WIP_SUPPLIER_RETURN' AND type IN ('ENTRY', 'EXIT') AND operational_area_id IS NOT NULL AND NULLIF(BTRIM(reference), '') IS NOT NULL) OR " +
                 "(purpose = 'STANDARD' AND operational_area_id IS NULL) OR " +
                 "(purpose = 'CYCLE_COUNT_ADJUSTMENT' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL) OR " +
-                "(purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL)");
+                "(purpose IN ('DOCUMENT_RECEIPT', 'PRODUCTION_RECEIPT') AND type = 'ENTRY' AND operational_area_id IS NULL) OR " +
+                "(purpose = 'WIP_DOCUMENT_CUTOVER' AND type = 'ADJUSTMENT' AND operational_area_id IS NULL)");
         });
         entity.HasKey(movement => movement.Id);
         entity.Property(movement => movement.Id).HasColumnName("id");
@@ -1446,7 +1479,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
                     nameof(ProductionImportDraft.BatchId) or nameof(ProductionImportDraft.UpdatedAt)))))
             throw new InvalidOperationException("El archivo original y el propietario del borrador son inmutables.");
         var changedHistory = ChangeTracker.Entries()
-            .Where(entry => (entry.Entity is InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption or ProductionSupplyEvent or ProductionExecutionAudit or ProductionReworkCase or ProductionReworkAttempt or ProductionScheduleRevision or ProductionDailyCaptureAllocation or ProductionScheduleImportBatch or ProductionImportRevision or ProductionCaptureSubmission or ProductionCaptureSubmissionItem or ProductionBalanceEdit or ProductionBalanceEditItem) &&
+            .Where(entry => (entry.Entity is WipDocumentApplication or WipDocumentLot or WipDocumentCutover or InventoryMovement or InventoryMovementLine or InventoryBalanceChange or InventoryMovementCorrection or WipDisposition or ProductLotDateChange or WarehouseMapRevision or CycleCountAction or CycleCountPlanEvent or LabelTemplateEvent or OperationalExceptionEvent or ReceivingConfirmation or ReceivingConfirmationLine or ReceivingDocumentEvent or ProductionEvent or ProductionMaterialOperation or ProductionMaterialOperationLine or ProductionBatchResult or ProductionBatchMaterialConsumption or ProductionSupplyEvent or ProductionExecutionAudit or ProductionReworkCase or ProductionReworkAttempt or ProductionScheduleRevision or ProductionDailyCaptureAllocation or ProductionScheduleImportBatch or ProductionImportRevision or ProductionCaptureSubmission or ProductionCaptureSubmissionItem or ProductionBalanceEdit or ProductionBalanceEditItem) &&
                 (entry.State is EntityState.Modified or EntityState.Deleted) &&
                 !(entry.State == EntityState.Deleted && entry.Entity is ProductionImportRevision revision && deletableDrafts.Contains(revision.DraftId)))
             .Select(entry => entry.Metadata.ClrType.Name)
@@ -1564,6 +1597,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         InventoryMovementPurpose.CycleCountAdjustment => "CYCLE_COUNT_ADJUSTMENT",
         InventoryMovementPurpose.DocumentReceipt => "DOCUMENT_RECEIPT",
         InventoryMovementPurpose.ProductionReceipt => "PRODUCTION_RECEIPT",
+        InventoryMovementPurpose.WipDocumentCutover => "WIP_DOCUMENT_CUTOVER",
         _ => "STANDARD"
     };
 
@@ -1577,6 +1611,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         "CYCLE_COUNT_ADJUSTMENT" => InventoryMovementPurpose.CycleCountAdjustment,
         "DOCUMENT_RECEIPT" => InventoryMovementPurpose.DocumentReceipt,
         "PRODUCTION_RECEIPT" => InventoryMovementPurpose.ProductionReceipt,
+        "WIP_DOCUMENT_CUTOVER" => InventoryMovementPurpose.WipDocumentCutover,
         _ => InventoryMovementPurpose.Standard
     };
 

@@ -375,7 +375,7 @@ public sealed class ProductionMaterialOperationLine
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid ProductionMaterialOperationId { get; set; }
     public Guid IssueLinkId { get; set; }
-    public Guid InventoryMovementLineId { get; set; }
+    public Guid? InventoryMovementLineId { get; set; }
     public decimal Quantity { get; set; }
     public ProductionMaterialOperation Operation { get; set; } = null!;
     public ProductionMaterialIssueLink IssueLink { get; set; } = null!;

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -11,9 +12,11 @@ using WarehouseEPI.Infrastructure.Persistence;
 namespace WarehouseEPI.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(WarehouseDbContext))]
-    partial class WarehouseDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261005172826_WipDocumentaryInventory")]
+    partial class WipDocumentaryInventory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1523,31 +1526,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("ck_location_rack_revisions_reason", "reason = btrim(reason) AND reason <> ''");
 
                             t.HasCheckConstraint("ck_location_rack_revisions_row", "row_code ~ '^[A-Z]$'");
-                        });
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.LocationRackWipAssociation", b =>
-                {
-                    b.Property<string>("RowCode")
-                        .HasMaxLength(1)
-                        .HasColumnType("character varying(1)")
-                        .HasColumnName("row_code");
-
-                    b.Property<short>("RackNumber")
-                        .HasColumnType("smallint")
-                        .HasColumnName("rack_number");
-
-                    b.Property<Guid>("WipAreaId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("wip_area_id");
-
-                    b.HasKey("RowCode", "RackNumber");
-
-                    b.HasIndex("WipAreaId");
-
-                    b.ToTable("location_rack_wip_associations", null, t =>
-                        {
-                            t.HasCheckConstraint("ck_location_rack_wip_identity", "row_code ~ '^[A-Z]$' AND rack_number > 0");
                         });
                 });
 
@@ -7830,17 +7808,6 @@ namespace WarehouseEPI.Infrastructure.Persistence.Migrations
                     b.Navigation("AuthorizedByUser");
 
                     b.Navigation("RequestedByUser");
-                });
-
-            modelBuilder.Entity("WarehouseEPI.Core.Entities.LocationRackWipAssociation", b =>
-                {
-                    b.HasOne("WarehouseEPI.Core.Entities.Location", "WipArea")
-                        .WithMany()
-                        .HasForeignKey("WipAreaId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("WipArea");
                 });
 
             modelBuilder.Entity("WarehouseEPI.Core.Entities.OperationalExceptionCase", b =>
