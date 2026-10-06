@@ -56,7 +56,7 @@ public sealed partial class ProductionDailyCaptureService
         var readContext = command.Cells.Count > 0 ? await ReadCaptureContextAsync(command.Date, ids, token, config) : null;
         var state = await db.ProductionDailyCaptures.AsNoTracking().Include(x => x.Allocations)
             .Where(x => ids.Contains(x.ProductId)).ToListAsync(token);
-        var baseBalance = (await new ProductionDailyBalanceService(db).GetEditableSummaryAsync(command.WeekId, command.Date, ids, token))!;
+        var eligibility = await new ProductionDailyBalanceService(db).GetCaptureEligibilityAsync(command.WeekId, command.Date, ids, token);
         foreach (var cell in command.Cells.OrderBy(x => x.Shift).ThenBy(x => x.Area).ThenBy(x => x.ProductId))
         {
             var cellErrors = new List<string>();
@@ -66,9 +66,7 @@ public sealed partial class ProductionDailyCaptureService
                 .OrderByDescending(x => x.RecordedAt).ThenByDescending(x => x.Id).ToArray();
             var current = currentCaptures.Sum(x => x.Quantity);
             var sku = readContext!.Products.GetValueOrDefault(cell.ProductId)?.Sku ?? cell.ProductId.ToString();
-            var row = baseBalance.Products.SingleOrDefault(x => x.ProductId == cell.ProductId);
-            var area = row is null ? null : cell.Area switch { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack };
-            if (!Enum.IsDefined(cell.Area) || area?.Applies != true) cellErrors.Add("El proceso no aplica a este producto.");
+            if (!eligibility.Contains((cell.ProductId, cell.Area))) cellErrors.Add("El proceso no aplica a este producto.");
             if (shift is null) cellErrors.Add("Selecciona T1 o T2 configurado y activo.");
             if (cell.Requested < 0 || cell.Requested > 99999999999999.9999m || decimal.Round(cell.Requested, 4) != cell.Requested)
                 cellErrors.Add("Indica un total no negativo con hasta cuatro decimales.");

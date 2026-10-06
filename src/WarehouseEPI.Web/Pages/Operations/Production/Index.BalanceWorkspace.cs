@@ -12,11 +12,14 @@ public sealed partial class IndexModel
     public string BalanceShift1Name { get; private set; } = "—";
     public string BalanceShift2Name { get; private set; } = "—";
     public Dictionary<Guid, string> BalanceUnits { get; private set; } = [];
+    public IReadOnlySet<(Guid ProductId, ProductionDailyArea Area)> BalanceCaptureEligibility { get; private set; } =
+        new HashSet<(Guid ProductId, ProductionDailyArea Area)>();
     public sealed record BalanceRestoreInput(BalanceEditInput Edit, List<Guid> Products);
 
     private async Task LoadBalanceMetadataAsync(CancellationToken token)
     {
         var ids = Daily!.Products.Select(x => x.ProductId).ToArray();
+        BalanceCaptureEligibility = await balances.GetCaptureEligibilityAsync(Daily.WeekId, Daily.Through, ids, token);
         BalanceUnits = await db.Products.AsNoTracking().Where(x => ids.Contains(x.Id))
             .Select(x => new { x.Id, x.BaseUnit.Code }).ToDictionaryAsync(x => x.Id, x => x.Code, token);
         ActiveBalanceProducts = (await db.Products.AsNoTracking().Where(x => ids.Contains(x.Id) && x.IsActive)
@@ -91,9 +94,14 @@ public sealed partial class IndexModel
             rows.TryGetValue(cell.ProductId, out var row);
             var area = cell.Area switch { ProductionDailyArea.Cutting => row?.Cutting, ProductionDailyArea.Sewing => row?.Sewing, _ => row?.ReadyToPack };
             var current = cell.Shift == 1 ? area?.CompletedShift1 : area?.CompletedShift2;
-            var blocked = area?.Applies != true || !ActiveBalanceProducts.Contains(cell.ProductId);
-            return new { cell, current = current?.ToString("0.####", CultureInfo.InvariantCulture), blocked,
-                conflict = !decimal.TryParse(cell.Observed, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var observed) || observed != current };
+            var blocked = !BalanceCaptureEligibility.Contains((cell.ProductId, cell.Area));
+            return new
+            {
+                cell,
+                current = current?.ToString("0.####", CultureInfo.InvariantCulture),
+                blocked,
+                conflict = !decimal.TryParse(cell.Observed, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var observed) || observed != current
+            };
         }).ToArray();
         return new JsonResult(new
         {

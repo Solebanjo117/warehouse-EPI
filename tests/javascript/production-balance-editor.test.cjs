@@ -7,7 +7,7 @@ const source = fs.readFileSync(path.join(__dirname, '../../src/WarehouseEPI.Web/
 
 function setup(statusCell = null, balance = null, extraCells = [], metrics = [], breakdowns = []) {
   const el = (value = '') => ({ value, dataset: {}, events: {}, hidden: false, disabled: false, children: [],
-    attributes: {}, classList: { toggle() {} }, setAttribute(name, value) { this.attributes[name] = value; }, select() { this.selected = true; }, focus() { this.focused = true; }, blur() {}, getClientRects() { return [1]; },
+    attributes: {}, classList: { toggle() {}, add() {}, remove() {} }, setAttribute(name, value) { this.attributes[name] = value; }, select() { this.selected = true; }, focus() { this.focused = true; }, blur() {}, getClientRects() { return [1]; },
     addEventListener(name, fn) { this.events[name] = fn; }, append(...children) { this.children.push(...children); },
     replaceChildren() { this.children = []; }, getAttribute() { return 'SKU Cutting T1'; } });
   const row = { dataset: { balanceProduct: 'product' } };
