@@ -7,7 +7,8 @@
    `ConnectionStrings:Warehouse` y `Security:PinLookupKey`.
 3. Nunca pongas valores de secretos en `appsettings*.json`, Markdown, Git ni la
    linea de comandos compartida.
-4. Desde la raiz restaura la herramienta de Entity Framework:
+4. Desde la raiz restaura la herramienta de Entity Framework fijada en
+   `dotnet-tools.json` (10.0.10, alineada con `Directory.Packages.props`):
 
    ```powershell
    dotnet tool restore
@@ -318,6 +319,10 @@ recurso de red; mientras tanto, el respaldo local no sustituye un plan de
 recuperación ante pérdida total de la laptop.
 
 ## Release versionada y servicio Windows
+
+Para actualizar una instalación existente, sigue
+[DEPLOYMENT_PRODUCTION.md](DEPLOYMENT_PRODUCTION.md): incluye formato,
+pruebas con cobertura, revisión de SQL, respaldo, actualización y verificación.
 
 La publicación de producción es autocontenida para `win-x64`, no single-file.
 Debe ejecutarse desde un commit con worktree limpio; la versión se incorpora al

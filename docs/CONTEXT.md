@@ -1,5 +1,32 @@
 # Contexto del proyecto Warehouse EPI
 
+## Importación de salidas a WIP (5 de octubre de 2026)
+
+La sección WIP enlaza a `/Admin/Inventory/WipImport` para importar `TRANSFER LOG`
+del reporte XLSX. Vista previa ADMIN, correcciones por fila/producto/área/todas y
+confirmación con NIP ADMIN. Un origen único con stock positivo del producto fuera de WIP se prellena; varios
+orígenes requieren elegir un botón con ubicación y saldo, sin reemplazar
+correcciones anteriores. No se modifica stock hasta confirmar.
+
+El buscador por SKU limita la revisión, las correcciones y la confirmación a
+los productos encontrados. Cada entrega se identifica por fecha y fila del
+Excel y también puede confirmarse individualmente. Los demás registros quedan
+pendientes; las selecciones conservan las identidades para evitar duplicados.
+
+Se reutiliza el motor de movimientos en una transacción para descontar bodega y
+crear el documento de entrega, sin sumar existencias WIP. La fecha histórica se asigna antes de guardar el movimiento inmutable.
+Las identidades de las filas evitan volver a descontar el mismo reporte incluso
+tras un reinicio. Reglas, límites y archivos en [WIP_IMPORT.md](WIP_IMPORT.md).
+No hay migraciones nuevas. Implementación en código; publicación y validación
+visual/física pendientes. El archivo del usuario no se cargó a la base operativa.
+
+## Componentes de interfaz
+
+Antes de crear o modificar UI, consultar [UI_COMPONENTS.md](UI_COMPONENTS.md).
+El catálogo describe los buscadores de productos con sugerencias y otras piezas
+existentes, sus casos de uso y contratos. Reutilizarlos cuando correspondan sin
+esperar una petición explícita del usuario; mantener el catálogo al cambiarlos.
+
 ## Acceso público y roles (2 de octubre de 2026)
 
 La matriz vigente está en [ROLE_ACCESS.md](ROLE_ACCESS.md). Hay tres roles fijos: ADMIN, OPERATOR y PRODUCTION. Operaciones confirma con NIP OPERATOR/ADMIN; Tabla y balance con NIP PRODUCTION/ADMIN. Sus consultas y las demás secciones enumeradas en esa matriz son públicas. Las descripciones históricas de fases que indican dos roles o reportes generales públicos quedan reemplazadas por esta matriz. No se publicó ni se modificó el servicio instalado como parte de este cambio.
@@ -230,7 +257,9 @@ de cero y se desactivan cuando el saldo queda exactamente en cero. Una
 transferencia total mueve también la ubicación principal de entrada al único
 destino resultante; una salida, ajuste o conteo sin destino la limpia. La
 confirmación de pallet compartido considera únicamente otros productos con
-saldo neto distinto de cero, no asignaciones administrativas agotadas.
+saldo neto distinto de cero, no asignaciones administrativas agotadas. Las
+ubicaciones con función WIP admiten varios productos sin esta confirmación,
+incluidas las salidas a WIP y las transferencias a WIP.
 
 Los movimientos resuelven internamente un lote diario `AUTO-YYYYMMDD` por
 producto usando la fecha local `America/Matamoros`. Entrada y aumentos de
@@ -3062,3 +3091,12 @@ dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --no-restore --fi
   segundos y descarte de respuestas tardías. Detalles y pruebas en
   `docs/LOCATION_DISPLAY_INTERACTIVE.md`. Verificación con fixtures en Edge;
   publicación, reinicio y validación física en tablet/HID pendientes.
+
+
+## WIP documental — actualización de dominio
+
+El contrato actual sustituye el stock WIP de las fases históricas: surtir es
+una salida de almacén con destino informativo WIP. Uso, merma y devoluciones
+se aplican a documentos comunes con producción. Véase [WIP documental](WIP_DOCUMENTARY.md)
+para persistencia, restricciones, conversión ADMIN y procedimiento de activación.
+La migración no ejecuta el corte operativo ni autoriza publicar.

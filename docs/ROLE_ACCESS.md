@@ -8,6 +8,7 @@ Implementación del 2 de octubre de 2026. Sustituye el esquema de sesión ADMIN 
 | --- | --- | --- |
 | Inicio | Pública | — |
 | Operaciones, recepción, surtimiento y WIP | Pública; preparación libre | NIP OPERATOR o ADMIN |
+| Importación de salidas WIP `/Admin/Inventory/WipImport` | Sesión ADMIN; vista previa sin modificar stock | NIP ADMIN para confirmar el lote |
 | Conteos cíclicos | Pública | NIP OPERATOR/ADMIN y sesión de conteo vigente; se conservan las validaciones especiales |
 | Existencias y Ubicaciones (croquis, exhibición, impresión) | Pública | Administración ADMIN |
 | Tabla y balance, historiales, reportes, impresión y exportaciones integrados | Pública; preparación libre | NIP PRODUCTION o ADMIN; reducciones y reversiones con motivo y NIP ADMIN |
@@ -51,6 +52,8 @@ La migración `20261002190000_AddProductionRole` inserta únicamente el rol 3, `
 **Antes de activar:** asignar Producción a las personas que registrarán producción. Sus usuarios actuales de Operador dejarán de poder confirmar esas capturas. La lista existente de roles en Usuarios toma el nuevo rol de la base.
 
 La publicación, la aplicación de migraciones en la instalación y la modificación del servicio quedan fuera de esta entrega.
+
+En la prueba local `localhost:5142`, la migración del nuevo rol ya está aplicada a `warehouse_epi_dev_copy_20260923_141051`. Crear y Editar usuario cargan los tres roles desde esa base; basta recargar el formulario. Esto no aplica la migración a la base del servicio instalado.
 
 ## Validación
 

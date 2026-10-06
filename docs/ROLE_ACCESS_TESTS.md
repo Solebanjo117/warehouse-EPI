@@ -1,6 +1,6 @@
 # Verificación de acceso por rol
 
-Fecha: 2 de octubre de 2026. Sin publicación, sin aplicar la migración y sin modificar el servicio instalado.
+Fecha: 2 de octubre de 2026. Sin publicación, sin aplicar la migración al servicio instalado y sin modificar ese servicio.
 
 ## Resultados
 
@@ -20,7 +20,15 @@ La ejecución amplia durante la implementación registró **1,075 aprobadas y 10
 
 Las expectativas afectadas por esta matriz de permisos se actualizaron y forman parte de la regresión focal. Una prueba antigua del flujo de órdenes, `ProductionBlockAPostTests`, pudo avanzar después de incorporar el ingreso ADMIN requerido y todavía falla en su expectativa de ubicación compartida. No se modificó ese flujo ajeno a la captura diaria para satisfacer la expectativa.
 
-No quedó verificada la aplicación real de la migración ni la regresión PostgreSQL de atomicidad/concurrencia. Debe completarse con una conexión de pruebas que tenga los permisos adecuados antes de activar.
+La regresión PostgreSQL de atomicidad/concurrencia sigue pendiente. La migración del rol se aplicó posteriormente solo a la copia local, como se detalla a continuación; su aplicación en la base del servicio instalado queda pendiente antes de activar.
+
+## Rol Producción en la prueba local
+
+El selector de Crear y Editar usuario consulta la tabla `roles` de la base. La copia local `warehouse_epi_dev_copy_20260923_141051`, utilizada por `localhost:5142`, todavía tenía solo ADMIN y OPERATOR.
+
+Se generó el SQL idempotente de EF Core para la migración `20261002190000_AddProductionRole` y se aplicó exclusivamente a esa copia. La transacción terminó correctamente; se verificaron los tres registros (ADMIN, OPERATOR y PRODUCTION/Producción) y el registro de la migración en `__EFMigrationsHistory`. El SQL únicamente inserta el rol, ajusta su secuencia y registra la migración; no cambia usuarios. Evidencia: `artifacts/role-access/production-role.sql`.
+
+Los formularios consultan los roles en cada solicitud, por lo que basta recargar Crear o Editar usuario. No se reinició la aplicación ni el servicio instalado.
 
 ## Evidencias
 

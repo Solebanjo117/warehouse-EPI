@@ -46,11 +46,12 @@ $manifest = [ordered]@{
     selfContained = $true
     gitCommit = $commit
     createdUtc = [DateTimeOffset]::UtcNow.ToString('O')
-    migrationIds = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src\WarehouseEPI.Infrastructure\Persistence\Migrations') -Filter '*.Designer.cs' |
+    # Algunas migraciones declaran el atributo Migration en el .cs principal.
+    migrationIds = @(Get-ChildItem -LiteralPath (Join-Path $repositoryRoot 'src\WarehouseEPI.Infrastructure\Persistence\Migrations') -Filter '*.cs' |
         ForEach-Object {
             $migration = [regex]::Match((Get-Content -LiteralPath $_.FullName -Raw), '\[Migration\("(?<id>\d{14}_[A-Za-z0-9_]+)"\)\]')
             if ($migration.Success) { $migration.Groups['id'].Value }
-        } | Sort-Object)
+        } | Sort-Object -Unique)
     files = @($files)
 }
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $releaseDirectory 'release-manifest.json') -Encoding utf8NoBOM

@@ -5,6 +5,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Este repositorio documenta en español (`README.md`, `docs/*.md`); el código y los
 identificadores están en inglés. Mantén esa convención.
 
+Antes de crear o modificar UI, consulta [AGENTS.md](AGENTS.md) y el catálogo
+[docs/UI_COMPONENTS.md](docs/UI_COMPONENTS.md). Reutiliza las piezas existentes
+cuando correspondan sin esperar una petición explícita del usuario, y actualiza
+el catálogo si creas o cambias un componente reutilizable.
+
 ## Comandos
 
 Si `dotnet` no está en `PATH`, antepone `& "C:\Program Files\dotnet\dotnet.exe"`.
