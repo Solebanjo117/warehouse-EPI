@@ -20,7 +20,7 @@ else
 <div class="container-fluid py-3 production-daily @(Model.Tab == "balance" ? "production-balance-page" : "")" data-production-daily data-no-description="@ProdTexts["Sin descripción"]" data-product-url="@Url.Page("/Operations/Lookup", "Products")">
     <header class="production-daily__header @(Model.Tab == "balance" ? "mb-2" : "mb-3")">
         <div>
-            <h1 class="h2 mb-1">@ProdTexts[Model.Tab == "reports" ? "Reportes de producción" : Model.Tab == "capture" ? "Registrar producción" : Model.Tab == "history" ? "Historial" : "Tabla y balance"]</h1>
+            <h1 class="h2 mb-1">@ProdTexts[Model.Tab == "summary" ? "Resumen del día" : Model.Tab == "reports" ? "Reportes de producción" : Model.Tab == "capture" ? "Registrar producción" : Model.Tab == "history" ? "Historial" : "Tabla y balance"]</h1>
         </div>
         <nav class="d-flex flex-wrap gap-2" aria-label="@ProdTexts["Acciones de producción"]">
             @if (User.IsInRole("ADMIN")) { <a asp-page="/Admin/Production/Schedule" asp-route-WeekId="@Model.WeekId" class="btn btn-outline-primary" data-capture-context-link>@ProdTexts["Programa semanal"]</a> }
@@ -32,10 +32,12 @@ else
     <div asp-validation-summary="All" class="alert @(Model.RoleWarning ? "alert-warning" : "alert-danger")" role="alert" tabindex="-1" data-production-errors></div>
 
     <nav class="nav nav-pills gap-2 @(Model.Tab == "balance" ? "mb-2" : "mb-4")" aria-label="@ProdTexts["Vistas de producción"]">
+        <a data-capture-context-link class="nav-link @(Model.Tab=="summary"?"active":"")" aria-current="@(Model.Tab=="summary"?"page":null)" asp-route-Tab="summary" asp-route-Day="@((Model.Day ?? Model.Through)?.ToString("yyyy-MM-dd"))">@ProdTexts["Resumen del día"]</a>
         <a data-capture-context-link class="nav-link @(Model.Tab=="balance"?"active":"")" aria-current="@(Model.Tab=="balance"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="balance" asp-route-Through="@((Model.Day ?? Model.Through)?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area">@ProdTexts["Tabla y balance"]</a>
         <a data-capture-context-link class="nav-link @(Model.Tab=="history"?"active":"")" aria-current="@(Model.Tab=="history"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="history">@ProdTexts["Historial"]</a>
         <a data-capture-context-link class="nav-link @(Model.Tab=="reports"?"active":"")" aria-current="@(Model.Tab=="reports"?"page":null)" asp-route-WeekId="@Model.WeekId" asp-route-Tab="reports" asp-route-Through="@((Model.Day ?? Model.Through)?.ToString("yyyy-MM-dd"))" asp-route-Sku="@Model.Sku" asp-route-Reference="@Model.Reference" asp-route-Area="@Model.Area">@ProdTexts["Reportes"]</a>
     </nav>
+    @if(Model.Tab=="summary"){<partial name="_DayOverview" model="Model"/>}
     @if(Model.Tab=="capture"){<partial name="_CaptureGroup" model="Model"/>}
     @if(Model.Tab=="balance"){<partial name="_WeeklyBalance" model="Model"/>}
     @if(Model.Tab=="reports"){<partial name="_Reports" model="Model"/>}
@@ -73,5 +75,5 @@ else
 </div>
 }
 
-@section Scripts { @if(Model.Tab != "reports") { <partial name="_ValidationScriptsPartial" /><script src="~/js/production-daily.js" asp-append-version="true"></script>@if(Model.Tab == "balance"){<script src="~/js/production-balance-presentation.js" asp-append-version="true"></script>}<script src="~/js/production-balance-scroll.js" asp-append-version="true"></script><script src="~/js/production-balance-workspace.js" asp-append-version="true"></script><script src="~/js/production-balance-editor.js" asp-append-version="true"></script><script src="~/js/production-daily-products.js" asp-append-version="true"></script><script src="~/js/production-capture-workspace.js" asp-append-version="true"></script><script src="~/js/production-capture-draft.js" asp-append-version="true"></script><script src="~/js/production-matrix-draft.js" asp-append-version="true"></script> } else { <script src="~/js/production-reports.js" asp-append-version="true"></script> } }
-@section Styles { <link rel="stylesheet" href="~/css/production-daily.css" asp-append-version="true" /> @if(Model.Tab=="reports"){<link rel="stylesheet" href="~/css/production-reports.css" asp-append-version="true" />} }
+@section Scripts { @if(Model.Tab == "summary") { <script src="~/js/production-overview.js" asp-append-version="true"></script> } else if(Model.Tab != "reports") { <partial name="_ValidationScriptsPartial" /><script src="~/js/production-daily.js" asp-append-version="true"></script>@if(Model.Tab == "balance"){<script src="~/js/production-balance-presentation.js" asp-append-version="true"></script>}<script src="~/js/production-balance-scroll.js" asp-append-version="true"></script><script src="~/js/production-balance-workspace.js" asp-append-version="true"></script><script src="~/js/production-balance-editor.js" asp-append-version="true"></script><script src="~/js/production-daily-products.js" asp-append-version="true"></script><script src="~/js/production-capture-workspace.js" asp-append-version="true"></script><script src="~/js/production-capture-draft.js" asp-append-version="true"></script><script src="~/js/production-matrix-draft.js" asp-append-version="true"></script> } else { <script src="~/js/production-reports.js" asp-append-version="true"></script> } }
+@section Styles { <link rel="stylesheet" href="~/css/production-daily.css" asp-append-version="true" /> @if(Model.Tab=="summary"){<link rel="stylesheet" href="~/css/production-overview.css" asp-append-version="true" />} @if(Model.Tab=="reports"){<link rel="stylesheet" href="~/css/production-reports.css" asp-append-version="true" />} }

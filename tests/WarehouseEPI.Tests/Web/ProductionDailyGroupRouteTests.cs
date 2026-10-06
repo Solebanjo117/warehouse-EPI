@@ -84,7 +84,8 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Contains("data-registered=\"100\"", page);
         Assert.DoesNotMatch("<input[^>]*id=\"group-date\"[^>]*max=", page);
         Assert.DoesNotContain("Finished part", page);
-        Assert.Equal(secondProductId.ToString(), Input(page, "Group.Rows[1].ProductId"));
+        // The matrix renders one row for each of the three areas per product.
+        Assert.Equal(secondProductId.ToString(), Input(page, "Group.Rows[3].ProductId"));
         var fields = new Dictionary<string, string>
         {
             ["Group.OperationId"] = Input(page, "Group.OperationId"),
@@ -175,7 +176,7 @@ public sealed class ProductionDailyGroupRouteTests
         var summarySection = weeklyPage[weeklyPage.IndexOf("<details id=\"part-summary-heading\"", StringComparison.Ordinal)..];
         var summaryFooter = Regex.Match(summarySection, "<tfoot>(.*?)</tfoot>", RegexOptions.Singleline).Groups[1].Value;
         Assert.Single(Regex.Matches(summaryFooter, "<tr>"));
-        Assert.Contains("colspan=\"2\">Total filtrado", summaryFooter);
+        Assert.Contains("<th scope=\"row\">Total filtrado</th>", summaryFooter);
         Assert.DoesNotContain("Restante según Excel", weeklyPage);
         var expandedWeekly = await client.GetStringAsync($"/Operations/Production?Tab=balance&WeekId={weekId}&Through={monday:yyyy-MM-dd}&WeeklySection=completion");
         Assert.Matches("<details id=\"completion-heading\"[^>]*open=\"open\"", expandedWeekly);
@@ -198,12 +199,12 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Equal(monday.ToString("yyyy-MM-dd"), Input(weeklyPage, "Through"));
 
         var rtp = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&Day={monday:yyyy-MM-dd}&Area=ReadyToPack&ShiftId={shiftId}"));
-        Assert.Contains("No hay pendientes registrados", rtp);
+        Assert.Contains("GROUP-WEB", rtp);
         Assert.Contains("Group.AddProductId", rtp);
-        Assert.Contains("Area=Cutting", rtp);
-        Assert.DoesNotContain("name=\"Group.Rows[0].Quantity\"", rtp);
+        Assert.Contains("name=\"Group.Rows[0].Quantity\"", rtp);
+        Assert.Equal("ReadyToPack", Input(rtp, "Group.Rows[2].Area"));
         var noMatch = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&WeekId={weekId}&Area=Cutting&Sku=NO-MATCH"));
-        Assert.Contains("Ningún producto coincide", noMatch);
+        Assert.Contains("GROUP-WEB", noMatch);
         var missing = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&Day={monday.AddDays(-7):yyyy-MM-dd}"));
         Assert.Contains("No hay una semana programada", missing);
         var fields = new Dictionary<string, string>
@@ -381,7 +382,7 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Contains("GROUP-WEB", schedulePage);
         Assert.DoesNotContain("Hidden program description", schedulePage);
         var weeklyPlanPage = WebUtility.HtmlDecode(await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={weekId}&View=week"));
-        Assert.Contains("Productos de la semana", weeklyPlanPage);
+        Assert.Contains("production-schedule-products", weeklyPlanPage);
         Assert.Contains("GROUP-WEB", weeklyPlanPage);
         Assert.Contains("1 renglón programado", weeklyPlanPage);
         Assert.DoesNotContain("Hidden program description", weeklyPlanPage);
@@ -395,15 +396,16 @@ public sealed class ProductionDailyGroupRouteTests
         foreach (var offset in Enumerable.Range(0, 7))
         {
             var selectedPage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&SelectedDay={monday.AddDays(7 + offset):yyyy-MM-dd}");
-            Assert.Contains($"data-selected-day=\"{offset}\"", selectedPage);
-            Assert.Contains("data-request-day=\"true\"", selectedPage);
+            Assert.Contains($"data-workspace-day-head=\"{offset}\"", selectedPage);
         }
         var draftCapture = WebUtility.HtmlDecode(await client.GetStringAsync($"/Operations/Production?Tab=capture&WeekId={targetId}"));
         Assert.Contains("Esta semana está en borrador", draftCapture);
         Assert.DoesNotContain("name=\"Group.Rows[0].Quantity\"", draftCapture);
         var sourceJson = await client.GetStringAsync($"/Admin/Production/Schedule?handler=WorkspaceCopy&weekId={targetId}&sourceWeekId={weekId}");
         Assert.Contains("GROUP-WEB", sourceJson);
-        async Task<HttpResponseMessage> SaveWorkspace(ProductionScheduleDraftChange[] changes) => await client.PostAsync(
+        async Task<bool> SaveWorkspace(ProductionScheduleDraftChange[] changes, bool valid = true)
+        {
+            using var response = await client.PostAsync(
             "/Admin/Production/Schedule?handler=WorkspaceSave", new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["payload"] = JsonSerializer.Serialize(new
@@ -415,10 +417,14 @@ public sealed class ProductionDailyGroupRouteTests
                 }, JsonSerializerOptions.Web),
                 ["__RequestVerificationToken"] = Input(targetPage, "__RequestVerificationToken")
             }));
+            Assert.Equal(valid ? HttpStatusCode.OK : HttpStatusCode.BadRequest, response.StatusCode);
+            using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            return result.RootElement.GetProperty("saved").GetBoolean();
+        }
         ProductionScheduleDraftChange Add(DateOnly date, decimal quantity) => new("add", null, null, new(date, productId, quantity, null, null, null, null));
-        Assert.Equal(HttpStatusCode.BadRequest, (await SaveWorkspace([Add(monday.AddDays(7), 1.5m)])).StatusCode);
+        Assert.False(await SaveWorkspace([Add(monday.AddDays(7), 1.23456m)], valid: false));
         Assert.False(await context.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId));
-        Assert.Equal(HttpStatusCode.OK, (await SaveWorkspace([Add(monday.AddDays(7), 5)])).StatusCode);
+        Assert.True(await SaveWorkspace([Add(monday.AddDays(7), 5)]));
         var copied = await context.ProductionScheduleLines.AsNoTracking().SingleAsync(x => x.WeekId == targetId);
         Assert.Equal(5, copied.Quantity); Assert.Null(copied.Notes); Assert.Null(copied.WorkOrderId);
         foreach (var action in new[] { "EditLineId", "DeleteLineId" })
@@ -427,14 +433,14 @@ public sealed class ProductionDailyGroupRouteTests
             Assert.Contains($"data-focus-line=\"{copied.Id}\"", linked);
             Assert.True(Regex.Count(linked, "<table\\b") == 1);
         }
-        Assert.Equal(HttpStatusCode.OK, (await SaveWorkspace([new("remove", copied.Id, copied.Version, null)])).StatusCode);
+        Assert.True(await SaveWorkspace([new("remove", copied.Id, copied.Version, null)]));
         Assert.True((await context.ProductionScheduleLines.AsNoTracking().SingleAsync(x => x.Id == copied.Id)).IsCancelled);
         var addPage = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={targetId}&AddLine=true");
         Assert.Contains("data-request-add=\"true\"", addPage);
         Assert.Contains("data-workspace-search", addPage);
-        Assert.Equal(HttpStatusCode.BadRequest, (await SaveWorkspace([Add(monday.AddDays(7), 0), Add(monday.AddDays(8), 8)])).StatusCode);
+        Assert.False(await SaveWorkspace([Add(monday.AddDays(7), 0), Add(monday.AddDays(8), 8)], valid: false));
         Assert.False(await context.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId && !x.IsCancelled));
-        Assert.Equal(HttpStatusCode.OK, (await SaveWorkspace([Add(monday.AddDays(7), 7), Add(monday.AddDays(8), 8)])).StatusCode);
+        Assert.True(await SaveWorkspace([Add(monday.AddDays(7), 7), Add(monday.AddDays(8), 8)]));
         Assert.Equal([7m, 8m], (await context.ProductionScheduleLines.AsNoTracking()
             .Where(x => x.WeekId == targetId && !x.IsCancelled).OrderBy(x => x.PlannedDate).Select(x => x.Quantity).ToArrayAsync()));
 

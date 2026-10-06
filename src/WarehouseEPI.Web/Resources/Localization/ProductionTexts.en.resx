@@ -1386,4 +1386,32 @@
   <data name="Puedes combinar existencias de almacén con entregas WIP documentadas sin asignar. Los lotes se resuelven automáticamente." xml:space="preserve"><value>You can combine warehouse stock with unassigned WIP delivery documents. Lots are allocated automatically.</value></data>
   <data name="Entrega documental WIP" xml:space="preserve"><value>WIP delivery document</value></data>
   <data name="Pendiente documental {0} · asignado a otras órdenes {1}" xml:space="preserve"><value>Documentary outstanding {0} · assigned to other orders {1}</value></data>
+  <data name="Resumen del día" xml:space="preserve"><value>Daily overview</value></data>
+  <data name="PULSO DE PRODUCCIÓN" xml:space="preserve"><value>PRODUCTION PULSE</value></data>
+  <data name="Producción registrada y pendientes, proceso por proceso." xml:space="preserve"><value>Recorded production and remaining work, process by process.</value></data>
+  <data name="Capturar producción" xml:space="preserve"><value>Record production</value></data>
+  <data name="Todos los turnos" xml:space="preserve"><value>All shifts</value></data>
+  <data name="Actualizar resumen" xml:space="preserve"><value>Refresh overview</value></data>
+  <data name="Cargando resumen…" xml:space="preserve"><value>Loading overview…</value></data>
+  <data name="Consulta al abrir o actualizar esta página." xml:space="preserve"><value>Loaded when this page is opened or refreshed.</value></data>
+  <data name="El turno filtra la producción. Meta, arrastre y pendiente corresponden al día completo. Las unidades y los procesos se muestran por separado." xml:space="preserve"><value>The shift filters production. Target, carryover and remaining work cover the whole day. Units and processes are shown separately.</value></data>
+  <data name="No se pudo cargar el resumen" xml:space="preserve"><value>The overview could not be loaded</value></data>
+  <data name="Revisa la fecha y el turno seleccionados." xml:space="preserve"><value>Check the selected date and shift.</value></data>
+  <data name="No hay semana para esta fecha" xml:space="preserve"><value>No week exists for this date</value></data>
+  <data name="Selecciona una fecha con programa semanal para consultar sus resultados." xml:space="preserve"><value>Select a date with a weekly schedule to view its results.</value></data>
+  <data name="Sin actividad ni saldo para este proceso." xml:space="preserve"><value>No activity or balance for this process.</value></data>
+  <data name="Unidad sin asignar" xml:space="preserve"><value>Unassigned unit</value></data>
+  <data name="Producido en el día" xml:space="preserve"><value>Produced today</value></data>
+  <data name="Producido en el turno" xml:space="preserve"><value>Produced in shift</value></data>
+  <data name="Meta diaria con arrastre" xml:space="preserve"><value>Daily target including carryover</value></data>
+  <data name="Arrastre pendiente al iniciar" xml:space="preserve"><value>Pending carryover at start</value></data>
+  <data name="Pendiente del día" xml:space="preserve"><value>Remaining for the day</value></data>
+  <data name="Sin meta comparable" xml:space="preserve"><value>No comparable target</value></data>
+  <data name="Ver tabla y balance" xml:space="preserve"><value>View table and balance</value></data>
+  <data name="SIGUIENTE REVISIÓN" xml:space="preserve"><value>NEXT TO REVIEW</value></data>
+  <data name="Productos que requieren atención" xml:space="preserve"><value>Products requiring attention</value></data>
+  <data name="Pendientes del día y datos por revisar. No representan alertas de retraso." xml:space="preserve"><value>Remaining work and data to review. These are not delay alerts.</value></data>
+  <data name="Sin pendientes ni datos por revisar para esta fecha." xml:space="preserve"><value>No remaining work or data to review for this date.</value></data>
+  <data name="Páginas de atención" xml:space="preserve"><value>Attention pages</value></data>
+  <data name="Producción por conciliar" xml:space="preserve"><value>Production to reconcile</value></data>
 </root>

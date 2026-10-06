@@ -137,10 +137,16 @@ public sealed partial class IndexModel(
 
     private async Task LoadAsync(CancellationToken token, bool preserveCapture = false)
     {
-        if (Tab is not ("capture" or "balance" or "history" or "reports")) Tab = "balance";
+        if (Tab is not ("summary" or "capture" or "balance" or "history" or "reports"))
+            Tab = WeekId.HasValue || Through.HasValue || !string.IsNullOrWhiteSpace(Sku) ? "balance" : "summary";
         if (WeeklySection is not ("pending" or "completion" or "summary")) WeeklySection = null;
         Today = await clock.GetDateAsync(timeProvider.GetUtcNow(), token);
         Weeks = await schedules.ListWeeksAsync(token);
+        if (Tab == "summary")
+        {
+            await LoadOverviewAsync(token);
+            return;
+        }
         if (Tab is "balance" or "reports" && Day.HasValue && HttpMethods.IsGet(Request.Method))
         {
             Through ??= Day;

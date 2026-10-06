@@ -1,0 +1,66 @@
+@model WarehouseEPI.Web.Pages.Operations.Production.IndexModel
+@using WarehouseEPI.Core.Entities
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.ProductionTexts> T
+@{
+    string Number(decimal value) => value.ToString("#,##0.####");
+    string Area(ProductionDailyArea area) => T[area switch { ProductionDailyArea.Cutting => "Corte", ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack" }];
+    var date = Model.Day?.ToString("yyyy-MM-dd");
+}
+<section class="day-overview" aria-label="@T["Resumen del día"]">
+    <div class="day-overview__intro">
+        <div><p class="day-overview__eyebrow">@T["PULSO DE PRODUCCIÓN"]</p><h2>@Model.Day?.ToString("D")</h2><p class="text-body-secondary mb-0">@T["Producción registrada y pendientes, proceso por proceso."]</p></div>
+        <a class="btn btn-primary" asp-route-Tab="capture" asp-route-Day="@date" asp-route-ShiftId="@Model.ShiftId">@T["Capturar producción"] <span aria-hidden="true">↗</span></a>
+    </div>
+    <form method="get" class="day-overview__filters" data-overview-filter>
+        <input type="hidden" name="Tab" value="summary" />
+        <div><label for="overview-day" class="form-label">@T["Fecha"]</label><input id="overview-day" name="Day" type="date" value="@date" class="form-control" required /></div>
+        <div><label for="overview-shift" class="form-label">@T["Turno"]</label><select id="overview-shift" asp-for="OverviewShift" class="form-select"><option value="0">@T["Todos los turnos"]</option><option value="1">T1 · @Model.BalanceShift1Name</option><option value="2">T2 · @Model.BalanceShift2Name</option></select></div>
+        <button class="btn btn-outline-primary" type="submit">@T["Actualizar resumen"]</button>
+        <p class="small text-body-secondary mb-0" role="status" data-overview-status data-loading="@T["Cargando resumen…"]">@T["Consulta al abrir o actualizar esta página."]</p>
+    </form>
+    <p class="day-overview__note">@T["El turno filtra la producción. Meta, arrastre y pendiente corresponden al día completo. Las unidades y los procesos se muestran por separado."]</p>
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="day-overview__empty"><h3>@T["No se pudo cargar el resumen"]</h3><p>@T["Revisa la fecha y el turno seleccionados."]</p></div>
+    }
+    else if (Model.Overview is null)
+    {
+        <div class="day-overview__empty"><h3>@T["No hay semana para esta fecha"]</h3><p>@T["Selecciona una fecha con programa semanal para consultar sus resultados."]</p></div>
+    }
+    else
+    {
+        <div class="day-overview__cards">
+        @foreach (var card in Model.Overview.Areas)
+        {
+            <article class="day-process" data-overview-area="@((int)card.Area)">
+                <header><span class="day-process__number" aria-hidden="true">@($"0{(int)card.Area + 1}")</span><h3>@Area(card.Area)</h3></header>
+                @if (card.Quantities.Count == 0) { <p class="day-process__empty">@T["Sin actividad ni saldo para este proceso."]</p> }
+                @foreach (var quantity in card.Quantities)
+                {
+                    <div class="day-process__quantity">
+                        <p class="day-process__unit">@(quantity.Unit == "UNASSIGNED" ? T["Unidad sin asignar"].Value : quantity.Unit) @if(quantity.Sku is not null){<span>· @quantity.Sku</span>}</p>
+                        <div class="day-process__produced"><strong>@Number(quantity.Produced)</strong><span>@T[Model.OverviewShift == 0 ? "Producido en el día" : "Producido en el turno"]</span></div>
+                        <div class="day-process__shifts"><span>T1 <strong>@Number(quantity.Shift1)</strong></span><span>T2 <strong>@Number(quantity.Shift2)</strong></span></div>
+                        <dl><div><dt>@T["Meta diaria con arrastre"]</dt><dd>@(quantity.Target is decimal target ? Number(target) : T["Sin meta comparable"].Value)</dd></div><div><dt>@T["Arrastre pendiente al iniciar"]</dt><dd>@Number(quantity.Opening)</dd></div><div class="day-process__pending"><dt>@T["Pendiente del día"]</dt><dd>@Number(quantity.Pending)</dd></div></dl>
+                    </div>
+                }
+                <a asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@date" asp-route-Area="@card.Area" class="day-process__link">@T["Ver tabla y balance"] <span aria-hidden="true">→</span></a>
+            </article>
+        }
+        </div>
+        <section class="day-attention" aria-labelledby="day-attention-title">
+            <header><div><p class="day-overview__eyebrow">@T["SIGUIENTE REVISIÓN"]</p><h3 id="day-attention-title">@T["Productos que requieren atención"] <span class="badge text-bg-secondary">@Model.Overview.AttentionProductCount</span></h3><p class="text-body-secondary mb-0">@T["Pendientes del día y datos por revisar. No representan alertas de retraso."]</p></div></header>
+            @if (Model.Overview.Attention.Count == 0) { <p class="day-overview__empty">@T["Sin pendientes ni datos por revisar para esta fecha."]</p> }
+            else
+            {
+                <ul class="day-attention__list">
+                @foreach (var row in Model.AttentionRows)
+                {
+                    <li><div class="day-attention__product"><a asp-route-Tab="balance" asp-route-WeekId="@Model.WeekId" asp-route-Through="@date" asp-route-Sku="@row.Sku">@row.Sku</a><p>@(row.Description ?? T["Sin descripción"].Value)</p></div><div><span class="day-attention__label">@T["Proceso"]</span><strong>@Area(row.Area)</strong></div><div><span class="day-attention__label">@T["Pendiente"]</span><strong>@Number(row.Pending) <small>@(row.Unit == "UNASSIGNED" ? T["Unidad sin asignar"].Value : row.Unit)</small></strong></div><div class="day-attention__reason">@T[row.Reason]</div></li>
+                }
+                </ul>
+                @if(Model.AttentionPages > 1){<nav class="day-attention__pagination" aria-label="@T["Páginas de atención"]">@if(Model.AttentionPage > 1){<a class="btn btn-outline-secondary" asp-route-Tab="summary" asp-route-Day="@date" asp-route-OverviewShift="@Model.OverviewShift" asp-route-AttentionPage="@(Model.AttentionPage-1)">@T["Anterior"]</a>}<span>@Model.AttentionPage / @Model.AttentionPages</span>@if(Model.AttentionPage < Model.AttentionPages){<a class="btn btn-outline-secondary" asp-route-Tab="summary" asp-route-Day="@date" asp-route-OverviewShift="@Model.OverviewShift" asp-route-AttentionPage="@(Model.AttentionPage+1)">@T["Siguiente"]</a>}</nav>}
+            }
+        </section>
+    }
+</section>

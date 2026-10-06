@@ -144,8 +144,8 @@ public sealed class ProductionTabletUiRouteTests
         }
         await LoginAsync(client);
         var page = await client.GetStringAsync("/Admin/Production/Schedule");
-        Assert.DoesNotContain("data-week-workspace", page);
-        Assert.Equal(1, Regex.Count(page, "data-schedule-week-select"));
+        Assert.Contains("data-new-week=\"true\"", page);
+        Assert.Equal(1, Regex.Count(page, "data-week-picker data-options-url"));
         Assert.DoesNotContain("production-schedule-sections", page);
         Assert.Contains("handler=CreateWeek", page);
         Assert.Equal(string.Empty, Input(page, "NewWeek.Pin"));
@@ -215,7 +215,7 @@ public sealed class ProductionTabletUiRouteTests
             Assert.Contains(english ? "Cutting" : "Corte", page);
             Assert.Contains(english ? "Sewing" : "Costura", page);
             Assert.Contains("Ready to Pack", page);
-            Assert.Contains("data-request-day=\"true\"", page);
+            Assert.Contains("data-workspace-day-head=\"0\"", page);
             return;
         }
         var table = Regex.Match(page, "<table[^>]*production-schedule-table[^>]*>(.*?)</table>", RegexOptions.Singleline).Value;

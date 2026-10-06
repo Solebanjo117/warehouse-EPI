@@ -8,7 +8,7 @@ namespace WarehouseEPI.Web.Pages.Operations.Production;
 
 public sealed partial class IndexModel
 {
-    [BindProperty(SupportsGet = true)] public string? Tab { get; set; } = "balance";
+    [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
     [BindProperty] public GroupInput Group { get; set; } = new();
     public IReadOnlyList<ProductionAvailableProduct> Available { get; private set; } = [];
     public Dictionary<(Guid Product, ProductionDailyArea Area), decimal> CapturePending { get; } = [];

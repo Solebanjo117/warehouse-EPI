@@ -1386,4 +1386,32 @@
   <data name="Puedes combinar existencias de almacén con entregas WIP documentadas sin asignar. Los lotes se resuelven automáticamente." xml:space="preserve"><value>Puedes combinar existencias de almacén con entregas WIP documentadas sin asignar. Los lotes se resuelven automáticamente.</value></data>
   <data name="Entrega documental WIP" xml:space="preserve"><value>Entrega documental WIP</value></data>
   <data name="Pendiente documental {0} · asignado a otras órdenes {1}" xml:space="preserve"><value>Pendiente documental {0} · asignado a otras órdenes {1}</value></data>
+  <data name="Resumen del día" xml:space="preserve"><value>Resumen del día</value></data>
+  <data name="PULSO DE PRODUCCIÓN" xml:space="preserve"><value>PULSO DE PRODUCCIÓN</value></data>
+  <data name="Producción registrada y pendientes, proceso por proceso." xml:space="preserve"><value>Producción registrada y pendientes, proceso por proceso.</value></data>
+  <data name="Capturar producción" xml:space="preserve"><value>Capturar producción</value></data>
+  <data name="Todos los turnos" xml:space="preserve"><value>Todos los turnos</value></data>
+  <data name="Actualizar resumen" xml:space="preserve"><value>Actualizar resumen</value></data>
+  <data name="Cargando resumen…" xml:space="preserve"><value>Cargando resumen…</value></data>
+  <data name="Consulta al abrir o actualizar esta página." xml:space="preserve"><value>Consulta al abrir o actualizar esta página.</value></data>
+  <data name="El turno filtra la producción. Meta, arrastre y pendiente corresponden al día completo. Las unidades y los procesos se muestran por separado." xml:space="preserve"><value>El turno filtra la producción. Meta, arrastre y pendiente corresponden al día completo. Las unidades y los procesos se muestran por separado.</value></data>
+  <data name="No se pudo cargar el resumen" xml:space="preserve"><value>No se pudo cargar el resumen</value></data>
+  <data name="Revisa la fecha y el turno seleccionados." xml:space="preserve"><value>Revisa la fecha y el turno seleccionados.</value></data>
+  <data name="No hay semana para esta fecha" xml:space="preserve"><value>No hay semana para esta fecha</value></data>
+  <data name="Selecciona una fecha con programa semanal para consultar sus resultados." xml:space="preserve"><value>Selecciona una fecha con programa semanal para consultar sus resultados.</value></data>
+  <data name="Sin actividad ni saldo para este proceso." xml:space="preserve"><value>Sin actividad ni saldo para este proceso.</value></data>
+  <data name="Unidad sin asignar" xml:space="preserve"><value>Unidad sin asignar</value></data>
+  <data name="Producido en el día" xml:space="preserve"><value>Producido en el día</value></data>
+  <data name="Producido en el turno" xml:space="preserve"><value>Producido en el turno</value></data>
+  <data name="Meta diaria con arrastre" xml:space="preserve"><value>Meta diaria con arrastre</value></data>
+  <data name="Arrastre pendiente al iniciar" xml:space="preserve"><value>Arrastre pendiente al iniciar</value></data>
+  <data name="Pendiente del día" xml:space="preserve"><value>Pendiente del día</value></data>
+  <data name="Sin meta comparable" xml:space="preserve"><value>Sin meta comparable</value></data>
+  <data name="Ver tabla y balance" xml:space="preserve"><value>Ver tabla y balance</value></data>
+  <data name="SIGUIENTE REVISIÓN" xml:space="preserve"><value>SIGUIENTE REVISIÓN</value></data>
+  <data name="Productos que requieren atención" xml:space="preserve"><value>Productos que requieren atención</value></data>
+  <data name="Pendientes del día y datos por revisar. No representan alertas de retraso." xml:space="preserve"><value>Pendientes del día y datos por revisar. No representan alertas de retraso.</value></data>
+  <data name="Sin pendientes ni datos por revisar para esta fecha." xml:space="preserve"><value>Sin pendientes ni datos por revisar para esta fecha.</value></data>
+  <data name="Páginas de atención" xml:space="preserve"><value>Páginas de atención</value></data>
+  <data name="Producción por conciliar" xml:space="preserve"><value>Producción por conciliar</value></data>
 </root>

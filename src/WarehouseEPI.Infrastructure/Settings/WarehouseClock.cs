@@ -4,6 +4,14 @@ public sealed class WarehouseClock(WarehouseSettingsService settings)
 {
     public sealed record UtcInterval(DateTimeOffset? FromInclusive, DateTimeOffset? ToExclusive);
 
+    public async Task<IReadOnlyDictionary<DateTimeOffset, DateTimeOffset>> ConvertManyAsync(
+        IEnumerable<DateTimeOffset> instants, CancellationToken cancellationToken = default)
+    {
+        var current = await settings.GetAsync(cancellationToken);
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(current.TimeZoneId);
+        return instants.Distinct().ToDictionary(instant => instant, instant => TimeZoneInfo.ConvertTime(instant, zone));
+    }
+
     public async Task<DateTimeOffset> ConvertAsync(DateTimeOffset instant, CancellationToken cancellationToken = default)
     {
         var current = await settings.GetAsync(cancellationToken);
