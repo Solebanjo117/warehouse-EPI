@@ -129,6 +129,8 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>("postgresql", tags: ["database"]);
 builder.Services.AddSingleton<IProductSpreadsheetReader, ProductSpreadsheetReader>();
 builder.Services.AddSingleton<ProductImportPreviewStore>();
+builder.Services.AddSingleton<WipTransferPreviewStore>();
+builder.Services.AddScoped<WarehouseEPI.Infrastructure.Imports.WipTransferImportService>();
 builder.Services.AddScoped<ProductImportService>();
 builder.Services.AddSingleton<LocationGenerationPreviewStore>();
 builder.Services.AddSingleton<WarehouseMapPreviewStore>();

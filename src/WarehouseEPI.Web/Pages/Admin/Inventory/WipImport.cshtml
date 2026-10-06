@@ -1,0 +1,274 @@
+@page
+@model WarehouseEPI.Web.Pages.Admin.Inventory.WipImportModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> T
+@{ ViewData["Title"] = T["Importar salidas a WIP"].Value; }
+
+<div class="container py-4">
+    <header class="mb-4">
+        <a asp-page="/Reports/Wip/Index">@T["Volver a WIP"]</a>
+        <h1 class="h2 mt-2">@T["Importar salidas a WIP"]</h1>
+        <p>@T["Carga TRANSFER LOG, corrige las ubicaciones y revisa las existencias antes de confirmar con NIP ADMIN."]</p>
+    </header>
+    @if (Model.Message is not null) { <div class="alert alert-success" role="status">@Model.Message</div> }
+    @if (Model.Error is not null) { <div class="alert alert-danger" role="alert" tabindex="-1">@Model.Error</div> }
+    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="card card-body mb-4">
+        <label for="wip-file" class="form-label">@T["Reporte de transferencias WIP (.xlsx)"]</label>
+        <input id="wip-file" name="upload" type="file" accept=".xlsx" required class="form-control form-control-lg" />
+        <p class="form-text">@T["Hasta 10 MB y 2000 filas. Se usa Qty Delivered; no se importan los totales ni las hojas de resumen."]</p>
+        <button class="btn btn-primary btn-lg align-self-start">@T["Analizar archivo"]</button>
+    </form>
+    @if (Model.Draft is { } draft && Model.Review is { } review)
+    {
+        <section class="card card-body mb-4" aria-labelledby="wip-product-filter-heading">
+            <h2 id="wip-product-filter-heading" class="h4">@T["Buscar entregas por producto"]</h2>
+            <form method="get" class="row g-3 align-items-end">
+                <input type="hidden" name="token" value="@draft.Token" />
+                <div class="col-md-8">
+                    <label class="form-label" for="wip-product-search">@T["Producto del Excel"]</label>
+                    <input id="wip-product-search" name="search" type="search" value="@Model.Search" list="wip-file-products" class="form-control form-control-lg" autocomplete="off" autocapitalize="characters" />
+                    <datalist id="wip-file-products">@foreach (var sku in Model.ProductOptions) { <option value="@sku"></option> }</datalist>
+                    <p class="form-text mb-0">@T["Escribe parte del SKU o elige una sugerencia. Un SKU exacto muestra únicamente ese producto."]</p>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="wip-date-from">@T["Fecha desde (incluida)"]</label>
+                    <input id="wip-date-from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" class="form-control form-control-lg" />
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label" for="wip-date-to">@T["Fecha hasta (incluida)"]</label>
+                    <input id="wip-date-to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" class="form-control form-control-lg" />
+                </div>
+                <div class="col-md-8 d-flex gap-2 flex-wrap">
+                    <button class="btn btn-primary btn-lg">@T["Buscar entregas"]</button>
+                    <a class="btn btn-outline-secondary btn-lg" asp-route-token="@draft.Token">@T["Ver todo el archivo"]</a>
+                </div>
+            </form>
+            <p class="form-text">@T["Las fechas corresponden a la entrega en el Excel. Deja un extremo vacío para no limitarlo. Al filtrar por fecha se omiten las filas sin fecha."]</p>
+            @if (Model.From.HasValue || Model.To.HasValue)
+            {
+                <p class="mb-0">@T["Periodo seleccionado"]: @(Model.From?.ToString("dd/MM/yyyy") ?? "—") → @(Model.To?.ToString("dd/MM/yyyy") ?? "—")</p>
+            }
+            <p class="mt-3 mb-0" role="status">@T["Selección: {0} entregas de {1} productos. Archivo completo: {2} filas.", review.Rows.Count, review.Rows.Select(x => x.Source.Sku).Distinct().Count(), draft.File.Rows.Count]</p>
+            @if (Model.Search.Length > 0) { <p class="mt-2 mb-0">@T["Producto buscado"]: <strong>@Model.Search</strong></p> }
+            @if (Model.Delivery.HasValue)
+            {
+                <p class="mt-2 mb-0"><strong>@T["Solo entrega de la fila {0}", Model.Delivery.Value]</strong> <a asp-route-token="@draft.Token" asp-route-from="@(Model.From?.ToString("yyyy-MM-dd"))" asp-route-to="@(Model.To?.ToString("yyyy-MM-dd"))" asp-route-search="@Model.Search">@T["Ver todas las entregas del producto"]</a></p>
+            }
+            <p class="form-text">@T["Las correcciones y la confirmación afectan solo esta selección, incluidas todas sus páginas. Los demás registros quedan pendientes. Cada fila del Excel genera una operación independiente con su fecha original."]</p>
+        </section>
+        <section class="mb-4" aria-labelledby="wip-review-heading">
+            <h2 id="wip-review-heading" class="h4">@T["Revisión de {0}", draft.File.Name]</h2>
+            <p>@T["{0} filas · {1} pendientes · {2} con errores · {3} excluidas · {4} ya importadas", review.Rows.Count, review.Rows.Count(x => x.Pending), review.Rows.Count(x => x.Pending && x.Errors.Count > 0), review.Rows.Count(x => x.Resolution.Excluded), review.Rows.Count(x => x.ExistingMovementId.HasValue)]</p>
+            <p class="text-muted">@T["La vista previa dura una hora y se pierde si se reinicia la aplicación. Las salidas confirmadas permanecen registradas."]</p>
+            <div class="alert alert-info">@T["El origen se prellena si el producto tiene un solo rack disponible con stock positivo fuera de WIP. Si tiene varios, debes elegir uno. Las ubicaciones WIP se reconocen por código o descripción exactos."]</div>
+            <div class="alert alert-warning">@T["Se omiten entregas idénticas ya importadas por esta sección. Revisa las salidas capturadas manualmente y exclúyelas para evitar descontarlas otra vez. Cambiar fecha, producto, cantidad, unidad o área original en Excel puede identificar una entrega nueva."]</div>
+        </section>
+        <section class="card card-body mb-4" aria-labelledby="wip-bulk-heading">
+            <h2 id="wip-bulk-heading" class="h4">@T["Corregir varias filas"]</h2>
+            <form method="post" asp-page-handler="Resolve">
+                <input type="hidden" name="token" value="@draft.Token" />
+                <input type="hidden" name="search" value="@Model.Search" />
+                <input type="hidden" name="delivery" value="@Model.Delivery" />
+                <input type="hidden" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="revision" value="@draft.Revision" />
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label" for="wip-scope">@T["Aplicar a"]</label>
+                        <select name="scope" id="wip-scope" class="form-select form-select-lg">
+                            <option value="sku">@T["Filas del producto seleccionado"]</option>
+                            <option value="area">@T["Filas del área original seleccionada"]</option>
+                            <option value="errors">@T["Todas las filas con errores"]</option>
+                            <option value="all">@T["Todas las filas pendientes"]</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="wip-sku">@T["Producto del archivo"]</label>
+                        <select name="sku" id="wip-sku" class="form-select form-select-lg">
+                            <option value="">@T["Selecciona"]</option>
+                            @foreach (var sku in review.Rows.Where(x => x.Pending).Select(x => x.Source.Sku).Distinct().Order()) { <option value="@sku">@sku</option> }
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label" for="wip-original-area">@T["Área original del archivo"]</label>
+                        <select name="area" id="wip-original-area" class="form-select form-select-lg">
+                            @foreach (var area in review.Rows.Where(x => x.Pending).Select(x => x.Source.Area).Distinct().Order()) { <option value="@area">@(area.Length == 0 ? T["Sin área"].Value : area)</option> }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="wip-source">@T["Rack de origen"]</label>
+                        <select name="sourceId" id="wip-source" class="form-select form-select-lg">
+                            <option value="">@T["Conservar origen actual"]</option>
+                            @foreach (var location in review.Origins) { <option value="@location.Id">@location.Code · @location.Description</option> }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="wip-destination">@T["Área WIP de destino"]</label>
+                        <select name="destinationId" id="wip-destination" class="form-select form-select-lg">
+                            <option value="">@T["Conservar destino actual"]</option>
+                            @foreach (var location in review.Destinations) { <option value="@location.Id">@location.Code · @location.Description</option> }
+                        </select>
+                    </div>
+                </div>
+                <p class="form-text">@T["Solo cambia los campos seleccionados. No modifica filas excluidas ni ya importadas."]</p>
+                <button class="btn btn-outline-primary btn-lg">@T["Aplicar corrección"]</button>
+            </form>
+        </section>
+        @if (Model.EditRow is { } edit)
+        {
+            <section id="wip-edit-row" class="card card-body mb-4 border-primary">
+                <h2 class="h4">@T["Corregir fila {0}", edit.Source.Number] · @edit.Source.Sku</h2>
+                <p>@edit.Source.Date?.ToString("dd/MM/yyyy") · @edit.Source.Quantity?.ToString("0.####") @edit.Source.Unit · @edit.Source.Area</p>
+                <form method="post" asp-page-handler="Resolve">
+                    <input type="hidden" name="token" value="@draft.Token" />
+                    <input type="hidden" name="search" value="@Model.Search" />
+                    <input type="hidden" name="delivery" value="@Model.Delivery" />
+                    <input type="hidden" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="revision" value="@draft.Revision" />
+                    <input type="hidden" name="scope" value="row" />
+                    <input type="hidden" name="rowNumber" value="@edit.Source.Number" />
+                    <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
+                    <input type="hidden" name="filter" value="@Model.Filter" />
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="wip-row-source">@T["Rack de origen"]</label>
+                            <select name="sourceId" id="wip-row-source" class="form-select form-select-lg">
+                                <option value="">@T["Selecciona"]</option>
+                                @foreach (var location in edit.SourceOptions) { <option value="@location.Id" selected="@(edit.Resolution.SourceId == location.Id)">@location.Code · @location.Quantity.ToString("0.####") @edit.Source.Unit</option> }
+                            </select>
+                            @if (edit.SourceOptions.Count == 0) { <p class="form-text" role="status">@T["Este producto no tiene racks disponibles con stock positivo fuera de WIP."]</p> }
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="wip-row-destination">@T["Área WIP de destino"]</label>
+                            <select name="destinationId" id="wip-row-destination" class="form-select form-select-lg">
+                                <option value="">@T["Selecciona"]</option>
+                                @foreach (var location in review.Destinations) { <option value="@location.Id" selected="@(edit.Resolution.DestinationId == location.Id)">@location.Code · @location.Description</option> }
+                            </select>
+                        </div>
+                    </div>
+                    <label class="d-block mb-3"><input type="checkbox" class="form-check-input" name="excluded" value="true" checked="@edit.Resolution.Excluded" /> @T["Excluir esta fila de la importación"]</label>
+                    <label class="form-label" for="wip-reason">@T["Motivo de exclusión"]</label>
+                    <input id="wip-reason" name="reason" maxlength="200" value="@edit.Resolution.ExclusionReason" class="form-control form-control-lg mb-3" />
+                    <button class="btn btn-primary btn-lg">@T["Guardar corrección"]</button>
+                </form>
+            </section>
+        }
+        <section class="mb-4" aria-labelledby="wip-rows-heading">
+            <h2 id="wip-rows-heading" class="h4">@T["Entregas del archivo"]</h2>
+            <form method="get" class="d-flex gap-2 mb-3 align-items-end flex-wrap">
+                <input type="hidden" name="token" value="@draft.Token" />
+                <input type="hidden" name="search" value="@Model.Search" />
+                <input type="hidden" name="delivery" value="@Model.Delivery" />
+                <input type="hidden" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                <input type="hidden" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                <div><label for="wip-filter" class="form-label">@T["Mostrar"]</label>
+                    <select name="filter" id="wip-filter" class="form-select form-select-lg">
+                        <option value="all" selected="@(Model.Filter == "all")">@T["Todas"]</option>
+                        <option value="notImported" selected="@(Model.Filter == "notImported")">@T["Excluir las ya importadas"]</option>
+                        <option value="errors" selected="@(Model.Filter == "errors")">@T["Con errores"]</option>
+                        <option value="pending" selected="@(Model.Filter == "pending")">@T["Pendientes"]</option>
+                        <option value="excluded" selected="@(Model.Filter == "excluded")">@T["Excluidas"]</option>
+                        <option value="imported" selected="@(Model.Filter == "imported")">@T["Ya importadas"]</option>
+                    </select>
+                </div><button class="btn btn-outline-secondary btn-lg">@T["Consultar"]</button>
+            </form>
+            <div class="row g-3">
+                @foreach (var row in Model.Rows)
+                {
+                    <article class="col-lg-6"><div class="card card-body h-100">
+                        <h3 class="h5">@T["Entrega · fila {0}", row.Source.Number] · @row.Source.Sku</h3>
+                        <p>@row.Source.Date?.ToString("dd/MM/yyyy") · <strong>@row.Source.Quantity?.ToString("0.####") @row.Source.Unit</strong></p>
+                        <p class="mb-1">@T["Área original"]: @row.Source.Area</p>
+                        <p>@(row.RecordedSource ?? review.Origins.FirstOrDefault(x => x.Id == row.Resolution.SourceId)?.Code ?? T["Sin origen"].Value) → @(row.RecordedDestination ?? review.Destinations.FirstOrDefault(x => x.Id == row.Resolution.DestinationId)?.Code ?? T["Sin destino"].Value)</p>
+                        @if (row.Pending && row.Resolution.AutomaticSource) { <p class="text-muted">@T["Origen prellenado: única ubicación disponible del producto."]</p> }
+                        @if (row.Pending && row.Resolution.SourceId is null && row.SourceOptions.Count > 1)
+                        {
+                            <div class="alert alert-warning">
+                                <p>@T["Varias ubicaciones: elige el origen para las filas pendientes de este producto."]</p>
+                                <form method="post" asp-page-handler="Resolve" class="d-flex flex-wrap gap-2">
+                                    <input type="hidden" name="token" value="@draft.Token" />
+                                    <input type="hidden" name="search" value="@Model.Search" />
+                                    <input type="hidden" name="delivery" value="@Model.Delivery" />
+                                    <input type="hidden" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                                    <input type="hidden" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                                    <input type="hidden" name="revision" value="@draft.Revision" />
+                                    <input type="hidden" name="scope" value="skuMissing" />
+                                    <input type="hidden" name="sku" value="@row.Source.Sku" />
+                                    <input type="hidden" name="pageNumber" value="@Model.CurrentPage" />
+                                    <input type="hidden" name="filter" value="@Model.Filter" />
+                                    @foreach (var option in row.SourceOptions)
+                                    {
+                                        <button type="submit" name="sourceId" value="@option.Id" class="btn btn-outline-primary btn-lg">@option.Code · @option.Quantity.ToString("0.####") @row.Source.Unit</button>
+                                    }
+                                </form>
+                            </div>
+                        }
+                        @if (row.ExistingMovementId is { } movementId)
+                        {
+                            <p class="text-success">@T["Ya importada; no se descuenta otra vez."]</p>
+                            <span class="small text-break">@T["Movimiento"]: @movementId</span>
+                            <p class="small mt-2">@T["Capturado el"]: @row.RecordedAt?.ToString("dd/MM/yyyy HH:mm")</p>
+                            <div class="d-flex flex-wrap gap-2 mt-auto">
+                                <a class="btn btn-outline-primary" asp-page="/Admin/Inventory/Movements/Details" asp-route-id="@movementId">@T["Ver movimiento"]</a>
+                                @if (row.DocumentId is { } documentId)
+                                {
+                                    <a class="btn btn-outline-primary" asp-page="/Reports/Wip/Document" asp-route-id="@documentId">@T["Ver documento WIP"]</a>
+                                }
+                            </div>
+                        }
+                        else if (row.Resolution.Excluded) { <p>@T["Excluida"]: @row.Resolution.ExclusionReason</p> }
+                        else
+                        {
+                            @if (row.Source.Repeated) { <p class="text-warning-emphasis">@T["Fila idéntica a otra del archivo. Verifica si es una entrega adicional."]</p> }
+                            @if (row.Errors.Count > 0) { <ul class="text-danger">@foreach (var error in row.Errors) { <li>@error</li> }</ul> }
+                            else { <p class="text-success">@T["Lista para importar"]</p> }
+                        }
+                        @if (row.ExistingMovementId is null) {
+                            <div class="d-flex flex-wrap gap-2 mt-auto">
+                                <a class="btn btn-outline-primary btn-lg" asp-route-token="@draft.Token" asp-route-from="@(Model.From?.ToString("yyyy-MM-dd"))" asp-route-to="@(Model.To?.ToString("yyyy-MM-dd"))" asp-route-search="@Model.Search" asp-route-delivery="@Model.Delivery" asp-route-pageNumber="@Model.CurrentPage" asp-route-filter="@Model.Filter" asp-route-editRow="@row.Source.Number" asp-fragment="wip-edit-row">@T["Corregir fila {0}", row.Source.Number]</a>
+                                @if (!row.Resolution.Excluded && !Model.Delivery.HasValue) { <a class="btn btn-outline-primary btn-lg" asp-route-token="@draft.Token" asp-route-from="@(Model.From?.ToString("yyyy-MM-dd"))" asp-route-to="@(Model.To?.ToString("yyyy-MM-dd"))" asp-route-search="@row.Source.Sku" asp-route-delivery="@row.Source.Number" asp-fragment="wip-confirm-selection">@T["Revisar solo esta entrega"]</a> }
+                            </div>
+                        }
+                    </div></article>
+                }
+            </div>
+            @if (Model.Rows.Count == 0) { <p class="alert alert-info">@T["No hay filas con este filtro."]</p> }
+            <nav aria-label="@T["Paginación"]" class="d-flex gap-3 align-items-center mt-3">
+                @if (Model.CurrentPage > 1) { <a class="btn btn-outline-secondary btn-lg" asp-route-token="@draft.Token" asp-route-from="@(Model.From?.ToString("yyyy-MM-dd"))" asp-route-to="@(Model.To?.ToString("yyyy-MM-dd"))" asp-route-search="@Model.Search" asp-route-delivery="@Model.Delivery" asp-route-filter="@Model.Filter" asp-route-pageNumber="@(Model.CurrentPage - 1)">@T["Anterior"]</a> }
+                <span>@T["Página {0} de {1}", Model.CurrentPage, Model.TotalPages]</span>
+                @if (Model.CurrentPage < Model.TotalPages) { <a class="btn btn-outline-secondary btn-lg" asp-route-token="@draft.Token" asp-route-from="@(Model.From?.ToString("yyyy-MM-dd"))" asp-route-to="@(Model.To?.ToString("yyyy-MM-dd"))" asp-route-search="@Model.Search" asp-route-delivery="@Model.Delivery" asp-route-filter="@Model.Filter" asp-route-pageNumber="@(Model.CurrentPage + 1)">@T["Siguiente"]</a> }
+            </nav>
+        </section>
+        <section id="wip-confirm-selection" class="card card-body mb-4">
+            <h2 class="h4">@T["Efecto en existencias"]</h2>
+            <p><strong>@T["Se confirmarán únicamente las entregas pendientes de la selección actual."]</strong></p>
+            <p>@T["Proyección de las filas válidas pendientes. Descuenta del almacén y registra la entrega documental a WIP. Las filas excluidas, inválidas o ya importadas no se suman."]</p>
+            @if (review.Effects.Any(x => x.After < 0)) { <div class="alert alert-warning">@T["Algunas ubicaciones quedarán con saldo negativo. Esto advierte una diferencia y no bloquea la importación."]</div> }
+            <details><summary class="py-3">@T["Ver saldos por producto y ubicación ({0})", review.Effects.Count]</summary>
+                <div class="table-responsive"><table class="table">
+                    <thead><tr><th>@T["Producto"]</th><th>@T["Ubicación"]</th><th>@T["Unidad"]</th><th>@T["Actual"]</th><th>@T["Cambio"]</th><th>@T["Resultado"]</th></tr></thead>
+                    <tbody>@foreach (var effect in review.Effects) { <tr><td>@effect.Sku</td><td>@effect.Location</td><td>@effect.Unit</td><td>@effect.Before.ToString("0.####")</td><td>@effect.Change.ToString("+0.####;-0.####;0")</td><td>@effect.After.ToString("0.####")</td></tr> }</tbody>
+                </table></div>
+            </details>
+            <p>@T["La fecha del movimiento será la del reporte, a medianoche en la zona horaria del almacén. La fecha de registro será la de importación. Los lotes y pallets se asignan con las existencias actuales."]</p>
+            @if (review.CanConfirm)
+            {
+                <form method="post" asp-page-handler="Confirm">
+                    <input type="hidden" name="token" value="@draft.Token" />
+                    <input type="hidden" name="search" value="@Model.Search" />
+                    <input type="hidden" name="delivery" value="@Model.Delivery" />
+                    <input type="hidden" name="from" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="to" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+                    <input type="hidden" name="revision" value="@draft.Revision" />
+                    <label class="d-block py-3"><input class="form-check-input" type="checkbox" name="reviewed" value="true" required /> @T["Revisé las filas, las exclusiones y el efecto en existencias."]</label>
+                    @if (review.Rows.Any(x => x.Pending && x.Source.Repeated)) { <label class="d-block py-3"><input class="form-check-input" type="checkbox" name="reviewedRepeatedRows" value="true" required /> @T["Las filas idénticas pendientes representan entregas distintas."]</label> }
+                    <label class="d-block py-3"><input class="form-check-input" type="checkbox" name="approveSharing" value="true" /> @T["Autorizo compartir los racks de origen con otros productos si fuera necesario."]</label>
+                    <label for="wip-pin" class="form-label">@T["NIP ADMIN"]</label>
+                    <input id="wip-pin" name="pin" type="password" inputmode="numeric" autocomplete="new-password" required maxlength="8" class="form-control form-control-lg mb-3" />
+                    <button class="btn btn-primary btn-lg">@T["Confirmar {0} entregas de esta selección", review.Rows.Count(x => x.Pending)]</button>
+                </form>
+            }
+            else { <p class="alert alert-info mb-0">@T["Para confirmar, debe haber filas pendientes y todas deben estar corregidas. Corrige el archivo y vuelve a cargarlo, o excluye las filas que no correspondan."]</p> }
+        </section>
+    }
+</div>

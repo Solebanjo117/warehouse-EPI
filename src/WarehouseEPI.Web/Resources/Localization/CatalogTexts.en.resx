@@ -5410,4 +5410,80 @@
   <data name="Hasta 5 entregas, de más reciente a más antigua" xml:space="preserve"><value>Up to 5 deliveries, newest first</value></data>
   <data name="Enviado sin devolución histórica:" xml:space="preserve"><value>Sent with no historical return:</value></data>
   <data name="Seguimiento documental y últimos surtimientos" xml:space="preserve"><value>Document tracking and latest supplies</value></data>
+  <data name="Algunas ubicaciones quedarán con saldo negativo. Esto advierte una diferencia y no bloquea la importación." xml:space="preserve"><value>Some locations will have a negative balance. This warns of a discrepancy and does not block the import.</value></data>
+  <data name="Aplicar a" xml:space="preserve"><value>Apply to</value></data>
+  <data name="Autorizo compartir los racks de origen con otros productos si fuera necesario." xml:space="preserve"><value>I authorize sharing source racks with other products if needed.</value></data>
+  <data name="Carga TRANSFER LOG, corrige las ubicaciones y revisa las existencias antes de confirmar con NIP ADMIN." xml:space="preserve"><value>Upload TRANSFER LOG, correct locations and review stock before confirming with an ADMIN PIN.</value></data>
+  <data name="Con errores" xml:space="preserve"><value>With errors</value></data>
+  <data name="Conservar destino actual" xml:space="preserve"><value>Keep current destination</value></data>
+  <data name="Conservar origen actual" xml:space="preserve"><value>Keep current source</value></data>
+  <data name="Corregir fila {0}" xml:space="preserve"><value>Correct row {0}</value></data>
+  <data name="Corregir varias filas" xml:space="preserve"><value>Correct multiple rows</value></data>
+  <data name="Efecto en existencias" xml:space="preserve"><value>Stock impact</value></data>
+  <data name="El origen se prellena si el producto tiene un solo rack disponible con stock positivo fuera de WIP. Si tiene varios, debes elegir uno. Las ubicaciones WIP se reconocen por código o descripción exactos." xml:space="preserve"><value>The source is prefilled when the product has a single available rack with positive stock outside WIP. If there are several, you must choose one. WIP locations are matched by exact code or description.</value></data>
+  <data name="Entregas del archivo" xml:space="preserve"><value>Deliveries in the file</value></data>
+  <data name="Excluida" xml:space="preserve"><value>Excluded</value></data>
+  <data name="Excluidas" xml:space="preserve"><value>Excluded</value></data>
+  <data name="Excluir esta fila de la importación" xml:space="preserve"><value>Exclude this row from the import</value></data>
+  <data name="Fila idéntica a otra del archivo. Verifica si es una entrega adicional." xml:space="preserve"><value>Identical to another row in the file. Check whether this is an additional delivery.</value></data>
+  <data name="Filas del producto seleccionado" xml:space="preserve"><value>Rows for the selected product</value></data>
+  <data name="Filas del área original seleccionada" xml:space="preserve"><value>Rows for the selected original area</value></data>
+  <data name="Guardar corrección" xml:space="preserve"><value>Save correction</value></data>
+  <data name="Hasta 10 MB y 2000 filas. Se usa Qty Delivered; no se importan los totales ni las hojas de resumen." xml:space="preserve"><value>Up to 10 MB and 2000 rows. Uses Qty Delivered; totals and summary sheets are not imported.</value></data>
+  <data name="Importar salidas a WIP" xml:space="preserve"><value>Import WIP issues</value></data>
+  <data name="La fecha del movimiento será la del reporte, a medianoche en la zona horaria del almacén. La fecha de registro será la de importación. Los lotes y pallets se asignan con las existencias actuales." xml:space="preserve"><value>The movement uses the report date at midnight in the warehouse time zone. The recording date is the import date. Lots and pallets are allocated from current stock.</value></data>
+  <data name="La vista previa dura una hora y se pierde si se reinicia la aplicación. Las salidas confirmadas permanecen registradas." xml:space="preserve"><value>The preview lasts one hour and is lost if the application restarts. Confirmed issues remain recorded.</value></data>
+  <data name="Las filas idénticas pendientes representan entregas distintas." xml:space="preserve"><value>Identical pending rows represent separate deliveries.</value></data>
+  <data name="Lista para importar" xml:space="preserve"><value>Ready to import</value></data>
+  <data name="Motivo de exclusión" xml:space="preserve"><value>Exclusion reason</value></data>
+  <data name="No hay filas con este filtro." xml:space="preserve"><value>No rows match this filter.</value></data>
+  <data name="Origen prellenado: única ubicación disponible del producto." xml:space="preserve"><value>Source prefilled: the product has only one available location.</value></data>
+  <data name="Para confirmar, debe haber filas pendientes y todas deben estar corregidas. Corrige el archivo y vuelve a cargarlo, o excluye las filas que no correspondan." xml:space="preserve"><value>To confirm, there must be pending rows and all must be corrected. Correct and upload the file again, or exclude rows that do not apply.</value></data>
+  <data name="Producto del archivo" xml:space="preserve"><value>Product in the file</value></data>
+  <data name="Rack de origen" xml:space="preserve"><value>Source rack</value></data>
+  <data name="Reporte de transferencias WIP (.xlsx)" xml:space="preserve"><value>WIP transfer report (.xlsx)</value></data>
+  <data name="Revisión de {0}" xml:space="preserve"><value>Review of {0}</value></data>
+  <data name="Revisé las filas, las exclusiones y el efecto en existencias." xml:space="preserve"><value>I reviewed the rows, exclusions and stock impact.</value></data>
+  <data name="Se omiten entregas idénticas ya importadas por esta sección. Revisa las salidas capturadas manualmente y exclúyelas para evitar descontarlas otra vez. Cambiar fecha, producto, cantidad, unidad o área original en Excel puede identificar una entrega nueva." xml:space="preserve"><value>Identical deliveries already imported here are skipped. Review and exclude manually recorded issues to avoid deducting them again. Changing the date, product, quantity, unit or original area in Excel may identify a new delivery.</value></data>
+  <data name="Sin área" xml:space="preserve"><value>No area</value></data>
+  <data name="Solo cambia los campos seleccionados. No modifica filas excluidas ni ya importadas." xml:space="preserve"><value>Only changes selected fields. Excluded or previously imported rows are not changed.</value></data>
+  <data name="Todas las filas con errores" xml:space="preserve"><value>All rows with errors</value></data>
+  <data name="Todas las filas pendientes" xml:space="preserve"><value>All pending rows</value></data>
+  <data name="Varias ubicaciones: elige el origen para las filas pendientes de este producto." xml:space="preserve"><value>Multiple locations: choose the source for this product's pending rows.</value></data>
+  <data name="Ver saldos por producto y ubicación ({0})" xml:space="preserve"><value>View balances by product and location ({0})</value></data>
+  <data name="Ya importada; no se descuenta otra vez." xml:space="preserve"><value>Already imported; will not be deducted again.</value></data>
+  <data name="Ya importadas" xml:space="preserve"><value>Already imported</value></data>
+  <data name="{0} filas · {1} pendientes · {2} con errores · {3} excluidas · {4} ya importadas" xml:space="preserve"><value>{0} rows · {1} pending · {2} with errors · {3} excluded · {4} already imported</value></data>
+  <data name="Área WIP de destino" xml:space="preserve"><value>Destination WIP area</value></data>
+  <data name="Área original" xml:space="preserve"><value>Original area</value></data>
+  <data name="Área original del archivo" xml:space="preserve"><value>Original area in the file</value></data>
+  <data name="Buscar entregas por producto" xml:space="preserve"><value>Find deliveries by product</value></data>
+  <data name="Producto del Excel" xml:space="preserve"><value>Product in Excel</value></data>
+  <data name="Escribe parte del SKU o elige una sugerencia. Un SKU exacto muestra únicamente ese producto." xml:space="preserve"><value>Enter part of the SKU or choose a suggestion. An exact SKU shows only that product.</value></data>
+  <data name="Buscar entregas" xml:space="preserve"><value>Find deliveries</value></data>
+  <data name="Ver todo el archivo" xml:space="preserve"><value>View the entire file</value></data>
+  <data name="Selección: {0} entregas de {1} productos. Archivo completo: {2} filas." xml:space="preserve"><value>Selection: {0} deliveries for {1} products. Entire file: {2} rows.</value></data>
+  <data name="Producto buscado" xml:space="preserve"><value>Product search</value></data>
+  <data name="Solo entrega de la fila {0}" xml:space="preserve"><value>Only the delivery on row {0}</value></data>
+  <data name="Ver todas las entregas del producto" xml:space="preserve"><value>View all deliveries for this product</value></data>
+  <data name="Las correcciones y la confirmación afectan solo esta selección, incluidas todas sus páginas. Los demás registros quedan pendientes. Cada fila del Excel genera una operación independiente con su fecha original." xml:space="preserve"><value>Corrections and confirmation apply only to this selection, across all its pages. Other records remain pending. Each Excel row creates a separate operation with its original date.</value></data>
+  <data name="Entrega · fila {0}" xml:space="preserve"><value>Delivery · row {0}</value></data>
+  <data name="Revisar solo esta entrega" xml:space="preserve"><value>Review only this delivery</value></data>
+  <data name="Se confirmarán únicamente las entregas pendientes de la selección actual." xml:space="preserve"><value>Only pending deliveries in the current selection will be confirmed.</value></data>
+  <data name="Confirmar {0} entregas de esta selección" xml:space="preserve"><value>Confirm {0} deliveries in this selection</value></data>
+  <data name="Fecha desde (incluida)" xml:space="preserve"><value>From date (inclusive)</value></data>
+  <data name="Fecha hasta (incluida)" xml:space="preserve"><value>Through date (inclusive)</value></data>
+  <data name="Periodo seleccionado" xml:space="preserve"><value>Selected period</value></data>
+  <data name="Las fechas corresponden a la entrega en el Excel. Deja un extremo vacío para no limitarlo. Al filtrar por fecha se omiten las filas sin fecha." xml:space="preserve"><value>Dates refer to the delivery in Excel. Leave either end blank for no limit. Rows without a date are omitted when filtering by date.</value></data>
+  <data name="Este producto no tiene racks disponibles con stock positivo fuera de WIP." xml:space="preserve"><value>This product has no available racks with positive stock outside WIP.</value></data>
+  <data name="Entregas WIP pendientes durante {0} días o más." xml:space="preserve"><value>WIP deliveries outstanding for {0} days or more.</value></data>
+  <data name="Entregas a producción, uso registrado y devoluciones. El pendiente documental no representa existencias." xml:space="preserve"><value>Production deliveries, recorded usage and returns. Documentary outstanding quantities do not represent stock.</value></data>
+  <data name="Hay existencias WIP anteriores pendientes de conversión. Solicita el corte documental ADMIN." xml:space="preserve"><value>Historical WIP stock is awaiting conversion. Request the ADMIN documentary cutover.</value></data>
+  <data name="La antigüedad se calcula desde la entrega o la apertura documental del corte." xml:space="preserve"><value>Age is calculated from the delivery or the documentary opening at cutover.</value></data>
+  <data name="Proyección de las filas válidas pendientes. Descuenta del almacén y registra la entrega documental a WIP. Las filas excluidas, inválidas o ya importadas no se suman." xml:space="preserve"><value>Projection of valid pending rows. Deducts warehouse stock and records documentary delivery to WIP. Excluded, invalid or previously imported rows are not included.</value></data>
+  <data name="Capturado el" xml:space="preserve"><value>Recorded on</value></data>
+  <data name="Ver documento WIP" xml:space="preserve"><value>View WIP document</value></data>
+  <data name="Las fechas filtran la entrega original, no el día de captura. Sin fechas se muestra todo el historial." xml:space="preserve"><value>Dates filter the original delivery, not the recording date. Leave dates empty to show all history.</value></data>
+  <data name="Excluir las ya importadas" xml:space="preserve"><value>Exclude already imported</value></data>
+  <data name="Racks asociados actualmente" xml:space="preserve"><value>Currently associated racks</value></data>
 </root>
