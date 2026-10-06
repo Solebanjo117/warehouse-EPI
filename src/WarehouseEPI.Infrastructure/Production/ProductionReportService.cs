@@ -28,8 +28,12 @@ public sealed class ProductionReportService(WarehouseDbContext db, ProductionDai
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.Id == filter.WeekId, token);
         if (week is null) return null;
         var end = week.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset);
-        filter = filter with { Date = filter.Date < week.WeekStart ? week.WeekStart : filter.Date > end ? end : filter.Date,
-            Sku = filter.Sku?.Trim(), Reference = filter.Reference?.Trim() };
+        filter = filter with
+        {
+            Date = filter.Date < week.WeekStart ? week.WeekStart : filter.Date > end ? end : filter.Date,
+            Sku = filter.Sku?.Trim(),
+            Reference = filter.Reference?.Trim()
+        };
         var query = new ProductionWeeklyFilter(end, filter.Sku, filter.Reference, filter.Area);
         var weekly = (await balances.GetWeeklyAsync(week.Id, query, token))!;
         var daily = filter.Products && !filter.FullWeek

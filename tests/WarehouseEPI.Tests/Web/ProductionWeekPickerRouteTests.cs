@@ -9,8 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
-using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Tests.Production;
 using WarehouseEPI.Web.Localization;
 
@@ -183,11 +183,22 @@ public sealed class ProductionWeekPickerRouteTests
         using var review = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         Assert.True(review.RootElement.GetProperty("canConfirm").GetBoolean());
         using (var scope = factory.Services.CreateScope()) Assert.Empty(await scope.ServiceProvider.GetRequiredService<WarehouseDbContext>().ProductionScheduleWeeks.ToListAsync());
-        var payload = JsonSerializer.Serialize(new { operationId = operation, weekStart = start, changes,
-            reviewedFingerprint = review.RootElement.GetProperty("fingerprint").GetString() }, JsonSerializerOptions.Web);
-        async Task<HttpResponseMessage> Confirm(string pin) => await client.PostAsync(Page + "?handler=CreateWeek", new FormUrlEncodedContent(new Dictionary<string, string> {
-            ["NewWeek.OperationId"] = operation.ToString(), ["NewWeek.WeekStart"] = "2026-10-05", ["NewWeek.Pin"] = pin,
-            ["payload"] = payload, ["__RequestVerificationToken"] = Token(html), ["View"] = "program" }));
+        var payload = JsonSerializer.Serialize(new
+        {
+            operationId = operation,
+            weekStart = start,
+            changes,
+            reviewedFingerprint = review.RootElement.GetProperty("fingerprint").GetString()
+        }, JsonSerializerOptions.Web);
+        async Task<HttpResponseMessage> Confirm(string pin) => await client.PostAsync(Page + "?handler=CreateWeek", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["NewWeek.OperationId"] = operation.ToString(),
+            ["NewWeek.WeekStart"] = "2026-10-05",
+            ["NewWeek.Pin"] = pin,
+            ["payload"] = payload,
+            ["__RequestVerificationToken"] = Token(html),
+            ["View"] = "program"
+        }));
         using var rejected = await Confirm("0000"); Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
         using var saved = await Confirm("0123"); Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
         using var savedJson = JsonDocument.Parse(await saved.Content.ReadAsStringAsync());
@@ -259,8 +270,13 @@ public sealed class ProductionWeekPickerRouteTests
         {
             var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
             if (ready) await ProductionDailyModuleTests.SeedImportCatalogAsync(db);
-            var actor = new User { FullName = "Week picker admin", RoleId = (await db.Roles.SingleAsync(role => role.Code == "ADMIN")).Id,
-                PinLookup = "", PinHash = "" };
+            var actor = new User
+            {
+                FullName = "Week picker admin",
+                RoleId = (await db.Roles.SingleAsync(role => role.Code == "ADMIN")).Id,
+                PinLookup = "",
+                PinHash = ""
+            };
             await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(actor, "0123");
             db.Add(actor); await db.SaveChangesAsync();
         }
@@ -268,21 +284,29 @@ public sealed class ProductionWeekPickerRouteTests
         client.DefaultRequestHeaders.Add("Cookie", $"{UiLanguage.CookieName}={language}");
         var html = await client.GetStringAsync("/Admin/Login");
         var result = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(html) }));
+        { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(html) }));
         Assert.Equal(HttpStatusCode.Redirect, result.StatusCode);
         return client;
     }
 
     private static ProductionScheduleWeek Week(DateOnly start, ProductionScheduleWeekStatus status) => new()
     {
-        WeekStart = start, WeekEnd = start.AddDays(6), Status = status,
-        RequestFingerprint = "week-picker-fixture", OperationId = Guid.NewGuid(), Version = 1
+        WeekStart = start,
+        WeekEnd = start.AddDays(6),
+        Status = status,
+        RequestFingerprint = "week-picker-fixture",
+        OperationId = Guid.NewGuid(),
+        Version = 1
     };
     private static Task<HttpResponseMessage> Post(HttpClient client, string html, string operation, string start, string pin) =>
         client.PostAsync(Page + "?handler=CreateWeek", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["NewWeek.OperationId"] = operation, ["NewWeek.WeekStart"] = start, ["NewWeek.Pin"] = pin,
-            ["View"] = "summary", ["SelectedDay"] = "2026-09-21", ["__RequestVerificationToken"] = Token(html)
+            ["NewWeek.OperationId"] = operation,
+            ["NewWeek.WeekStart"] = start,
+            ["NewWeek.Pin"] = pin,
+            ["View"] = "summary",
+            ["SelectedDay"] = "2026-09-21",
+            ["__RequestVerificationToken"] = Token(html)
         }));
     private static string Token(string html) => WebUtility.HtmlDecode(Regex.Match(html,
         "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]*)\"").Groups[1].Value);

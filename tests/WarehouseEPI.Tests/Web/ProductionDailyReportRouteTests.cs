@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
-using Microsoft.AspNetCore.WebUtilities;
 using ClosedXML.Excel;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
@@ -124,8 +124,14 @@ public sealed class ProductionDailyReportRouteTests
         var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
         var week = await db.ProductionScheduleWeeks.Include(x => x.Lines).SingleAsync(x => x.Id == seed.WeekId);
         for (var i = 4; i <= 28; i++)
-            db.ProductionScheduleLines.Add(new() { WeekId = week.Id, Product = new Product { Sku = $"RECOVER-{i:000}", Description = "Report product", BaseUnitId = 1 },
-                Sequence = i, PlannedDate = seed.Date, Quantity = 30 });
+            db.ProductionScheduleLines.Add(new()
+            {
+                WeekId = week.Id,
+                Product = new Product { Sku = $"RECOVER-{i:000}", Description = "Report product", BaseUnitId = 1 },
+                Sequence = i,
+                PlannedDate = seed.Date,
+                Quantity = 30
+            });
         await db.SaveChangesAsync();
         var query = $"WeekId={seed.WeekId}&Through={seed.Date:yyyy-MM-dd}&Tab=reports";
         var summary = WebUtility.HtmlDecode(await client.GetStringAsync("/Operations/Production?" + query));

@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Settings;
-using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.PalletLabels;

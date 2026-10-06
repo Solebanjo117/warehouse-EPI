@@ -1,8 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
-using System.Text.Json;
-using System.Text;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
@@ -37,7 +37,8 @@ public sealed class ProductionBalanceWorkspaceTests
         using var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"),
-            ["Input.Pin"] = "0123", ["ReturnUrl"] = url
+            ["Input.Pin"] = "0123",
+            ["ReturnUrl"] = url
         }));
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         var admin = WebUtility.HtmlDecode(await client.GetStringAsync(url));
@@ -67,7 +68,8 @@ public sealed class ProductionBalanceWorkspaceTests
         var login = await client.GetStringAsync("/Admin/Login");
         using var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"), ["Input.Pin"] = "0123"
+            ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"),
+            ["Input.Pin"] = "0123"
         }));
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         var page = await client.GetStringAsync($"/Operations/Production?Day={seed.Date:yyyy-MM-dd}");
@@ -77,7 +79,10 @@ public sealed class ProductionBalanceWorkspaceTests
         var week = await db.ProductionScheduleWeeks.AsNoTracking().SingleAsync(x => x.Id == seed.WeekId);
         var edit = new
         {
-            operationId = Guid.NewGuid(), weekId = seed.WeekId, date = seed.Date, pin = "0123",
+            operationId = Guid.NewGuid(),
+            weekId = seed.WeekId,
+            date = seed.Date,
+            pin = "0123",
             cells = withProduction ? new object[] { new { productId = seed.Products[0], area = 0, shift = 1, observed = "0", requested = "5" } } : [],
             planChanges = newPlan ? Array.Empty<object>() : [new { lineId = line.Id, observed = "30", requested = "40", expectedLineVersion = line.Version, expectedWeekVersion = week.Version }],
             newPlans = newPlan ? new object[] { new { operationId = Guid.NewGuid(), productId = seed.Products[0], requested = "10", expectedWeekVersion = week.Version } } : []
@@ -121,12 +126,20 @@ public sealed class ProductionBalanceWorkspaceTests
         // This is the serialized shape used before extracting the recovery helper.
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
         {
-            command.WeekId, command.Date,
+            command.WeekId,
+            command.Date,
             Cells = command.Cells.OrderBy(x => x.Shift).ThenBy(x => x.Area).ThenBy(x => x.ProductId),
-            Reason = command.Reason?.Trim(), user.Id
+            Reason = command.Reason?.Trim(),
+            user.Id
         }))));
-        db.Set<ProductionBalanceEdit>().Add(new() { OperationId = command.OperationId, WeekId = seed.WeekId,
-            EffectiveDate = seed.Date, RequestFingerprint = fingerprint, ResponsibleUserId = user.Id });
+        db.Set<ProductionBalanceEdit>().Add(new()
+        {
+            OperationId = command.OperationId,
+            WeekId = seed.WeekId,
+            EffectiveDate = seed.Date,
+            RequestFingerprint = fingerprint,
+            ResponsibleUserId = user.Id
+        });
         await db.SaveChangesAsync();
         var result = await scope.ServiceProvider.GetRequiredService<ProductionDailyCaptureService>().FindBalanceEditAsync(command);
         Assert.True(result?.Success);
@@ -153,8 +166,13 @@ public sealed class ProductionBalanceWorkspaceTests
             request.Content = JsonContent.Create(new { edit, products = products ?? seed.Products });
             return await client.SendAsync(request);
         }
-        var edit = new { operationId = Guid.NewGuid(), weekId = seed.WeekId, date = seed.Date,
-            cells = new[] { new { productId = seed.Products[0], area = 0, shift = 1, observed = "0", requested = "bad" } } };
+        var edit = new
+        {
+            operationId = Guid.NewGuid(),
+            weekId = seed.WeekId,
+            date = seed.Date,
+            cells = new[] { new { productId = seed.Products[0], area = 0, shift = 1, observed = "0", requested = "bad" } }
+        };
         using var response = await Send(edit);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -163,8 +181,13 @@ public sealed class ProductionBalanceWorkspaceTests
         Assert.Equal("bad", result.RootElement.GetProperty("cells")[0].GetProperty("cell").GetProperty("requested").GetString());
         using var duplicate = await Send(edit, [seed.Products[0], seed.Products[0]]);
         Assert.Equal(HttpStatusCode.BadRequest, duplicate.StatusCode);
-        using var planning = await Send(new { operationId = Guid.NewGuid(), weekId = seed.WeekId, date = seed.Date,
-            planChanges = new[] { new { lineId = Guid.NewGuid(), observed = "0", requested = "1", expectedLineVersion = 0, expectedWeekVersion = 0 } } });
+        using var planning = await Send(new
+        {
+            operationId = Guid.NewGuid(),
+            weekId = seed.WeekId,
+            date = seed.Date,
+            planChanges = new[] { new { lineId = Guid.NewGuid(), observed = "0", requested = "1", expectedLineVersion = 0, expectedWeekVersion = 0 } }
+        });
         Assert.Equal(HttpStatusCode.OK, planning.StatusCode);
         using var planningResult = JsonDocument.Parse(await planning.Content.ReadAsStringAsync());
         Assert.DoesNotContain("data-plan-line=", planningResult.RootElement.GetProperty("html").GetString());
@@ -206,7 +229,11 @@ public sealed class ProductionBalanceWorkspaceTests
         var operationId = Guid.NewGuid();
         object Edit(string fingerprint = "", string pin = "", string requested = "5") => new
         {
-            operationId, weekId = seed.WeekId, date = seed.Date, fingerprint, pin,
+            operationId,
+            weekId = seed.WeekId,
+            date = seed.Date,
+            fingerprint,
+            pin,
             cells = Enumerable.Range(0, 3).Select(area => new { productId = product.Id, area, shift = 1, observed = "0", requested })
         };
         async Task<JsonDocument> Send(string handler, object body)
@@ -245,8 +272,17 @@ public sealed class ProductionBalanceWorkspaceTests
         var page = await client.GetStringAsync($"/Operations/Production?Day={seed.Date:yyyy-MM-dd}");
         using var request = new HttpRequestMessage(HttpMethod.Post, "/Operations/Production?handler=BalanceEditRestore");
         request.Headers.Add("RequestVerificationToken", Input(page, "__RequestVerificationToken"));
-        var body = new { products = seed.Products, edit = new { operationId = Guid.NewGuid(), weekId = seed.WeekId, date = seed.Date,
-            cells = new[] { new { productId = seed.Products[0], area = 0, shift = 1, observed = "7", requested = "1,2" } } } };
+        var body = new
+        {
+            products = seed.Products,
+            edit = new
+            {
+                operationId = Guid.NewGuid(),
+                weekId = seed.WeekId,
+                date = seed.Date,
+                cells = new[] { new { productId = seed.Products[0], area = 0, shift = 1, observed = "7", requested = "1,2" } }
+            }
+        };
         request.Content = JsonContent.Create(body);
         using var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);

@@ -8,9 +8,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Security;
-using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Web.Backups;
 using WarehouseEPI.Web.Branding;
 using WarehouseEPI.Web.Locations;
@@ -89,9 +89,13 @@ public sealed class ManualBackupPostgreSqlTests
             await File.WriteAllBytesAsync(referencePath, image);
             await using (var db = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>().UseNpgsql(testBuilder.ConnectionString).Options))
             {
-                var actor = new User { FullName = "Backup asset fixture", RoleId = (await db.Roles.SingleAsync(item => item.Code == "ADMIN")).Id,
+                var actor = new User
+                {
+                    FullName = "Backup asset fixture",
+                    RoleId = (await db.Roles.SingleAsync(item => item.Code == "ADMIN")).Id,
                     PinLookup = Convert.ToHexString(HMACSHA256.HashData(Convert.FromBase64String(ManualBackupTests.PinKey), "1470"u8.ToArray())).ToLowerInvariant(),
-                    PinHash = new PinProtector(ManualBackupTests.PinKey).Hash("1470") };
+                    PinHash = new PinProtector(ManualBackupTests.PinKey).Hash("1470")
+                };
                 db.Users.Add(actor);
                 var business = await db.BusinessSettings.SingleOrDefaultAsync();
                 if (business is null)
@@ -101,8 +105,18 @@ public sealed class ManualBackupPostgreSqlTests
                 }
                 business.LogoFileName = logoName; business.LogoHash = hash; business.LogoContentType = "image/png";
                 if (!await db.WarehouseMapLayouts.AnyAsync()) db.WarehouseMapLayouts.Add(new WarehouseMapLayout());
-                db.WarehouseMapReferenceImages.Add(new WarehouseMapReferenceImage { OriginalFileName = "fixture.png", StoredFileName = referenceName,
-                    ContentType = "image/png", Sha256 = hash, PixelWidth = 1, PixelHeight = 1, Width = 1, Height = 1, CreatedByUserId = actor.Id });
+                db.WarehouseMapReferenceImages.Add(new WarehouseMapReferenceImage
+                {
+                    OriginalFileName = "fixture.png",
+                    StoredFileName = referenceName,
+                    ContentType = "image/png",
+                    Sha256 = hash,
+                    PixelWidth = 1,
+                    PixelHeight = 1,
+                    Width = 1,
+                    Height = 1,
+                    CreatedByUserId = actor.Id
+                });
                 await db.SaveChangesAsync();
             }
             var readonlyBuilder = new NpgsqlConnectionStringBuilder(testBuilder.ConnectionString)

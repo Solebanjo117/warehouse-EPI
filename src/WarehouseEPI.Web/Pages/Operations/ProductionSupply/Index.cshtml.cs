@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
-using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.ProductionSupply;
@@ -10,19 +10,19 @@ namespace WarehouseEPI.Web.Pages.Operations.ProductionSupply;
 public sealed class IndexModel(ProductionSupplyService supplies, IStringLocalizer<OperationsTexts> texts) : PageModel
 {
     public IReadOnlyList<ProductionSupplyQueueRow> Rows { get; private set; } = [];
-    [BindProperty(SupportsGet=true)]public int PageNumber {get;set;}=1;
-    public ProductionSupplyQueuePage QueuePage {get;private set;}=new([],1,0,1,"",DateTimeOffset.MinValue);
+    [BindProperty(SupportsGet = true)] public int PageNumber { get; set; } = 1;
+    public ProductionSupplyQueuePage QueuePage { get; private set; } = new([], 1, 0, 1, "", DateTimeOffset.MinValue);
     public int PendingOrders { get; private set; }
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Condition { get; set; }
 
     public async Task OnGetAsync(CancellationToken token)
     {
-        QueuePage = await supplies.GetQueuePageAsync(Search,Condition,PageNumber,token);
-        PageNumber=QueuePage.Page;Rows=QueuePage.Rows;PendingOrders=QueuePage.TotalOrders;
+        QueuePage = await supplies.GetQueuePageAsync(Search, Condition, PageNumber, token);
+        PageNumber = QueuePage.Page; Rows = QueuePage.Rows; PendingOrders = QueuePage.TotalOrders;
     }
 
-    public async Task<IActionResult> OnGetSnapshotAsync(CancellationToken token) {return new JsonResult(await supplies.GetQueueSnapshotAsync(Search,Condition,token));}
+    public async Task<IActionResult> OnGetSnapshotAsync(CancellationToken token) { return new JsonResult(await supplies.GetQueueSnapshotAsync(Search, Condition, token)); }
 
     public async Task<IActionResult> OnPostStartAsync(Guid requestId, uint expectedVersion, string pin, CancellationToken token) =>
         Handle(await supplies.StartPreparationAsync(new(Guid.NewGuid(), requestId, expectedVersion, pin), token));

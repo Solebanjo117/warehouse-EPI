@@ -179,8 +179,15 @@ public sealed partial class ProductionDailyScheduleService
 
         var issues = await db.ProductionMaterialIssueLinks.AsNoTracking()
             .Where(x => x.WorkOrderId == orderId && x.Quantity > x.CancelledQuantity)
-            .Select(x => new { x.Id, x.SupplyRequestLineId, x.InventoryMovementLineId,
-                x.Source, x.Quantity, x.CancelledQuantity }).ToArrayAsync(token);
+            .Select(x => new
+            {
+                x.Id,
+                x.SupplyRequestLineId,
+                x.InventoryMovementLineId,
+                x.Source,
+                x.Quantity,
+                x.CancelledQuantity
+            }).ToArrayAsync(token);
         var correction = new InventoryCorrectionService(db, pins, movements, timeProvider);
         var movementLineIds = issues.Where(x => x.InventoryMovementLineId.HasValue)
             .Select(x => x.InventoryMovementLineId!.Value).Distinct().ToArray();
@@ -241,10 +248,13 @@ public sealed partial class ProductionDailyScheduleService
                     {
                         OperationId = Derive(command.OperationId, line.Id, "cancel-supply"),
                         RequestFingerprint = Fingerprint(new { line.Id, pending, CancellationReason }),
-                        SupplyRequestId = request.Id, SupplyRequestLineId = line.Id,
+                        SupplyRequestId = request.Id,
+                        SupplyRequestLineId = line.Id,
                         Type = ProductionSupplyEventType.QuantityCancelled,
-                        ResponsibleUserId = command.ActorUserId, Quantity = pending,
-                        Reason = CancellationReason, RecordedAt = now
+                        ResponsibleUserId = command.ActorUserId,
+                        Quantity = pending,
+                        Reason = CancellationReason,
+                        RecordedAt = now
                     });
                 }
                 foreach (var preparation in line.Preparations.Where(x => x.Status == ProductionSupplyPreparationStatus.Open))
@@ -263,8 +273,11 @@ public sealed partial class ProductionDailyScheduleService
         {
             OperationId = Derive(command.OperationId, order.Id, "cancel-order"),
             RequestFingerprint = Fingerprint(new { order.Id, CancellationReason }),
-            WorkOrderId = order.Id, Type = ProductionEventType.Cancelled,
-            ResponsibleUserId = command.ActorUserId, Reason = CancellationReason, RecordedAt = now
+            WorkOrderId = order.Id,
+            Type = ProductionEventType.Cancelled,
+            ResponsibleUserId = command.ActorUserId,
+            Reason = CancellationReason,
+            RecordedAt = now
         });
         return null;
     }

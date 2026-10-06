@@ -35,8 +35,12 @@ public sealed class PalletTrackingRouteTests
         Assert.DoesNotContain("Input.Pallets", html);
         var payload = new Dictionary<string, string>
         {
-            ["__RequestVerificationToken"] = Token(html), ["Input.OperationId"] = Guid.NewGuid().ToString(), ["Input.ProductId"] = product.Id.ToString(),
-            ["Input.DestinationLocationId"] = source.Id.ToString(), ["Input.Quantity"] = "100", ["Input.Pin"] = "7894"
+            ["__RequestVerificationToken"] = Token(html),
+            ["Input.OperationId"] = Guid.NewGuid().ToString(),
+            ["Input.ProductId"] = product.Id.ToString(),
+            ["Input.DestinationLocationId"] = source.Id.ToString(),
+            ["Input.Quantity"] = "100",
+            ["Input.Pin"] = "7894"
         };
         var response = await client.PostAsync("/Operations/Entry", new FormUrlEncodedContent(payload));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -64,10 +68,13 @@ public sealed class PalletTrackingRouteTests
         Assert.Contains(source.Code, locationOptions); Assert.DoesNotContain(destination.Code, locationOptions);
         var identify = new Dictionary<string, string>
         {
-            ["__RequestVerificationToken"] = Token(html), ["Identify.OperationId"] = Value(html, "Identify.OperationId"),
-            ["Identify.LocationId"] = Value(html, "Identify.LocationId"), ["Identify.ProductId"] = Value(html, "Identify.ProductId"),
+            ["__RequestVerificationToken"] = Token(html),
+            ["Identify.OperationId"] = Value(html, "Identify.OperationId"),
+            ["Identify.LocationId"] = Value(html, "Identify.LocationId"),
+            ["Identify.ProductId"] = Value(html, "Identify.ProductId"),
             ["Identify.ExpectedBalanceVersion"] = Value(html, "Identify.ExpectedBalanceVersion"),
-            ["Identify.ExpectedIdentifiable"] = Value(html, "Identify.ExpectedIdentifiable"), ["Identify.Quantity"] = Value(html, "Identify.Quantity")
+            ["Identify.ExpectedIdentifiable"] = Value(html, "Identify.ExpectedIdentifiable"),
+            ["Identify.Quantity"] = Value(html, "Identify.Quantity")
         };
         response = await client.PostAsync("/Operations/PalletLabels?handler=Identify", new FormUrlEncodedContent(identify));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -85,8 +92,13 @@ public sealed class PalletTrackingRouteTests
         Assert.DoesNotContain("Input.Pallets", html);
         var transfer = new Dictionary<string, string>
         {
-            ["__RequestVerificationToken"] = Token(html), ["Input.OperationId"] = Guid.NewGuid().ToString(), ["Input.ProductId"] = product.Id.ToString(),
-            ["Input.SourceLocationId"] = source.Id.ToString(), ["Input.DestinationLocationId"] = destination.Id.ToString(), ["Input.Quantity"] = "20", ["Input.Pin"] = "7894"
+            ["__RequestVerificationToken"] = Token(html),
+            ["Input.OperationId"] = Guid.NewGuid().ToString(),
+            ["Input.ProductId"] = product.Id.ToString(),
+            ["Input.SourceLocationId"] = source.Id.ToString(),
+            ["Input.DestinationLocationId"] = destination.Id.ToString(),
+            ["Input.Quantity"] = "20",
+            ["Input.Pin"] = "7894"
         };
         response = await client.PostAsync("/Operations/Transfer", new FormUrlEncodedContent(transfer));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode); db.ChangeTracker.Clear();

@@ -22,7 +22,7 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         using var factory = original.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-            { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
         Guid weekId, productId, actorId, cuttingStageId, shift2Id;
         var monday = new DateOnly(2026, 9, 21);
         using (var scope = factory.Services.CreateScope())
@@ -31,23 +31,47 @@ public sealed class ProductionScheduleWorkspaceRouteTests
             await ProductionDailyModuleTests.SeedImportCatalogAsync(db);
             var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
             var config = await db.ProductionDailyConfigurations.SingleAsync();
-            var actor = new User { FullName = "Recovery admin", RoleId =
-                (await db.Roles.SingleAsync(x => x.Code == "ADMIN")).Id, PinLookup = "", PinHash = "" };
+            var actor = new User
+            {
+                FullName = "Recovery admin",
+                RoleId =
+                (await db.Roles.SingleAsync(x => x.Code == "ADMIN")).Id,
+                PinLookup = "",
+                PinHash = ""
+            };
             await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(actor, "0123");
-            var week = new ProductionScheduleWeek { WeekStart = monday, WeekEnd = monday.AddDays(6),
-                Status = ProductionScheduleWeekStatus.Open, ExplicitCarryover = true,
-                CreatedByUser = actor, RequestFingerprint = "recovery-route" };
+            var week = new ProductionScheduleWeek
+            {
+                WeekStart = monday,
+                WeekEnd = monday.AddDays(6),
+                Status = ProductionScheduleWeekStatus.Open,
+                ExplicitCarryover = true,
+                CreatedByUser = actor,
+                RequestFingerprint = "recovery-route"
+            };
             foreach (var (day, quantity) in new[] { (0, 200m), (1, 400m), (2, 400m) })
-                week.Lines.Add(new() { Product = product, PlannedDate = monday.AddDays(day),
-                    Quantity = quantity, Sequence = day + 1 });
+                week.Lines.Add(new()
+                {
+                    Product = product,
+                    PlannedDate = monday.AddDays(day),
+                    Quantity = quantity,
+                    Sequence = day + 1
+                });
             foreach (var (day, quantity, shift2) in new[]
                 { (0, 400m, false), (1, 200m, true), (3, 55m, false), (4, 40m, true) })
-                week.Captures.Add(new() { Product = product, ResponsibleUser = actor,
-                    EffectiveDate = monday.AddDays(day), Area = ProductionDailyArea.Cutting,
+                week.Captures.Add(new()
+                {
+                    Product = product,
+                    ResponsibleUser = actor,
+                    EffectiveDate = monday.AddDays(day),
+                    Area = ProductionDailyArea.Cutting,
                     StageId = config.CuttingStageId!.Value,
                     ShiftId = (shift2 ? config.Shift2Id : config.Shift1Id)!.Value,
-                    Quantity = quantity, OperationId = Guid.NewGuid(), RequestFingerprint = "recovery-route",
-                    Status = ProductionDailyCaptureStatus.Active });
+                    Quantity = quantity,
+                    OperationId = Guid.NewGuid(),
+                    RequestFingerprint = "recovery-route",
+                    Status = ProductionDailyCaptureStatus.Active
+                });
             db.Add(week); await db.SaveChangesAsync();
             weekId = week.Id; productId = product.Id; actorId = actor.Id;
             cuttingStageId = config.CuttingStageId!.Value; shift2Id = config.Shift2Id!.Value;
@@ -68,11 +92,20 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
-            db.ProductionDailyCaptures.Add(new() { WeekId = weekId, ProductId = productId,
-                ResponsibleUserId = actorId, EffectiveDate = monday.AddDays(4),
-                Area = ProductionDailyArea.Cutting, StageId = cuttingStageId, ShiftId = shift2Id,
-                Quantity = 305, OperationId = Guid.NewGuid(), RequestFingerprint = "recovery-route",
-                Status = ProductionDailyCaptureStatus.Active });
+            db.ProductionDailyCaptures.Add(new()
+            {
+                WeekId = weekId,
+                ProductId = productId,
+                ResponsibleUserId = actorId,
+                EffectiveDate = monday.AddDays(4),
+                Area = ProductionDailyArea.Cutting,
+                StageId = cuttingStageId,
+                ShiftId = shift2Id,
+                Quantity = 305,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "recovery-route",
+                Status = ProductionDailyCaptureStatus.Active
+            });
             await db.SaveChangesAsync();
         }
         var after = await client.GetStringAsync(route);
@@ -88,15 +121,21 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         using var factory = original.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-            { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
         Guid weekId, sourceId, productId;
         var monday = new DateOnly(2026, 9, 21);
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
             await ProductionDailyModuleTests.SeedImportCatalogAsync(db);
-            var user = new User { FullName = "Workspace admin", RoleId =
-                (await db.Roles.SingleAsync(x => x.Code == "ADMIN")).Id, PinLookup = "", PinHash = "" };
+            var user = new User
+            {
+                FullName = "Workspace admin",
+                RoleId =
+                (await db.Roles.SingleAsync(x => x.Code == "ADMIN")).Id,
+                PinLookup = "",
+                PinHash = ""
+            };
             await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(user, "0123");
             db.Users.Add(user); await db.SaveChangesAsync();
             productId = (await db.Products.SingleAsync(x => x.Sku == "FG-100")).Id;
@@ -154,7 +193,9 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         var operationId = Guid.NewGuid();
         var payload = JsonSerializer.Serialize(new
         {
-            operationId, weekId, expectedWeekVersion = 0,
+            operationId,
+            weekId,
+            expectedWeekVersion = 0,
             openings = new[] { new { sourceWeekId = sourceId, sourceLineId = opening.SourceLineId, area = 0, quantity = "10", expectedFingerprint = opening.Fingerprint } },
             changes = new[] { new
             {
@@ -187,9 +228,15 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         uint currentVersion;
         using (var scope = factory.Services.CreateScope())
             currentVersion = (await scope.ServiceProvider.GetRequiredService<ProductionDailyScheduleService>().GetWeekAsync(weekId))!.Version;
-        var totalRequest = new { operationId = Guid.NewGuid(), weekId, expectedWeekVersion = currentVersion,
-            changes = Array.Empty<object>(), skuTotals = new[] { new { plannedDate = monday.ToString("yyyy-MM-dd"), productId,
-                quantity = "35", orderReference1 = "PACK-1", orderReference2 = "PACK-2", orderReference3 = "PACK-3", notes = "packing" } } };
+        var totalRequest = new
+        {
+            operationId = Guid.NewGuid(),
+            weekId,
+            expectedWeekVersion = currentVersion,
+            changes = Array.Empty<object>(),
+            skuTotals = new[] { new { plannedDate = monday.ToString("yyyy-MM-dd"), productId,
+                quantity = "35", orderReference1 = "PACK-1", orderReference2 = "PACK-2", orderReference3 = "PACK-3", notes = "packing" } }
+        };
         var request = new HttpRequestMessage(HttpMethod.Post, "/Admin/Production/Schedule?handler=WorkspaceReview")
         { Content = new StringContent(JsonSerializer.Serialize(totalRequest), System.Text.Encoding.UTF8, "application/json") };
         request.Headers.Add("RequestVerificationToken", Token(page));
@@ -197,8 +244,15 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         Assert.Equal(HttpStatusCode.OK, reviewResponse.StatusCode);
         using var reviewJson = JsonDocument.Parse(await reviewResponse.Content.ReadAsStringAsync());
         Assert.True(reviewJson.RootElement.GetProperty("canConfirm").GetBoolean());
-        var totalsPayload = JsonSerializer.Serialize(new { totalRequest.operationId, totalRequest.weekId, totalRequest.expectedWeekVersion,
-            totalRequest.changes, totalRequest.skuTotals, reviewedFingerprint = reviewJson.RootElement.GetProperty("fingerprint").GetString() });
+        var totalsPayload = JsonSerializer.Serialize(new
+        {
+            totalRequest.operationId,
+            totalRequest.weekId,
+            totalRequest.expectedWeekVersion,
+            totalRequest.changes,
+            totalRequest.skuTotals,
+            reviewedFingerprint = reviewJson.RootElement.GetProperty("fingerprint").GetString()
+        });
         Assert.Equal(HttpStatusCode.OK, (await Save(totalsPayload)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Save(totalsPayload)).StatusCode);
         using (var scope = factory.Services.CreateScope())
@@ -215,7 +269,7 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         using var factory = original.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-            { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
         Guid weekId, actorId;
         using (var scope = factory.Services.CreateScope())
         {
@@ -229,7 +283,7 @@ public sealed class ProductionScheduleWorkspaceRouteTests
         Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync(route)).StatusCode);
         var login = await client.GetStringAsync("/Admin/Login");
         Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(login) }))).StatusCode);
+        { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(login) }))).StatusCode);
         var page = await client.GetStringAsync(route);
         Assert.Contains("data-week-status=\"Open\"", page);
         Assert.Contains("data-workspace-scroll-top", page);
@@ -256,10 +310,15 @@ public sealed class ProductionScheduleWorkspaceRouteTests
             week = (await scope.ServiceProvider.GetRequiredService<ProductionDailyScheduleService>().GetWeekAsync(weekId))!;
         var line = week.Lines.First();
         var operationId = Guid.NewGuid();
-        string Payload(Guid operation, uint version) => JsonSerializer.Serialize(new { operationId = operation, weekId,
-            expectedWeekVersion = version, changes = new[] { new { kind = "add", lineId = (Guid?)null,
+        string Payload(Guid operation, uint version) => JsonSerializer.Serialize(new
+        {
+            operationId = operation,
+            weekId,
+            expectedWeekVersion = version,
+            changes = new[] { new { kind = "add", lineId = (Guid?)null,
                 expectedLineVersion = (uint?)null, line = new { plannedDate = "2026-09-23", productId = line.ProductId,
-                    quantity = "10", notes = "New daily plan" } } } });
+                    quantity = "10", notes = "New daily plan" } } }
+        });
         async Task<HttpResponseMessage> Save(string payload, string pin) => await client.PostAsync(
             "/Admin/Production/Schedule?handler=WorkspaceSave", new FormUrlEncodedContent(new Dictionary<string, string>
             { ["payload"] = payload, ["adminPin"] = pin, ["__RequestVerificationToken"] = Token(page) }));

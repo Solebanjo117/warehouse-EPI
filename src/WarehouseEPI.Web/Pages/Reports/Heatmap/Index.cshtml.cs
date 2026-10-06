@@ -1,9 +1,9 @@
-using Microsoft.Extensions.Localization;
-using WarehouseEPI.Web.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Web.Pages.Locations;
 
 namespace WarehouseEPI.Web.Pages.Reports.Heatmap;

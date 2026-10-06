@@ -62,11 +62,17 @@ public sealed record ProductionReportTable(IReadOnlyList<ProductionReportColumn>
     public static string AreaName(Core.Entities.ProductionDailyArea area) => area switch
     {
         Core.Entities.ProductionDailyArea.Cutting => "Corte",
-        Core.Entities.ProductionDailyArea.Sewing => "Costura", _ => "Ready to Pack"
+        Core.Entities.ProductionDailyArea.Sewing => "Costura",
+        _ => "Ready to Pack"
     };
     private static string DayName(DayOfWeek day) => day switch
     {
-        DayOfWeek.Monday => "Lunes", DayOfWeek.Tuesday => "Martes", DayOfWeek.Wednesday => "Miércoles",
-        DayOfWeek.Thursday => "Jueves", DayOfWeek.Friday => "Viernes", DayOfWeek.Saturday => "Sábado", _ => "Domingo"
+        DayOfWeek.Monday => "Lunes",
+        DayOfWeek.Tuesday => "Martes",
+        DayOfWeek.Wednesday => "Miércoles",
+        DayOfWeek.Thursday => "Jueves",
+        DayOfWeek.Friday => "Viernes",
+        DayOfWeek.Saturday => "Sábado",
+        _ => "Domingo"
     };
 }

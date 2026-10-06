@@ -556,8 +556,11 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         await using var db = fixture.CreateDbContext();
         var positions = Enumerable.Range(1, 9).Select(number => new Location
         {
-            Code = $"X-90-{number}", Kind = LocationKind.Rack, RowCode = "X",
-            RackNumber = 90, PalletNumber = (short)number
+            Code = $"X-90-{number}",
+            Kind = LocationKind.Rack,
+            RowCode = "X",
+            RackNumber = 90,
+            PalletNumber = (short)number
         }).ToArray();
         var layout = await db.WarehouseMapLayouts.SingleOrDefaultAsync();
         if (layout is null)
@@ -567,8 +570,14 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         }
         var mapElement = new WarehouseMapElement
         {
-            LayoutId = layout.Id, Kind = WarehouseMapElementKind.Rack, RowCode = "X", RackNumber = 90,
-            X = 100, Y = 100, Width = 100, Height = 100
+            LayoutId = layout.Id,
+            Kind = WarehouseMapElementKind.Rack,
+            RowCode = "X",
+            RackNumber = 90,
+            X = 100,
+            Y = 100,
+            Width = 100,
+            Height = 100
         };
         db.Locations.AddRange(positions);
         db.WarehouseMapElements.Add(mapElement);
@@ -608,8 +617,13 @@ public sealed class PostgreSqlInventoryTests(PostgreSqlInventoryFixture fixture)
         }
         var mapElement = new WarehouseMapElement
         {
-            LayoutId = layout.Id, Kind = WarehouseMapElementKind.Area, LocationId = area.Id,
-            X = 100, Y = 100, Width = 100, Height = 100
+            LayoutId = layout.Id,
+            Kind = WarehouseMapElementKind.Area,
+            LocationId = area.Id,
+            X = 100,
+            Y = 100,
+            Width = 100,
+            Height = 100
         };
         db.Locations.Add(area);
         db.WarehouseMapElements.Add(mapElement);

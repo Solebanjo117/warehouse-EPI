@@ -99,7 +99,7 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
                 .Include(x => x.SupplyRequests).ThenInclude(x => x.Lines).ThenInclude(x => x.Preparations)
                 .SingleOrDefaultAsync(x => x.Id == command.WorkOrderId, token);
             if (order is null || order.Version != command.Version) return await Fail("La orden cambió. Recarga antes de confirmar.");
-            if(!ProductionActionPolicy.Allows(order.Status,command.Action)) return await Fail("La acción no está disponible para el estado actual de la orden.");
+            if (!ProductionActionPolicy.Allows(order.Status, command.Action)) return await Fail("La acción no está disponible para el estado actual de la orden.");
             var category = command.Action is "adjust" or "reopen" or "retain" or "request" ? ProductionReasonCategory.Adjustment : ProductionReasonCategory.Difference;
             var reason = await ResolveReasonAsync(command.ReasonId, category, command.Comment, token);
             if (reason is null) return await Fail("Selecciona un motivo activo y completa el comentario requerido.");
@@ -116,10 +116,19 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
             };
             if (error is not null) return await Fail(error);
             order.Version++;
-            db.ProductionExecutionAudits.Add(new() { OperationId = command.OperationId, WorkOrderId = order.Id,
-                Fingerprint = fingerprint, Action = command.Action, ResponsibleUserId = user.Id,
-                AuthorizedByUserId = administrator?.Id, Reason = reason, BeforeJson = before,
-                AfterJson = JsonSerializer.Serialize(new { State = await SnapshotAsync(order, token), Input = command with { Pin = "", AdminPin = null } }), RecordedAt = clock.GetUtcNow() });
+            db.ProductionExecutionAudits.Add(new()
+            {
+                OperationId = command.OperationId,
+                WorkOrderId = order.Id,
+                Fingerprint = fingerprint,
+                Action = command.Action,
+                ResponsibleUserId = user.Id,
+                AuthorizedByUserId = administrator?.Id,
+                Reason = reason,
+                BeforeJson = before,
+                AfterJson = JsonSerializer.Serialize(new { State = await SnapshotAsync(order, token), Input = command with { Pin = "", AdminPin = null } }),
+                RecordedAt = clock.GetUtcNow()
+            });
             await db.SaveChangesAsync(token);
             if (tx is not null) await tx.CommitAsync(token);
             return new(ProductionCommandStatus.Success, order.Id);
@@ -144,7 +153,7 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
         if (definitive ? order.Status != ProductionWorkOrderStatus.PrincipalClosed : order.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress))
             return "La orden no admite este cierre en su estado actual.";
         var progress = ProductionService.BuildProgress(order);
-        if (ProductionActionPolicy.ClosureProgress(progress).Count>0)
+        if (ProductionActionPolicy.ClosureProgress(progress).Count > 0)
             return "Concilia cantidades por procesar, entregas y producto bueno antes de cerrar. ADMIN debe ajustar la meta si ya no se fabricará lo pendiente.";
         var rework = await GetReworkAsync(order.Id, token);
         if (!order.UsesBatchTraceability && progress.Any(x => x.Rework > 0)) return "El retrabajo histórico sin lote debe conciliarse antes del cierre principal.";
@@ -214,12 +223,24 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
                 var request = order.SupplyRequests.SingleOrDefault(x => x.WorkOrderStageId == plan.WorkOrderStageId && x.DestinationCode == destinationCode);
                 if (request is null)
                 {
-                    request = new() { WorkOrder = order, WorkOrderStageId = plan.WorkOrderStageId,
-                        DestinationCode = destinationCode, DestinationLocationId = plan.WipLocationId, CreatedAt = clock.GetUtcNow() };
+                    request = new()
+                    {
+                        WorkOrder = order,
+                        WorkOrderStageId = plan.WorkOrderStageId,
+                        DestinationCode = destinationCode,
+                        DestinationLocationId = plan.WipLocationId,
+                        CreatedAt = clock.GetUtcNow()
+                    };
                     db.ProductionSupplyRequests.Add(request);
                 }
-                db.ProductionSupplyRequestLines.Add(new() { SupplyRequest = request, MaterialPlanId = plan.Id,
-                    ProductId = plan.MaterialProductId, UnitId = plan.UnitId, RequiredQuantity = input.Quantity - plan.PlannedQuantity });
+                db.ProductionSupplyRequestLines.Add(new()
+                {
+                    SupplyRequest = request,
+                    MaterialPlanId = plan.Id,
+                    ProductId = plan.MaterialProductId,
+                    UnitId = plan.UnitId,
+                    RequiredQuantity = input.Quantity - plan.PlannedQuantity
+                });
                 request.Status = ProductionSupplyRequestStatus.InProgress; request.Version++;
             }
             plan.PlannedQuantity = input.Quantity;
@@ -279,12 +300,25 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
         var request = order.SupplyRequests.SingleOrDefault(x => x.WorkOrderStageId == plan.WorkOrderStageId && x.DestinationCode == destinationCode);
         if (request is null)
         {
-            request = new ProductionSupplyRequest { WorkOrderId = order.Id, WorkOrderStageId = plan.WorkOrderStageId,
-                DestinationLocationId = plan.WipLocationId, DestinationCode = destinationCode, CreatedAt = clock.GetUtcNow() };
+            request = new ProductionSupplyRequest
+            {
+                WorkOrderId = order.Id,
+                WorkOrderStageId = plan.WorkOrderStageId,
+                DestinationLocationId = plan.WipLocationId,
+                DestinationCode = destinationCode,
+                CreatedAt = clock.GetUtcNow()
+            };
             db.ProductionSupplyRequests.Add(request);
         }
-        db.ProductionSupplyRequestLines.Add(new() { SupplyRequest = request, MaterialPlanId = plan.Id, ProductId = plan.MaterialProductId, UnitId = plan.UnitId,
-            RequiredQuantity = command.Quantity, ReworkCaseId = rework.Id });
+        db.ProductionSupplyRequestLines.Add(new()
+        {
+            SupplyRequest = request,
+            MaterialPlanId = plan.Id,
+            ProductId = plan.MaterialProductId,
+            UnitId = plan.UnitId,
+            RequiredQuantity = command.Quantity,
+            ReworkCaseId = rework.Id
+        });
         request.Status = ProductionSupplyRequestStatus.InProgress; request.Version++; order.UsesSupplyRequests = true;
         return null;
     }
@@ -298,15 +332,27 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
 
     private async Task<string> SnapshotAsync(ProductionWorkOrder order, CancellationToken token) => JsonSerializer.Serialize(new
     {
-        order.OriginalTargetQuantity, order.TargetQuantity, order.AuthorizedQuantity, order.DueDate, order.Status,
-        order.PrincipalClosedAt, order.ClosedAt, order.Version,
+        order.OriginalTargetQuantity,
+        order.TargetQuantity,
+        order.AuthorizedQuantity,
+        order.DueDate,
+        order.Status,
+        order.PrincipalClosedAt,
+        order.ClosedAt,
+        order.Version,
         Received = order.Events.Where(x => x.Type == ProductionEventType.WarehouseReceived).Sum(x => x.Quantity),
         Difference = order.Events.Where(x => x.Type == ProductionEventType.WarehouseReceived).Sum(x => x.Quantity) - order.TargetQuantity,
         Rework = await GetReworkAsync(order.Id, token),
         Retentions = await RetentionSnapshotAsync(order.Id, token),
         Materials = order.MaterialPlan.Select(x => new { x.Id, x.PlannedQuantity }),
-        Lines = order.SupplyRequests.SelectMany(x => x.Lines).Select(x => new { x.Id, x.RequiredQuantity, x.CancelledQuantity, x.ReworkCaseId,
-            Reservations = x.Reservations.Select(r => new { r.Id, r.Quantity, r.ReleasedQuantity }) })
+        Lines = order.SupplyRequests.SelectMany(x => x.Lines).Select(x => new
+        {
+            x.Id,
+            x.RequiredQuantity,
+            x.CancelledQuantity,
+            x.ReworkCaseId,
+            Reservations = x.Reservations.Select(r => new { r.Id, r.Quantity, r.ReleasedQuantity })
+        })
     });
     private async Task<IReadOnlyList<ExecutionRetention>> RetentionSnapshotAsync(Guid orderId, CancellationToken token)
     {
@@ -350,9 +396,18 @@ public sealed class ProductionExecutionService(WarehouseDbContext db, UserPinSer
         if (reason is null) { reason = new() { Id = id }; db.ProductionReasons.Add(reason); }
         reason.Code = code; reason.Description = description; reason.Category = category;
         reason.IsActive = active; reason.RequiresComment = requiresComment; reason.Version++;
-        db.ProductionExecutionAudits.Add(new() { OperationId = operationId, Fingerprint = fingerprint, Action = "reason",
-            ResponsibleUserId = user.Id, AuthorizedByUserId = user.Id, Reason = "Mantenimiento de motivo",
-            BeforeJson = before, AfterJson = JsonSerializer.Serialize(reason), RecordedAt = clock.GetUtcNow() });
+        db.ProductionExecutionAudits.Add(new()
+        {
+            OperationId = operationId,
+            Fingerprint = fingerprint,
+            Action = "reason",
+            ResponsibleUserId = user.Id,
+            AuthorizedByUserId = user.Id,
+            Reason = "Mantenimiento de motivo",
+            BeforeJson = before,
+            AfterJson = JsonSerializer.Serialize(reason),
+            RecordedAt = clock.GetUtcNow()
+        });
         try { await db.SaveChangesAsync(token); return new(ProductionCommandStatus.Success); }
         catch (DbUpdateException) { db.ChangeTracker.Clear(); return new(ProductionCommandStatus.ConcurrencyConflict); }
     }

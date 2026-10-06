@@ -26,8 +26,15 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
         var stage = new ProductionStage { Code = $"P2-{suffix}", Name = $"Proceso P2 {suffix}" };
         stage.WipTargets.Add(new() { Location = wip });
         var route = new ProductionRoute { Product = finished, Name = "Ruta P2", Stages = { new ProductionRouteStage { Stage = stage, Sequence = 1 } } };
-        var recipe = new ProductionRecipe { Product = finished, Version = 1, BaseQuantity = 10, Reason = "Receta P2", CreatedByUser = admin,
-            Lines = { new ProductionRecipeLine { MaterialProduct = material, Stage = stage, Quantity = 4 } } };
+        var recipe = new ProductionRecipe
+        {
+            Product = finished,
+            Version = 1,
+            BaseQuantity = 10,
+            Reason = "Receta P2",
+            CreatedByUser = admin,
+            Lines = { new ProductionRecipeLine { MaterialProduct = material, Stage = stage, Quantity = 4 } }
+        };
         db.AddRange(admin, material, wip, route, recipe);
         await db.SaveChangesAsync();
 
@@ -53,9 +60,18 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
         var user = new User { FullName = $"Admin legado P2 {suffix}", RoleId = 1, PinLookup = $"p2-{suffix}", PinHash = "legacy" };
         var product = new Product { Sku = $"P2-LEG-{suffix}", BaseUnitId = 1 };
         var stage = new ProductionStage { Code = $"P2L-{suffix}", Name = "Proceso legado P2" };
-        var order = new ProductionWorkOrder { CreateOperationId = Guid.NewGuid(), CreateFingerprint = new('a', 64),
-            Number = $"OT-P2-{suffix}", Product = product, UnitId = 1, TargetQuantity = 1, AuthorizedQuantity = 1,
-            CreatedByUser = user, Status = ProductionWorkOrderStatus.Released };
+        var order = new ProductionWorkOrder
+        {
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = new('a', 64),
+            Number = $"OT-P2-{suffix}",
+            Product = product,
+            UnitId = 1,
+            TargetQuantity = 1,
+            AuthorizedQuantity = 1,
+            CreatedByUser = user,
+            Status = ProductionWorkOrderStatus.Released
+        };
         order.Stages.Add(new() { SourceStage = stage, Sequence = 1, Code = stage.Code, Name = stage.Name });
         db.Add(order);
         await db.SaveChangesAsync();
@@ -77,13 +93,24 @@ public sealed class ProductionPlanningPostgreSqlTests(PostgreSqlInventoryFixture
     {
         await using var db = fixture.CreateDbContext();
         var suffix = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
-        var admin = new User { FullName = $"Admin borrador {suffix}", RoleId = 1,
-            PinLookup = $"draft-{suffix}", PinHash = "migration-test" };
+        var admin = new User
+        {
+            FullName = $"Admin borrador {suffix}",
+            RoleId = 1,
+            PinLookup = $"draft-{suffix}",
+            PinHash = "migration-test"
+        };
         var finished = new Product { Sku = $"DRAFT-PT-{suffix}", BaseUnitId = 1 };
         var material = new Product { Sku = $"DRAFT-MP-{suffix}", BaseUnitId = 1 };
-        var recipe = new ProductionRecipe { Product = finished, Version = 1, BaseQuantity = 1,
-            Reason = "Borrador para descenso seguro", CreatedByUser = admin,
-            Lines = { new ProductionRecipeLine { MaterialProduct = material, Quantity = 1 } } };
+        var recipe = new ProductionRecipe
+        {
+            Product = finished,
+            Version = 1,
+            BaseQuantity = 1,
+            Reason = "Borrador para descenso seguro",
+            CreatedByUser = admin,
+            Lines = { new ProductionRecipeLine { MaterialProduct = material, Quantity = 1 } }
+        };
         db.AddRange(admin, material, recipe);
         await db.SaveChangesAsync();
 

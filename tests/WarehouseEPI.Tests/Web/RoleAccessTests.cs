@@ -179,9 +179,12 @@ public sealed class RoleAccessTests
         var page = await client.GetStringAsync($"/Operations/Production?Tab=capture&Day={seed.Date:yyyy-MM-dd}");
         var fields = new Dictionary<string, string>
         {
-            ["Group.AllAreas"] = "true", ["Group.OperationId"] = Guid.NewGuid().ToString(),
-            ["Group.Date"] = seed.Date.ToString("yyyy-MM-dd"), ["Group.ShiftId"] = seed.ShiftId.ToString(),
-            ["Group.Rows[0].ProductId"] = seed.Products[0].ToString(), ["Group.Rows[0].Area"] = "0",
+            ["Group.AllAreas"] = "true",
+            ["Group.OperationId"] = Guid.NewGuid().ToString(),
+            ["Group.Date"] = seed.Date.ToString("yyyy-MM-dd"),
+            ["Group.ShiftId"] = seed.ShiftId.ToString(),
+            ["Group.Rows[0].ProductId"] = seed.Products[0].ToString(),
+            ["Group.Rows[0].Area"] = "0",
             ["Group.Rows[0].Quantity"] = "7"
         };
         var review = await PostAsync(client, "GroupPreview", page, fields);

@@ -61,7 +61,8 @@ public sealed class ProductProductionConfigurationPageTests
         var replacement = fixture.EditPage();
         replacement.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta reemplazo", Pin = Fixture.AdminPin,
+            Name = "Ruta reemplazo",
+            Pin = Fixture.AdminPin,
             Stages = [new() { StageId = fixture.FirstStage.Id, Order = 1 }]
         };
         Assert.IsType<PageResult>(await replacement.OnPostRouteAsync(fixture.Product.Id, CancellationToken.None));
@@ -78,7 +79,8 @@ public sealed class ProductProductionConfigurationPageTests
         page.ModelState.AddModelError("Recipe.Pin", "The Pin field is required.");
         page.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta aislada", Pin = Fixture.AdminPin,
+            Name = "Ruta aislada",
+            Pin = Fixture.AdminPin,
             Stages = [new() { StageId = fixture.FirstStage.Id, Order = 1 }]
         };
 
@@ -98,7 +100,9 @@ public sealed class ProductProductionConfigurationPageTests
         var first = fixture.EditPage();
         first.Recipe = new EditModel.RecipeInputModel
         {
-            BaseQuantity = 10, Reason = "Lista inicial", Pin = Fixture.AdminPin,
+            BaseQuantity = 10,
+            Reason = "Lista inicial",
+            Pin = Fixture.AdminPin,
             Lines = [new() { MaterialProductId = material.Id, MaterialSearch = material.Sku, Quantity = 2 }]
         };
 
@@ -110,7 +114,8 @@ public sealed class ProductProductionConfigurationPageTests
         var route = fixture.EditPage();
         route.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta posterior", Pin = Fixture.AdminPin,
+            Name = "Ruta posterior",
+            Pin = Fixture.AdminPin,
             Stages = [new() { StageId = fixture.FirstStage.Id, Order = 1 }]
         };
         Assert.IsType<RedirectToPageResult>(
@@ -119,7 +124,9 @@ public sealed class ProductProductionConfigurationPageTests
         var completed = fixture.EditPage();
         completed.Recipe = new EditModel.RecipeInputModel
         {
-            BaseQuantity = 10, Reason = "Asignación de etapa", Pin = Fixture.AdminPin,
+            BaseQuantity = 10,
+            Reason = "Asignación de etapa",
+            Pin = Fixture.AdminPin,
             Lines = [new() { MaterialProductId = material.Id, MaterialSearch = material.Sku,
                 StageId = fixture.FirstStage.Id, Quantity = 2 }]
         };
@@ -149,7 +156,9 @@ public sealed class ProductProductionConfigurationPageTests
         var save = fixture.EditPage();
         save.Recipe = new EditModel.RecipeInputModel
         {
-            BaseQuantity = 5, Reason = "Dos materiales", Pin = Fixture.AdminPin,
+            BaseQuantity = 5,
+            Reason = "Dos materiales",
+            Pin = Fixture.AdminPin,
             Lines =
             [
                 new() { MaterialProductId = firstMaterial.Id, MaterialSearch = firstMaterial.Sku, Quantity = 1 },
@@ -166,7 +175,9 @@ public sealed class ProductProductionConfigurationPageTests
         var failed = fixture.EditPage();
         failed.Recipe = new EditModel.RecipeInputModel
         {
-            BaseQuantity = 5, Reason = "Error conservado", Pin = "0000",
+            BaseQuantity = 5,
+            Reason = "Error conservado",
+            Pin = "0000",
             Lines =
             [
                 new() { MaterialProductId = firstMaterial.Id, MaterialSearch = firstMaterial.Sku, Quantity = 1 },
@@ -185,7 +196,8 @@ public sealed class ProductProductionConfigurationPageTests
         var empty = emptyFixture.EditPage();
         empty.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta vacía", Pin = Fixture.AdminPin,
+            Name = "Ruta vacía",
+            Pin = Fixture.AdminPin,
             Stages =
             [
                 new() { StageId = emptyFixture.FirstStage.Id },
@@ -201,7 +213,8 @@ public sealed class ProductProductionConfigurationPageTests
         var duplicate = duplicateFixture.EditPage();
         duplicate.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta duplicada", Pin = Fixture.AdminPin,
+            Name = "Ruta duplicada",
+            Pin = Fixture.AdminPin,
             Stages =
             [
                 new() { StageId = duplicateFixture.FirstStage.Id, Order = 1 },
@@ -217,7 +230,8 @@ public sealed class ProductProductionConfigurationPageTests
         var invalidPin = invalidPinFixture.EditPage();
         invalidPin.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta sin autorización", Pin = "0000",
+            Name = "Ruta sin autorización",
+            Pin = "0000",
             Stages = [new() { StageId = invalidPinFixture.FirstStage.Id, Order = 1 }]
         };
         Assert.IsType<PageResult>(await invalidPin.OnPostRouteAsync(invalidPinFixture.Product.Id, CancellationToken.None));
@@ -229,7 +243,8 @@ public sealed class ProductProductionConfigurationPageTests
         var inactive = inactiveFixture.EditPage();
         inactive.Route = new EditModel.RouteInputModel
         {
-            Name = "Ruta con proceso inactivo", Pin = Fixture.AdminPin,
+            Name = "Ruta con proceso inactivo",
+            Pin = Fixture.AdminPin,
             Stages = [new() { StageId = inactiveFixture.FirstStage.Id, Order = 1 }]
         };
         Assert.IsType<PageResult>(await inactive.OnPostRouteAsync(inactiveFixture.Product.Id, CancellationToken.None));

@@ -18,17 +18,33 @@ public sealed class ProductionReportServiceTests
         var user = new User { Id = Guid.NewGuid(), FullName = "Operador", RoleId = 1, PinLookup = "lookup", PinHash = "hash" };
         var order = new ProductionWorkOrder
         {
-            Id = Guid.NewGuid(), CreateOperationId = Guid.NewGuid(), CreateFingerprint = "fingerprint", Number = "ORD-001",
-            Product = product, ProductId = product.Id, Unit = unit, UnitId = 1, OriginalTargetQuantity = 100,
-            TargetQuantity = 100, AuthorizedQuantity = 100, DueDate = new DateOnly(2026, 9, 14),
-            Status = ProductionWorkOrderStatus.InProgress, CreatedByUserId = user.Id, CreatedByUser = user,
+            Id = Guid.NewGuid(),
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = "fingerprint",
+            Number = "ORD-001",
+            Product = product,
+            ProductId = product.Id,
+            Unit = unit,
+            UnitId = 1,
+            OriginalTargetQuantity = 100,
+            TargetQuantity = 100,
+            AuthorizedQuantity = 100,
+            DueDate = new DateOnly(2026, 9, 14),
+            Status = ProductionWorkOrderStatus.InProgress,
+            CreatedByUserId = user.Id,
+            CreatedByUser = user,
             CreatedAt = new DateTimeOffset(2026, 9, 1, 12, 0, 0, TimeSpan.Zero)
         };
         order.Events.Add(new ProductionEvent
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = "receipt", WorkOrder = order,
-            Type = ProductionEventType.WarehouseReceived, ResponsibleUser = user, ResponsibleUserId = user.Id,
-            Quantity = 40, RecordedAt = new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "receipt",
+            WorkOrder = order,
+            Type = ProductionEventType.WarehouseReceived,
+            ResponsibleUser = user,
+            ResponsibleUserId = user.Id,
+            Quantity = 40,
+            RecordedAt = new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)
         });
         db.AddRange(unit, product, user, order);
         await db.SaveChangesAsync();
@@ -81,7 +97,9 @@ public sealed class ProductionReportServiceTests
         db.Roles.Add(new Role { Id = 1, Code = "OPERATOR", Name = "Operador" });
         db.BusinessSettings.Add(new BusinessSettings
         {
-            BusinessName = "EPI", WarehouseName = "Almacén", WarehouseCode = "EPI",
+            BusinessName = "EPI",
+            WarehouseName = "Almacén",
+            WarehouseCode = "EPI",
             TimeZoneId = "America/Matamoros"
         });
         db.SaveChanges();

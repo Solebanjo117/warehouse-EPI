@@ -61,7 +61,8 @@ public sealed partial class ProductImportService(
                         : null;
             return new ProductImportPreviewRow(row.SourceRows, row.Sku, row.Description, row.ExternalReference,
                 row.UnitCode, row.ClassCode, existing.Contains(row.Sku), row.IsConsolidated,
-                newClass || row.ClassCode is null || row.SourceRows.Any(warningRows.Contains), rowError, message) { IsNewClass = newClass };
+                newClass || row.ClassCode is null || row.SourceRows.Any(warningRows.Contains), rowError, message)
+            { IsNewClass = newClass };
         }).ToList();
 
         return store.Save(ownerUserId, Path.GetFileName(fileName), rows, read.Issues,

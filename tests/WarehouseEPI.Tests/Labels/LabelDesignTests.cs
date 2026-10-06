@@ -1,5 +1,5 @@
-using WarehouseEPI.Core.Entities;
 using Microsoft.EntityFrameworkCore;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Labels;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -139,9 +139,13 @@ public sealed class LabelDesignTests
         var values = new Dictionary<string, string> { ["weight"] = "1,250 LB" };
         var system = new Dictionary<string, string>
         {
-            ["plate.identifier"] = $"PLT-{entryId:N}".ToUpperInvariant(), ["entry.reference"] = "PO-42",
-            ["entry.occurredDate"] = "08/26/2026", ["entry.responsible"] = "Juan", ["entry.destination"] = "A-1-8",
-            ["entry.quantity"] = "25", ["entry.unit"] = "EA"
+            ["plate.identifier"] = $"PLT-{entryId:N}".ToUpperInvariant(),
+            ["entry.reference"] = "PO-42",
+            ["entry.occurredDate"] = "08/26/2026",
+            ["entry.responsible"] = "Juan",
+            ["entry.destination"] = "A-1-8",
+            ["entry.quantity"] = "25",
+            ["entry.unit"] = "EA"
         };
 
         var result = new LabelDocumentService(new BarcodeRenderingService()).Render(version,

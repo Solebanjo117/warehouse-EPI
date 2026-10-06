@@ -23,8 +23,8 @@ public sealed class ReceivingRouteContractTests
 
     private static string FindRoot()
     {
-        var directory=new DirectoryInfo(AppContext.BaseDirectory);
-        while(directory is not null&&!File.Exists(Path.Combine(directory.FullName,"WarehouseEPI.sln")))directory=directory.Parent;
-        return directory?.FullName??throw new DirectoryNotFoundException();
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "WarehouseEPI.sln"))) directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException();
     }
 }

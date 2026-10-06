@@ -22,14 +22,21 @@ public sealed partial class ProductionMaterialServiceTests
         var day = new DateOnly(2026, 9, 21);
         var week = new ProductionScheduleWeek
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('W', 64),
-            WeekStart = day, WeekEnd = day.AddDays(6), Status = ProductionScheduleWeekStatus.Open,
-            CreatedByUserId = fixture.AdminId, CreatedAt = DateTimeOffset.UtcNow
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('W', 64),
+            WeekStart = day,
+            WeekEnd = day.AddDays(6),
+            Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = fixture.AdminId,
+            CreatedAt = DateTimeOffset.UtcNow
         };
         week.Lines.Add(new ProductionScheduleLine
         {
-            Sequence = 1, PlannedDate = day, ProductId = fixture.Order.ProductId,
-            Quantity = 10, WorkOrderId = fixture.Order.Id
+            Sequence = 1,
+            PlannedDate = day,
+            ProductId = fixture.Order.ProductId,
+            Quantity = 10,
+            WorkOrderId = fixture.Order.Id
         });
         fixture.Db.Add(week);
         await fixture.Db.SaveChangesAsync();
@@ -47,7 +54,8 @@ public sealed partial class ProductionMaterialServiceTests
 
         var result = await service.CancelLineAsync(command with
         {
-            OperationId = Guid.NewGuid(), AdminPin = fixture.AdminPin
+            OperationId = Guid.NewGuid(),
+            AdminPin = fixture.AdminPin
         });
         Assert.True(result.Success, string.Join(" | ", result.Errors ?? []));
         Assert.All(await fixture.Db.ProductionMaterialIssueLinks.ToListAsync(),
@@ -67,24 +75,33 @@ public sealed partial class ProductionMaterialServiceTests
         Assert.Equal(InventoryMovementStatus.Success, delivery.Status);
         fixture.Db.InventoryMovementCorrections.Add(new InventoryMovementCorrection
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('R', 64),
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('R', 64),
             Type = InventoryMovementCorrectionType.Reversal,
             OriginalMovementId = delivery.MovementId!.Value,
             ReversalMovementId = delivery.MovementId.Value,
-            Reason = "Corrección previa", RequestedByUserId = fixture.AdminId,
+            Reason = "Corrección previa",
+            RequestedByUserId = fixture.AdminId,
             AuthorizedByUserId = fixture.AdminId
         });
         var day = new DateOnly(2026, 9, 21);
         var week = new ProductionScheduleWeek
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('W', 64),
-            WeekStart = day, WeekEnd = day.AddDays(6), Status = ProductionScheduleWeekStatus.Open,
-            CreatedByUserId = fixture.AdminId, CreatedAt = DateTimeOffset.UtcNow
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('W', 64),
+            WeekStart = day,
+            WeekEnd = day.AddDays(6),
+            Status = ProductionScheduleWeekStatus.Open,
+            CreatedByUserId = fixture.AdminId,
+            CreatedAt = DateTimeOffset.UtcNow
         };
         week.Lines.Add(new ProductionScheduleLine
         {
-            Sequence = 1, PlannedDate = day, ProductId = fixture.Order.ProductId,
-            Quantity = 10, WorkOrderId = fixture.Order.Id
+            Sequence = 1,
+            PlannedDate = day,
+            ProductId = fixture.Order.ProductId,
+            Quantity = 10,
+            WorkOrderId = fixture.Order.Id
         });
         fixture.Db.Add(week);
         await fixture.Db.SaveChangesAsync();
@@ -297,13 +314,23 @@ public sealed partial class ProductionMaterialServiceTests
             var process = new ProductionStage { Code = "COS", Name = "Costura" };
             var order = new ProductionWorkOrder
             {
-                CreateOperationId = Guid.NewGuid(), CreateFingerprint = "test", Number = "OT-0001",
-                Product = finished, UnitId = 1, TargetQuantity = 10, AuthorizedQuantity = 10,
-                Status = ProductionWorkOrderStatus.Released, CreatedByUser = admin
+                CreateOperationId = Guid.NewGuid(),
+                CreateFingerprint = "test",
+                Number = "OT-0001",
+                Product = finished,
+                UnitId = 1,
+                TargetQuantity = 10,
+                AuthorizedQuantity = 10,
+                Status = ProductionWorkOrderStatus.Released,
+                CreatedByUser = admin
             };
             var orderStage = new ProductionWorkOrderStage
             {
-                WorkOrder = order, SourceStage = process, Sequence = 1, Code = process.Code, Name = process.Name
+                WorkOrder = order,
+                SourceStage = process,
+                Sequence = 1,
+                Code = process.Code,
+                Name = process.Name
             };
             order.Stages.Add(orderStage);
             if (includeTarget)

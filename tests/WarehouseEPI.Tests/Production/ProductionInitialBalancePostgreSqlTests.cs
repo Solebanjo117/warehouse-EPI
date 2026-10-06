@@ -20,14 +20,37 @@ public sealed class ProductionInitialBalancePostgreSqlTests
             var migrations = db.Database.GetMigrations().ToArray();
             await db.GetService<IMigrator>().MigrateAsync(migrations[^2]);
             var (_, actor, product) = await ProductionScheduleCarryoverCopyTests.SeedAsync(db);
-            var source = new ProductionScheduleWeek { CreatedByUserId = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "source",
-                WeekStart = new(2026, 9, 28), WeekEnd = new(2026, 10, 4), ExplicitCarryover = true };
+            var source = new ProductionScheduleWeek
+            {
+                CreatedByUserId = actor,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "source",
+                WeekStart = new(2026, 9, 28),
+                WeekEnd = new(2026, 10, 4),
+                ExplicitCarryover = true
+            };
             var root = new ProductionScheduleLine { Week = source, ProductId = product, Quantity = 100, PlannedDate = source.WeekStart };
             var secondRoot = new ProductionScheduleLine { Week = source, ProductId = product, Quantity = 100, PlannedDate = source.WeekStart, Sequence = 2 };
-            var target = new ProductionScheduleWeek { CreatedByUserId = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "target",
-                WeekStart = new(2026, 10, 5), WeekEnd = new(2026, 10, 11), ExplicitCarryover = true, Status = ProductionScheduleWeekStatus.Open };
-            var closed = new ProductionScheduleWeek { CreatedByUserId = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "closed",
-                WeekStart = new(2026, 10, 12), WeekEnd = new(2026, 10, 18), ExplicitCarryover = true, Status = ProductionScheduleWeekStatus.Closed };
+            var target = new ProductionScheduleWeek
+            {
+                CreatedByUserId = actor,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "target",
+                WeekStart = new(2026, 10, 5),
+                WeekEnd = new(2026, 10, 11),
+                ExplicitCarryover = true,
+                Status = ProductionScheduleWeekStatus.Open
+            };
+            var closed = new ProductionScheduleWeek
+            {
+                CreatedByUserId = actor,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "closed",
+                WeekStart = new(2026, 10, 12),
+                WeekEnd = new(2026, 10, 18),
+                ExplicitCarryover = true,
+                Status = ProductionScheduleWeekStatus.Closed
+            };
             db.AddRange(source, root, secondRoot, target, closed);
             db.ProductionWeekOpenings.AddRange(new ProductionWeekOpening { WeekId = target.Id, ProductId = product, SourceWeekId = source.Id, SourceLineId = root.Id, Area = ProductionDailyArea.Sewing, Quantity = 10 },
                 new() { WeekId = target.Id, ProductId = product, SourceWeekId = source.Id, SourceLineId = secondRoot.Id, Area = ProductionDailyArea.Sewing, Quantity = 20 },

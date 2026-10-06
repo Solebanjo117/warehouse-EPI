@@ -89,10 +89,15 @@ public sealed class ProductionTabletUiRouteTests
             var target = await db.ProductionScheduleWeeks.SingleAsync(x => x.Id == seed.WeekId);
             var source = new ProductionScheduleWeek
             {
-                OperationId = Guid.NewGuid(), RequestFingerprint = "tablet-copy-fixture",
-                WeekStart = new(2026, 9, 14), WeekEnd = new(2026, 9, 20),
-                Status = ProductionScheduleWeekStatus.Open, CreatedByUserId = target.CreatedByUserId,
-                CreatedAt = DateTimeOffset.UtcNow, Version = 1, ExplicitCarryover = true,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "tablet-copy-fixture",
+                WeekStart = new(2026, 9, 14),
+                WeekEnd = new(2026, 9, 20),
+                Status = ProductionScheduleWeekStatus.Open,
+                CreatedByUserId = target.CreatedByUserId,
+                CreatedAt = DateTimeOffset.UtcNow,
+                Version = 1,
+                ExplicitCarryover = true,
                 Lines = [new() { PlannedDate = new(2026, 9, 14), ProductId = (await db.Products.SingleAsync(x => x.Sku == LongSku)).Id,
                     Quantity = 9, Sequence = 1, Version = 1, Notes = "SOURCE-NOTES" }]
             };
@@ -267,12 +272,32 @@ public sealed class ProductionTabletUiRouteTests
             var unit = new Unit { Id = 99, Code = "M", Name = "Meters", AllowsDecimals = true };
             var product = new Product { Sku = "METER-SKU", BaseUnitId = unit.Id };
             db.Add(unit); db.Add(product);
-            db.Add(new ProductionScheduleLine { WeekId = seed.WeekId, ProductId = product.Id,
-                PlannedDate = week.WeekStart.AddDays(1), Quantity = 1.2345m, Sequence = 1, Notes = "DECIMAL-NOTES" });
-            db.Add(new ProductionScheduleLine { WeekId = seed.WeekId, ProductId = product.Id,
-                PlannedDate = week.WeekStart, Quantity = 3.25m, IsCarryover = true, Sequence = 3 });
-            db.Add(new ProductionCarryoverPlan { WeekId = seed.WeekId, ProductId = product.Id,
-                PlannedDate = week.WeekStart.AddDays(2), Area = ProductionDailyArea.Cutting, Quantity = 7.75m });
+            db.Add(new ProductionScheduleLine
+            {
+                WeekId = seed.WeekId,
+                ProductId = product.Id,
+                PlannedDate = week.WeekStart.AddDays(1),
+                Quantity = 1.2345m,
+                Sequence = 1,
+                Notes = "DECIMAL-NOTES"
+            });
+            db.Add(new ProductionScheduleLine
+            {
+                WeekId = seed.WeekId,
+                ProductId = product.Id,
+                PlannedDate = week.WeekStart,
+                Quantity = 3.25m,
+                IsCarryover = true,
+                Sequence = 3
+            });
+            db.Add(new ProductionCarryoverPlan
+            {
+                WeekId = seed.WeekId,
+                ProductId = product.Id,
+                PlannedDate = week.WeekStart.AddDays(2),
+                Area = ProductionDailyArea.Cutting,
+                Quantity = 7.75m
+            });
             await db.SaveChangesAsync();
             expected = await scope.ServiceProvider.GetRequiredService<ProductionDailyScheduleService>().GetPlanSummaryAsync(seed.WeekId);
         }
@@ -382,7 +407,7 @@ public sealed class ProductionTabletUiRouteTests
     {
         var login = await client.GetStringAsync("/Admin/Login");
         var response = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["Input.Pin"] = TestPin, ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken") }));
+        { ["Input.Pin"] = TestPin, ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken") }));
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
     }
 
@@ -409,10 +434,17 @@ public sealed class ProductionTabletUiRouteTests
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         var captures = Enumerable.Range(0, 3).Select(i => new ProductionDailyCapture
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = Guid.NewGuid().ToString(), WeekId = weekId,
-            EffectiveDate = monday, Area = ProductionDailyArea.Cutting, StageId = config.CuttingStageId!.Value,
-            ShiftId = config.Shift1Id!.Value, ProductId = product.Id, Quantity = i + 1,
-            ResponsibleUserId = admin.Id, RecordedAt = DateTimeOffset.UtcNow,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = Guid.NewGuid().ToString(),
+            WeekId = weekId,
+            EffectiveDate = monday,
+            Area = ProductionDailyArea.Cutting,
+            StageId = config.CuttingStageId!.Value,
+            ShiftId = config.Shift1Id!.Value,
+            ProductId = product.Id,
+            Quantity = i + 1,
+            ResponsibleUserId = admin.Id,
+            RecordedAt = DateTimeOffset.UtcNow,
             Status = i == 2 ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active
         }).ToArray();
         db.AddRange(captures); await db.SaveChangesAsync();

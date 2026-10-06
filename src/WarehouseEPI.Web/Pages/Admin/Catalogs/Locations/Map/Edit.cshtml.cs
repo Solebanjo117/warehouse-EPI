@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Localization;
 using WarehouseEPI.Infrastructure.Locations;
-using WarehouseEPI.Web.Locations;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Locations;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Locations.Map;
 
@@ -94,7 +94,8 @@ public sealed class EditModel(WarehouseMapService maps, WarehouseMapPreviewStore
         {
             Errors = review.Errors.Select(item => WarehouseMapText.Message(text, item)).ToArray(),
             Warnings = review.Warnings.Select(item => item with { Message = WarehouseMapText.Message(text, item.Message) }).ToArray()
-        }) { StatusCode = review.Errors.Count == 0 ? 200 : 400 };
+        })
+        { StatusCode = review.Errors.Count == 0 ? 200 : 400 };
     }
 
     public async Task<IActionResult> OnPostUploadReferenceAsync(IFormFile? referenceImage, CancellationToken token)

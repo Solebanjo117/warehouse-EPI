@@ -78,8 +78,14 @@ public sealed class ProductionScheduleCarryoverCopyTests
         var root = await db.ProductionScheduleLines.Include(x => x.WorkOrder).ThenInclude(x => x!.Stages).SingleAsync(x => x.WeekId == first.Id);
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         var capture = await db.ProductionDailyCaptures.SingleAsync(x => x.WeekId == first.Id);
-        db.ProductionDailyCaptureAllocations.Add(new() { CaptureId = capture.Id, ScheduleLineId = root.Id, WorkOrderId = root.WorkOrderId!.Value,
-            WorkOrderStageId = root.WorkOrder!.Stages.Single(x => x.SourceStageId == config.CuttingStageId).Id, Quantity = 100 });
+        db.ProductionDailyCaptureAllocations.Add(new()
+        {
+            CaptureId = capture.Id,
+            ScheduleLineId = root.Id,
+            WorkOrderId = root.WorkOrderId!.Value,
+            WorkOrderStageId = root.WorkOrder!.Stages.Single(x => x.SourceStageId == config.CuttingStageId).Id,
+            Quantity = 100
+        });
         await db.SaveChangesAsync();
         var middle = await WeekAsync(service, actor, product, first.WeekStart.AddDays(7), 50);
         (await db.ProductionScheduleWeeks.SingleAsync(x => x.Id == middle.Id)).ExplicitCarryover = false;
@@ -106,8 +112,15 @@ public sealed class ProductionScheduleCarryoverCopyTests
         var target = await WeekAsync(service, actor, product, new(2026, 9, 14), 0, false);
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), target.Id, target.Version,
             [new("add", null, null, new(target.WeekStart, product, 10, null, null, null, null))], actor);
-        var previousContract = new { command.OperationId, command.WeekId, command.ExpectedWeekVersion,
-            command.Changes, command.ActorUserId, command.Openings };
+        var previousContract = new
+        {
+            command.OperationId,
+            command.WeekId,
+            command.ExpectedWeekVersion,
+            command.Changes,
+            command.ActorUserId,
+            command.Openings
+        };
         var expected = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(System.Text.Json.JsonSerializer.Serialize(previousContract))));
         Assert.True((await service.SaveDraftChangesAsync(command)).Success);
@@ -172,8 +185,14 @@ public sealed class ProductionScheduleCarryoverCopyTests
         Assert.Contains(command.Reason, audit.AfterJson); Assert.DoesNotContain("4826", audit.AfterJson);
         target = (await service.GetWeekAsync(target.Id))!;
         options = (await new ProductionWeekOpeningService(db).OptionsAsync(target.Id)).Where(x => x.SourceWeekId == source.Id).ToArray();
-        var next = command with { OperationId = Guid.NewGuid(), ExpectedWeekVersion = target.Version, Changes = [],
-            Openings = options.Select(x => new ProductionOpeningChange(x.SourceWeekId, x.SourceLineId, x.Area, x.Selected, x.Fingerprint)).ToArray(), ReviewedFingerprint = "" };
+        var next = command with
+        {
+            OperationId = Guid.NewGuid(),
+            ExpectedWeekVersion = target.Version,
+            Changes = [],
+            Openings = options.Select(x => new ProductionOpeningChange(x.SourceWeekId, x.SourceLineId, x.Area, x.Selected, x.Fingerprint)).ToArray(),
+            ReviewedFingerprint = ""
+        };
         review = await service.PreviewWorkspaceChangesAsync(next); Assert.True(review.CanConfirm);
         await AddCaptureAsync(db, target.Id, product, actor, ProductionDailyArea.Sewing, 1);
         Assert.Equal(ProductionDailyCommandStatus.ConcurrencyConflict,
@@ -214,11 +233,21 @@ public sealed class ProductionScheduleCarryoverCopyTests
     {
         var week = await db.ProductionScheduleWeeks.SingleAsync(x => x.Id == weekId);
         var config = await db.ProductionDailyConfigurations.SingleAsync();
-        db.ProductionDailyCaptures.Add(new() { WeekId = weekId, ProductId = product, Area = area,
+        db.ProductionDailyCaptures.Add(new()
+        {
+            WeekId = weekId,
+            ProductId = product,
+            Area = area,
             StageId = (area == ProductionDailyArea.Cutting ? config.CuttingStageId : area == ProductionDailyArea.Sewing ? config.SewingStageId : config.ReadyToPackStageId)!.Value,
-            EffectiveDate = week.WeekStart, ShiftId = config.Shift1Id!.Value, ResponsibleUserId = actor,
-            Quantity = quantity, Status = reversed ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active,
-            OperationId = Guid.NewGuid(), RequestFingerprint = "copy-fixture", IsFlexible = true });
+            EffectiveDate = week.WeekStart,
+            ShiftId = config.Shift1Id!.Value,
+            ResponsibleUserId = actor,
+            Quantity = quantity,
+            Status = reversed ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "copy-fixture",
+            IsFlexible = true
+        });
         await db.SaveChangesAsync();
     }
 }

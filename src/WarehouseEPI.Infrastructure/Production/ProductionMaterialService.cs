@@ -10,7 +10,9 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Infrastructure.Production;
 
-public enum ProductionMaterialStatus { Success, InvalidPin, ValidationFailed, ConcurrencyConflict, IdempotencyConflict,
+public enum ProductionMaterialStatus
+{
+    Success, InvalidPin, ValidationFailed, ConcurrencyConflict, IdempotencyConflict,
     RoleNotAllowed
 }
 public sealed record ProductionMaterialResult(ProductionMaterialStatus Status, Guid? OperationId = null,
@@ -48,13 +50,13 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
             .Include(x => x.OperationLines).ThenInclude(x => x.InventoryMovementLine).ThenInclude(x => x.BalanceChanges)
             .Where(x => x.ProductId == productId && x.WipLocationId == locationId).ToListAsync(token);
         var orders = links.Select(x => new
-            {
-                x.WorkOrderId,
-                x.WorkOrder.Number,
-                Quantity = x.Quantity - x.CancelledQuantity - x.OperationLines
+        {
+            x.WorkOrderId,
+            x.WorkOrder.Number,
+            Quantity = x.Quantity - x.CancelledQuantity - x.OperationLines
                     .Where(line => line.Operation.Type != ProductionMaterialOperationType.Reversal &&
                         !reversed.Contains(line.Operation.Id)).Sum(line => line.Quantity)
-            })
+        })
             .Where(x => x.Quantity > 0)
             .GroupBy(x => new { x.WorkOrderId, x.Number })
             .Select(x => new ProductionMaterialReservationRow(x.Key.WorkOrderId, x.Key.Number, x.Sum(y => y.Quantity)))
@@ -275,7 +277,8 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
                     if (caseId is null || !cases.Any(x => x.Id == caseId && x.NeedsAttention) || (command.ReworkCaseId.HasValue && caseId != command.ReworkCaseId))
                         return await Abort(transaction, Invalid("El material no está reservado para este retrabajo pendiente."), token);
                 }
-            }            if (command.Type == ProductionMaterialOperationType.WarehouseReturn && command.ReturnEffect is null && links.Any(x => x.SupplyRequestLineId.HasValue))
+            }
+            if (command.Type == ProductionMaterialOperationType.WarehouseReturn && command.ReturnEffect is null && links.Any(x => x.SupplyRequestLineId.HasValue))
                 return await Abort(transaction, Invalid("Indica si la devolución requiere reposición o corresponde a sobrante."), token);
             var reversed = await db.ProductionMaterialOperations.AsNoTracking().Where(x => x.ReversesOperationId != null)
                 .Select(x => x.ReversesOperationId!.Value).ToListAsync(token);
@@ -289,10 +292,16 @@ public sealed class ProductionMaterialService(WarehouseDbContext db, UserPinServ
 
             var operation = new ProductionMaterialOperation
             {
-                OperationId = command.OperationId, RequestFingerprint = fingerprint, WorkOrderId = order.Id,
-                WorkOrderStageId = command.WorkOrderStageId, Type = command.Type, ResponsibleUserId = user.Id,
+                OperationId = command.OperationId,
+                RequestFingerprint = fingerprint,
+                WorkOrderId = order.Id,
+                WorkOrderStageId = command.WorkOrderStageId,
+                Type = command.Type,
+                ResponsibleUserId = user.Id,
                 ReturnEffect = command.Type == ProductionMaterialOperationType.WarehouseReturn ? command.ReturnEffect : null,
-                Reference = Normalize(command.Reference), Notes = Normalize(command.Notes), RecordedAt = timeProvider.GetUtcNow()
+                Reference = Normalize(command.Reference),
+                Notes = Normalize(command.Notes),
+                RecordedAt = timeProvider.GetUtcNow()
             };
             var movementIds = new List<Guid>();
             foreach (var group in links.OrderBy(x => x.WipLocationId).ThenBy(x => x.ProductId).ThenBy(x => x.Id)

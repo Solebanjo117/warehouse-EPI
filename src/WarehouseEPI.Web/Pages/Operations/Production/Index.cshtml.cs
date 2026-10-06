@@ -2,13 +2,13 @@ using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Infrastructure.Settings;
-using WarehouseEPI.Web.Production;
 using WarehouseEPI.Web.Localization;
-using Microsoft.Extensions.Localization;
+using WarehouseEPI.Web.Production;
 
 namespace WarehouseEPI.Web.Pages.Operations.Production;
 

@@ -3,15 +3,15 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using WarehouseEPI.Core.Entities;
-using WarehouseEPI.Infrastructure.Persistence;
-using WarehouseEPI.Infrastructure.Inventory;
-using WarehouseEPI.Infrastructure.Production;
-using WarehouseEPI.Web.Pages.Operations.Production;
-using WarehouseEPI.Infrastructure.Settings;
-using WarehouseEPI.Web.Production;
 using Microsoft.Extensions.Localization;
+using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Pages.Operations.Production;
+using WarehouseEPI.Web.Production;
 
 namespace WarehouseEPI.Web.Pages.Admin.Production;
 
@@ -130,10 +130,16 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
         }
         Batch.Rows.Add(new()
         {
-            PlannedDate = Line.PlannedDate, ProductId = Line.ProductId, Quantity = Line.Quantity,
-            OrderReference1 = Line.OrderReference1, OrderReference2 = Line.OrderReference2,
-            OrderReference3 = Line.OrderReference3, Notes = Line.Notes, OriginalType = Line.OriginalType,
-            OriginalAnnotation1 = Line.OriginalAnnotation1, OriginalAnnotation2 = Line.OriginalAnnotation2,
+            PlannedDate = Line.PlannedDate,
+            ProductId = Line.ProductId,
+            Quantity = Line.Quantity,
+            OrderReference1 = Line.OrderReference1,
+            OrderReference2 = Line.OrderReference2,
+            OrderReference3 = Line.OrderReference3,
+            Notes = Line.Notes,
+            OriginalType = Line.OriginalType,
+            OriginalAnnotation1 = Line.OriginalAnnotation1,
+            OriginalAnnotation2 = Line.OriginalAnnotation2,
             OriginalAnnotation1Kind = Line.OriginalAnnotation1Kind,
             OriginalAnnotation2Kind = Line.OriginalAnnotation2Kind
         });
@@ -167,13 +173,19 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
             SelectedDay = row.PlannedDate;
             Line = new()
             {
-                WeekId = Batch.WeekId, ExpectedWeekVersion = Batch.ExpectedWeekVersion,
-                PlannedDate = row.PlannedDate, ProductId = row.ProductId, Quantity = row.Quantity,
+                WeekId = Batch.WeekId,
+                ExpectedWeekVersion = Batch.ExpectedWeekVersion,
+                PlannedDate = row.PlannedDate,
+                ProductId = row.ProductId,
+                Quantity = row.Quantity,
                 ProductLabel = await db.Products.AsNoTracking().Where(x => x.Id == row.ProductId)
                     .Select(x => x.Sku).SingleOrDefaultAsync(token),
-                OrderReference1 = row.OrderReference1, OrderReference2 = row.OrderReference2,
-                OrderReference3 = row.OrderReference3, Notes = row.Notes,
-                OriginalType = row.OriginalType, OriginalAnnotation1 = row.OriginalAnnotation1,
+                OrderReference1 = row.OrderReference1,
+                OrderReference2 = row.OrderReference2,
+                OrderReference3 = row.OrderReference3,
+                Notes = row.Notes,
+                OriginalType = row.OriginalType,
+                OriginalAnnotation1 = row.OriginalAnnotation1,
                 OriginalAnnotation2 = row.OriginalAnnotation2,
                 OriginalAnnotation1Kind = row.OriginalAnnotation1Kind,
                 OriginalAnnotation2Kind = row.OriginalAnnotation2Kind
@@ -350,15 +362,15 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
             NewWeekCopySources = await CopySourcesAsync(NewWeek.WeekStart, token);
         }
         if (initialize || handler != "Configure")
-        Configuration = new()
-        {
-            ExpectedVersion = DailyConfiguration.Version,
-            CuttingStageId = setup.SuggestStage(DailyConfiguration.CuttingStageId, "CUT", "CUTTING", "CORTE"),
-            SewingStageId = setup.SuggestStage(DailyConfiguration.SewingStageId, "SEW", "SEWING", "COSTURA"),
-            ReadyToPackStageId = setup.SuggestStage(DailyConfiguration.ReadyToPackStageId, "RTP", "READY TO PACK", "LISTO PARA EMPACAR"),
-            Shift1Id = setup.SuggestShift(DailyConfiguration.Shift1Id, "T1", "SHIFT 1", "TURNO 1"),
-            Shift2Id = setup.SuggestShift(DailyConfiguration.Shift2Id, "T2", "SHIFT 2", "TURNO 2")
-        };
+            Configuration = new()
+            {
+                ExpectedVersion = DailyConfiguration.Version,
+                CuttingStageId = setup.SuggestStage(DailyConfiguration.CuttingStageId, "CUT", "CUTTING", "CORTE"),
+                SewingStageId = setup.SuggestStage(DailyConfiguration.SewingStageId, "SEW", "SEWING", "COSTURA"),
+                ReadyToPackStageId = setup.SuggestStage(DailyConfiguration.ReadyToPackStageId, "RTP", "READY TO PACK", "LISTO PARA EMPACAR"),
+                Shift1Id = setup.SuggestShift(DailyConfiguration.Shift1Id, "T1", "SHIFT 1", "TURNO 1"),
+                Shift2Id = setup.SuggestShift(DailyConfiguration.Shift2Id, "T2", "SHIFT 2", "TURNO 2")
+            };
         if (Week is not null)
         {
             if (initialize || handler != "Publish")
@@ -371,20 +383,28 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
                 var deleting = DeleteLineId.HasValue ? Week.Lines.SingleOrDefault(x => x.Id == DeleteLineId) : null;
                 DeleteLine = new()
                 {
-                    WeekId = Week.Id, LineId = deleting?.Id ?? Guid.Empty,
-                    ExpectedWeekVersion = Week.Version, ExpectedLineVersion = deleting?.Version ?? 0
+                    WeekId = Week.Id,
+                    LineId = deleting?.Id ?? Guid.Empty,
+                    ExpectedWeekVersion = Week.Version,
+                    ExpectedLineVersion = deleting?.Version ?? 0
                 };
             }
             var selected = EditLineId.HasValue ? Week.Lines.SingleOrDefault(x => x.Id == EditLineId) : null;
             if (initialize || handler is not ("SaveLine" or "StageLine" or "EditStagedLine")) Line = new()
             {
-                WeekId = Week.Id, ExpectedWeekVersion = Week.Version, LineId = selected?.Id,
-                ExpectedLineVersion = selected?.Version, PlannedDate = selected?.PlannedDate ?? (SelectedDay >= Week.WeekStart && SelectedDay <= Week.WeekEnd ? SelectedDay.Value : Week.WeekStart),
+                WeekId = Week.Id,
+                ExpectedWeekVersion = Week.Version,
+                LineId = selected?.Id,
+                ExpectedLineVersion = selected?.Version,
+                PlannedDate = selected?.PlannedDate ?? (SelectedDay >= Week.WeekStart && SelectedDay <= Week.WeekEnd ? SelectedDay.Value : Week.WeekStart),
                 ProductId = selected?.ProductId ?? Guid.Empty,
                 ProductLabel = selected?.Sku,
-                Quantity = selected?.Quantity ?? 0, OrderReference1 = selected?.OrderReference1,
-                OrderReference2 = selected?.OrderReference2, OrderReference3 = selected?.OrderReference3,
-                Notes = selected?.Notes, OriginalType = selected?.OriginalType,
+                Quantity = selected?.Quantity ?? 0,
+                OrderReference1 = selected?.OrderReference1,
+                OrderReference2 = selected?.OrderReference2,
+                OrderReference3 = selected?.OrderReference3,
+                Notes = selected?.Notes,
+                OriginalType = selected?.OriginalType,
                 OriginalAnnotation1 = selected?.OriginalAnnotation1,
                 OriginalAnnotation2 = selected?.OriginalAnnotation2,
                 OriginalAnnotation1Kind = selected?.OriginalAnnotation1Kind,
@@ -442,13 +462,18 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
     public sealed class LineInput
     {
         public Guid OperationId { get; set; } = Guid.NewGuid(); public Guid WeekId { get; set; }
-        public Guid? LineId { get; set; } public uint ExpectedWeekVersion { get; set; } public uint? ExpectedLineVersion { get; set; }
-        [Required(ErrorMessage = "Este campo es obligatorio.")] public DateOnly PlannedDate { get; set; } [Required(ErrorMessage = "Este campo es obligatorio.")] public Guid ProductId { get; set; }
+        public Guid? LineId { get; set; }
+        public uint ExpectedWeekVersion { get; set; }
+        public uint? ExpectedLineVersion { get; set; }
+        [Required(ErrorMessage = "Este campo es obligatorio.")] public DateOnly PlannedDate { get; set; }
+        [Required(ErrorMessage = "Este campo es obligatorio.")] public Guid ProductId { get; set; }
         public string? ProductLabel { get; set; }
         public string Pin { get; set; } = string.Empty;
         [Range(typeof(decimal), "0.0001", "99999999999999", ErrorMessage = "Indica una cantidad positiva con hasta cuatro decimales."), ProductionQuantity] public decimal Quantity { get; set; }
-        [StringLength(120, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? OrderReference1 { get; set; } [StringLength(120, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? OrderReference2 { get; set; }
-        [StringLength(120, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? OrderReference3 { get; set; } [StringLength(500, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? Notes { get; set; }
+        [StringLength(120, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? OrderReference1 { get; set; }
+        [StringLength(120, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? OrderReference2 { get; set; }
+        [StringLength(120, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? OrderReference3 { get; set; }
+        [StringLength(500, ErrorMessage = "Usa como máximo {1} caracteres.")] public string? Notes { get; set; }
         [StringLength(120)] public string? OriginalType { get; set; }
         [StringLength(500)] public string? OriginalAnnotation1 { get; set; }
         [StringLength(500)] public string? OriginalAnnotation2 { get; set; }
@@ -458,13 +483,17 @@ public sealed partial class ScheduleModel(ProductionDailyScheduleService service
     public sealed class PublishInput
     {
         public Guid OperationId { get; set; } = Guid.NewGuid(); public Guid WeekId { get; set; }
-        public uint ExpectedVersion { get; set; } [Required(ErrorMessage = "Este campo es obligatorio."), RegularExpression("^[0-9]{4,8}$", ErrorMessage = "Usa un NIP de 4 a 8 dígitos.")] public string Pin { get; set; } = string.Empty;
+        public uint ExpectedVersion { get; set; }
+        [Required(ErrorMessage = "Este campo es obligatorio."), RegularExpression("^[0-9]{4,8}$", ErrorMessage = "Usa un NIP de 4 a 8 dígitos.")] public string Pin { get; set; } = string.Empty;
     }
     public sealed class ConfigurationInput
     {
         public Guid OperationId { get; set; } = Guid.NewGuid(); public uint ExpectedVersion { get; set; }
-        public Guid CuttingStageId { get; set; } public Guid SewingStageId { get; set; } public Guid ReadyToPackStageId { get; set; }
-        public Guid Shift1Id { get; set; } public Guid Shift2Id { get; set; }
+        public Guid CuttingStageId { get; set; }
+        public Guid SewingStageId { get; set; }
+        public Guid ReadyToPackStageId { get; set; }
+        public Guid Shift1Id { get; set; }
+        public Guid Shift2Id { get; set; }
     }
 }
 

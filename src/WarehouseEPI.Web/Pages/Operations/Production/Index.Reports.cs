@@ -44,9 +44,14 @@ public sealed partial class IndexModel
 
     public Dictionary<string, string> ReportRoute(string? kind = null, DateOnly? date = null, int? page = null) => new()
     {
-        ["Tab"] = "reports", ["WeekId"] = WeekId?.ToString() ?? "", ["Through"] = (date ?? Through)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
-        ["ReportKind"] = kind ?? ReportKind ?? "daily", ["ReportPeriod"] = date.HasValue ? "day" : ReportPeriod ?? "day",
-        ["Sku"] = Sku ?? "", ["Reference"] = Reference ?? "", ["Area"] = Area?.ToString() ?? "",
+        ["Tab"] = "reports",
+        ["WeekId"] = WeekId?.ToString() ?? "",
+        ["Through"] = (date ?? Through)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "",
+        ["ReportKind"] = kind ?? ReportKind ?? "daily",
+        ["ReportPeriod"] = date.HasValue ? "day" : ReportPeriod ?? "day",
+        ["Sku"] = Sku ?? "",
+        ["Reference"] = Reference ?? "",
+        ["Area"] = Area?.ToString() ?? "",
         ["ReportPage"] = (page ?? ReportPage).ToString(CultureInfo.InvariantCulture)
     };
 

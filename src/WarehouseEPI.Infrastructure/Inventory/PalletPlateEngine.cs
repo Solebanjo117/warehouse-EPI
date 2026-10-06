@@ -23,10 +23,19 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         p.Version++;
         db.PalletPlateEvents.Add(new()
         {
-            Plate = p, PlateId = p.Id, PlateVersion = p.Version, OperationId = operationId,
-            MovementId = movement?.Id, MovementLineId = line?.Id, ResponsibleUserId = userId,
-            Kind = kind, Before = JsonSerializer.Serialize(before), After = JsonSerializer.Serialize(State(p)),
-            RecordedAt = now, ReversesEventId = reverses, Fingerprint = fingerprint
+            Plate = p,
+            PlateId = p.Id,
+            PlateVersion = p.Version,
+            OperationId = operationId,
+            MovementId = movement?.Id,
+            MovementLineId = line?.Id,
+            ResponsibleUserId = userId,
+            Kind = kind,
+            Before = JsonSerializer.Serialize(before),
+            After = JsonSerializer.Serialize(State(p)),
+            RecordedAt = now,
+            ReversesEventId = reverses,
+            Fingerprint = fingerprint
         });
     }
 
@@ -86,8 +95,15 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         void Touch(PalletPlate p) => touched.TryAdd(p.Id, (p, State(p)));
         PalletPlate NewPlate(Guid location, Guid? id = null)
         {
-            var p = new PalletPlate { Id = id ?? Guid.NewGuid(), ProductId = command.ProductId, LocationId = location,
-                OriginMovementId = movement.Id, CreatedAt = movement.RecordedAt, IsVoided = true };
+            var p = new PalletPlate
+            {
+                Id = id ?? Guid.NewGuid(),
+                ProductId = command.ProductId,
+                LocationId = location,
+                OriginMovementId = movement.Id,
+                CreatedAt = movement.RecordedAt,
+                IsVoided = true
+            };
             Touch(p); p.IsVoided = false; db.PalletPlates.Add(p); plates.Add(p); return p;
         }
         if (movement.Type == InventoryMovementType.Entry)

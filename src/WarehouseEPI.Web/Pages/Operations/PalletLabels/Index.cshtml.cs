@@ -87,11 +87,11 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
             return RedirectToPage(pageName: null, pageHandler: null,
                 routeValues: new { id = plate.PlateId, print = true }, fragment: "label-preview");
         foreach (var error in result.ValidationErrors.DefaultIfEmpty(result.Status switch
-                 {
-                     InventoryMovementStatus.IdempotencyConflict => "La operación ya fue usada con datos distintos.",
-                     InventoryMovementStatus.BalanceChanged => "El saldo cambió. Consulta nuevamente antes de identificar el pallet.",
-                     _ => "No fue posible identificar el pallet."
-                 })) ModelState.AddModelError(string.Empty, texts[error]);
+        {
+            InventoryMovementStatus.IdempotencyConflict => "La operación ya fue usada con datos distintos.",
+            InventoryMovementStatus.BalanceChanged => "El saldo cambió. Consulta nuevamente antes de identificar el pallet.",
+            _ => "No fue posible identificar el pallet."
+        })) ModelState.AddModelError(string.Empty, texts[error]);
         await ReloadIdentificationAsync(token);
         return Page();
     }

@@ -77,8 +77,16 @@ public sealed partial class ProductionTraceabilityServiceTests
         Assert.True((await f.Trace.RecordResultAsync(attempt with { AdminPin = f.AdminPin })).Success);
         Assert.Single(await f.Db.ProductionReworkAttempts.ToListAsync());
         var version = (await f.Db.ProductionWorkOrders.SingleAsync(x => x.Id == order.Id)).Version;
-        Assert.True((await f.Trace.RecordResultAsync(attempt with { OperationId = Guid.NewGuid(), ExpectedOrderVersion = version,
-            InputQuantity = 8, GoodQuantity = 3, ReworkQuantity = 5, ScrapQuantity = 0, AdminPin = null })).Success);
+        Assert.True((await f.Trace.RecordResultAsync(attempt with
+        {
+            OperationId = Guid.NewGuid(),
+            ExpectedOrderVersion = version,
+            InputQuantity = 8,
+            GoodQuantity = 3,
+            ReworkQuantity = 5,
+            ScrapQuantity = 0,
+            AdminPin = null
+        })).Success);
         current = Assert.Single(await service.GetReworkAsync(order.Id));
         Assert.Equal(5, current.Pending); Assert.Equal(3, current.Recovered); Assert.Equal(2, current.Attempts);
         Assert.Equal(rework.OriginAt, current.OriginAt);

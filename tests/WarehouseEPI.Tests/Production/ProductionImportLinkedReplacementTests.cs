@@ -59,8 +59,16 @@ public sealed class ProductionImportLinkedReplacementTests
         var orderIds = new[] { firstLine.WorkOrderId, secondLine.WorkOrderId };
         var initialOption = (await new ProductionWeekOpeningService(db).OptionsAsync(second.Week.Id))
             .Single(x => x.SourceLineId == firstLine.Id && x.Area == ProductionDailyArea.Cutting);
-        var opening = new ProductionWeekOpening { WeekId = second.Week.Id, SourceWeekId = first.Week.Id,
-            SourceLineId = firstLine.Id, ProductId = first.Product.Id, Area = ProductionDailyArea.Cutting, Quantity = 10, SourceFingerprint = initialOption.Fingerprint };
+        var opening = new ProductionWeekOpening
+        {
+            WeekId = second.Week.Id,
+            SourceWeekId = first.Week.Id,
+            SourceLineId = firstLine.Id,
+            ProductId = first.Product.Id,
+            Area = ProductionDailyArea.Cutting,
+            Quantity = 10,
+            SourceFingerprint = initialOption.Fingerprint
+        };
         db.Add(opening); await db.SaveChangesAsync();
         var before = await CaptureSnapshot(db);
         var allocationIds = await db.ProductionDailyCaptureAllocations.Select(x => x.Id).ToArrayAsync();

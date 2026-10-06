@@ -1,7 +1,7 @@
 using ClosedXML.Excel;
+using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
 
 namespace WarehouseEPI.Infrastructure.Production;
 

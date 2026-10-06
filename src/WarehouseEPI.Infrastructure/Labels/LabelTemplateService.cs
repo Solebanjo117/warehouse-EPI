@@ -263,8 +263,11 @@ public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
         if (errors.Count > 0) return new(null, errors.Distinct().ToArray(), []);
         string Value(string? binding, bool barcode = false) => binding switch
         {
-            "product.sku" => product.Sku, "product.description" => product.Description ?? string.Empty, "product.unit" => product.UnitCode,
-            "product.externalReference" => product.ExternalReference ?? string.Empty, "input.quantity" => barcode ? quantityText : $"{quantityText} {product.UnitCode}".Trim(),
+            "product.sku" => product.Sku,
+            "product.description" => product.Description ?? string.Empty,
+            "product.unit" => product.UnitCode,
+            "product.externalReference" => product.ExternalReference ?? string.Empty,
+            "input.quantity" => barcode ? quantityText : $"{quantityText} {product.UnitCode}".Trim(),
             "input.manufacturingDate" => DateOnly.Parse(dateText, CultureInfo.InvariantCulture).ToString("MM/dd/yyyy", CultureInfo.InvariantCulture),
             "input.isRepack" => submitted.GetValueOrDefault("input.isRepack") == "true" ? "YES" : "NO",
             _ when binding is not null && systemValues is not null && systemValues.TryGetValue(binding, out var systemValue) => systemValue,

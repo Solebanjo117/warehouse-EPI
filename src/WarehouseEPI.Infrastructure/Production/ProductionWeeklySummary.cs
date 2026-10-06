@@ -48,8 +48,13 @@ public sealed partial class ProductionDailyBalanceService
             .Select(x => new { x.ProductId, x.PlannedDate, x.Area, x.Quantity }).ToListAsync(token);
         if (explicitCarry)
             intentions.AddRange(balance.Rows.Where(x => x.Date == balance.WeekStart).SelectMany(row =>
-                new[] { row.Cutting, row.Sewing, row.ReadyToPack }.Select(area => new { row.ProductId,
-                    PlannedDate = balance.WeekStart, area.Area, Quantity = area.SignedPending + area.Completed - area.ProgrammedToday })));
+                new[] { row.Cutting, row.Sewing, row.ReadyToPack }.Select(area => new
+                {
+                    row.ProductId,
+                    PlannedDate = balance.WeekStart,
+                    area.Area,
+                    Quantity = area.SignedPending + area.Completed - area.ProgrammedToday
+                })));
         var grouped = balance.Rows.GroupBy(x => x.ProductId).ToDictionary(x => x.Key, x => x.OrderBy(r => r.Date).ToArray());
         // An intention can remain after its physical balance was consumed; keep it visible without adding stock.
         var missingIds = intentions.Select(x => x.ProductId).Except(grouped.Keys).ToArray();
@@ -70,7 +75,7 @@ public sealed partial class ProductionDailyBalanceService
             if (!string.IsNullOrWhiteSpace(filter.Reference) && !days.SelectMany(x => x.References)
                 .Any(x => x.Contains(filter.Reference.Trim(), StringComparison.OrdinalIgnoreCase))) continue;
             if (filter.Area is { } area && !(area switch
-                { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack }).Applies) continue;
+            { ProductionDailyArea.Cutting => row.Cutting, ProductionDailyArea.Sewing => row.Sewing, _ => row.ReadyToPack }).Applies) continue;
             var planned = days.Sum(x => x.NewPlan);
             var work = intentions.Where(x => x.ProductId == productId).OrderBy(x => x.PlannedDate).ThenBy(x => x.Area)
                 .Select(x => new ProductionWeeklyIntention(x.PlannedDate, x.Area, x.Quantity)).ToArray();

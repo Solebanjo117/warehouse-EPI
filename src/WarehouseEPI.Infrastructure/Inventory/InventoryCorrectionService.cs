@@ -219,12 +219,19 @@ public sealed class InventoryCorrectionService(
                         reservation.ReleasedQuantity -= amount; restore -= amount; if (restore == 0) break;
                     }
                     var request = supplyLine.SupplyRequest;
-                    request.Events.Add(new ProductionSupplyEvent { OperationId = materialIssues.Count == 1
+                    request.Events.Add(new ProductionSupplyEvent
+                    {
+                        OperationId = materialIssues.Count == 1
                             ? normalized.OperationId : DeriveSupplyEventOperationId(normalized.OperationId, materialIssue.Id),
-                        RequestFingerprint = fingerprint, SupplyRequest = request, SupplyRequestLine = supplyLine,
-                        Type = ProductionSupplyEventType.DeliveryReversed, ResponsibleUserId = authorizedBy.Id,
-                        Quantity = originalQuantity - replacementQuantity, Reason = normalized.Reason,
-                        RecordedAt = timeProvider.GetUtcNow() });
+                        RequestFingerprint = fingerprint,
+                        SupplyRequest = request,
+                        SupplyRequestLine = supplyLine,
+                        Type = ProductionSupplyEventType.DeliveryReversed,
+                        ResponsibleUserId = authorizedBy.Id,
+                        Quantity = originalQuantity - replacementQuantity,
+                        Reason = normalized.Reason,
+                        RecordedAt = timeProvider.GetUtcNow()
+                    });
                     dbContext.Entry(request.Events.Last()).State = EntityState.Added;
                     request.Status = ProductionSupplyRequestStatus.InProgress;
                     request.Version++;

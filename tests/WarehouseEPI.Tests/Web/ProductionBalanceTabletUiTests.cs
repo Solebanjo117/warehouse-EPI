@@ -44,7 +44,8 @@ public sealed class ProductionBalanceTabletUiTests
         using var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"),
-            ["Input.Pin"] = "0123", ["ReturnUrl"] = url
+            ["Input.Pin"] = "0123",
+            ["ReturnUrl"] = url
         }));
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         var admin = await client.GetStringAsync(url);
@@ -148,14 +149,33 @@ public sealed class ProductionBalanceTabletUiTests
         var actor = (await db.Users.SingleAsync(x => x.FullName == "Capture recovery operator")).Id;
         var carry = new Product { Sku = "ONLY-PACK-CARRY", BaseUnitId = 1 };
         db.Products.Add(carry);
-        db.ProductionScheduleLines.Add(new() { WeekId = seed.WeekId, ProductId = carry.Id, Sequence = 4,
-            PlannedDate = seed.Date, Quantity = 12.5m, IsCarryover = true, StartArea = ProductionDailyArea.ReadyToPack });
+        db.ProductionScheduleLines.Add(new()
+        {
+            WeekId = seed.WeekId,
+            ProductId = carry.Id,
+            Sequence = 4,
+            PlannedDate = seed.Date,
+            Quantity = 12.5m,
+            IsCarryover = true,
+            StartArea = ProductionDailyArea.ReadyToPack
+        });
         foreach (var (area, quantity, stage) in new[] { (ProductionDailyArea.Cutting, 40m, configuration.CuttingStageId), (ProductionDailyArea.ReadyToPack, 29.997m, configuration.ReadyToPackStageId) })
         {
-            db.ProductionDailyCaptures.Add(new() { WeekId = seed.WeekId, ProductId = seed.Products[0], Area = area,
-                Quantity = quantity, EffectiveDate = seed.Date, ShiftId = configuration.Shift1Id!.Value, StageId = stage!.Value,
-                OperationId = Guid.NewGuid(), RequestFingerprint = "F".PadLeft(64, 'F'), ResponsibleUserId = actor,
-                RecordedAt = DateTimeOffset.UtcNow, Status = ProductionDailyCaptureStatus.Active });
+            db.ProductionDailyCaptures.Add(new()
+            {
+                WeekId = seed.WeekId,
+                ProductId = seed.Products[0],
+                Area = area,
+                Quantity = quantity,
+                EffectiveDate = seed.Date,
+                ShiftId = configuration.Shift1Id!.Value,
+                StageId = stage!.Value,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "F".PadLeft(64, 'F'),
+                ResponsibleUserId = actor,
+                RecordedAt = DateTimeOffset.UtcNow,
+                Status = ProductionDailyCaptureStatus.Active
+            });
         }
         await db.SaveChangesAsync();
         using var client = factory.CreateClient(new() { BaseAddress = new("https://localhost") });

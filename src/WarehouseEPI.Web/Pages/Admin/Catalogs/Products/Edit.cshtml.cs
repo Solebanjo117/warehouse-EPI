@@ -5,11 +5,11 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Locations;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Production;
-using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
@@ -302,7 +302,9 @@ public sealed class EditModel(
                 ExpectedVersion = WipConfiguration.Version,
                 Rules = WipConfiguration.Rules.Select(x => new MaterialWipRuleInputModel
                 {
-                    StageId = x.StageId, TargetKey = x.TargetKey, TargetLabel = x.Target
+                    StageId = x.StageId,
+                    TargetKey = x.TargetKey,
+                    TargetLabel = x.Target
                 }).ToList()
             };
         }

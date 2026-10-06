@@ -34,24 +34,48 @@ public sealed class ProductionInitialBalanceRouteTests
             await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(admin, "0123");
             db.Users.Add(admin); await db.SaveChangesAsync();
             productId = (await db.Products.SingleAsync(x => x.Sku == "FG-100")).Id;
-            var week = new ProductionScheduleWeek { CreatedByUserId = admin.Id, OperationId = Guid.NewGuid(), RequestFingerprint = "initial-route",
-                WeekStart = new(2026, 10, 5), WeekEnd = new(2026, 10, 11), Status = ProductionScheduleWeekStatus.Open, ExplicitCarryover = explicitWeek };
+            var week = new ProductionScheduleWeek
+            {
+                CreatedByUserId = admin.Id,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "initial-route",
+                WeekStart = new(2026, 10, 5),
+                WeekEnd = new(2026, 10, 11),
+                Status = ProductionScheduleWeekStatus.Open,
+                ExplicitCarryover = explicitWeek
+            };
             for (var i = 1; i <= 2; i++) week.Lines.Add(new() { ProductId = productId, PlannedDate = week.WeekStart, Quantity = 25, Sequence = i });
-            var source = new ProductionScheduleWeek { CreatedByUserId = admin.Id, OperationId = Guid.NewGuid(), RequestFingerprint = "initial-source",
-                WeekStart = week.WeekStart.AddDays(-7), WeekEnd = week.WeekStart.AddDays(-1), Status = ProductionScheduleWeekStatus.Open, ExplicitCarryover = true };
+            var source = new ProductionScheduleWeek
+            {
+                CreatedByUserId = admin.Id,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "initial-source",
+                WeekStart = week.WeekStart.AddDays(-7),
+                WeekEnd = week.WeekStart.AddDays(-1),
+                Status = ProductionScheduleWeekStatus.Open,
+                ExplicitCarryover = true
+            };
             source.Lines.Add(new() { ProductId = productId, PlannedDate = source.WeekStart, Quantity = 20 });
             var config = await db.ProductionDailyConfigurations.SingleAsync();
-            foreach (var area in Enum.GetValues<ProductionDailyArea>()) source.Captures.Add(new() { ProductId = productId, ResponsibleUserId = admin.Id,
-                OperationId = Guid.NewGuid(), RequestFingerprint = "source-capture", EffectiveDate = source.WeekStart, Area = area, Quantity = 20,
+            foreach (var area in Enum.GetValues<ProductionDailyArea>()) source.Captures.Add(new()
+            {
+                ProductId = productId,
+                ResponsibleUserId = admin.Id,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "source-capture",
+                EffectiveDate = source.WeekStart,
+                Area = area,
+                Quantity = 20,
                 StageId = area switch { ProductionDailyArea.Cutting => config.CuttingStageId!.Value, ProductionDailyArea.Sewing => config.SewingStageId!.Value, _ => config.ReadyToPackStageId!.Value },
-                ShiftId = config.Shift1Id!.Value });
+                ShiftId = config.Shift1Id!.Value
+            });
             db.AddRange(week, source); await db.SaveChangesAsync(); weekId = week.Id; sourceId = source.Id;
         }
         var route = $"/Admin/Production/Schedule?WeekId={weekId}&View=program";
         Assert.Equal(HttpStatusCode.Redirect, (await client.GetAsync(route)).StatusCode);
         var login = await client.GetStringAsync("/Admin/Login");
         Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(login) }))).StatusCode);
+        { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(login) }))).StatusCode);
         var html = await client.GetStringAsync(route);
         Assert.Contains("data-totals=\"true\"", html); Assert.DoesNotContain("data-workspace-carry-unavailable", html);
         var initialRoute = $"/Admin/Production/Schedule?handler=WorkspaceInitialBalances&weekId={weekId}";
@@ -66,16 +90,23 @@ public sealed class ProductionInitialBalanceRouteTests
             await File.WriteAllTextAsync(Path.Combine(directory, "initials.json"), JsonSerializer.Serialize(initials, JsonSerializerOptions.Web));
             await File.WriteAllTextAsync(Path.Combine(directory, "source.json"), copy);
         }
-        var input = new { operationId = Guid.NewGuid(), weekId, expectedWeekVersion = 0, changes = Array.Empty<object>(),
+        var input = new
+        {
+            operationId = Guid.NewGuid(),
+            weekId,
+            expectedWeekVersion = 0,
+            changes = Array.Empty<object>(),
             initialBalances = new[] { new ProductionInitialBalanceChange(productId, ProductionDailyArea.Cutting, 135, 0),
-                new(productId, ProductionDailyArea.Sewing, 0, 0), new(productId, ProductionDailyArea.ReadyToPack, 23, 0) }, reason = "Corregir arrastre" };
+                new(productId, ProductionDailyArea.Sewing, 0, 0), new(productId, ProductionDailyArea.ReadyToPack, 23, 0) },
+            reason = "Corregir arrastre"
+        };
         using var request = new HttpRequestMessage(HttpMethod.Post, "/Admin/Production/Schedule?handler=WorkspaceReview") { Content = JsonContent.Create(input) };
         request.Headers.Add("RequestVerificationToken", Token(html));
         var review = (await (await client.SendAsync(request)).Content.ReadFromJsonAsync<ProductionScheduleWorkspaceReview>())!;
         Assert.True(review.CanConfirm, string.Join(" | ", review.Errors));
         var payload = JsonSerializer.SerializeToNode(input, JsonSerializerOptions.Web)!; payload["reviewedFingerprint"] = review.Fingerprint;
         var response = await client.PostAsync("/Admin/Production/Schedule?handler=WorkspaceSave", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["payload"] = payload.ToJsonString(), ["adminPin"] = "0123", ["__RequestVerificationToken"] = Token(html) }));
+        { ["payload"] = payload.ToJsonString(), ["adminPin"] = "0123", ["__RequestVerificationToken"] = Token(html) }));
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var saved = (await client.GetFromJsonAsync<ProductionInitialBalanceView[]>(initialRoute))!;
         Assert.Equal(135, Assert.Single(saved, x => x.Area == ProductionDailyArea.Cutting).Quantity);

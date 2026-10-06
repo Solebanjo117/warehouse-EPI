@@ -131,9 +131,15 @@ public sealed class ProductionPlanningServiceTests
         Assert.Empty(await f.Db.ProductionOrderMaterialPlans.Where(x => x.WorkOrderId == orderId).ToListAsync());
         var order = await f.Db.ProductionWorkOrders.SingleAsync(x => x.Id == orderId);
         var admin = await f.Db.Users.SingleAsync(x => x.RoleId == 1);
-        f.Db.ProductionRecipes.Add(new() { ProductId = f.Finished.Id, Version = 2, BaseQuantity = 10,
-            Reason = "Primera receta disponible", CreatedByUserId = admin.Id,
-            Lines = { new ProductionRecipeLine { MaterialProductId = f.Material.Id, StageId = f.Stage.Id, Quantity = 5 } } });
+        f.Db.ProductionRecipes.Add(new()
+        {
+            ProductId = f.Finished.Id,
+            Version = 2,
+            BaseQuantity = 10,
+            Reason = "Primera receta disponible",
+            CreatedByUserId = admin.Id,
+            Lines = { new ProductionRecipeLine { MaterialProductId = f.Material.Id, StageId = f.Stage.Id, Quantity = 5 } }
+        });
         await f.Db.SaveChangesAsync();
 
         var invalidPin = await f.Planning.ReviewAsync(new(Guid.NewGuid(), orderId, order.Version, [], "Revisar", "0000"));
@@ -168,8 +174,12 @@ public sealed class ProductionPlanningServiceTests
         var admin = await f.Db.Users.SingleAsync(x => x.RoleId == 1);
         f.Db.ProductionRecipes.Add(new ProductionRecipe
         {
-            ProductId = f.Finished.Id, Version = 2, BaseQuantity = 10, IsActive = true,
-            Reason = "Lista incompleta", CreatedByUserId = admin.Id,
+            ProductId = f.Finished.Id,
+            Version = 2,
+            BaseQuantity = 10,
+            IsActive = true,
+            Reason = "Lista incompleta",
+            CreatedByUserId = admin.Id,
             Lines = { new ProductionRecipeLine { MaterialProductId = f.Material.Id, Quantity = 5 } }
         });
         await f.Db.SaveChangesAsync();
@@ -188,8 +198,12 @@ public sealed class ProductionPlanningServiceTests
         f.Stage.DefaultWipLocationId = f.WipA.Id;
         f.Db.ProductionRecipes.Add(new ProductionRecipe
         {
-            ProductId = f.Finished.Id, Version = 3, BaseQuantity = 10, IsActive = true,
-            Reason = "Lista completa", CreatedByUserId = admin.Id,
+            ProductId = f.Finished.Id,
+            Version = 3,
+            BaseQuantity = 10,
+            IsActive = true,
+            Reason = "Lista completa",
+            CreatedByUserId = admin.Id,
             Lines = { new ProductionRecipeLine { MaterialProductId = f.Material.Id, StageId = f.Stage.Id, Quantity = 5 } }
         });
         await f.Db.SaveChangesAsync();
@@ -210,8 +224,12 @@ public sealed class ProductionPlanningServiceTests
     public async Task Catalog_recipe_summary_uses_material_process_unique_and_unresolved_precedence()
     {
         await using var f = await Fixture.CreateAsync();
-        f.Db.ProductionMaterialWipDefaults.Add(new() { ProductId = f.Material.Id, ProductionStageId = f.Stage.Id,
-            LocationId = f.WipA.Id });
+        f.Db.ProductionMaterialWipDefaults.Add(new()
+        {
+            ProductId = f.Material.Id,
+            ProductionStageId = f.Stage.Id,
+            LocationId = f.WipA.Id
+        });
         await f.Db.SaveChangesAsync();
 
         var summary = await f.Planning.GetCatalogRecipeSummaryAsync(f.Finished.Id);
@@ -266,8 +284,12 @@ public sealed class ProductionPlanningServiceTests
     public async Task Catalog_recipe_summary_preserves_invalid_priority_and_reports_inactive_material()
     {
         await using var f = await Fixture.CreateAsync();
-        f.Db.ProductionMaterialWipDefaults.Add(new() { ProductId = f.Material.Id, ProductionStageId = f.Stage.Id,
-            LocationId = f.WipA.Id });
+        f.Db.ProductionMaterialWipDefaults.Add(new()
+        {
+            ProductId = f.Material.Id,
+            ProductionStageId = f.Stage.Id,
+            LocationId = f.WipA.Id
+        });
         f.Stage.DefaultWipLocationId = f.WipB.Id;
         f.WipA.IsBlocked = true;
         await f.Db.SaveChangesAsync();
@@ -358,8 +380,15 @@ public sealed class ProductionPlanningServiceTests
             stage.WipTargets.Add(new() { Location = wipA });
             stage.WipTargets.Add(new() { Location = wipB });
             var route = new ProductionRoute { Product = finished, Name = "Ruta P2", Stages = { new ProductionRouteStage { Stage = stage, Sequence = 1 } } };
-            var recipe = new ProductionRecipe { Product = finished, Version = 1, BaseQuantity = 10, Reason = "Receta P2", CreatedByUser = admin,
-                Lines = { new ProductionRecipeLine { MaterialProduct = material, Stage = stage, Quantity = 5 } } };
+            var recipe = new ProductionRecipe
+            {
+                Product = finished,
+                Version = 1,
+                BaseQuantity = 10,
+                Reason = "Receta P2",
+                CreatedByUser = admin,
+                Lines = { new ProductionRecipeLine { MaterialProduct = material, Stage = stage, Quantity = 5 } }
+            };
             db.AddRange(admin, material, wipA, wipB, route, recipe);
             await db.SaveChangesAsync();
             var movements = new InventoryMovementService(db, pins, TimeProvider.System);

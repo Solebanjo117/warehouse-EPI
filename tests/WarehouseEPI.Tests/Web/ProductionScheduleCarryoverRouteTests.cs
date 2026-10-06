@@ -23,7 +23,7 @@ public sealed class ProductionScheduleCarryoverRouteTests
         using var factory = original.WithWebHostBuilder(builder => builder.ConfigureAppConfiguration((_, config) =>
             config.AddInMemoryCollection(new Dictionary<string, string?> { ["AllowedHosts"] = "localhost" })));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-            { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
         Guid sourceId, targetId, productId, actorId;
         var monday = new DateOnly(2026, 9, 21);
         using (var scope = factory.Services.CreateScope())
@@ -42,9 +42,20 @@ public sealed class ProductionScheduleCarryoverRouteTests
             source = (await schedule.GetWeekAsync(sourceId))!;
             Assert.True((await schedule.PublishAsync(new(Guid.NewGuid(), sourceId, source.Version, "0123", actor.Id))).Success);
             var config = await db.ProductionDailyConfigurations.SingleAsync();
-            db.ProductionDailyCaptures.Add(new() { WeekId = sourceId, ProductId = productId, Quantity = 100,
-                Area = ProductionDailyArea.Cutting, StageId = config.CuttingStageId!.Value, ShiftId = config.Shift1Id!.Value,
-                EffectiveDate = source.WeekStart, ResponsibleUserId = actor.Id, RequestFingerprint = "copy-route", OperationId = Guid.NewGuid(), IsFlexible = true });
+            db.ProductionDailyCaptures.Add(new()
+            {
+                WeekId = sourceId,
+                ProductId = productId,
+                Quantity = 100,
+                Area = ProductionDailyArea.Cutting,
+                StageId = config.CuttingStageId!.Value,
+                ShiftId = config.Shift1Id!.Value,
+                EffectiveDate = source.WeekStart,
+                ResponsibleUserId = actor.Id,
+                RequestFingerprint = "copy-route",
+                OperationId = Guid.NewGuid(),
+                IsFlexible = true
+            });
             await db.SaveChangesAsync();
             targetId = (await schedule.CreateWeekAsync(new(Guid.NewGuid(), monday, actor.Id))).Id!.Value;
             var target = (await schedule.GetWeekAsync(targetId))!;
@@ -52,7 +63,7 @@ public sealed class ProductionScheduleCarryoverRouteTests
         }
         var login = await client.GetStringAsync("/Admin/Login");
         Assert.Equal(HttpStatusCode.Redirect, (await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
-            { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(login) }))).StatusCode);
+        { ["Input.Pin"] = "0123", ["__RequestVerificationToken"] = Token(login) }))).StatusCode);
         var route = $"/Admin/Production/Schedule?WeekId={targetId}";
         var html = await client.GetStringAsync(route);
         Assert.True(Regex.Count(html, "data-opening-editor") == 1);
@@ -102,8 +113,12 @@ public sealed class ProductionScheduleCarryoverRouteTests
         Assert.True(review.CanConfirm, string.Join(" | ", review.Errors));
         input = input with { ReviewedFingerprint = review.Fingerprint };
         async Task<HttpResponseMessage> Save(string pin) => await client.PostAsync("/Admin/Production/Schedule?handler=WorkspaceSave",
-            new FormUrlEncodedContent(new Dictionary<string, string> { ["payload"] = JsonSerializer.Serialize(input, JsonSerializerOptions.Web),
-                ["adminPin"] = pin, ["__RequestVerificationToken"] = Token(html) }));
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["payload"] = JsonSerializer.Serialize(input, JsonSerializerOptions.Web),
+                ["adminPin"] = pin,
+                ["__RequestVerificationToken"] = Token(html)
+            }));
         Assert.Equal(HttpStatusCode.BadRequest, (await Save("")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Save("0123")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await Save("")).StatusCode);
@@ -147,11 +162,24 @@ public sealed class ProductionScheduleCarryoverRouteTests
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
-            var historical = new ProductionScheduleWeek { WeekStart = new(2026, 8, 31), WeekEnd = new(2026, 9, 6),
-                Status = ProductionScheduleWeekStatus.Closed, ExplicitCarryover = false, CreatedByUserId = actorId,
-                OperationId = Guid.NewGuid(), RequestFingerprint = "historical-alignment-route" };
-            historical.Lines.Add(new() { ProductId = productId, PlannedDate = new(2026, 9, 2), Quantity = 100,
-                Sequence = 1, OrderReference1 = "HISTORICAL-ORDER" });
+            var historical = new ProductionScheduleWeek
+            {
+                WeekStart = new(2026, 8, 31),
+                WeekEnd = new(2026, 9, 6),
+                Status = ProductionScheduleWeekStatus.Closed,
+                ExplicitCarryover = false,
+                CreatedByUserId = actorId,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "historical-alignment-route"
+            };
+            historical.Lines.Add(new()
+            {
+                ProductId = productId,
+                PlannedDate = new(2026, 9, 2),
+                Quantity = 100,
+                Sequence = 1,
+                OrderReference1 = "HISTORICAL-ORDER"
+            });
             db.Add(historical); await db.SaveChangesAsync(); historicalId = historical.Id;
         }
         var historicalHtml = await client.GetStringAsync($"/Admin/Production/Schedule?WeekId={historicalId}");

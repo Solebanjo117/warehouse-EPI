@@ -5,8 +5,8 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using WarehouseEPI.Infrastructure.Security;
 using Microsoft.Extensions.Localization;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Admin;
@@ -69,7 +69,9 @@ public sealed class LoginModel(UserPinService userPinService, IStringLocalizer<C
 
     private static string Landing(string? role) => role switch
     {
-        "ADMIN" => "/Admin/Users/Index", "PRODUCTION" => "/Operations/Production/Index", _ => "/Index"
+        "ADMIN" => "/Admin/Users/Index",
+        "PRODUCTION" => "/Operations/Production/Index",
+        _ => "/Index"
     };
 
     public sealed class InputModel

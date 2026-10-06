@@ -23,17 +23,40 @@ public sealed class ProductionExplicitCarryoverTests
         var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         var monday = new DateOnly(2026, 10, 5);
-        var source = new ProductionScheduleWeek { WeekStart = monday.AddDays(-7), WeekEnd = monday.AddDays(-1),
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('A', 64), CreatedByUserId = admin };
+        var source = new ProductionScheduleWeek
+        {
+            WeekStart = monday.AddDays(-7),
+            WeekEnd = monday.AddDays(-1),
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('A', 64),
+            CreatedByUserId = admin
+        };
         var root = new ProductionScheduleLine { Week = source, ProductId = product.Id, Quantity = 152, PlannedDate = source.WeekStart };
-        var week = new ProductionScheduleWeek { WeekStart = monday, WeekEnd = monday.AddDays(6), ExplicitCarryover = true,
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('B', 64), CreatedByUserId = admin, Status = ProductionScheduleWeekStatus.Open };
+        var week = new ProductionScheduleWeek
+        {
+            WeekStart = monday,
+            WeekEnd = monday.AddDays(6),
+            ExplicitCarryover = true,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('B', 64),
+            CreatedByUserId = admin,
+            Status = ProductionScheduleWeekStatus.Open
+        };
         week.Lines.Add(new() { ProductId = product.Id, Quantity = 100, PlannedDate = monday });
         week.Lines.Add(new() { ProductId = product.Id, Quantity = 50, PlannedDate = monday.AddDays(1) });
-        void Capture(ProductionDailyArea area, Guid stage, int day, Guid shift, decimal qty, bool reversed = false) => week.Captures.Add(new() {
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('C', 64), ProductId = product.Id, StageId = stage,
-            Area = area, EffectiveDate = monday.AddDays(day), ShiftId = shift, Quantity = qty, ResponsibleUserId = admin,
-            Status = reversed ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active });
+        void Capture(ProductionDailyArea area, Guid stage, int day, Guid shift, decimal qty, bool reversed = false) => week.Captures.Add(new()
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('C', 64),
+            ProductId = product.Id,
+            StageId = stage,
+            Area = area,
+            EffectiveDate = monday.AddDays(day),
+            ShiftId = shift,
+            Quantity = qty,
+            ResponsibleUserId = admin,
+            Status = reversed ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active
+        });
         Capture(ProductionDailyArea.Cutting, config.CuttingStageId!.Value, 0, config.Shift1Id!.Value, 120);
         Capture(ProductionDailyArea.Cutting, config.CuttingStageId.Value, 0, config.Shift2Id!.Value, 10);
         Capture(ProductionDailyArea.Cutting, config.CuttingStageId.Value, 0, config.Shift1Id.Value, 7, true);
@@ -41,8 +64,15 @@ public sealed class ProductionExplicitCarryoverTests
         Capture(ProductionDailyArea.Sewing, config.SewingStageId!.Value, 0, config.Shift1Id.Value, 20);
         Capture(ProductionDailyArea.Sewing, config.SewingStageId.Value, 0, config.Shift2Id.Value, 5);
         db.AddRange(source, root, week);
-        db.ProductionWeekOpenings.Add(new() { WeekId = week.Id, SourceWeekId = source.Id, SourceLineId = root.Id,
-            ProductId = product.Id, Area = ProductionDailyArea.Sewing, Quantity = 40 });
+        db.ProductionWeekOpenings.Add(new()
+        {
+            WeekId = week.Id,
+            SourceWeekId = source.Id,
+            SourceLineId = root.Id,
+            ProductId = product.Id,
+            Area = ProductionDailyArea.Sewing,
+            Quantity = 40
+        });
         await db.SaveChangesAsync();
         var balances = new ProductionDailyBalanceService(db);
         var day = Assert.Single((await balances.GetDailySummaryAsync(week.Id, new(monday)))!.Products);
@@ -205,12 +235,28 @@ public sealed class ProductionExplicitCarryoverTests
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
         var dates = Enumerable.Range(0, 4).Select(i => new DateOnly(2026, 8, 3).AddDays(7 * i)).ToArray();
-        var weeks = dates.Select(date => new ProductionScheduleWeek { OperationId = Guid.NewGuid(), RequestFingerprint = new string('M', 64),
-            WeekStart = date, WeekEnd = date.AddDays(6), CreatedByUserId = admin.Id }).ToArray();
+        var weeks = dates.Select(date => new ProductionScheduleWeek
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('M', 64),
+            WeekStart = date,
+            WeekEnd = date.AddDays(6),
+            CreatedByUserId = admin.Id
+        }).ToArray();
         weeks[1].Status = ProductionScheduleWeekStatus.Closed; weeks[2].Origin = ProductionScheduleOrigin.ExcelImport;
-        weeks[3].Captures.Add(new() { OperationId = Guid.NewGuid(), RequestFingerprint = new string('C', 64), ProductId = product.Id,
-            EffectiveDate = weeks[3].WeekStart, StageId = config.CuttingStageId!.Value, ShiftId = config.Shift1Id!.Value,
-            Area = ProductionDailyArea.Cutting, Quantity = 1, ResponsibleUserId = admin.Id, Status = ProductionDailyCaptureStatus.Reversed });
+        weeks[3].Captures.Add(new()
+        {
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('C', 64),
+            ProductId = product.Id,
+            EffectiveDate = weeks[3].WeekStart,
+            StageId = config.CuttingStageId!.Value,
+            ShiftId = config.Shift1Id!.Value,
+            Area = ProductionDailyArea.Cutting,
+            Quantity = 1,
+            ResponsibleUserId = admin.Id,
+            Status = ProductionDailyCaptureStatus.Reversed
+        });
         db.AddRange(weeks); await db.SaveChangesAsync(); db.ChangeTracker.Clear();
         await db.GetService<IMigrator>().MigrateAsync("20260923150000_SevenDayProductionSchedule");
         await db.Database.MigrateAsync();

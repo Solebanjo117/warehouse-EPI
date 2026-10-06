@@ -201,12 +201,12 @@ public sealed class ProductionReportService(
         }).ToListAsync(token);
         var overdue = rows.Count(x => x.DueDate < today && x.Received < x.TargetQuantity
             && x.Status is not (ProductionWorkOrderStatus.Cancelled or ProductionWorkOrderStatus.Draft));
-        var attention=await ProductionAttentionQuery.Query(db,query,_timeProvider.GetUtcNow(),today).ToListAsync(token);
-        var alerts=attention.Count(x=>x.Count>0);
+        var attention = await ProductionAttentionQuery.Query(db, query, _timeProvider.GetUtcNow(), today).ToListAsync(token);
+        var alerts = attention.Count(x => x.Count > 0);
         return new(rows.Count,
             rows.Count(x => x.Status is ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress
                 or ProductionWorkOrderStatus.Paused or ProductionWorkOrderStatus.PrincipalClosed),
-            overdue, alerts, attention.Count(x => x.ReworkCases>0), rows.Count(x => x.Received > 0));
+            overdue, alerts, attention.Count(x => x.ReworkCases > 0), rows.Count(x => x.Received > 0));
     }
 
     private async Task<(IReadOnlyList<ProductionOrderReportRow>, int)> GetOrdersAsync(
@@ -217,21 +217,28 @@ public sealed class ProductionReportService(
         DateOnly today,
         CancellationToken token)
     {
-        var attention=ProductionAttentionQuery.Query(db,query,_timeProvider.GetUtcNow(),today);
-        if(filter.AlertsOnly){var ids=attention.Where(x=>x.SupplyProblems+x.PendingLines+x.ReworkCases+x.Overdue+x.Inactive>0).Select(x=>x.Id);query=query.Where(x=>ids.Contains(x.Id));}
+        var attention = ProductionAttentionQuery.Query(db, query, _timeProvider.GetUtcNow(), today);
+        if (filter.AlertsOnly) { var ids = attention.Where(x => x.SupplyProblems + x.PendingLines + x.ReworkCases + x.Overdue + x.Inactive > 0).Select(x => x.Id); query = query.Where(x => ids.Contains(x.Id)); }
         var total = await query.CountAsync(token);
         var rows = await query
             .OrderBy(x => x.DueDate == null).ThenBy(x => x.DueDate).ThenByDescending(x => x.CreatedAt).ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new
             {
-                x.Id, x.Number, x.Product.Sku, x.Product.Description, Unit = x.Unit.Code,
-                OriginalTarget = x.OriginalTargetQuantity, Target = x.TargetQuantity, x.Status, x.DueDate,
+                x.Id,
+                x.Number,
+                x.Product.Sku,
+                x.Product.Description,
+                Unit = x.Unit.Code,
+                OriginalTarget = x.OriginalTargetQuantity,
+                Target = x.TargetQuantity,
+                x.Status,
+                x.DueDate,
                 Received = x.Events.Where(e => e.Type == ProductionEventType.WarehouseReceived).Sum(e => e.Quantity),
                 LastActivity = x.Events.Max(e => (DateTimeOffset?)e.RecordedAt)
             }).ToListAsync(token);
-        var rowIds=rows.Select(x=>x.Id).ToArray();
-        var reasons=await ProductionAttentionQuery.Query(db,query.Where(x=>rowIds.Contains(x.Id)),_timeProvider.GetUtcNow(),today).ToDictionaryAsync(x=>x.Id,token);
+        var rowIds = rows.Select(x => x.Id).ToArray();
+        var reasons = await ProductionAttentionQuery.Query(db, query.Where(x => rowIds.Contains(x.Id)), _timeProvider.GetUtcNow(), today).ToDictionaryAsync(x => x.Id, token);
         return (rows.Select(x =>
         {
             var overdue = x.DueDate < today && x.Received < x.Target
@@ -316,8 +323,13 @@ public sealed class ProductionReportService(
             .Skip((page - 1) * pageSize).Take(pageSize)
             .Select(x => new
             {
-                x.Id, x.WorkOrderId, x.WorkOrder.Number, Stage = x.WorkOrderStage.Name,
-                Unit = x.WorkOrder.Unit.Code, Initial = x.InitialQuantity, x.OriginAt,
+                x.Id,
+                x.WorkOrderId,
+                x.WorkOrder.Number,
+                Stage = x.WorkOrderStage.Name,
+                Unit = x.WorkOrder.Unit.Code,
+                Initial = x.InitialQuantity,
+                x.OriginAt,
                 AlertHours = x.WorkOrderStage.SourceStage.ReworkAlertHours,
                 Recovered = x.Attempts.Where(a => !x.WorkOrder.Events.Any(e => e.Type == ProductionEventType.ResultReversed
                     && e.RelatedEvent!.OperationId == a.Result.OperationId)).Sum(a => a.Result.GoodQuantity),

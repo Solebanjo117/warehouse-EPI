@@ -73,8 +73,14 @@ public sealed partial class ProductionDailyScheduleService
         var sourceState = options.Where(o => changes.Any(c => c.SourceWeekId == o.SourceWeekId && c.SourceLineId == o.SourceLineId && c.Area == o.Area))
             .OrderBy(x => x.SourceWeekId).ThenBy(x => x.SourceLineId).ThenBy(x => x.Area)
             .Select(x => new { x.SourceWeekId, x.SourceLineId, x.Area, x.Fingerprint, x.Selected });
-        var fingerprint = Fingerprint(new { Request = request with { ReviewedFingerprint = "" }, captures,
-            Openings = saved.Select(x => new { x.Id, x.Quantity, x.Version, x.SourceFingerprint }), Sources = sourceState, InitialBalances = initialState });
+        var fingerprint = Fingerprint(new
+        {
+            Request = request with { ReviewedFingerprint = "" },
+            captures,
+            Openings = saved.Select(x => new { x.Id, x.Quantity, x.Version, x.SourceFingerprint }),
+            Sources = sourceState,
+            InitialBalances = initialState
+        });
         return new(true, request.SkuTotals is null ? fingerprint : Fingerprint(new { Baseline = fingerprint, Expanded = expanded.Changes }), []);
     }
 }

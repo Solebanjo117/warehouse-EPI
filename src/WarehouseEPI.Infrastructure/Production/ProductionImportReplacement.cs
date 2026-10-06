@@ -26,9 +26,13 @@ public sealed partial class ProductionScheduleImportService
     {
         var dates = source.Select(x => x.WeekStart).ToArray();
         var weeks = await db.ProductionScheduleWeeks.AsNoTracking().Where(x => dates.Contains(x.WeekStart))
-            .Select(x => new { x.Id, x.WeekStart,
+            .Select(x => new
+            {
+                x.Id,
+                x.WeekStart,
                 Lines = x.Lines.Count(l => !l.IsCancelled && !l.IsExtra && !l.IsCarryover),
-                Captures = x.Captures.Count }).ToListAsync(token);
+                Captures = x.Captures.Count
+            }).ToListAsync(token);
         var result = new List<ProductionImportReplacementImpact>();
         foreach (var incoming in source)
         {
@@ -108,20 +112,20 @@ public sealed partial class ProductionScheduleImportService
         var found = new Dictionary<int, ProductionScheduleLine>();
         var available = old.OrderBy(x => x.PlannedDate).ThenBy(x => x.Sequence).ThenBy(x => x.Id).ToList();
         for (var pass = 0; pass < 5; pass++)
-        for (var i = 0; i < rows.Length; i++)
-        {
-            if (found.ContainsKey(i)) continue;
-            var row = rows[i];
-            var match = available.FirstOrDefault(x => x.ProductId == row.ProductId && (pass switch
+            for (var i = 0; i < rows.Length; i++)
             {
-                0 => x.PlannedDate == row.Date && SameReferences(x, row) && x.Quantity == row.Quantity,
-                1 => x.PlannedDate == row.Date && SameReferences(x, row),
-                2 => SameReferences(x, row),
-                3 => x.PlannedDate == row.Date,
-                _ => true
-            }));
-            if (match is not null) { found[i] = match; available.Remove(match); }
-        }
+                if (found.ContainsKey(i)) continue;
+                var row = rows[i];
+                var match = available.FirstOrDefault(x => x.ProductId == row.ProductId && (pass switch
+                {
+                    0 => x.PlannedDate == row.Date && SameReferences(x, row) && x.Quantity == row.Quantity,
+                    1 => x.PlannedDate == row.Date && SameReferences(x, row),
+                    2 => SameReferences(x, row),
+                    3 => x.PlannedDate == row.Date,
+                    _ => true
+                }));
+                if (match is not null) { found[i] = match; available.Remove(match); }
+            }
         return rows.Select((row, i) => new ReplacementMatch(row, found.GetValueOrDefault(i))).ToArray();
     }
 
@@ -145,9 +149,23 @@ public sealed partial class ProductionScheduleImportService
             .OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.Status, x.ExplicitCarryover }).ToListAsync(token);
         var ids = weeks.Select(x => x.Id).ToArray();
         var lines = await db.ProductionScheduleLines.AsNoTracking().Where(x => ids.Contains(x.WeekId))
-            .OrderBy(x => x.Id).Select(x => new { x.Id, x.Version, x.ProductId, x.Quantity, x.PlannedDate,
-                x.IsCancelled, x.IsCarryover, x.IsExtra, x.WorkOrderId, x.Sequence,
-                x.OrderReference1, x.OrderReference2, x.OrderReference3, x.Notes }).ToListAsync(token);
+            .OrderBy(x => x.Id).Select(x => new
+            {
+                x.Id,
+                x.Version,
+                x.ProductId,
+                x.Quantity,
+                x.PlannedDate,
+                x.IsCancelled,
+                x.IsCarryover,
+                x.IsExtra,
+                x.WorkOrderId,
+                x.Sequence,
+                x.OrderReference1,
+                x.OrderReference2,
+                x.OrderReference3,
+                x.Notes
+            }).ToListAsync(token);
         var captures = await db.ProductionDailyCaptures.AsNoTracking().Where(x => ids.Contains(x.WeekId))
             .OrderBy(x => x.Id).Select(x => new { x.Id, x.Status, x.Quantity }).ToListAsync(token);
         var lineIds = lines.Select(x => x.Id).ToArray();
@@ -197,11 +215,18 @@ public sealed partial class ProductionScheduleImportService
                 var week = await db.ProductionScheduleWeeks.Include(x => x.Lines).SingleOrDefaultAsync(x => x.WeekStart == source.WeekStart, token);
                 if (week is null)
                 {
-                    week = new ProductionScheduleWeek { OperationId = Derive(operationId, source.WeekStart, "week"),
-                        RequestFingerprint = preview.Fingerprint, WeekStart = source.WeekStart,
-                        WeekEnd = source.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset), ExplicitCarryover = true,
-                        Origin = ProductionScheduleOrigin.ExcelImport, SourceName = source.Sheet,
-                        CreatedByUserId = actorId, CreatedAt = timeProvider.GetUtcNow() };
+                    week = new ProductionScheduleWeek
+                    {
+                        OperationId = Derive(operationId, source.WeekStart, "week"),
+                        RequestFingerprint = preview.Fingerprint,
+                        WeekStart = source.WeekStart,
+                        WeekEnd = source.WeekStart.AddDays(ProductionWeekCalendar.LastDayOffset),
+                        ExplicitCarryover = true,
+                        Origin = ProductionScheduleOrigin.ExcelImport,
+                        SourceName = source.Sheet,
+                        CreatedByUserId = actorId,
+                        CreatedAt = timeProvider.GetUtcNow()
+                    };
                     db.ProductionScheduleWeeks.Add(week);
                 }
                 var old = week.Lines.Where(x => !x.IsCancelled && !x.IsExtra && !x.IsCarryover).ToArray();
@@ -217,11 +242,18 @@ public sealed partial class ProductionScheduleImportService
                         // Remove only the plan contribution. Keep the order and every capture/allocation unchanged.
                         line.IsExtra = true;
                         line.Version++;
-                        db.ProductionScheduleRevisions.Add(new ProductionScheduleRevision {
+                        db.ProductionScheduleRevisions.Add(new ProductionScheduleRevision
+                        {
                             OperationId = Derive(operationId, source.WeekStart, $"detach:{line.Id}"),
-                            RequestFingerprint = preview.Fingerprint, WeekId = week.Id, LineId = line.Id,
-                            Action = DetachedLineAction, BeforeJson = previous, AfterJson = JsonSerializer.Serialize(ReplacementLineSnapshot(line)),
-                            ResponsibleUserId = actorId, RecordedAt = timeProvider.GetUtcNow() });
+                            RequestFingerprint = preview.Fingerprint,
+                            WeekId = week.Id,
+                            LineId = line.Id,
+                            Action = DetachedLineAction,
+                            BeforeJson = previous,
+                            AfterJson = JsonSerializer.Serialize(ReplacementLineSnapshot(line)),
+                            ResponsibleUserId = actorId,
+                            RecordedAt = timeProvider.GetUtcNow()
+                        });
                     }
                     else { line.IsCancelled = true; line.Version++; }
                 }
@@ -242,33 +274,59 @@ public sealed partial class ProductionScheduleImportService
                             line.Reference1, line.Reference2, line.Reference3, line.Notes, actorId, "",
                             line.OriginalType, line.OriginalAnnotation1, line.OriginalAnnotation2,
                             line.OriginalAnnotation1Kind, line.OriginalAnnotation2Kind), token);
-                        if (!saved.Success) return await AbortReplacementAsync(saved with {
+                        if (!saved.Success) return await AbortReplacementAsync(saved with
+                        {
                             Errors = (saved.Errors ?? ["No fue posible ajustar la orden vinculada."])
-                                .Select(x => $"{source.Sheet} · {line.Sku} · fila {line.SourceRow}: {x}").ToArray() });
+                                .Select(x => $"{source.Sheet} · {line.Sku} · fila {line.SourceRow}: {x}").ToArray()
+                        });
                         var updated = await db.ProductionScheduleLines.SingleAsync(x => x.Id == saved.Id, token);
                         updated.SourceSheet = line.SourceSheet ?? source.Sheet;
                         updated.SourceRow = line.SourceRow;
                         added.Add(updated);
                         continue;
                     }
-                    var replacement = new ProductionScheduleLine { WeekId = week.Id, Sequence = ++sequence,
-                        PlannedDate = line.Date, ProductId = line.ProductId, Quantity = line.Quantity,
-                        OrderReference1 = line.Reference1, OrderReference2 = line.Reference2, OrderReference3 = line.Reference3,
-                        Notes = line.Notes, Origin = ProductionScheduleOrigin.ExcelImport, StartArea = line.StartArea,
-                        SourceSheet = line.SourceSheet ?? source.Sheet, SourceRow = line.SourceRow,
-                        OriginalType = line.OriginalType, OriginalAnnotation1 = line.OriginalAnnotation1,
-                        OriginalAnnotation2 = line.OriginalAnnotation2, OriginalAnnotation1Kind = line.OriginalAnnotation1Kind,
-                        OriginalAnnotation2Kind = line.OriginalAnnotation2Kind };
+                    var replacement = new ProductionScheduleLine
+                    {
+                        WeekId = week.Id,
+                        Sequence = ++sequence,
+                        PlannedDate = line.Date,
+                        ProductId = line.ProductId,
+                        Quantity = line.Quantity,
+                        OrderReference1 = line.Reference1,
+                        OrderReference2 = line.Reference2,
+                        OrderReference3 = line.Reference3,
+                        Notes = line.Notes,
+                        Origin = ProductionScheduleOrigin.ExcelImport,
+                        StartArea = line.StartArea,
+                        SourceSheet = line.SourceSheet ?? source.Sheet,
+                        SourceRow = line.SourceRow,
+                        OriginalType = line.OriginalType,
+                        OriginalAnnotation1 = line.OriginalAnnotation1,
+                        OriginalAnnotation2 = line.OriginalAnnotation2,
+                        OriginalAnnotation1Kind = line.OriginalAnnotation1Kind,
+                        OriginalAnnotation2Kind = line.OriginalAnnotation2Kind
+                    };
                     week.Lines.Add(replacement);
                     db.ProductionScheduleLines.Add(replacement);
                     added.Add(replacement);
                 }
                 week.Version++;
-                db.ProductionScheduleRevisions.Add(new ProductionScheduleRevision {
+                db.ProductionScheduleRevisions.Add(new ProductionScheduleRevision
+                {
                     OperationId = firstWeek is null ? operationId : Derive(operationId, source.WeekStart, "replace-programming"),
-                    RequestFingerprint = preview.Fingerprint, WeekId = week.Id, Action = "programming-replaced",
-                    BeforeJson = before, AfterJson = JsonSerializer.Serialize(new { preview.FileName, preview.FileHash,
-                        Lines = added.Select(ReplacementLineSnapshot) }), ResponsibleUserId = actorId, RecordedAt = timeProvider.GetUtcNow() });
+                    RequestFingerprint = preview.Fingerprint,
+                    WeekId = week.Id,
+                    Action = "programming-replaced",
+                    BeforeJson = before,
+                    AfterJson = JsonSerializer.Serialize(new
+                    {
+                        preview.FileName,
+                        preview.FileHash,
+                        Lines = added.Select(ReplacementLineSnapshot)
+                    }),
+                    ResponsibleUserId = actorId,
+                    RecordedAt = timeProvider.GetUtcNow()
+                });
                 firstWeek ??= week.Id;
             }
             await db.SaveChangesAsync(token);
@@ -286,11 +344,17 @@ public sealed partial class ProductionScheduleImportService
                     row.Version++;
                 }
                 var targetDate = await db.ProductionScheduleWeeks.Where(x => x.Id == group.Key).Select(x => x.WeekStart).SingleAsync(token);
-                db.ProductionScheduleRevisions.Add(new ProductionScheduleRevision {
-                    OperationId = Derive(operationId, targetDate, "import-openings-reviewed"), RequestFingerprint = preview.Fingerprint,
-                    WeekId = group.Key, Action = "import-openings-reviewed", BeforeJson = before,
+                db.ProductionScheduleRevisions.Add(new ProductionScheduleRevision
+                {
+                    OperationId = Derive(operationId, targetDate, "import-openings-reviewed"),
+                    RequestFingerprint = preview.Fingerprint,
+                    WeekId = group.Key,
+                    Action = "import-openings-reviewed",
+                    BeforeJson = before,
                     AfterJson = JsonSerializer.Serialize(group.Select(x => new { x.Id, x.SourceLineId, x.Quantity, x.SourceFingerprint, x.Version })),
-                    ResponsibleUserId = actorId, RecordedAt = timeProvider.GetUtcNow() });
+                    ResponsibleUserId = actorId,
+                    RecordedAt = timeProvider.GetUtcNow()
+                });
             }
             if (reviewedOpenings.Count > 0) await db.SaveChangesAsync(token);
             if (transaction is not null) await transaction.CommitAsync(token);
@@ -311,8 +375,29 @@ public sealed partial class ProductionScheduleImportService
         }
     }
 
-    private static object ReplacementLineSnapshot(ProductionScheduleLine x) => new { x.Id, x.Sequence, x.PlannedDate,
-        x.ProductId, x.Quantity, x.OrderReference1, x.OrderReference2, x.OrderReference3, x.Notes, x.Origin,
-        x.OriginalType, x.OriginalAnnotation1, x.OriginalAnnotation2, x.OriginalAnnotation1Kind, x.OriginalAnnotation2Kind,
-        x.StartArea, x.SourceSheet, x.SourceRow, x.WorkOrderId, x.IsExtra, x.IsCancelled, x.Version };
+    private static object ReplacementLineSnapshot(ProductionScheduleLine x) => new
+    {
+        x.Id,
+        x.Sequence,
+        x.PlannedDate,
+        x.ProductId,
+        x.Quantity,
+        x.OrderReference1,
+        x.OrderReference2,
+        x.OrderReference3,
+        x.Notes,
+        x.Origin,
+        x.OriginalType,
+        x.OriginalAnnotation1,
+        x.OriginalAnnotation2,
+        x.OriginalAnnotation1Kind,
+        x.OriginalAnnotation2Kind,
+        x.StartArea,
+        x.SourceSheet,
+        x.SourceRow,
+        x.WorkOrderId,
+        x.IsExtra,
+        x.IsCancelled,
+        x.Version
+    };
 }

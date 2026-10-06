@@ -55,8 +55,12 @@ public sealed partial class ProductionDailyBalanceService
         if (balance is null) return [];
         var ids = balance.Rows.Select(x => x.ProductId).Distinct().ToArray();
         var openings = balance.Rows.Where(x => x.Date == balance.WeekStart).SelectMany(row =>
-            new[] { row.Cutting, row.Sewing, row.ReadyToPack }.Select(area => new { row.ProductId, area.Area,
-                Quantity = area.SignedPending + area.Completed - area.ProgrammedToday })).Where(x => x.Quantity != 0).ToArray();
+            new[] { row.Cutting, row.Sewing, row.ReadyToPack }.Select(area => new
+            {
+                row.ProductId,
+                area.Area,
+                Quantity = area.SignedPending + area.Completed - area.ProgrammedToday
+            })).Where(x => x.Quantity != 0).ToArray();
         var units = await db.Products.AsNoTracking().Where(x => ids.Contains(x.Id))
             .Select(x => new { x.Id, Unit = x.BaseUnit.Code })
             .ToDictionaryAsync(x => x.Id, x => x.Unit, token);
@@ -104,8 +108,10 @@ public sealed partial class ProductionDailyBalanceService
                 }).ToArray()
             }).ToArray();
             return new ProductionScheduleProductProgress(product.Key, product.First().Sku, units[product.Key], recoveredDays)
-            { Openings = openings.Where(x => x.ProductId == product.Key).OrderBy(x => x.Area)
-                .Select(x => new ProductionScheduleOpeningSummary(x.Area, x.Quantity)).ToArray() };
+            {
+                Openings = openings.Where(x => x.ProductId == product.Key).OrderBy(x => x.Area)
+                .Select(x => new ProductionScheduleOpeningSummary(x.Area, x.Quantity)).ToArray()
+            };
         }).OrderBy(x => x.Sku, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProductId).ToArray();
     }
 }

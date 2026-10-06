@@ -75,81 +75,92 @@ public sealed class ProductionWeekOpeningService(WarehouseDbContext db)
         var legacyAdmissions = new Dictionary<(Guid WeekId, Guid LineId, ProductionDailyArea Area), (decimal Admitted, decimal ConsumedBefore)>();
         var legacyResidualRoots = new Dictionary<(Guid WeekId, Guid LineId, ProductionDailyArea Area), decimal>();
         foreach (var source in weeks.Values.OrderBy(x => x.WeekStart))
-        foreach (var line in lines)
-        foreach (var area in Enum.GetValues<ProductionDailyArea>())
-        {
-            if (!Applies(line, area)) continue;
-            var own = line.WeekId == source.Id && !line.IsCancelled &&
-                (source.ExplicitCarryover || !line.IsCarryover || (line.StartArea ?? ProductionDailyArea.Cutting) == area) ? line.Quantity : 0;
-            var admitted = openings.Where(x => x.WeekId == source.Id && x.SourceLineId == line.Id && x.Area == area).Sum(x => x.Quantity);
-            var consumedBefore = 0m;
-            if (!source.ExplicitCarryover && line.WorkOrderId.HasValue && weeks[line.WeekId].WeekStart < source.WeekStart && !line.IsCancelled)
-            {
-                consumedBefore = allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area && (!x.ExplicitCarryover || x.WeekId == line.WeekId) &&
-                    x.EffectiveDate < source.WeekStart).Sum(x => x.Quantity) + legacyResidualRoots
-                    .Where(x => x.Key.LineId == line.Id && x.Key.Area == area &&
-                        (!weeks[x.Key.WeekId].ExplicitCarryover || x.Key.WeekId == line.WeekId) &&
-                        weeks[x.Key.WeekId].WeekStart < source.WeekStart).Sum(x => x.Value);
-                var inheritedKey = (source.Id, line.ProductId, area);
-                var inherited = Math.Min(Math.Max(0, line.Quantity - consumedBefore), legacyInherited.GetValueOrDefault(inheritedKey));
-                admitted += inherited;
-                legacyInherited[inheritedKey] = legacyInherited.GetValueOrDefault(inheritedKey) - inherited;
-            }
-            if (!source.ExplicitCarryover) legacyAdmissions[(source.Id, line.Id, area)] = (admitted, consumedBefore);
-            var consumedHere = allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area && x.WeekId == source.Id).Sum(x => x.Quantity);
-            var residualKey = (source.Id, line.ProductId, area);
-            var residualUsed = Math.Min(Math.Max(0, own + admitted - consumedHere), residualByArea.GetValueOrDefault(residualKey));
-            legacyResidualRoots[(source.Id, line.Id, area)] = residualUsed;
-            residualByArea[residualKey] = residualByArea.GetValueOrDefault(residualKey) - residualUsed;
-        }
+            foreach (var line in lines)
+                foreach (var area in Enum.GetValues<ProductionDailyArea>())
+                {
+                    if (!Applies(line, area)) continue;
+                    var own = line.WeekId == source.Id && !line.IsCancelled &&
+                        (source.ExplicitCarryover || !line.IsCarryover || (line.StartArea ?? ProductionDailyArea.Cutting) == area) ? line.Quantity : 0;
+                    var admitted = openings.Where(x => x.WeekId == source.Id && x.SourceLineId == line.Id && x.Area == area).Sum(x => x.Quantity);
+                    var consumedBefore = 0m;
+                    if (!source.ExplicitCarryover && line.WorkOrderId.HasValue && weeks[line.WeekId].WeekStart < source.WeekStart && !line.IsCancelled)
+                    {
+                        consumedBefore = allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area && (!x.ExplicitCarryover || x.WeekId == line.WeekId) &&
+                            x.EffectiveDate < source.WeekStart).Sum(x => x.Quantity) + legacyResidualRoots
+                            .Where(x => x.Key.LineId == line.Id && x.Key.Area == area &&
+                                (!weeks[x.Key.WeekId].ExplicitCarryover || x.Key.WeekId == line.WeekId) &&
+                                weeks[x.Key.WeekId].WeekStart < source.WeekStart).Sum(x => x.Value);
+                        var inheritedKey = (source.Id, line.ProductId, area);
+                        var inherited = Math.Min(Math.Max(0, line.Quantity - consumedBefore), legacyInherited.GetValueOrDefault(inheritedKey));
+                        admitted += inherited;
+                        legacyInherited[inheritedKey] = legacyInherited.GetValueOrDefault(inheritedKey) - inherited;
+                    }
+                    if (!source.ExplicitCarryover) legacyAdmissions[(source.Id, line.Id, area)] = (admitted, consumedBefore);
+                    var consumedHere = allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area && x.WeekId == source.Id).Sum(x => x.Quantity);
+                    var residualKey = (source.Id, line.ProductId, area);
+                    var residualUsed = Math.Min(Math.Max(0, own + admitted - consumedHere), residualByArea.GetValueOrDefault(residualKey));
+                    legacyResidualRoots[(source.Id, line.Id, area)] = residualUsed;
+                    residualByArea[residualKey] = residualByArea.GetValueOrDefault(residualKey) - residualUsed;
+                }
         var result = new List<ProductionOpeningOption>();
         foreach (var source in weeks.Values.OrderBy(x => x.WeekStart))
-        foreach (var line in lines)
-        foreach (var area in Enum.GetValues<ProductionDailyArea>())
-        {
-            if (!Applies(line, area)) continue;
-            var own = line.WeekId == source.Id && !line.IsCancelled ? line.Quantity : 0;
-            if (!source.ExplicitCarryover && line.IsCarryover && (line.StartArea ?? ProductionDailyArea.Cutting) != area)
-                own = 0;
-            var admitted = openings.Where(x => x.WeekId == source.Id && x.SourceLineId == line.Id && x.Area == area).Sum(x => x.Quantity);
-            var consumedBefore = 0m;
-            if (!source.ExplicitCarryover)
-            {
-                (admitted, consumedBefore) = legacyAdmissions.GetValueOrDefault((source.Id, line.Id, area));
-            }
-            var selected = openings.Where(x => x.WeekId == weekId && x.SourceWeekId == source.Id && x.SourceLineId == line.Id && x.Area == area).Sum(x => x.Quantity);
-            if (own + admitted == 0 && selected == 0) continue;
-            var consumed = allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area &&
-                (source.ExplicitCarryover ? x.WeekId == source.Id : !x.ExplicitCarryover || x.WeekId == line.WeekId)).Sum(x => x.Quantity) - consumedBefore;
-            consumed += legacyResidualRoots.Where(x => x.Key.LineId == line.Id && x.Key.Area == area &&
-                (source.ExplicitCarryover ? x.Key.WeekId == source.Id : !weeks[x.Key.WeekId].ExplicitCarryover || x.Key.WeekId == line.WeekId)).Sum(x => x.Value);
-            if (source.ExplicitCarryover && own > 0)
-            {
-                consumed += allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area && !x.ExplicitCarryover).Sum(x => x.Quantity)
-                    + legacyResidualRoots.Where(x => x.Key.LineId == line.Id && x.Key.Area == area && !weeks[x.Key.WeekId].ExplicitCarryover).Sum(x => x.Value);
-            }
-            var outgoing = openings.Where(x => x.SourceLineId == line.Id && x.Area == area &&
-                (source.ExplicitCarryover ? x.SourceWeekId == source.Id && x.WeekId != weekId ||
-                    own > 0 && weeks.GetValueOrDefault(x.SourceWeekId)?.ExplicitCarryover == false :
-                    (weeks.GetValueOrDefault(x.SourceWeekId)?.ExplicitCarryover == false || x.SourceWeekId == line.WeekId) &&
-                    (x.WeekId != weekId || x.SourceWeekId != source.Id))).Sum(x => x.Quantity);
-            var residualKey = (source.Id, line.ProductId, area);
-            var remaining = Math.Max(0, own + admitted - consumed);
-            if (!source.ExplicitCarryover)
-            {
-                remaining = Math.Min(remaining, legacyBudgets.GetValueOrDefault(residualKey));
-                legacyBudgets[residualKey] = legacyBudgets.GetValueOrDefault(residualKey) - remaining;
-            }
-            var available = Math.Max(0, remaining - outgoing);
-            if (available == 0 && selected == 0) continue;
-            var fingerprint = Hash(new { WeekVersion = source.Version, LineVersion = line.Version, own, admitted, consumed, outgoing, remaining,
-                line.Product.IsActive, line.Product.BaseUnitId, line.Product.BaseUnit.AllowsDecimals });
-            var needsReview = openings.Any(x => x.WeekId == weekId && x.SourceWeekId == source.Id && x.SourceLineId == line.Id && x.Area == area && x.Quantity > 0 && x.SourceFingerprint != fingerprint);
-            result.Add(new(source.Id, source.WeekStart, weeks[line.WeekId].WeekStart, line.Id, line.ProductId, line.Product.Sku, line.Product.BaseUnit.Code,
-                line.Product.BaseUnit.AllowsDecimals, line.Sequence, area, line.Product.IsActive && !line.IsCancelled ? available : 0, selected,
-                source.Status != ProductionScheduleWeekStatus.Closed, fingerprint, needsReview,
-                line.OrderReference1, line.OrderReference2, line.OrderReference3, line.Notes));
-        }
+            foreach (var line in lines)
+                foreach (var area in Enum.GetValues<ProductionDailyArea>())
+                {
+                    if (!Applies(line, area)) continue;
+                    var own = line.WeekId == source.Id && !line.IsCancelled ? line.Quantity : 0;
+                    if (!source.ExplicitCarryover && line.IsCarryover && (line.StartArea ?? ProductionDailyArea.Cutting) != area)
+                        own = 0;
+                    var admitted = openings.Where(x => x.WeekId == source.Id && x.SourceLineId == line.Id && x.Area == area).Sum(x => x.Quantity);
+                    var consumedBefore = 0m;
+                    if (!source.ExplicitCarryover)
+                    {
+                        (admitted, consumedBefore) = legacyAdmissions.GetValueOrDefault((source.Id, line.Id, area));
+                    }
+                    var selected = openings.Where(x => x.WeekId == weekId && x.SourceWeekId == source.Id && x.SourceLineId == line.Id && x.Area == area).Sum(x => x.Quantity);
+                    if (own + admitted == 0 && selected == 0) continue;
+                    var consumed = allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area &&
+                        (source.ExplicitCarryover ? x.WeekId == source.Id : !x.ExplicitCarryover || x.WeekId == line.WeekId)).Sum(x => x.Quantity) - consumedBefore;
+                    consumed += legacyResidualRoots.Where(x => x.Key.LineId == line.Id && x.Key.Area == area &&
+                        (source.ExplicitCarryover ? x.Key.WeekId == source.Id : !weeks[x.Key.WeekId].ExplicitCarryover || x.Key.WeekId == line.WeekId)).Sum(x => x.Value);
+                    if (source.ExplicitCarryover && own > 0)
+                    {
+                        consumed += allocations.Where(x => x.ScheduleLineId == line.Id && x.Area == area && !x.ExplicitCarryover).Sum(x => x.Quantity)
+                            + legacyResidualRoots.Where(x => x.Key.LineId == line.Id && x.Key.Area == area && !weeks[x.Key.WeekId].ExplicitCarryover).Sum(x => x.Value);
+                    }
+                    var outgoing = openings.Where(x => x.SourceLineId == line.Id && x.Area == area &&
+                        (source.ExplicitCarryover ? x.SourceWeekId == source.Id && x.WeekId != weekId ||
+                            own > 0 && weeks.GetValueOrDefault(x.SourceWeekId)?.ExplicitCarryover == false :
+                            (weeks.GetValueOrDefault(x.SourceWeekId)?.ExplicitCarryover == false || x.SourceWeekId == line.WeekId) &&
+                            (x.WeekId != weekId || x.SourceWeekId != source.Id))).Sum(x => x.Quantity);
+                    var residualKey = (source.Id, line.ProductId, area);
+                    var remaining = Math.Max(0, own + admitted - consumed);
+                    if (!source.ExplicitCarryover)
+                    {
+                        remaining = Math.Min(remaining, legacyBudgets.GetValueOrDefault(residualKey));
+                        legacyBudgets[residualKey] = legacyBudgets.GetValueOrDefault(residualKey) - remaining;
+                    }
+                    var available = Math.Max(0, remaining - outgoing);
+                    if (available == 0 && selected == 0) continue;
+                    var fingerprint = Hash(new
+                    {
+                        WeekVersion = source.Version,
+                        LineVersion = line.Version,
+                        own,
+                        admitted,
+                        consumed,
+                        outgoing,
+                        remaining,
+                        line.Product.IsActive,
+                        line.Product.BaseUnitId,
+                        line.Product.BaseUnit.AllowsDecimals
+                    });
+                    var needsReview = openings.Any(x => x.WeekId == weekId && x.SourceWeekId == source.Id && x.SourceLineId == line.Id && x.Area == area && x.Quantity > 0 && x.SourceFingerprint != fingerprint);
+                    result.Add(new(source.Id, source.WeekStart, weeks[line.WeekId].WeekStart, line.Id, line.ProductId, line.Product.Sku, line.Product.BaseUnit.Code,
+                        line.Product.BaseUnit.AllowsDecimals, line.Sequence, area, line.Product.IsActive && !line.IsCancelled ? available : 0, selected,
+                        source.Status != ProductionScheduleWeekStatus.Closed, fingerprint, needsReview,
+                        line.OrderReference1, line.OrderReference2, line.OrderReference3, line.Notes));
+                }
         return result;
     }
 

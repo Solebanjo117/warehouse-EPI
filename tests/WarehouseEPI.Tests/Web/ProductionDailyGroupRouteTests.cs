@@ -57,11 +57,18 @@ public sealed class ProductionDailyGroupRouteTests
             {
                 db.ProductionDailyCaptures.Add(new ProductionDailyCapture
                 {
-                    OperationId = Guid.NewGuid(), RequestFingerprint = Guid.NewGuid().ToString(),
-                    WeekId = weekId, EffectiveDate = date, Area = area,
+                    OperationId = Guid.NewGuid(),
+                    RequestFingerprint = Guid.NewGuid().ToString(),
+                    WeekId = weekId,
+                    EffectiveDate = date,
+                    Area = area,
                     StageId = area == ProductionDailyArea.Cutting ? setup.CuttingStageId!.Value : setup.SewingStageId!.Value,
-                    ShiftId = shift, ProductId = productId, Quantity = quantity, ResponsibleUserId = user.Id,
-                    RecordedAt = DateTimeOffset.UtcNow, Status = status
+                    ShiftId = shift,
+                    ProductId = productId,
+                    Quantity = quantity,
+                    ResponsibleUserId = user.Id,
+                    RecordedAt = DateTimeOffset.UtcNow,
+                    Status = status
                 });
             }
             Seed(80, monday, ProductionDailyArea.Cutting, shift1, ProductionDailyCaptureStatus.Active);
@@ -81,10 +88,12 @@ public sealed class ProductionDailyGroupRouteTests
         var fields = new Dictionary<string, string>
         {
             ["Group.OperationId"] = Input(page, "Group.OperationId"),
-            ["Group.Date"] = monday.ToString("yyyy-MM-dd"), ["Group.Area"] = "Cutting",
+            ["Group.Date"] = monday.ToString("yyyy-MM-dd"),
+            ["Group.Area"] = "Cutting",
             ["Group.ShiftId"] = shift1.ToString(),
             ["Group.Rows[0].ProductId"] = productId.ToString(),
-            ["Group.Rows[0].Sku"] = "TOTAL-WEB", ["Group.Rows[0].Quantity"] = "20",
+            ["Group.Rows[0].Sku"] = "TOTAL-WEB",
+            ["Group.Rows[0].Quantity"] = "20",
             ["__RequestVerificationToken"] = Input(page, "__RequestVerificationToken")
         };
         var response = await client.PostAsync("/Operations/Production?handler=GroupPreview", new FormUrlEncodedContent(fields));
@@ -230,8 +239,11 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Equal("3,5", Input(addedProduct, "Group.Rows[0].Quantity"));
         Assert.Equal(extraProduct.ToString(), Input(addedProduct, "Group.Rows[1].ProductId"));
         Assert.Contains("UNPLANNED-WEB", addedProduct);
-        var addedAgain = await Post("GroupAdd", addedProduct, new Dictionary<string, string>(fields) {
-            ["Group.Rows[1].ProductId"] = extraProduct.ToString(), ["Group.Rows[1].Quantity"] = "", ["Group.Rows[1].Notes"] = ""
+        var addedAgain = await Post("GroupAdd", addedProduct, new Dictionary<string, string>(fields)
+        {
+            ["Group.Rows[1].ProductId"] = extraProduct.ToString(),
+            ["Group.Rows[1].Quantity"] = "",
+            ["Group.Rows[1].Notes"] = ""
         });
         Assert.DoesNotContain("name=\"Group.Rows[2].ProductId\"", addedAgain);
         Assert.Equal("3,5", Input(addedAgain, "Group.Rows[0].Quantity"));
@@ -286,8 +298,16 @@ public sealed class ProductionDailyGroupRouteTests
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/Operations/Production?handler=" + handler);
             request.Headers.Add("RequestVerificationToken", Input(balanceHtml, "__RequestVerificationToken"));
-            request.Content = JsonContent.Create(new { operationId = editId, weekId, date = monday, reason = (string?)null, fingerprint, pin,
-                cells = new[] { new { productId, area = 0, shift = 1, observed = "2", requested } } });
+            request.Content = JsonContent.Create(new
+            {
+                operationId = editId,
+                weekId,
+                date = monday,
+                reason = (string?)null,
+                fingerprint,
+                pin,
+                cells = new[] { new { productId, area = 0, shift = 1, observed = "2", requested } }
+            });
             var response = await client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -306,8 +326,11 @@ public sealed class ProductionDailyGroupRouteTests
         Assert.Equal(5, await context.ProductionDailyCaptures.Where(x => x.Status == ProductionDailyCaptureStatus.Active).SumAsync(x => x.Quantity));
 
         var login = await client.GetStringAsync("/Admin/Login");
-        var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string> {
-            ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"), ["Input.Pin"] = "0123" }));
+        var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = Input(login, "__RequestVerificationToken"),
+            ["Input.Pin"] = "0123"
+        }));
         Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
         balanceHtml = await client.GetStringAsync($"/Operations/Production?Tab=balance&WeekId={weekId}&Through={monday:yyyy-MM-dd}");
         Assert.DoesNotContain("data-plan-line=", balanceHtml);
@@ -319,10 +342,16 @@ public sealed class ProductionDailyGroupRouteTests
         using (var planRequest = new HttpRequestMessage(HttpMethod.Post, "/Operations/Production?handler=BalanceEditPreview"))
         {
             planRequest.Headers.Add("RequestVerificationToken", Input(balanceHtml, "__RequestVerificationToken"));
-            planRequest.Content = JsonContent.Create(new { operationId = Guid.NewGuid(), weekId, date = monday,
-                cells = Array.Empty<object>(), planChanges = new[] { new { lineId = planLine.GetProperty("lineId").GetGuid(),
+            planRequest.Content = JsonContent.Create(new
+            {
+                operationId = Guid.NewGuid(),
+                weekId,
+                date = monday,
+                cells = Array.Empty<object>(),
+                planChanges = new[] { new { lineId = planLine.GetProperty("lineId").GetGuid(),
                     observed = "20", requested = "22", expectedLineVersion = planLine.GetProperty("lineVersion").GetUInt32(),
-                    expectedWeekVersion = planLine.GetProperty("weekVersion").GetUInt32() } } });
+                    expectedWeekVersion = planLine.GetProperty("weekVersion").GetUInt32() } }
+            });
             var planResponse = await client.SendAsync(planRequest);
             Assert.Equal(HttpStatusCode.OK, planResponse.StatusCode);
             using var planReview = JsonDocument.Parse(await planResponse.Content.ReadAsStringAsync());
@@ -334,9 +363,15 @@ public sealed class ProductionDailyGroupRouteTests
         using (var newPlanRequest = new HttpRequestMessage(HttpMethod.Post, "/Operations/Production?handler=BalanceEditPreview"))
         {
             newPlanRequest.Headers.Add("RequestVerificationToken", Input(zeroHtml, "__RequestVerificationToken"));
-            newPlanRequest.Content = JsonContent.Create(new { operationId = Guid.NewGuid(), weekId, date = monday.AddDays(6),
-                cells = Array.Empty<object>(), newPlans = new[] { new { operationId = Guid.NewGuid(), productId,
-                    requested = "15", expectedWeekVersion = planLine.GetProperty("weekVersion").GetUInt32() } } });
+            newPlanRequest.Content = JsonContent.Create(new
+            {
+                operationId = Guid.NewGuid(),
+                weekId,
+                date = monday.AddDays(6),
+                cells = Array.Empty<object>(),
+                newPlans = new[] { new { operationId = Guid.NewGuid(), productId,
+                    requested = "15", expectedWeekVersion = planLine.GetProperty("weekVersion").GetUInt32() } }
+            });
             using var response = await client.SendAsync(newPlanRequest);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -371,8 +406,13 @@ public sealed class ProductionDailyGroupRouteTests
         async Task<HttpResponseMessage> SaveWorkspace(ProductionScheduleDraftChange[] changes) => await client.PostAsync(
             "/Admin/Production/Schedule?handler=WorkspaceSave", new FormUrlEncodedContent(new Dictionary<string, string>
             {
-                ["payload"] = JsonSerializer.Serialize(new { operationId = Guid.NewGuid(), weekId = targetId,
-                    expectedWeekVersion = (await scheduleService.GetWeekAsync(targetId))!.Version, changes }, JsonSerializerOptions.Web),
+                ["payload"] = JsonSerializer.Serialize(new
+                {
+                    operationId = Guid.NewGuid(),
+                    weekId = targetId,
+                    expectedWeekVersion = (await scheduleService.GetWeekAsync(targetId))!.Version,
+                    changes
+                }, JsonSerializerOptions.Web),
                 ["__RequestVerificationToken"] = Input(targetPage, "__RequestVerificationToken")
             }));
         ProductionScheduleDraftChange Add(DateOnly date, decimal quantity) => new("add", null, null, new(date, productId, quantity, null, null, null, null));

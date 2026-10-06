@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Localization;
-using WarehouseEPI.Web.Localization;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Locations;
 

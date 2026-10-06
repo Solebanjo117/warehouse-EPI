@@ -28,11 +28,27 @@ public sealed partial class ProductionDailyScheduleService
             return Invalid("Agrega al menos un cambio antes de confirmar.");
         // Preserve the pre-review contract's hash for retries prepared before this extension.
         var fingerprint = command.SkuTotals is not null ? Fingerprint(command) : command.InitialBalances is null && string.IsNullOrEmpty(command.Reason) && string.IsNullOrEmpty(command.ReviewedFingerprint)
-            ? Fingerprint(new { command.OperationId, command.WeekId, command.ExpectedWeekVersion,
-                command.Changes, command.ActorUserId, command.Openings })
+            ? Fingerprint(new
+            {
+                command.OperationId,
+                command.WeekId,
+                command.ExpectedWeekVersion,
+                command.Changes,
+                command.ActorUserId,
+                command.Openings
+            })
             : command.InitialBalances is null
-                ? Fingerprint(new { command.OperationId, command.WeekId, command.ExpectedWeekVersion,
-                    command.Changes, command.ActorUserId, command.Openings, command.Reason, command.ReviewedFingerprint })
+                ? Fingerprint(new
+                {
+                    command.OperationId,
+                    command.WeekId,
+                    command.ExpectedWeekVersion,
+                    command.Changes,
+                    command.ActorUserId,
+                    command.Openings,
+                    command.Reason,
+                    command.ReviewedFingerprint
+                })
                 : Fingerprint(command);
         var prior = await db.ProductionScheduleRevisions.AsNoTracking()
             .SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
@@ -69,7 +85,8 @@ public sealed partial class ProductionDailyScheduleService
             if (initialErrors.Count > 0)
                 return await CancelAbortAsync(transaction, new(ProductionDailyCommandStatus.ValidationFailed, Errors: initialErrors), token);
             var initialBefore = initialChanges.Count > 0 ? await initialService.GetAsync(week.Id, token) : [];
-            var beforeInitials = initialChanges.Select(change => {
+            var beforeInitials = initialChanges.Select(change =>
+            {
                 var before = initialBefore.SingleOrDefault(x => x.ProductId == change.ProductId && x.Area == change.Area);
                 return new { change.ProductId, change.Area, Quantity = before?.Quantity ?? 0, Version = before?.Version ?? 0 };
             }).ToArray();

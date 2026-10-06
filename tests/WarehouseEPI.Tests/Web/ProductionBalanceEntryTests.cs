@@ -3,8 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Infrastructure.Persistence;
 using static WarehouseEPI.Tests.Web.ProductionCaptureRecoveryTests;
 
 namespace WarehouseEPI.Tests.Web;
@@ -31,7 +31,11 @@ public sealed class ProductionBalanceEntryTests
                 request.Headers.Add("RequestVerificationToken", Input(page, "__RequestVerificationToken"));
                 request.Content = JsonContent.Create(new
                 {
-                    operationId, weekId = seed.WeekId, date = seed.Date, fingerprint, pin,
+                    operationId,
+                    weekId = seed.WeekId,
+                    date = seed.Date,
+                    fingerprint,
+                    pin,
                     cells = Enumerable.Range(0, 3).Select(area => new { productId = seed.Products[0], area, shift = 1, observed, requested })
                 });
                 using var response = await client.SendAsync(request);

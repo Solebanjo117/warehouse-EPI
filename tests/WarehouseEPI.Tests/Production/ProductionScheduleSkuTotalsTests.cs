@@ -21,9 +21,17 @@ public sealed class ProductionScheduleSkuTotalsTests
         week = (await service.GetWeekAsync(id))!;
         var lines = week.Lines.OrderBy(x => x.Sequence).ToArray();
         var order = await db.ProductionWorkOrders.Include(x => x.Stages).SingleAsync(x => x.Id == lines[1].WorkOrderId);
-        var processed = new ProductionEvent { WorkOrderId = order.Id, WorkOrderStageId = order.Stages.First().Id,
-            OperationId = Guid.NewGuid(), RequestFingerprint = "processed", ResponsibleUserId = actor,
-            Type = ProductionEventType.Processed, Quantity = 8, GoodQuantity = 8 };
+        var processed = new ProductionEvent
+        {
+            WorkOrderId = order.Id,
+            WorkOrderStageId = order.Stages.First().Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "processed",
+            ResponsibleUserId = actor,
+            Type = ProductionEventType.Processed,
+            Quantity = 8,
+            GoodQuantity = 8
+        };
         db.ProductionEvents.Add(processed); await db.SaveChangesAsync();
         var movements = await db.InventoryMovements.CountAsync();
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), id, week.Version, [], actor,
@@ -119,8 +127,15 @@ public sealed class ProductionScheduleSkuTotalsTests
             [new("add", null, null, new(monday, productId, 40, null, null, null, null))], actor))).Success);
         var week = (await service.GetWeekAsync(id))!;
         var line = week.Lines.Single();
-        db.ProductionWeekOpenings.Add(new() { WeekId = Guid.NewGuid(), ProductId = productId, SourceWeekId = id,
-            SourceLineId = line.Id, Area = ProductionDailyArea.Cutting, Quantity = 1 });
+        db.ProductionWeekOpenings.Add(new()
+        {
+            WeekId = Guid.NewGuid(),
+            ProductId = productId,
+            SourceWeekId = id,
+            SourceLineId = line.Id,
+            Area = ProductionDailyArea.Cutting,
+            Quantity = 1
+        });
         await db.SaveChangesAsync();
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), id, week.Version, [], actor,
             SkuTotals: [new(monday, productId, 0, null, null, null, null)]);

@@ -13,6 +13,9 @@ public static class RoleAccess
     public static bool CanCaptureProduction(string? role) => role is Admin or Production;
     public static string Name(string? role) => role switch
     {
-        Admin => "Administrador", Operator => "Operador", Production => "Producción", _ => ""
+        Admin => "Administrador",
+        Operator => "Operador",
+        Production => "Producción",
+        _ => ""
     };
 }

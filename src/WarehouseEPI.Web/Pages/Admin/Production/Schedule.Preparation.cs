@@ -31,9 +31,14 @@ public sealed partial class ScheduleModel
         Response.Headers.CacheControl = "no-store";
         var existing = await db.ProductionScheduleWeeks.AsNoTracking().Where(x => x.WeekStart == weekStart).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(token);
         var setup = await ProductionDailySetup.LoadAsync(service, db, token);
-        return new JsonResult(new { weekStart = IsoDay(weekStart), weekEnd = IsoDay(weekStart.AddDays(6)),
-            configurationReady = setup.IsReady, sources = await CopySourcesAsync(weekStart, token),
-            viewUrl = existing.HasValue ? Url.Page("Schedule", new { WeekId = existing.Value, View = "program" }) : null });
+        return new JsonResult(new
+        {
+            weekStart = IsoDay(weekStart),
+            weekEnd = IsoDay(weekStart.AddDays(6)),
+            configurationReady = setup.IsReady,
+            sources = await CopySourcesAsync(weekStart, token),
+            viewUrl = existing.HasValue ? Url.Page("Schedule", new { WeekId = existing.Value, View = "program" }) : null
+        });
     }
 
     public async Task<IActionResult> OnGetNewWeekOperationAsync(Guid operationId, CancellationToken token)
@@ -70,12 +75,20 @@ public sealed partial class ScheduleModel
         ProductionCapture.ClearPins(this);
         if (!valid) return BadRequest(new { saved = false, errors = new[] { texts["Usa un NIP de 4 a 8 dígitos."].Value } });
         var result = await service.CreatePreparedWeekAsync(PreparedCommand(input, NewWeek.WeekStart, NewWeek.OperationId), pin, token);
-        if (result.Success) return new JsonResult(new { saved = true, count = input.Changes.Count + (input.Openings?.Count ?? 0) + (input.InitialBalances?.Count ?? 0),
-            url = Url.Page("Schedule", new { WeekId = result.Id, View = "program" }) });
+        if (result.Success) return new JsonResult(new
+        {
+            saved = true,
+            count = input.Changes.Count + (input.Openings?.Count ?? 0) + (input.InitialBalances?.Count ?? 0),
+            url = Url.Page("Schedule", new { WeekId = result.Id, View = "program" })
+        });
         var existing = await db.ProductionScheduleWeeks.AsNoTracking().Where(x => x.WeekStart == NewWeek.WeekStart).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(token);
-        return new JsonResult(new { saved = false, status = result.Status.ToString(),
+        return new JsonResult(new
+        {
+            saved = false,
+            status = result.Status.ToString(),
             errors = (result.Errors ?? ["No se guardó ningún cambio."]).Select(x => ProductionDailyText.Message(texts, x)),
-            viewUrl = existing.HasValue ? Url.Page("Schedule", new { WeekId = existing.Value, View = "program" }) : null })
-            { StatusCode = existing.HasValue || result.Status is ProductionDailyCommandStatus.ConcurrencyConflict or ProductionDailyCommandStatus.IdempotencyConflict ? 409 : 400 };
+            viewUrl = existing.HasValue ? Url.Page("Schedule", new { WeekId = existing.Value, View = "program" }) : null
+        })
+        { StatusCode = existing.HasValue || result.Status is ProductionDailyCommandStatus.ConcurrencyConflict or ProductionDailyCommandStatus.IdempotencyConflict ? 409 : 400 };
     }
 }

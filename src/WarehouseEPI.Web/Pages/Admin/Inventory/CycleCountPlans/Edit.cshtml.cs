@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
-using WarehouseEPI.Web.Pages.Operations.CycleCounts;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Web.Pages.Operations.CycleCounts;
 
 namespace WarehouseEPI.Web.Pages.Admin.Inventory.CycleCountPlans;
 

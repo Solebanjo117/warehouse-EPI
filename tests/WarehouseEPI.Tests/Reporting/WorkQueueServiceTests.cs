@@ -36,7 +36,10 @@ public sealed class WorkQueueServiceTests
 
         var campaign = new CycleCountCampaign
         {
-            OperationId = Guid.NewGuid(), Number = 17, Title = "Fila A", Status = CycleCountCampaignStatus.InProgress,
+            OperationId = Guid.NewGuid(),
+            Number = 17,
+            Title = "Fila A",
+            Status = CycleCountCampaignStatus.InProgress,
             CreatedByUser = user
         };
         campaign.Locations.Add(new CycleCountLocation { Location = location, SortOrder = 2, Status = CycleCountLocationStatus.Pending });
@@ -65,14 +68,23 @@ public sealed class WorkQueueServiceTests
         db.AddRange(product, user, location);
         db.ProductionWorkOrders.Add(new ProductionWorkOrder
         {
-            CreateOperationId = Guid.NewGuid(), CreateFingerprint = "find-order", Number = "OP-FIND",
-            ExternalReference = "REF-ABC", Product = product, UnitId = 1, TargetQuantity = 20,
-            Status = ProductionWorkOrderStatus.InProgress, CreatedByUser = user
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = "find-order",
+            Number = "OP-FIND",
+            ExternalReference = "REF-ABC",
+            Product = product,
+            UnitId = 1,
+            TargetQuantity = 20,
+            Status = ProductionWorkOrderStatus.InProgress,
+            CreatedByUser = user
         });
         var campaign = new CycleCountCampaign
         {
-            OperationId = Guid.NewGuid(), Number = 21, Title = "Inventario especial",
-            Status = CycleCountCampaignStatus.Released, CreatedByUser = user
+            OperationId = Guid.NewGuid(),
+            Number = 21,
+            Title = "Inventario especial",
+            Status = CycleCountCampaignStatus.Released,
+            CreatedByUser = user
         };
         campaign.Locations.Add(new CycleCountLocation { Location = location, Status = CycleCountLocationStatus.UnderReview });
         db.Add(campaign);
@@ -110,7 +122,10 @@ public sealed class WorkQueueServiceTests
         var db = new WarehouseDbContext(options);
         db.BusinessSettings.Add(new BusinessSettings
         {
-            BusinessName = "EPI", WarehouseName = "Central", WarehouseCode = "WH-01", TimeZoneId = "UTC"
+            BusinessName = "EPI",
+            WarehouseName = "Central",
+            WarehouseCode = "WH-01",
+            TimeZoneId = "UTC"
         });
         db.Roles.Add(new Role { Id = 2, Code = "ADMIN", Name = "ADMIN" });
         db.Units.Add(new Unit { Id = 1, Code = "EA", Name = "Pieza" });
@@ -123,12 +138,18 @@ public sealed class WorkQueueServiceTests
 
     private static Product CreateProduct(string sku) => new()
     {
-        Sku = sku, Description = $"Producto {sku}", BaseUnitId = 1, IsActive = true
+        Sku = sku,
+        Description = $"Producto {sku}",
+        BaseUnitId = 1,
+        IsActive = true
     };
 
     private static User CreateUser(string name) => new()
     {
-        FullName = name, RoleId = 2, PinLookup = Guid.NewGuid().ToString("N"), PinHash = "hash"
+        FullName = name,
+        RoleId = 2,
+        PinLookup = Guid.NewGuid().ToString("N"),
+        PinHash = "hash"
     };
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

@@ -28,7 +28,9 @@ public sealed class ProductImportPreviewStore(IMemoryCache cache, TimeProvider t
         var preview = new ProductImportPreview(token, ownerUserId, fileName, now, now.Add(Lifetime), rows, issues,
             sourceRowCount, consolidatedCount, missingExternalReferenceCount)
         {
-            UpdateExisting = updateExisting, Source = source, UnitOptions = unitOptions ?? [],
+            UpdateExisting = updateExisting,
+            Source = source,
+            UnitOptions = unitOptions ?? [],
             UnresolvedUnits = source?.Rows.Where(row => !row.UnitWasBlank && (!(unitOptions ?? []).Any(unit => unit.Code == row.UnitCode) ||
                     source.Issues.Any(issue => issue.Code == "invalid_unit" && issue.RowNumber is { } number && row.SourceRows.Contains(number))))
                 .Select(row => row.UnitCode).Distinct(StringComparer.Ordinal).ToList() ?? []

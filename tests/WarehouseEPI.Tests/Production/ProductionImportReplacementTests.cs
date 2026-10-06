@@ -51,17 +51,37 @@ public sealed class ProductionImportReplacementTests
         var actor = await ProductionOpeningImportTests.Seed(db);
         var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
         var config = await db.ProductionDailyConfigurations.SingleAsync();
-        var week = new ProductionScheduleWeek { WeekStart = new(2026, 9, 21), WeekEnd = new(2026, 9, 27),
-            RequestFingerprint = "before", Status = ProductionScheduleWeekStatus.Closed };
+        var week = new ProductionScheduleWeek
+        {
+            WeekStart = new(2026, 9, 21),
+            WeekEnd = new(2026, 9, 27),
+            RequestFingerprint = "before",
+            Status = ProductionScheduleWeekStatus.Closed
+        };
         var old = new ProductionScheduleLine { WeekId = week.Id, Sequence = 1, ProductId = product.Id, Quantity = 100, PlannedDate = week.WeekStart };
         var carry = new ProductionScheduleLine { WeekId = week.Id, Sequence = 2, ProductId = product.Id, Quantity = 5, PlannedDate = week.WeekStart, IsCarryover = true };
         var extra = new ProductionScheduleLine { WeekId = week.Id, Sequence = 3, ProductId = product.Id, Quantity = 2, PlannedDate = week.WeekStart, IsExtra = true };
         var other = new ProductionScheduleWeek { WeekStart = new(2026, 9, 28), RequestFingerprint = "other" };
-        var capture = new ProductionDailyCapture { WeekId = week.Id, ProductId = product.Id, Quantity = 8,
-            EffectiveDate = week.WeekStart, Area = ProductionDailyArea.Cutting, ShiftId = config.Shift1Id!.Value,
-            StageId = config.CuttingStageId!.Value, RequestFingerprint = "capture", ResponsibleUserId = actor };
-        var reversed = new ProductionDailyCapture { WeekId = week.Id, ProductId = product.Id, Quantity = 3,
-            RequestFingerprint = "reversed", Status = ProductionDailyCaptureStatus.Reversed };
+        var capture = new ProductionDailyCapture
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Quantity = 8,
+            EffectiveDate = week.WeekStart,
+            Area = ProductionDailyArea.Cutting,
+            ShiftId = config.Shift1Id!.Value,
+            StageId = config.CuttingStageId!.Value,
+            RequestFingerprint = "capture",
+            ResponsibleUserId = actor
+        };
+        var reversed = new ProductionDailyCapture
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Quantity = 3,
+            RequestFingerprint = "reversed",
+            Status = ProductionDailyCaptureStatus.Reversed
+        };
         db.AddRange(week, old, carry, extra, other, capture, reversed);
         await db.SaveChangesAsync();
         var captureBefore = JsonSerializer.Serialize(new { capture.Quantity, capture.Status, capture.OperationId, capture.RecordedAt, capture.WeekId });
@@ -129,10 +149,19 @@ public sealed class ProductionImportReplacementTests
     {
         await using var db = ProductionOpeningImportTests.Context(); await ProductionOpeningImportTests.Seed(db);
         var product = await db.Products.SingleAsync(x => x.Sku == "FG-100");
-        var week = new ProductionScheduleWeek { WeekStart = new(2026, 9, 21), RequestFingerprint = "before",
-            Status = kind == "published" ? ProductionScheduleWeekStatus.Open : ProductionScheduleWeekStatus.Draft };
-        var line = new ProductionScheduleLine { WeekId = week.Id, ProductId = product.Id, Quantity = 10,
-            WorkOrderId = kind == "order" ? Guid.NewGuid() : null };
+        var week = new ProductionScheduleWeek
+        {
+            WeekStart = new(2026, 9, 21),
+            RequestFingerprint = "before",
+            Status = kind == "published" ? ProductionScheduleWeekStatus.Open : ProductionScheduleWeekStatus.Draft
+        };
+        var line = new ProductionScheduleLine
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Quantity = 10,
+            WorkOrderId = kind == "order" ? Guid.NewGuid() : null
+        };
         db.AddRange(week, line);
         if (kind == "carryover") db.Add(new ProductionWeekOpening { SourceWeekId = week.Id, SourceLineId = line.Id, Quantity = 5 });
         await db.SaveChangesAsync();

@@ -1,7 +1,7 @@
-using ClosedXML.Excel;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
@@ -21,8 +21,16 @@ public sealed class ProductionInitialBalanceTests
         var template = await db.Products.SingleAsync(x => x.Id == productId);
         var products = Enumerable.Range(1, 36).Select(i => new Product { Sku = $"LARGE-{i}", BaseUnitId = template.BaseUnitId }).ToArray();
         db.AddRange(products);
-        var week = new ProductionScheduleWeek { CreatedByUserId = actor, RequestFingerprint = "large", OperationId = Guid.NewGuid(),
-            WeekStart = new(2026, 10, 5), WeekEnd = new(2026, 10, 11), ExplicitCarryover = true, Status = status };
+        var week = new ProductionScheduleWeek
+        {
+            CreatedByUserId = actor,
+            RequestFingerprint = "large",
+            OperationId = Guid.NewGuid(),
+            WeekStart = new(2026, 10, 5),
+            WeekEnd = new(2026, 10, 11),
+            ExplicitCarryover = true,
+            Status = status
+        };
         db.Add(week); await db.SaveChangesAsync();
         var changes = products.SelectMany(product => Enum.GetValues<ProductionDailyArea>().Select(area =>
             new ProductionInitialBalanceChange(product.Id, area, area == ProductionDailyArea.Sewing ? 0 : 12, 0))).ToArray();
@@ -53,10 +61,17 @@ public sealed class ProductionInitialBalanceTests
         ProductionScheduleWeekStatus status = ProductionScheduleWeekStatus.Open)
     {
         var (service, actor, product) = await ProductionScheduleCarryoverCopyTests.SeedAsync(db);
-        var week = new ProductionScheduleWeek { CreatedByUserId = actor, RequestFingerprint = "initial",
-            OperationId = Guid.NewGuid(), WeekStart = new(2026, 10, 5), WeekEnd = new(2026, 10, 11),
-            ExplicitCarryover = explicitWeek, Origin = explicitWeek ? ProductionScheduleOrigin.Manual : ProductionScheduleOrigin.ExcelImport,
-            Status = status };
+        var week = new ProductionScheduleWeek
+        {
+            CreatedByUserId = actor,
+            RequestFingerprint = "initial",
+            OperationId = Guid.NewGuid(),
+            WeekStart = new(2026, 10, 5),
+            WeekEnd = new(2026, 10, 11),
+            ExplicitCarryover = explicitWeek,
+            Origin = explicitWeek ? ProductionScheduleOrigin.Manual : ProductionScheduleOrigin.ExcelImport,
+            Status = status
+        };
         db.Add(week); await db.SaveChangesAsync();
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), week.Id, week.Version, [], actor,
             Reason: "Corregir arrastre", InitialBalances: [new(product, ProductionDailyArea.Cutting, 250, 0),
@@ -85,23 +100,62 @@ public sealed class ProductionInitialBalanceTests
     {
         await using var db = ProductionOpeningImportTests.Context();
         var (service, actor, product) = await ProductionScheduleCarryoverCopyTests.SeedAsync(db);
-        var week = new ProductionScheduleWeek { CreatedByUserId = actor, RequestFingerprint = "initial", OperationId = Guid.NewGuid(),
-            WeekStart = new(2026, 10, 5), WeekEnd = new(2026, 10, 11), ExplicitCarryover = explicitWeek, Status = ProductionScheduleWeekStatus.Open };
-        week.Lines.Add(new() { ProductId = product, Quantity = 100, PlannedDate = week.WeekStart, IsCarryover = !explicitWeek,
-            StartArea = ProductionDailyArea.Cutting });
+        var week = new ProductionScheduleWeek
+        {
+            CreatedByUserId = actor,
+            RequestFingerprint = "initial",
+            OperationId = Guid.NewGuid(),
+            WeekStart = new(2026, 10, 5),
+            WeekEnd = new(2026, 10, 11),
+            ExplicitCarryover = explicitWeek,
+            Status = ProductionScheduleWeekStatus.Open
+        };
+        week.Lines.Add(new()
+        {
+            ProductId = product,
+            Quantity = 100,
+            PlannedDate = week.WeekStart,
+            IsCarryover = !explicitWeek,
+            StartArea = ProductionDailyArea.Cutting
+        });
         if (explicitWeek)
         {
-            var source = new ProductionScheduleWeek { CreatedByUserId = actor, RequestFingerprint = "source", OperationId = Guid.NewGuid(),
-                WeekStart = week.WeekStart.AddDays(-7), WeekEnd = week.WeekStart.AddDays(-1), Status = ProductionScheduleWeekStatus.Open, ExplicitCarryover = true };
+            var source = new ProductionScheduleWeek
+            {
+                CreatedByUserId = actor,
+                RequestFingerprint = "source",
+                OperationId = Guid.NewGuid(),
+                WeekStart = week.WeekStart.AddDays(-7),
+                WeekEnd = week.WeekStart.AddDays(-1),
+                Status = ProductionScheduleWeekStatus.Open,
+                ExplicitCarryover = true
+            };
             var root = new ProductionScheduleLine { Week = source, ProductId = product, Quantity = 200, PlannedDate = source.WeekStart };
             db.AddRange(source, root);
-            db.ProductionWeekOpenings.Add(new() { WeekId = week.Id, ProductId = product, SourceWeekId = source.Id,
-                SourceLineId = root.Id, Area = ProductionDailyArea.Cutting, Quantity = 200, SourceFingerprint = "outdated" });
+            db.ProductionWeekOpenings.Add(new()
+            {
+                WeekId = week.Id,
+                ProductId = product,
+                SourceWeekId = source.Id,
+                SourceLineId = root.Id,
+                Area = ProductionDailyArea.Cutting,
+                Quantity = 200,
+                SourceFingerprint = "outdated"
+            });
         }
         var config = await db.ProductionDailyConfigurations.SingleAsync();
-        week.Captures.Add(new() { ProductId = product, ResponsibleUserId = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "capture",
-            Quantity = 150, EffectiveDate = week.WeekStart, Area = ProductionDailyArea.Cutting,
-            StageId = config.CuttingStageId!.Value, ShiftId = config.Shift1Id!.Value });
+        week.Captures.Add(new()
+        {
+            ProductId = product,
+            ResponsibleUserId = actor,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "capture",
+            Quantity = 150,
+            EffectiveDate = week.WeekStart,
+            Area = ProductionDailyArea.Cutting,
+            StageId = config.CuttingStageId!.Value,
+            ShiftId = config.Shift1Id!.Value
+        });
         db.Add(week); await db.SaveChangesAsync();
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), week.Id, week.Version, [], actor,
             Reason: "Corregir cantidad calculada", InitialBalances: [new(product, ProductionDailyArea.Cutting, 0, 0)]);
@@ -165,14 +219,31 @@ public sealed class ProductionInitialBalanceTests
     {
         await using var db = ProductionOpeningImportTests.Context();
         var (service, actor, product) = await ProductionScheduleCarryoverCopyTests.SeedAsync(db);
-        var week = new ProductionScheduleWeek { CreatedByUserId = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "dated",
-            WeekStart = new(2026, 10, 5), WeekEnd = new(2026, 10, 11), ExplicitCarryover = explicitWeek, Status = ProductionScheduleWeekStatus.Open };
+        var week = new ProductionScheduleWeek
+        {
+            CreatedByUserId = actor,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "dated",
+            WeekStart = new(2026, 10, 5),
+            WeekEnd = new(2026, 10, 11),
+            ExplicitCarryover = explicitWeek,
+            Status = ProductionScheduleWeekStatus.Open
+        };
         week.Lines.Add(new() { ProductId = product, Quantity = 70, IsCarryover = true, StartArea = ProductionDailyArea.Cutting, PlannedDate = week.WeekStart });
         week.Lines.Add(new() { ProductId = product, Quantity = 90, IsCarryover = true, StartArea = ProductionDailyArea.Cutting, PlannedDate = week.WeekStart.AddDays(2) });
         var configuration = await db.ProductionDailyConfigurations.SingleAsync();
-        week.Captures.Add(new() { ProductId = product, Quantity = 30, Area = ProductionDailyArea.Cutting,
-            EffectiveDate = week.WeekStart.AddDays(1), StageId = configuration.CuttingStageId!.Value, ShiftId = configuration.Shift1Id!.Value,
-            ResponsibleUserId = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "capture" });
+        week.Captures.Add(new()
+        {
+            ProductId = product,
+            Quantity = 30,
+            Area = ProductionDailyArea.Cutting,
+            EffectiveDate = week.WeekStart.AddDays(1),
+            StageId = configuration.CuttingStageId!.Value,
+            ShiftId = configuration.Shift1Id!.Value,
+            ResponsibleUserId = actor,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "capture"
+        });
         db.Add(week); await db.SaveChangesAsync();
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), week.Id, week.Version, [], actor,
             Reason: "Consolidar cantidad inicial", InitialBalances: [new(product, ProductionDailyArea.Cutting, 40.125m, 0)]);
@@ -208,8 +279,12 @@ public sealed class ProductionInitialBalanceTests
         Assert.True((await service.SaveWorkspaceChangesAsync(command)).Success);
         Assert.Equal(0, Assert.Single(await new ProductionInitialBalanceService(db).GetAsync(id), x => x.Area == ProductionDailyArea.Cutting).Quantity);
         Assert.True((await db.ProductionInitialBalances.SingleAsync()).Version > 0);
-        var excessive = command with { OperationId = Guid.NewGuid(), ExpectedWeekVersion = (await service.GetWeekAsync(id))!.Version,
-            InitialBalances = Enumerable.Repeat(new ProductionInitialBalanceChange(product, ProductionDailyArea.Cutting, 0, 1), 101).ToArray() };
+        var excessive = command with
+        {
+            OperationId = Guid.NewGuid(),
+            ExpectedWeekVersion = (await service.GetWeekAsync(id))!.Version,
+            InitialBalances = Enumerable.Repeat(new ProductionInitialBalanceChange(product, ProductionDailyArea.Cutting, 0, 1), 101).ToArray()
+        };
         Assert.False((await service.PreviewWorkspaceChangesAsync(excessive)).CanConfirm);
         Assert.False((await service.SaveWorkspaceChangesAsync(excessive)).Success);
     }
@@ -225,18 +300,49 @@ public sealed class ProductionInitialBalanceTests
         var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), id, 1,
             [new("add", null, null, new(new(2026, 10, 5), product, 10, null, null, null, null))], actor,
             Reason: reviewed ? "Motivo anterior" : "", ReviewedFingerprint: reviewed ? "review-before-migration" : "");
-        object oldRequest = reviewed ? new { command.OperationId, command.WeekId, command.ExpectedWeekVersion, command.Changes,
-            command.ActorUserId, command.Openings, command.Reason, command.ReviewedFingerprint } : new { command.OperationId,
-            command.WeekId, command.ExpectedWeekVersion, command.Changes, command.ActorUserId, command.Openings };
-        db.ProductionScheduleRevisions.Add(new() { WeekId = id, OperationId = command.OperationId, RequestFingerprint = Hash(oldRequest),
-            Action = "saved", ResponsibleUserId = actor, BeforeJson = "{}", AfterJson = "{}" });
+        object oldRequest = reviewed ? new
+        {
+            command.OperationId,
+            command.WeekId,
+            command.ExpectedWeekVersion,
+            command.Changes,
+            command.ActorUserId,
+            command.Openings,
+            command.Reason,
+            command.ReviewedFingerprint
+        } : new
+        {
+            command.OperationId,
+            command.WeekId,
+            command.ExpectedWeekVersion,
+            command.Changes,
+            command.ActorUserId,
+            command.Openings
+        };
+        db.ProductionScheduleRevisions.Add(new()
+        {
+            WeekId = id,
+            OperationId = command.OperationId,
+            RequestFingerprint = Hash(oldRequest),
+            Action = "saved",
+            ResponsibleUserId = actor,
+            BeforeJson = "{}",
+            AfterJson = "{}"
+        });
         await db.SaveChangesAsync();
         Assert.True((await service.SaveWorkspaceChangesAsync(command)).Success);
         Assert.Empty(await db.ProductionScheduleLines.ToListAsync());
         var prepared = new CreatePreparedProductionScheduleWeekCommand(Guid.NewGuid(), new(2026, 10, 5), [], actor, ReviewedFingerprint: "old-review");
         var week = await db.ProductionScheduleWeeks.SingleAsync(); week.OperationId = prepared.OperationId;
-        week.RequestFingerprint = Hash(new { prepared.OperationId, prepared.WeekStart, prepared.Lines, prepared.ActorUserId,
-            prepared.Openings, prepared.ReviewedFingerprint });
+        week.RequestFingerprint = Hash(new
+        {
+            prepared.OperationId,
+            prepared.WeekStart,
+            prepared.Lines,
+            prepared.ActorUserId,
+            prepared.Openings,
+            prepared.ReviewedFingerprint
+        });
         await db.SaveChangesAsync();
         Assert.True((await service.CreatePreparedWeekAsync(prepared, "4826")).Success);
     }

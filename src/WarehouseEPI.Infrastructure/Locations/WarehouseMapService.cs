@@ -679,19 +679,37 @@ public sealed class WarehouseMapService(WarehouseDbContext dbContext, UserPinSer
         var rack = racks[index];
         var placed = TryRowAnchor(row, out var anchor);
         var x = anchor.X + (anchor.Reverse ? racks.Length - 1 - index : index) * anchor.Step;
-        return new WarehouseMapElement { Id = StableId($"RACK|{row}|{rack}"),
-            Kind = WarehouseMapElementKind.Rack, RowCode = row, RackNumber = rack,
-            X = placed ? x : 40 + index * 62, Y = placed ? anchor.Y : 830,
-            Width = anchor.Width, Height = anchor.Height, Rotation = anchor.Rotation,
-            ZIndex = zIndex, IsVisible = placed };
+        return new WarehouseMapElement
+        {
+            Id = StableId($"RACK|{row}|{rack}"),
+            Kind = WarehouseMapElementKind.Rack,
+            RowCode = row,
+            RackNumber = rack,
+            X = placed ? x : 40 + index * 62,
+            Y = placed ? anchor.Y : 830,
+            Width = anchor.Width,
+            Height = anchor.Height,
+            Rotation = anchor.Rotation,
+            ZIndex = zIndex,
+            IsVisible = placed
+        };
     }
 
     private async Task<Dictionary<Guid, WarehouseMapPosition>> LoadPositionsAsync(CancellationToken token)
     {
         var baseRows = await dbContext.Locations.AsNoTracking()
             .Where(item => item.IsPhysicallyPresent)
-            .Select(item => new { item.Id, item.Code, item.PalletNumber, item.Description,
-                item.OperationalRole, item.IsActive, item.IsBlocked, item.BlockReason }).ToListAsync(token);
+            .Select(item => new
+            {
+                item.Id,
+                item.Code,
+                item.PalletNumber,
+                item.Description,
+                item.OperationalRole,
+                item.IsActive,
+                item.IsBlocked,
+                item.BlockReason
+            }).ToListAsync(token);
         // Keep the database queries simple here. PostgreSQL cannot translate the previous
         // aggregate projection reliably once Product.BaseUnit is joined inside GroupBy.
         // A warehouse map is an administrative view, so aggregate the already materialized

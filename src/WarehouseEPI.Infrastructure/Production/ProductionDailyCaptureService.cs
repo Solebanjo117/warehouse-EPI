@@ -240,8 +240,12 @@ public sealed partial class ProductionDailyCaptureService(
                     db.ProductionEvents.Add(new ProductionEvent
                     {
                         OperationId = Derive(command.OperationId, line.Id, order.Id, "cancel-extra"),
-                        RequestFingerprint = fp, WorkOrderId = order.Id, Type = ProductionEventType.Cancelled,
-                        ResponsibleUserId = user.Id, Reason = command.Reason.Trim(), RecordedAt = timeProvider.GetUtcNow()
+                        RequestFingerprint = fp,
+                        WorkOrderId = order.Id,
+                        Type = ProductionEventType.Cancelled,
+                        ResponsibleUserId = user.Id,
+                        Reason = command.Reason.Trim(),
+                        RecordedAt = timeProvider.GetUtcNow()
                     });
                 }
             }

@@ -22,8 +22,15 @@ public sealed class ProductionProgrammingPendingTests
         var monday = new DateOnly(2026, 9, 21);
         var week = new ProductionScheduleWeek { CreatedByUser = actor, RequestFingerprint = "opening", WeekStart = monday, WeekEnd = monday.AddDays(6) };
         week.Lines.Add(new() { Product = product, PlannedDate = monday, Quantity = 100, Sequence = 1 });
-        week.Lines.Add(new() { Product = product, PlannedDate = monday.AddDays(1), Quantity = 7, Sequence = 2,
-            IsCarryover = true, StartArea = ProductionDailyArea.ReadyToPack });
+        week.Lines.Add(new()
+        {
+            Product = product,
+            PlannedDate = monday.AddDays(1),
+            Quantity = 7,
+            Sequence = 2,
+            IsCarryover = true,
+            StartArea = ProductionDailyArea.ReadyToPack
+        });
         db.Add(week); await db.SaveChangesAsync();
         var service = new ProductionDailyBalanceService(db);
         var first = Assert.Single((await service.GetDailySummaryAsync(week.Id, new(monday)))!.Products);
@@ -48,15 +55,31 @@ public sealed class ProductionProgrammingPendingTests
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         var actor = new User { FullName = "Pending test", RoleId = 1, PinLookup = Guid.NewGuid().ToString(), PinHash = "test" };
         var monday = new DateOnly(2026, 9, 21);
-        var week = new ProductionScheduleWeek { WeekStart = monday, WeekEnd = monday.AddDays(6), CreatedByUser = actor,
-            RequestFingerprint = "pending", ExplicitCarryover = explicitCarry,
-            Status = closed ? ProductionScheduleWeekStatus.Closed : ProductionScheduleWeekStatus.Open };
+        var week = new ProductionScheduleWeek
+        {
+            WeekStart = monday,
+            WeekEnd = monday.AddDays(6),
+            CreatedByUser = actor,
+            RequestFingerprint = "pending",
+            ExplicitCarryover = explicitCarry,
+            Status = closed ? ProductionScheduleWeekStatus.Closed : ProductionScheduleWeekStatus.Open
+        };
         week.Lines.Add(new() { Product = product, Sequence = 1, PlannedDate = monday, Quantity = 300 });
         week.Lines.Add(new() { Product = product, Sequence = 2, PlannedDate = monday.AddDays(1), Quantity = 100 });
         foreach (var (qty, shift, reversed) in new[] { (298m, config.Shift1Id!.Value, false), (22m, config.Shift2Id!.Value, false), (17m, config.Shift1Id.Value, true) })
-            week.Captures.Add(new() { Product = product, EffectiveDate = monday, Area = ProductionDailyArea.Sewing,
-                StageId = config.SewingStageId!.Value, ShiftId = shift, Quantity = qty, ResponsibleUser = actor,
-                OperationId = Guid.NewGuid(), RequestFingerprint = "capture", Status = reversed ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active });
+            week.Captures.Add(new()
+            {
+                Product = product,
+                EffectiveDate = monday,
+                Area = ProductionDailyArea.Sewing,
+                StageId = config.SewingStageId!.Value,
+                ShiftId = shift,
+                Quantity = qty,
+                ResponsibleUser = actor,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "capture",
+                Status = reversed ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active
+            });
         db.Add(week); await db.SaveChangesAsync();
         var service = new ProductionDailyBalanceService(db);
         var physical = await service.GetPhysicalAsync(week.Id);

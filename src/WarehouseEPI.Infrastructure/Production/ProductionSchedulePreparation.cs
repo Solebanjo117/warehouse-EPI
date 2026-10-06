@@ -42,7 +42,8 @@ public sealed partial class ProductionDailyScheduleService
         var shifts = await db.ProductionShifts.AsNoTracking().Where(x => shiftIds.Contains(x.Id))
             .OrderBy(x => x.Id).Select(x => new { x.Id, x.IsActive }).ToListAsync(token);
         var options = openings.Count > 0 ? await openingService.OptionsAsync(command.WeekStart, token) : [];
-        return new(true, Fingerprint(new {
+        return new(true, Fingerprint(new
+        {
             Request = command with { ReviewedFingerprint = "" },
             Configuration = new { config.Version, stageIds, shiftIds, stages, shifts },
             Products = products.Select(x => new { x.Id, x.Sku, x.IsActive, x.BaseUnitId, x.BaseUnit.Code, x.BaseUnit.AllowsDecimals }),
@@ -64,8 +65,15 @@ public sealed partial class ProductionDailyScheduleService
     {
         if (!await IsAdminAsync(command.ActorUserId, token)) return Invalid("La programación requiere un usuario ADMIN autenticado.");
         var fingerprint = command.InitialBalances is null
-            ? Fingerprint(new { command.OperationId, command.WeekStart, command.Lines, command.ActorUserId,
-                command.Openings, command.ReviewedFingerprint }) : Fingerprint(command);
+            ? Fingerprint(new
+            {
+                command.OperationId,
+                command.WeekStart,
+                command.Lines,
+                command.ActorUserId,
+                command.Openings,
+                command.ReviewedFingerprint
+            }) : Fingerprint(command);
         var prior = await db.ProductionScheduleWeeks.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId, token);
         if (prior is not null) return prior.RequestFingerprint == fingerprint
             ? new(ProductionDailyCommandStatus.Success, prior.Id) : new(ProductionDailyCommandStatus.IdempotencyConflict);

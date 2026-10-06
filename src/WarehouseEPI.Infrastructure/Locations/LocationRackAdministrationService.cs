@@ -380,8 +380,16 @@ public sealed class LocationRackAdministrationService(
                         RackCode = rackCode,
                         Removed = mapElements.Select(item => new
                         {
-                            item.Id, item.RowCode, item.RackNumber, item.X, item.Y,
-                            item.Width, item.Height, item.Rotation, item.ZIndex, item.IsVisible
+                            item.Id,
+                            item.RowCode,
+                            item.RackNumber,
+                            item.X,
+                            item.Y,
+                            item.Width,
+                            item.Height,
+                            item.Rotation,
+                            item.ZIndex,
+                            item.IsVisible
                         })
                     }),
                     RequestedByUserId = requester.Id,

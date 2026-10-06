@@ -67,10 +67,15 @@ public sealed partial class ProductionDailyScheduleService
                 if (amounts[i] == 0) result.Add(new("remove", line.Id, line.Version, null));
                 else if (amounts[i] != line.Quantity || line.OrderReference1 != total.OrderReference1 ||
                     line.OrderReference2 != total.OrderReference2 || line.OrderReference3 != total.OrderReference3 || line.Notes != total.Notes)
-                    result.Add(new("edit", line.Id, line.Version, total with { Quantity = amounts[i],
-                        OriginalType = line.OriginalType, OriginalAnnotation1 = line.OriginalAnnotation1,
-                        OriginalAnnotation2 = line.OriginalAnnotation2, OriginalAnnotation1Kind = line.OriginalAnnotation1Kind,
-                        OriginalAnnotation2Kind = line.OriginalAnnotation2Kind }));
+                    result.Add(new("edit", line.Id, line.Version, total with
+                    {
+                        Quantity = amounts[i],
+                        OriginalType = line.OriginalType,
+                        OriginalAnnotation1 = line.OriginalAnnotation1,
+                        OriginalAnnotation2 = line.OriginalAnnotation2,
+                        OriginalAnnotation1Kind = line.OriginalAnnotation1Kind,
+                        OriginalAnnotation2Kind = line.OriginalAnnotation2Kind
+                    }));
             }
         }
         return (result, errors);

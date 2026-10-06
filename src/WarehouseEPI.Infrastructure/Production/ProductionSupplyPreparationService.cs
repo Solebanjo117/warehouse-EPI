@@ -111,7 +111,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         if (line.ReworkCaseId is Guid activeCase && !await ProductionExecutionService.ReworkIsOpenAsync(db, activeCase, token)) return Invalid("El retrabajo ya no tiene cantidad pendiente.");
         if ((line.SupplyRequest.WorkOrder.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed) || (line.SupplyRequest.WorkOrder.Status == ProductionWorkOrderStatus.PrincipalClosed && line.ReworkCaseId == null))) return Invalid("La orden está pausada o ya no admite entregas.");
         if (!(await CompatibleWipLocationsAsync(line, token)).Any(x => x.Id == command.DestinationLocationId)) return Invalid("El destino ya no es compatible o no está operativo.");
-        if (command.Sources.Any(x=>x.Quantity<0 || decimal.Round(x.Quantity,4)!=x.Quantity || (!line.Product.BaseUnit.AllowsDecimals && decimal.Truncate(x.Quantity)!=x.Quantity))) return Invalid("Las cantidades no son válidas para la unidad del material.");
+        if (command.Sources.Any(x => x.Quantity < 0 || decimal.Round(x.Quantity, 4) != x.Quantity || (!line.Product.BaseUnit.AllowsDecimals && decimal.Truncate(x.Quantity) != x.Quantity))) return Invalid("Las cantidades no son válidas para la unidad del material.");
         var pending = Pending(line); if (selections.Sum(x => x.Quantity) > pending) return Invalid("La preparación supera la cantidad pendiente.");
         var available = await GetSourcesAsync(line, command.DestinationLocationId, token);
         if (selections.Any(x => !available.Any(a => a.Kind == x.Kind && a.LocationId == x.LocationId && a.Available >= x.Quantity)))
@@ -123,9 +123,16 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
         var now = timeProvider.GetUtcNow();
         if (preparation is null)
         {
-            preparation = new ProductionSupplyPreparation { OperationId = command.OperationId, RequestFingerprint = fp,
-                SupplyRequestLine = line, DestinationLocationId = command.DestinationLocationId,
-                ResponsibleUserId = user.Id, CreatedAt = now, UpdatedAt = now };
+            preparation = new ProductionSupplyPreparation
+            {
+                OperationId = command.OperationId,
+                RequestFingerprint = fp,
+                SupplyRequestLine = line,
+                DestinationLocationId = command.DestinationLocationId,
+                ResponsibleUserId = user.Id,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
             db.ProductionSupplyPreparations.Add(preparation);
         }
         else
@@ -172,7 +179,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
             var line = preparation.SupplyRequestLine;
             if (preparation.Version != command.ExpectedPreparationVersion || line.SupplyRequest.Version != command.ExpectedRequestVersion) return await Abort(tx, Conflict(line.SupplyRequestId), token);
             if (line.ReworkCaseId is Guid activeCase && !await ProductionExecutionService.ReworkIsOpenAsync(db, activeCase, token)) return Invalid("El retrabajo ya no tiene cantidad pendiente.");
-        if ((line.SupplyRequest.WorkOrder.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed) || (line.SupplyRequest.WorkOrder.Status == ProductionWorkOrderStatus.PrincipalClosed && line.ReworkCaseId == null))) return await Abort(tx, Invalid("La orden está pausada o ya no admite entregas."), token);
+            if ((line.SupplyRequest.WorkOrder.Status is not (ProductionWorkOrderStatus.Released or ProductionWorkOrderStatus.InProgress or ProductionWorkOrderStatus.PrincipalClosed) || (line.SupplyRequest.WorkOrder.Status == ProductionWorkOrderStatus.PrincipalClosed && line.ReworkCaseId == null))) return await Abort(tx, Invalid("La orden está pausada o ya no admite entregas."), token);
             if (preparation.DestinationLocationId != (line.DestinationLocationId ?? line.SupplyRequest.DestinationLocationId)) return await Abort(tx, Invalid("El destino cambió. Guarda nuevamente la preparación después de revisarla."), token);
             if (tx is not null)
             {
@@ -182,7 +189,7 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
                 await InventoryMovementStore.LockLocationsAsync(locationIds, tx, token);
                 await InventoryMovementStore.LockBalancesAsync(keys, tx, token);
             }
-            if (command.ActualSources?.Any(x=>x.Quantity<0 || decimal.Round(x.Quantity,4)!=x.Quantity || (!line.Product.BaseUnit.AllowsDecimals && decimal.Truncate(x.Quantity)!=x.Quantity)) == true) return Invalid("Las cantidades no son válidas para la unidad del material.");
+            if (command.ActualSources?.Any(x => x.Quantity < 0 || decimal.Round(x.Quantity, 4) != x.Quantity || (!line.Product.BaseUnit.AllowsDecimals && decimal.Truncate(x.Quantity) != x.Quantity)) == true) return Invalid("Las cantidades no son válidas para la unidad del material.");
             var savedSources = Normalize(preparation.Sources.Select(x => new ProductionSupplySourceSelection(x.Kind, x.LocationId, x.Quantity, JsonSerializer.Deserialize<List<PalletSelection>>(x.PlatesJson))));
             var confirmedSources = requestedSources is null ? savedSources : requestedSources.Select(source =>
             {
@@ -252,9 +259,17 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
             AddEvent(line, command.OperationId, fp, confirmedSources.Any(x => x.Kind == ProductionSupplySourceKind.ExistingWip)
                 ? ProductionSupplyEventType.WipAssigned : ProductionSupplyEventType.Delivered, user, total,
                 movementId: movementIds.Count == 1 ? movementIds[0] : null);
-            var confirmation = new ProductionSupplyConfirmation { OperationId = command.OperationId, RequestFingerprint = fp,
-                SupplyRequestLine = line, Preparation = preparation, DestinationLocationId = preparation.DestinationLocationId,
-                Quantity = total, ResponsibleUserId = user.Id, RecordedAt = timeProvider.GetUtcNow() };
+            var confirmation = new ProductionSupplyConfirmation
+            {
+                OperationId = command.OperationId,
+                RequestFingerprint = fp,
+                SupplyRequestLine = line,
+                Preparation = preparation,
+                DestinationLocationId = preparation.DestinationLocationId,
+                Quantity = total,
+                ResponsibleUserId = user.Id,
+                RecordedAt = timeProvider.GetUtcNow()
+            };
             foreach (var movementId in movementIds) confirmation.Movements.Add(new ProductionSupplyConfirmationMovement { InventoryMovementId = movementId });
             foreach (var issue in issueLinks) confirmation.Issues.Add(new ProductionSupplyConfirmationIssue { IssueLink = issue });
             db.ProductionSupplyConfirmations.Add(confirmation);
@@ -488,9 +503,18 @@ public sealed class ProductionSupplyPreparationService(WarehouseDbContext db, Us
     }
     private void AddEvent(ProductionSupplyRequestLine line, Guid operationId, string fp, ProductionSupplyEventType type, User user,
         decimal quantity = 0, string? reason = null, Guid? movementId = null) => db.ProductionSupplyEvents.Add(new ProductionSupplyEvent
-        { OperationId = operationId, RequestFingerprint = fp, SupplyRequest = line.SupplyRequest, SupplyRequestLine = line,
-            Type = type, ResponsibleUserId = user.Id, Quantity = quantity, Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
-            InventoryMovementId = movementId, RecordedAt = timeProvider.GetUtcNow() });
+        {
+            OperationId = operationId,
+            RequestFingerprint = fp,
+            SupplyRequest = line.SupplyRequest,
+            SupplyRequestLine = line,
+            Type = type,
+            ResponsibleUserId = user.Id,
+            Quantity = quantity,
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+            InventoryMovementId = movementId,
+            RecordedAt = timeProvider.GetUtcNow()
+        });
     private async Task<ProductionSupplyCommandResult?> ExistingAsync(Guid operationId, string fp, CancellationToken token)
     { var e = await db.ProductionSupplyEvents.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == operationId, token); return e is null ? null : e.RequestFingerprint == fp ? new(ProductionSupplyCommandStatus.Success, e.SupplyRequestId) : new(ProductionSupplyCommandStatus.IdempotencyConflict, e.SupplyRequestId); }
     private async Task<User?> OperatorAsync(string pin, CancellationToken token) { var user = await pins.AuthenticateAsync(pin, token); return user; }

@@ -17,29 +17,66 @@ public sealed partial class ProductionDailyBalanceService
         var captures = await db.ProductionDailyCaptures.AsNoTracking()
             .Where(x => selectedProducts == null || selectedProducts.Contains(x.ProductId))
             .Where(x => x.WeekId == week.Id && x.Status == ProductionDailyCaptureStatus.Active)
-            .Select(x => new { x.Id, x.ProductId, x.Area, Date = x.EffectiveDate, x.ShiftId, x.Quantity,
-                Residual = x.Quantity - x.Allocations.Sum(a => a.Quantity) }).ToListAsync(token);
+            .Select(x => new
+            {
+                x.Id,
+                x.ProductId,
+                x.Area,
+                Date = x.EffectiveDate,
+                x.ShiftId,
+                x.Quantity,
+                Residual = x.Quantity - x.Allocations.Sum(a => a.Quantity)
+            }).ToListAsync(token);
         if (scenario is not null)
         {
             var residuals = await ExplicitScenarioResidualsAsync(week, config, scenario, token);
-            captures = captures.Select(x => new { x.Id, x.ProductId, x.Area, x.Date, x.ShiftId, x.Quantity,
-                Residual = residuals.GetValueOrDefault(x.Id, x.Residual) }).ToList();
+            captures = captures.Select(x => new
+            {
+                x.Id,
+                x.ProductId,
+                x.Area,
+                x.Date,
+                x.ShiftId,
+                x.Quantity,
+                Residual = residuals.GetValueOrDefault(x.Id, x.Residual)
+            }).ToList();
             foreach (var change in scenario.Openings ?? [])
             {
                 openings.RemoveAll(x => x.SourceWeekId == change.SourceWeekId && x.SourceLineId == change.SourceLineId && x.Area == change.Area);
                 var productId = await db.ProductionScheduleLines.Where(x => x.Id == change.SourceLineId).Select(x => x.ProductId).SingleAsync(token);
-                if (change.Quantity > 0) openings.Add(new() { WeekId = week.Id, SourceWeekId = change.SourceWeekId,
-                    SourceLineId = change.SourceLineId, ProductId = productId, Area = change.Area, Quantity = change.Quantity });
+                if (change.Quantity > 0) openings.Add(new()
+                {
+                    WeekId = week.Id,
+                    SourceWeekId = change.SourceWeekId,
+                    SourceLineId = change.SourceLineId,
+                    ProductId = productId,
+                    Area = change.Area,
+                    Quantity = change.Quantity
+                });
             }
             captures.RemoveAll(x => scenario.ReversedCaptures.Contains(x.Id));
             foreach (var addition in scenario.Additions)
-                captures.Add(new { addition.Id, addition.ProductId, addition.Area, Date = scenario.Date,
-                    addition.ShiftId, addition.Quantity, Residual = residuals.GetValueOrDefault(addition.Id) });
+                captures.Add(new
+                {
+                    addition.Id,
+                    addition.ProductId,
+                    addition.Area,
+                    Date = scenario.Date,
+                    addition.ShiftId,
+                    addition.Quantity,
+                    Residual = residuals.GetValueOrDefault(addition.Id)
+                });
             foreach (var line in lines)
                 if (scenario.PlanQuantities?.TryGetValue(line.Id, out var quantity) == true) line.Quantity = quantity;
             foreach (var addition in scenario.NewPlans ?? [])
-                lines.Add(new() { Id = addition.OperationId, WeekId = week.Id, ProductId = addition.ProductId,
-                    Quantity = addition.Requested, PlannedDate = scenario.Date });
+                lines.Add(new()
+                {
+                    Id = addition.OperationId,
+                    WeekId = week.Id,
+                    ProductId = addition.ProductId,
+                    Quantity = addition.Requested,
+                    PlannedDate = scenario.Date
+                });
         }
         if (cutoff.HasValue) captures.RemoveAll(x => x.Date == cutoff && x.ShiftId != shiftId);
         var ids = lines.Select(x => x.ProductId).Concat(openings.Select(x => x.ProductId)).Concat(captures.Select(x => x.ProductId)).Distinct().ToArray();
@@ -105,8 +142,12 @@ public sealed partial class ProductionDailyBalanceService
         var lineIds = lines.Select(x => x.Id).ToArray();
         var forwarded = await db.ProductionWeekOpenings.AsNoTracking().Where(x => x.SourceWeekId == week.Id && x.Quantity > 0).ToListAsync(token);
         var limits = lines.SelectMany(line => Enum.GetValues<ProductionDailyArea>().Select(area =>
-            new { Key = (line.Id, area), Quantity = (line.WeekId == week.Id ? scenario.PlanQuantities?.GetValueOrDefault(line.Id, line.Quantity) ?? line.Quantity
-                : admitted.Where(o => o.SourceLineId == line.Id && o.Area == area).Sum(o => o.Quantity)) - forwarded.Where(o => o.SourceLineId == line.Id && o.Area == area).Sum(o => o.Quantity) }))
+            new
+            {
+                Key = (line.Id, area),
+                Quantity = (line.WeekId == week.Id ? scenario.PlanQuantities?.GetValueOrDefault(line.Id, line.Quantity) ?? line.Quantity
+                : admitted.Where(o => o.SourceLineId == line.Id && o.Area == area).Sum(o => o.Quantity)) - forwarded.Where(o => o.SourceLineId == line.Id && o.Area == area).Sum(o => o.Quantity)
+            }))
             .ToDictionary(x => x.Key, x => x.Quantity);
         var captures = await db.ProductionDailyCaptures.AsNoTracking().Where(x => x.Status == ProductionDailyCaptureStatus.Active &&
             (x.WeekId == week.Id || x.Allocations.Any(a => lineIds.Contains(a.ScheduleLineId))))

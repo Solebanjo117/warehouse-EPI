@@ -7,8 +7,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
-using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Production;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Tests.Production;
 
 namespace WarehouseEPI.Tests.Web;
@@ -82,11 +82,18 @@ public sealed class ProductionScheduleImportRouteTests
         html = await Html(await client.GetAsync(Page + "?PreviewToken=" + draftId));
         Assert.DoesNotContain("data-import-replacement", html, StringComparison.Ordinal);
         // Posting a mode value to Confirm cannot bypass the saved review.
-        html = await Html(await Post(client, Page + "?handler=Confirm", html, new() {
-            ["PreviewToken"] = draftId.ToString(), ["ReplaceProgramming"] = "true", ["OperationId"] = Guid.NewGuid().ToString() }));
+        html = await Html(await Post(client, Page + "?handler=Confirm", html, new()
+        {
+            ["PreviewToken"] = draftId.ToString(),
+            ["ReplaceProgramming"] = "true",
+            ["OperationId"] = Guid.NewGuid().ToString()
+        }));
         Assert.DoesNotContain("data-import-replacement", html, StringComparison.Ordinal);
-        html = await Html(await Post(client, Page + "?handler=Mode", html, new() {
-            ["PreviewToken"] = draftId.ToString(), ["ReplaceProgramming"] = "true" }));
+        html = await Html(await Post(client, Page + "?handler=Mode", html, new()
+        {
+            ["PreviewToken"] = draftId.ToString(),
+            ["ReplaceProgramming"] = "true"
+        }));
         Assert.Contains("data-import-replacement", html, StringComparison.Ordinal);
         Assert.Contains("Confirmar reemplazo de programación", html, StringComparison.Ordinal);
         Assert.Contains("Capturas conservadas", html, StringComparison.Ordinal);

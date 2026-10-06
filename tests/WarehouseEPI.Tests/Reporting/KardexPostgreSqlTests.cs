@@ -38,10 +38,23 @@ public sealed class KardexPostgreSqlTests(PostgreSqlInventoryFixture fixture)
         void AddEntry(decimal quantity, DateTimeOffset at, string fingerprint)
         {
             var movement = Movement(InventoryMovementType.Entry, InventoryMovementPurpose.Standard, at, fingerprint);
-            var line = new InventoryMovementLine { Movement = movement, Product = product, UnitId = 1,
-                DestinationLocation = location, Quantity = quantity, LineNumber = 1 };
-            line.BalanceChanges.Add(new InventoryBalanceChange { MovementLine = line, Location = location,
-                DeltaQuantity = quantity, PreviousQuantity = 0m, ResultingQuantity = quantity });
+            var line = new InventoryMovementLine
+            {
+                Movement = movement,
+                Product = product,
+                UnitId = 1,
+                DestinationLocation = location,
+                Quantity = quantity,
+                LineNumber = 1
+            };
+            line.BalanceChanges.Add(new InventoryBalanceChange
+            {
+                MovementLine = line,
+                Location = location,
+                DeltaQuantity = quantity,
+                PreviousQuantity = 0m,
+                ResultingQuantity = quantity
+            });
             movement.Lines.Add(line);
             db.Add(movement);
         }
@@ -49,19 +62,37 @@ public sealed class KardexPostgreSqlTests(PostgreSqlInventoryFixture fixture)
         void AddExit(decimal quantity, DateTimeOffset at, string fingerprint)
         {
             var movement = Movement(InventoryMovementType.Exit, InventoryMovementPurpose.GeneralExit, at, fingerprint);
-            var line = new InventoryMovementLine { Movement = movement, Product = product, UnitId = 1,
-                SourceLocation = location, Quantity = quantity, LineNumber = 1 };
-            line.BalanceChanges.Add(new InventoryBalanceChange { MovementLine = line, Location = location,
-                DeltaQuantity = -quantity, PreviousQuantity = 10m, ResultingQuantity = 6m });
+            var line = new InventoryMovementLine
+            {
+                Movement = movement,
+                Product = product,
+                UnitId = 1,
+                SourceLocation = location,
+                Quantity = quantity,
+                LineNumber = 1
+            };
+            line.BalanceChanges.Add(new InventoryBalanceChange
+            {
+                MovementLine = line,
+                Location = location,
+                DeltaQuantity = -quantity,
+                PreviousQuantity = 10m,
+                ResultingQuantity = 6m
+            });
             movement.Lines.Add(line);
             db.Add(movement);
         }
 
         InventoryMovement Movement(InventoryMovementType type, InventoryMovementPurpose purpose,
             DateTimeOffset at, string fingerprint) => new()
-        {
-            OperationId = Guid.NewGuid(), RequestFingerprint = $"{fingerprint}-{suffix}", Type = type,
-            Purpose = purpose, ResponsibleUser = user, OccurredAt = at, RecordedAt = at
-        };
+            {
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = $"{fingerprint}-{suffix}",
+                Type = type,
+                Purpose = purpose,
+                ResponsibleUser = user,
+                OccurredAt = at,
+                RecordedAt = at
+            };
     }
 }

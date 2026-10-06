@@ -20,12 +20,12 @@ public sealed partial class ProductionDailyBalanceService
         var missingIds = totals.Select(x => x.ProductId).Except(rows.Select(x => x.ProductId)).Distinct().ToArray();
         var products = await db.Products.AsNoTracking().Where(x => missingIds.Contains(x.Id)).ToListAsync(token);
         foreach (var product in products)
-        foreach (var day in ProductionWeekCalendar.Days(balance.WeekStart))
-        {
-            ProductionDailyAreaBalance Empty(ProductionDailyArea area) => new(area, false, 0, 0, 0, 0, 0, 0, 0);
-            rows.Add(new(day, product.Id, product.Sku, product.Description, 0, 0, 0, 0, 0, [],
-                Empty(ProductionDailyArea.Cutting), Empty(ProductionDailyArea.Sewing), Empty(ProductionDailyArea.ReadyToPack), 0));
-        }
+            foreach (var day in ProductionWeekCalendar.Days(balance.WeekStart))
+            {
+                ProductionDailyAreaBalance Empty(ProductionDailyArea area) => new(area, false, 0, 0, 0, 0, 0, 0, 0);
+                rows.Add(new(day, product.Id, product.Sku, product.Description, 0, 0, 0, 0, 0, [],
+                    Empty(ProductionDailyArea.Cutting), Empty(ProductionDailyArea.Sewing), Empty(ProductionDailyArea.ReadyToPack), 0));
+            }
         foreach (var group in totals.GroupBy(x => x.ProductId))
         {
             ProductionDailyAreaBalance Select(ProductionDailyBalanceRow row, ProductionDailyArea area) => area switch
@@ -42,9 +42,16 @@ public sealed partial class ProductionDailyBalanceService
                     var signed = quantity + programmed - area.Completed;
                     var future = rows.Where(x => x.ProductId == row.ProductId && x.Date > row.Date).Sum(x => Select(x, area.Area).ProgrammedToday);
                     var advance = Math.Min(Math.Max(0, -signed), future);
-                    return area with { Applies = area.Applies || quantity > 0, Opening = quantity, NetPending = signed,
-                        Pending = Math.Max(0, signed), Advance = advance, Extra = Math.Max(0, -signed) - advance,
-                        OpeningToday = row.Date == balance.WeekStart ? quantity : 0 };
+                    return area with
+                    {
+                        Applies = area.Applies || quantity > 0,
+                        Opening = quantity,
+                        NetPending = signed,
+                        Pending = Math.Max(0, signed),
+                        Advance = advance,
+                        Extra = Math.Max(0, -signed) - advance,
+                        OpeningToday = row.Date == balance.WeekStart ? quantity : 0
+                    };
                 }
                 var cutting = Adjust(row.Cutting); var sewing = Adjust(row.Sewing); var pack = Adjust(row.ReadyToPack);
                 var last = new[] { cutting, sewing, pack }.LastOrDefault(x => x.Applies);
@@ -52,8 +59,13 @@ public sealed partial class ProductionDailyBalanceService
                 var target = final is null ? 0 : quantities.TryGetValue(final.Area, out var initial)
                     ? initial + rows.Where(x => x.ProductId == row.ProductId).Sum(x => Select(x, final.Area).ProgrammedToday)
                     : final.SignedPending + final.Completed;
-                rows[i] = row with { Cutting = cutting, Sewing = sewing, ReadyToPack = pack,
-                    ProgressPercent = target > 0 ? Math.Min(100, last!.Completed / target * 100) : last?.Completed > 0 ? 100 : 0 };
+                rows[i] = row with
+                {
+                    Cutting = cutting,
+                    Sewing = sewing,
+                    ReadyToPack = pack,
+                    ProgressPercent = target > 0 ? Math.Min(100, last!.Completed / target * 100) : last?.Completed > 0 ? 100 : 0
+                };
             }
         }
         return balance with { Rows = rows.OrderBy(x => x.Sku, StringComparer.OrdinalIgnoreCase).ThenBy(x => x.ProductId).ThenBy(x => x.Date).ToArray() };

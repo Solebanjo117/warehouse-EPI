@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Localization;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Web.Localization;

@@ -143,8 +143,15 @@ public sealed class LocationAreaAdministrationService(
                     },
                     Removed = mapElements.Select(item => new
                     {
-                        item.Id, item.LocationId, item.X, item.Y, item.Width, item.Height,
-                        item.Rotation, item.ZIndex, item.IsVisible
+                        item.Id,
+                        item.LocationId,
+                        item.X,
+                        item.Y,
+                        item.Width,
+                        item.Height,
+                        item.Rotation,
+                        item.ZIndex,
+                        item.IsVisible
                     })
                 }),
                 RequestedByUserId = requester.Id,

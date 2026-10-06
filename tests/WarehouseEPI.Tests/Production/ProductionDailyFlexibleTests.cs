@@ -618,16 +618,23 @@ public sealed class ProductionDailyFlexibleTests
         Assert.Equal(Assert.Single(preview.WeekClose.Products), Assert.Single(actual!.Products));
         // Even with refreshed week version, a concurrent row must never merge or create another row.
         var latest = (await Schedule(db).GetWeekAsync(week.Id))!;
-        Assert.False((await service.PreviewBalanceEditAsync(command with { OperationId = Guid.NewGuid(),
-            NewPlans = [command.NewPlans![0] with { ExpectedWeekVersion = latest.Version }] })).CanConfirm);
+        Assert.False((await service.PreviewBalanceEditAsync(command with
+        {
+            OperationId = Guid.NewGuid(),
+            NewPlans = [command.NewPlans![0] with { ExpectedWeekVersion = latest.Version }]
+        })).CanConfirm);
         using var exported = new XLWorkbook(new MemoryStream((await new ProductionDailyExportService(db, new(db)).ExportAsync(week.Id))!));
         Assert.Equal(150, exported.Worksheet("Resumen produccion semanal").Cell(5, 2).GetValue<decimal>());
         if (db.Database.IsNpgsql())
         {
             Assert.StartsWith("warehouse_epi_balance_test_", db.Database.GetDbConnection().Database);
-            var rollback = command with { OperationId = Guid.NewGuid(), Date = setup.Date.AddDays(4),
+            var rollback = command with
+            {
+                OperationId = Guid.NewGuid(),
+                Date = setup.Date.AddDays(4),
                 Cells = [new(setup.Product.Id, ProductionDailyArea.Cutting, 1, 0, 10)],
-                NewPlans = [new(Guid.NewGuid(), setup.Product.Id, 60, latest.Version)] };
+                NewPlans = [new(Guid.NewGuid(), setup.Product.Id, 60, latest.Version)]
+            };
             var rollbackPreview = await service.PreviewBalanceEditAsync(rollback);
             Assert.True(rollbackPreview.CanConfirm, string.Join(" | ", rollbackPreview.Errors));
             var orders = await db.ProductionWorkOrders.CountAsync();

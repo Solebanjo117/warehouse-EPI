@@ -4,17 +4,18 @@ namespace WarehouseEPI.Infrastructure.Production;
 
 public sealed record ProductionActionOption(string Code, string Label, bool RequiresAdmin);
 
-public sealed record ProductionBlockingTask(string Message,string Task,Guid? StageId=null,string? Url=null);
+public sealed record ProductionBlockingTask(string Message, string Task, Guid? StageId = null, string? Url = null);
 
 public static class ProductionActionPolicy
 {
     public static IReadOnlyList<ProductionBlockingTask> ClosureProgress(IReadOnlyList<ProductionStageProgress> stages)
     {
-        var result=new List<ProductionBlockingTask>();
-        foreach(var stage in stages) {
-            if(stage.AvailableInput>0)result.Add(new($"{stage.Name}: {stage.AvailableInput:0.####} por procesar. Si ya no se fabricará, solicita ajuste ADMIN.",$"result-{stage.Id}",stage.Id));
-            if(stage.PendingReceipt>0)result.Add(new($"{stage.Name}: {stage.PendingReceipt:0.####} en entregas pendientes de conciliar.","receive",stage.Id));
-            if(stage.AvailableToDeliver>0)result.Add(new($"{stage.Name}: {stage.AvailableToDeliver:0.####} buenas por entregar o recibir en bodega.",stage.Sequence==stages.Max(x=>x.Sequence)?"warehouse":$"deliver-{stage.Id}",stage.Id));
+        var result = new List<ProductionBlockingTask>();
+        foreach (var stage in stages)
+        {
+            if (stage.AvailableInput > 0) result.Add(new($"{stage.Name}: {stage.AvailableInput:0.####} por procesar. Si ya no se fabricará, solicita ajuste ADMIN.", $"result-{stage.Id}", stage.Id));
+            if (stage.PendingReceipt > 0) result.Add(new($"{stage.Name}: {stage.PendingReceipt:0.####} en entregas pendientes de conciliar.", "receive", stage.Id));
+            if (stage.AvailableToDeliver > 0) result.Add(new($"{stage.Name}: {stage.AvailableToDeliver:0.####} buenas por entregar o recibir en bodega.", stage.Sequence == stages.Max(x => x.Sequence) ? "warehouse" : $"deliver-{stage.Id}", stage.Id));
         }
         return result;
     }
@@ -48,37 +49,37 @@ public sealed record ProductionTaskOption(string Key, string Handler, string Lab
 public static class ProductionTaskContext
 {
     public static IReadOnlyList<ProductionTaskOption> Build(ProductionOrderDetail order, Guid? batchId,
-        IReadOnlyList<ProductionBatchView> batches, IReadOnlyList<ProductionDeliveryView> deliveries, IReadOnlyList<ReworkView> rework, IReadOnlyList<ProductionMaterialIssueRow>? materials=null, bool supplyPending=true)
+        IReadOnlyList<ProductionBatchView> batches, IReadOnlyList<ProductionDeliveryView> deliveries, IReadOnlyList<ReworkView> rework, IReadOnlyList<ProductionMaterialIssueRow>? materials = null, bool supplyPending = true)
     {
         var tasks = new List<ProductionTaskOption>();
-        if(order.Status == ProductionWorkOrderStatus.Draft) tasks.Add(new("planning", "Planning", "Revisar planificación", RequiresAdmin:true));
-        if(ProductionActionPolicy.Allows(order.Status, "capture"))
+        if (order.Status == ProductionWorkOrderStatus.Draft) tasks.Add(new("planning", "Planning", "Revisar planificación", RequiresAdmin: true));
+        if (ProductionActionPolicy.Allows(order.Status, "capture"))
         {
-            if(order.UsesBatchTraceability && batches.Count == 0) tasks.Add(new("batch", "Batch", "Crear lote único"));
-            if(!order.UsesBatchTraceability || batchId.HasValue)
+            if (order.UsesBatchTraceability && batches.Count == 0) tasks.Add(new("batch", "Batch", "Crear lote único"));
+            if (!order.UsesBatchTraceability || batchId.HasValue)
             {
-                foreach(var delivery in deliveries.Where(x=>x.BatchId==batchId).OrderBy(x=>x.RecordedAt).ThenBy(x=>x.Id))
-                    tasks.Add(new($"receive-{delivery.Id}","Handoff",$"Recibir {delivery.Pending:0.####} · {delivery.SourceStage} → {delivery.TargetStage}",delivery.SourceStageId,delivery.BatchId,delivery.Id,Mode:"receive"));
-                foreach(var stage in order.Stages.Where(x=>x.AvailableToDeliver>0).OrderBy(x=>x.GoodSince).ThenBy(x=>x.Sequence))
-                    tasks.Add(stage.Sequence==order.Stages.Max(x=>x.Sequence)
-                        ? new("warehouse","Warehouse","Recibir producto en bodega",stage.Id,batchId)
-                        : new($"deliver-{stage.Id}","Handoff",$"Entregar desde {stage.Name}",stage.Id,batchId,Mode:"deliver"));
-                foreach(var item in rework.Where(x=>x.BatchId==batchId&&x.Pending>0).OrderBy(x=>x.OriginAt).ThenBy(x=>x.StageId))
-                    tasks.Add(new($"rework-{item.Id}","BatchResult",$"Atender retrabajo · {item.Stage}",item.StageId,item.BatchId,CaseId:item.Id));
-                foreach(var stage in order.Stages.Where(x=>x.AvailableInput>0 && (order.Status!=ProductionWorkOrderStatus.PrincipalClosed||x.Sequence>1)).OrderBy(x=>x.InputSince).ThenBy(x=>x.Sequence))
-                    tasks.Add(new($"result-{stage.Id}",order.UsesBatchTraceability?"BatchResult":"Process",$"Registrar avance · {stage.Name}",stage.Id,batchId));
-                if(!order.UsesBatchTraceability)foreach(var stage in order.Stages.Where(x=>x.Rework>0)) tasks.Add(new($"rework-legacy-{stage.Id}","Process",$"Atender retrabajo histórico · {stage.Name}",stage.Id));
-                if(!order.UsesBatchTraceability && order.Stages.Any(x=>x.PendingReceipt>0))
-                    tasks.Add(new("handoff","Handoff","Recibir o conciliar entrega histórica",Mode:"receive"));
-                foreach(var delivery in deliveries.Where(x=>x.BatchId==batchId))
-                    tasks.Add(new($"reconcile-{delivery.Id}","Handoff",$"Conciliar entrega {delivery.Id.ToString()[..8]}",delivery.SourceStageId,delivery.BatchId,delivery.Id,Mode:"return",RequiresAdmin:true));
+                foreach (var delivery in deliveries.Where(x => x.BatchId == batchId).OrderBy(x => x.RecordedAt).ThenBy(x => x.Id))
+                    tasks.Add(new($"receive-{delivery.Id}", "Handoff", $"Recibir {delivery.Pending:0.####} · {delivery.SourceStage} → {delivery.TargetStage}", delivery.SourceStageId, delivery.BatchId, delivery.Id, Mode: "receive"));
+                foreach (var stage in order.Stages.Where(x => x.AvailableToDeliver > 0).OrderBy(x => x.GoodSince).ThenBy(x => x.Sequence))
+                    tasks.Add(stage.Sequence == order.Stages.Max(x => x.Sequence)
+                        ? new("warehouse", "Warehouse", "Recibir producto en bodega", stage.Id, batchId)
+                        : new($"deliver-{stage.Id}", "Handoff", $"Entregar desde {stage.Name}", stage.Id, batchId, Mode: "deliver"));
+                foreach (var item in rework.Where(x => x.BatchId == batchId && x.Pending > 0).OrderBy(x => x.OriginAt).ThenBy(x => x.StageId))
+                    tasks.Add(new($"rework-{item.Id}", "BatchResult", $"Atender retrabajo · {item.Stage}", item.StageId, item.BatchId, CaseId: item.Id));
+                foreach (var stage in order.Stages.Where(x => x.AvailableInput > 0 && (order.Status != ProductionWorkOrderStatus.PrincipalClosed || x.Sequence > 1)).OrderBy(x => x.InputSince).ThenBy(x => x.Sequence))
+                    tasks.Add(new($"result-{stage.Id}", order.UsesBatchTraceability ? "BatchResult" : "Process", $"Registrar avance · {stage.Name}", stage.Id, batchId));
+                if (!order.UsesBatchTraceability) foreach (var stage in order.Stages.Where(x => x.Rework > 0)) tasks.Add(new($"rework-legacy-{stage.Id}", "Process", $"Atender retrabajo histórico · {stage.Name}", stage.Id));
+                if (!order.UsesBatchTraceability && order.Stages.Any(x => x.PendingReceipt > 0))
+                    tasks.Add(new("handoff", "Handoff", "Recibir o conciliar entrega histórica", Mode: "receive"));
+                foreach (var delivery in deliveries.Where(x => x.BatchId == batchId))
+                    tasks.Add(new($"reconcile-{delivery.Id}", "Handoff", $"Conciliar entrega {delivery.Id.ToString()[..8]}", delivery.SourceStageId, delivery.BatchId, delivery.Id, Mode: "return", RequiresAdmin: true));
             }
-            if(supplyPending)tasks.Add(new("supply","","Consultar surtimientos",Url:$"/Operations/ProductionSupply/Index?Search={Uri.EscapeDataString(order.Number)}"));
-            foreach(var stage in order.Stages.Where(s=>materials?.Any(m=>m.StageId==s.Id&&m.Pending>0)==true)) tasks.Add(new($"material-{stage.Id}","Material",$"Devolución y merma · {stage.Name}",stage.Id,batchId));
+            if (supplyPending) tasks.Add(new("supply", "", "Consultar surtimientos", Url: $"/Operations/ProductionSupply/Index?Search={Uri.EscapeDataString(order.Number)}"));
+            foreach (var stage in order.Stages.Where(s => materials?.Any(m => m.StageId == s.Id && m.Pending > 0) == true)) tasks.Add(new($"material-{stage.Id}", "Material", $"Devolución y merma · {stage.Name}", stage.Id, batchId));
         }
-        foreach(var action in ProductionActionPolicy.OrderActions(order.Status)) tasks.Add(new(action.Code,"Action",action.Label,Mode:action.Code,RequiresAdmin:action.RequiresAdmin));
-        if(ProductionActionPolicy.ExecutionActions(order.Status).Count>0)
-            tasks.Add(new("execution","","Revisar cierre, reservas y ajustes",Url:$"/Operations/Production/Execution?id={order.Id}"));
+        foreach (var action in ProductionActionPolicy.OrderActions(order.Status)) tasks.Add(new(action.Code, "Action", action.Label, Mode: action.Code, RequiresAdmin: action.RequiresAdmin));
+        if (ProductionActionPolicy.ExecutionActions(order.Status).Count > 0)
+            tasks.Add(new("execution", "", "Revisar cierre, reservas y ajustes", Url: $"/Operations/Production/Execution?id={order.Id}"));
         return tasks;
     }
 }

@@ -18,15 +18,27 @@ public sealed class ProductionReportPostgreSqlTests(PostgreSqlInventoryFixture f
         var user = await db.Users.SingleAsync(x => x.FullName == $"Operador PG-PROD-REPORT-{suffix}");
         var order = new ProductionWorkOrder
         {
-            CreateOperationId = Guid.NewGuid(), CreateFingerprint = $"p6-{suffix}", Number = $"ORD-P6-{suffix}",
-            ProductId = seed.ProductId, UnitId = 1, OriginalTargetQuantity = 10, TargetQuantity = 10,
-            AuthorizedQuantity = 10, DueDate = new DateOnly(2026, 9, 15), Status = ProductionWorkOrderStatus.InProgress,
-            CreatedByUserId = user.Id, CreatedAt = new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)
+            CreateOperationId = Guid.NewGuid(),
+            CreateFingerprint = $"p6-{suffix}",
+            Number = $"ORD-P6-{suffix}",
+            ProductId = seed.ProductId,
+            UnitId = 1,
+            OriginalTargetQuantity = 10,
+            TargetQuantity = 10,
+            AuthorizedQuantity = 10,
+            DueDate = new DateOnly(2026, 9, 15),
+            Status = ProductionWorkOrderStatus.InProgress,
+            CreatedByUserId = user.Id,
+            CreatedAt = new DateTimeOffset(2026, 9, 10, 12, 0, 0, TimeSpan.Zero)
         };
         order.Events.Add(new ProductionEvent
         {
-            OperationId = Guid.NewGuid(), RequestFingerprint = $"receipt-{suffix}", Type = ProductionEventType.WarehouseReceived,
-            ResponsibleUserId = user.Id, Quantity = 4, RecordedAt = new DateTimeOffset(2026, 9, 15, 12, 0, 0, TimeSpan.Zero)
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = $"receipt-{suffix}",
+            Type = ProductionEventType.WarehouseReceived,
+            ResponsibleUserId = user.Id,
+            Quantity = 4,
+            RecordedAt = new DateTimeOffset(2026, 9, 15, 12, 0, 0, TimeSpan.Zero)
         });
         db.ProductionWorkOrders.Add(order);
         await db.SaveChangesAsync();

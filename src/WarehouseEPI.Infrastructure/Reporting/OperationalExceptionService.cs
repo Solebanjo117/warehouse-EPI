@@ -176,7 +176,9 @@ public sealed class OperationalExceptionService(
                     entry.PrimaryText, entry.SecondaryText, entry.ReasonText, entry.ValueText, entry.TargetUrl,
                     entry.AssignedUserId, entry.AssignedUser == null ? null : entry.AssignedUser.FullName, entry.FirstDetectedAt, entry.LastDetectedAt,
                     entry.ResolvedAt, entry.Version),
-                entry.ProductId, entry.LocationId, entry.CycleCountLocationId,
+                entry.ProductId,
+                entry.LocationId,
+                entry.CycleCountLocationId,
                 Events = entry.Events.OrderByDescending(history => history.RecordedAt)
                     .ThenByDescending(history => history.Type == OperationalExceptionEventType.AutoResolved ? 2 :
                         history.Type == OperationalExceptionEventType.TriageUpdated ? 1 : 0)

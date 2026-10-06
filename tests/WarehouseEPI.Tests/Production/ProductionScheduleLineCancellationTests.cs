@@ -143,15 +143,21 @@ public sealed class ProductionScheduleLineCancellationTests
         }
         db.ProductionDailyCaptures.Add(new ProductionDailyCapture
         {
-            WeekId = weekId, ProductId = product.Id, EffectiveDate = day,
-            Area = area, StageId = area switch
+            WeekId = weekId,
+            ProductId = product.Id,
+            EffectiveDate = day,
+            Area = area,
+            StageId = area switch
             {
                 ProductionDailyArea.Cutting => config.CuttingStageId!.Value,
                 ProductionDailyArea.Sewing => config.SewingStageId!.Value,
                 _ => config.ReadyToPackStageId!.Value
             },
-            ShiftId = config.Shift1Id!.Value, Quantity = 10, ResponsibleUserId = admin.Id,
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('C', 64),
+            ShiftId = config.Shift1Id!.Value,
+            Quantity = 10,
+            ResponsibleUserId = admin.Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('C', 64),
             Status = ProductionDailyCaptureStatus.Reversed
         });
         await db.SaveChangesAsync();

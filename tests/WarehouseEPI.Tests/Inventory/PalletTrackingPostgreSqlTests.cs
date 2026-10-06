@@ -57,7 +57,7 @@ public sealed class PalletTrackingPostgreSqlTests(PostgreSqlInventoryFixture fix
     {
         var seed = await fixture.SeedAsync("PG-PLATE-RETRY", "PG-PLATE-B", "7313");
         var command = new InventoryMovementCommand(Guid.NewGuid(), InventoryMovementType.Entry, seed.Pin,
-            [new(seed.ProductId, 100, DestinationLocationId: seed.LocationId, PalletQuantities: [40,60])]);
+            [new(seed.ProductId, 100, DestinationLocationId: seed.LocationId, PalletQuantities: [40, 60])]);
         var results = await Task.WhenAll(fixture.ConfirmAsync(command), fixture.ConfirmAsync(command));
         Assert.All(results, x => Assert.Equal(InventoryMovementStatus.Success, x.Status));
         Assert.Equal(results[0].MovementId, results[1].MovementId);

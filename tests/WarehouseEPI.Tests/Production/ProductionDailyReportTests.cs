@@ -49,39 +49,108 @@ public sealed class ProductionDailyReportTests
         var actor = new User { FullName = "Report test", RoleId = 1, PinHash = "test", PinLookup = Guid.NewGuid().ToString() };
         var product = new Product { Sku = "REPORT-A", Description = "Needle work", BaseUnitId = 1 };
         var second = new Product { Sku = "REPORT-B", Description = "Second unit", BaseUnit = new Unit { Code = "TEST-M", Name = "Test metres" } };
-        var week = new ProductionScheduleWeek { WeekStart = new(2026, 9, 21), WeekEnd = new(2026, 9, 27), ExplicitCarryover = true, Status = ProductionScheduleWeekStatus.Closed,
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('W', 64), CreatedByUser = actor };
+        var week = new ProductionScheduleWeek
+        {
+            WeekStart = new(2026, 9, 21),
+            WeekEnd = new(2026, 9, 27),
+            ExplicitCarryover = true,
+            Status = ProductionScheduleWeekStatus.Closed,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('W', 64),
+            CreatedByUser = actor
+        };
         week.Lines.Add(new() { Product = product, Sequence = 1, PlannedDate = week.WeekStart, Quantity = 500, OrderReference1 = "ORDER-A" });
         week.Lines.Add(new() { Product = second, Sequence = 2, PlannedDate = week.WeekStart, Quantity = 10, OrderReference1 = "ORDER-B" });
         var oldShift = new ProductionShift { Name = "Historical shift", Code = "OLD" };
         db.AddRange(week, oldShift);
         await db.SaveChangesAsync();
         var configuration = await db.ProductionDailyConfigurations.SingleAsync();
-        db.ProductionRoutes.Add(new() { ProductId = second.Id, Name = "Ready only", Stages =
-            [new ProductionRouteStage { StageId = configuration.ReadyToPackStageId!.Value, Sequence = 1 }] });
-        var prior = new ProductionScheduleWeek { WeekStart = week.WeekStart.AddDays(-7), WeekEnd = week.WeekStart.AddDays(-1),
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('P', 64), CreatedByUserId = actor.Id };
+        db.ProductionRoutes.Add(new()
+        {
+            ProductId = second.Id,
+            Name = "Ready only",
+            Stages =
+            [new ProductionRouteStage { StageId = configuration.ReadyToPackStageId!.Value, Sequence = 1 }]
+        });
+        var prior = new ProductionScheduleWeek
+        {
+            WeekStart = week.WeekStart.AddDays(-7),
+            WeekEnd = week.WeekStart.AddDays(-1),
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('P', 64),
+            CreatedByUserId = actor.Id
+        };
         var priorLine = new ProductionScheduleLine { WeekId = prior.Id, ProductId = product.Id, Sequence = 1, PlannedDate = prior.WeekStart, Quantity = 7 };
         prior.Lines.Add(priorLine);
         db.Add(prior);
-        db.ProductionWeekOpenings.Add(new() { WeekId = week.Id, SourceWeekId = prior.Id, SourceLineId = priorLine.Id,
-            ProductId = product.Id, Area = ProductionDailyArea.Sewing, Quantity = 7 });
+        db.ProductionWeekOpenings.Add(new()
+        {
+            WeekId = week.Id,
+            SourceWeekId = prior.Id,
+            SourceLineId = priorLine.Id,
+            ProductId = product.Id,
+            Area = ProductionDailyArea.Sewing,
+            Quantity = 7
+        });
         for (var i = 0; i < 503; i++)
-            db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id, Area = ProductionDailyArea.Cutting,
-                StageId = configuration.CuttingStageId!.Value, ShiftId = i % 2 == 0 ? configuration.Shift1Id!.Value : configuration.Shift2Id!.Value,
-                EffectiveDate = i < 501 ? week.WeekStart : week.WeekEnd, Quantity = 1, ResponsibleUserId = actor.Id,
-                OperationId = Guid.NewGuid(), RequestFingerprint = new string('C', 64), Origin = ProductionScheduleOrigin.ExcelImport });
-        db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id, Area = ProductionDailyArea.Cutting,
-            StageId = configuration.CuttingStageId!.Value, ShiftId = oldShift.Id, EffectiveDate = week.WeekStart,
-            Quantity = 2.125m, ResponsibleUserId = actor.Id, OperationId = Guid.NewGuid(), RequestFingerprint = new string('H', 64), Origin = ProductionScheduleOrigin.ExcelImport });
-        db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id, Area = ProductionDailyArea.Cutting,
-            StageId = configuration.CuttingStageId!.Value, ShiftId = oldShift.Id, EffectiveDate = week.WeekStart,
-            Quantity = 999, Status = ProductionDailyCaptureStatus.Reversed, ReversedAt = DateTimeOffset.UtcNow,
-            ReversedByUserId = actor.Id, ReverseReason = "Corrected", ResponsibleUserId = actor.Id,
-            OperationId = Guid.NewGuid(), RequestFingerprint = new string('R', 64) });
-        db.ProductionDailyCaptures.Add(new() { WeekId = week.Id, ProductId = product.Id, Area = ProductionDailyArea.Sewing,
-            StageId = configuration.SewingStageId!.Value, ShiftId = configuration.Shift2Id!.Value, EffectiveDate = week.WeekStart,
-            Quantity = 3, ResponsibleUserId = actor.Id, OperationId = Guid.NewGuid(), RequestFingerprint = new string('S', 64) });
+            db.ProductionDailyCaptures.Add(new()
+            {
+                WeekId = week.Id,
+                ProductId = product.Id,
+                Area = ProductionDailyArea.Cutting,
+                StageId = configuration.CuttingStageId!.Value,
+                ShiftId = i % 2 == 0 ? configuration.Shift1Id!.Value : configuration.Shift2Id!.Value,
+                EffectiveDate = i < 501 ? week.WeekStart : week.WeekEnd,
+                Quantity = 1,
+                ResponsibleUserId = actor.Id,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = new string('C', 64),
+                Origin = ProductionScheduleOrigin.ExcelImport
+            });
+        db.ProductionDailyCaptures.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Area = ProductionDailyArea.Cutting,
+            StageId = configuration.CuttingStageId!.Value,
+            ShiftId = oldShift.Id,
+            EffectiveDate = week.WeekStart,
+            Quantity = 2.125m,
+            ResponsibleUserId = actor.Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('H', 64),
+            Origin = ProductionScheduleOrigin.ExcelImport
+        });
+        db.ProductionDailyCaptures.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Area = ProductionDailyArea.Cutting,
+            StageId = configuration.CuttingStageId!.Value,
+            ShiftId = oldShift.Id,
+            EffectiveDate = week.WeekStart,
+            Quantity = 999,
+            Status = ProductionDailyCaptureStatus.Reversed,
+            ReversedAt = DateTimeOffset.UtcNow,
+            ReversedByUserId = actor.Id,
+            ReverseReason = "Corrected",
+            ResponsibleUserId = actor.Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('R', 64)
+        });
+        db.ProductionDailyCaptures.Add(new()
+        {
+            WeekId = week.Id,
+            ProductId = product.Id,
+            Area = ProductionDailyArea.Sewing,
+            StageId = configuration.SewingStageId!.Value,
+            ShiftId = configuration.Shift2Id!.Value,
+            EffectiveDate = week.WeekStart,
+            Quantity = 3,
+            ResponsibleUserId = actor.Id,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = new string('S', 64)
+        });
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         var balances = new ProductionDailyBalanceService(db);

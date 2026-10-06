@@ -63,9 +63,12 @@ public sealed class LocalizationCompletionTests
         var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
         for (short rack = 1; rack <= 2; rack++)
             db.Locations.Add(new Location { Code = $"A-{rack}-1", Kind = LocationKind.Rack, RowCode = "A", RackNumber = rack, PalletNumber = 1 });
-        db.WarehouseMapLayouts.Add(new WarehouseMapLayout { Elements = [
+        db.WarehouseMapLayouts.Add(new WarehouseMapLayout
+        {
+            Elements = [
             new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 1, X = 100, Y = 300, Width = 90, Height = 42 },
-            new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 2, X = 300, Y = 300, Width = 90, Height = 42 }] });
+            new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 2, X = 300, Y = 300, Width = 90, Height = 42 }]
+        });
         await db.SaveChangesAsync();
         using var client = factory.CreateClient(new() { BaseAddress = new("https://localhost"), HandleCookies = false });
         client.DefaultRequestHeaders.Add("Cookie", $"{UiLanguage.CookieName}={language}");

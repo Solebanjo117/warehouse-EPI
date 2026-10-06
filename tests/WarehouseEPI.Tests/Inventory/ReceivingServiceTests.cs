@@ -78,15 +78,15 @@ public sealed class ReceivingServiceTests
         public string Pin { get; } = "4826";
         public WarehouseDbContext Db { get; }
         public ReceivingService Receiving { get; }
-        private Fixture(WarehouseDbContext db, ReceivingService receiving) { Db=db; Receiving=receiving; }
+        private Fixture(WarehouseDbContext db, ReceivingService receiving) { Db = db; Receiving = receiving; }
         public static async Task<Fixture> CreateAsync()
         {
-            var db=new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);await db.Database.EnsureCreatedAsync();
-            var pins=new UserPinService(db,new PinProtector(Key));var user=new User{FullName="Operador recepción",RoleId=2,PinLookup="",PinHash=""};Assert.Equal(PinAssignmentResult.Success,await pins.AssignAsync(user,"4826"));db.Users.Add(user);await db.SaveChangesAsync();
-            var movement=new InventoryMovementService(db,pins,TimeProvider.System);return new(db,new ReceivingService(db,pins,movement,TimeProvider.System));
+            var db = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options); await db.Database.EnsureCreatedAsync();
+            var pins = new UserPinService(db, new PinProtector(Key)); var user = new User { FullName = "Operador recepción", RoleId = 2, PinLookup = "", PinHash = "" }; Assert.Equal(PinAssignmentResult.Success, await pins.AssignAsync(user, "4826")); db.Users.Add(user); await db.SaveChangesAsync();
+            var movement = new InventoryMovementService(db, pins, TimeProvider.System); return new(db, new ReceivingService(db, pins, movement, TimeProvider.System));
         }
-        public async Task<Product> AddProductAsync(string sku){var item=new Product{Sku=sku,BaseUnitId=1};Db.Products.Add(item);await Db.SaveChangesAsync();return item;}
-        public async Task<Location> AddLocationAsync(string code){var item=new Location{Code=code,Kind=LocationKind.Area};Db.Locations.Add(item);await Db.SaveChangesAsync();return item;}
-        public ValueTask DisposeAsync()=>Db.DisposeAsync();
+        public async Task<Product> AddProductAsync(string sku) { var item = new Product { Sku = sku, BaseUnitId = 1 }; Db.Products.Add(item); await Db.SaveChangesAsync(); return item; }
+        public async Task<Location> AddLocationAsync(string code) { var item = new Location { Code = code, Kind = LocationKind.Area }; Db.Locations.Add(item); await Db.SaveChangesAsync(); return item; }
+        public ValueTask DisposeAsync() => Db.DisposeAsync();
     }
 }

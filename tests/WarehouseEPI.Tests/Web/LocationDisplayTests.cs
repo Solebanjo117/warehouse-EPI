@@ -110,10 +110,13 @@ public sealed class LocationDisplayTests
         await using var db = CreateDb();
         for (short rack = 1; rack <= 3; rack++)
             db.Locations.Add(new Location { Code = $"A-{rack}-1", Kind = LocationKind.Rack, RowCode = "A", RackNumber = rack, PalletNumber = 1 });
-        db.WarehouseMapLayouts.Add(new WarehouseMapLayout { Elements = [
+        db.WarehouseMapLayouts.Add(new WarehouseMapLayout
+        {
+            Elements = [
             new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 1, X = 725, Y = 340, Width = 90, Height = 42, Rotation = 90, IsVisible = true },
             new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 2, X = 300, Y = 340, Width = 90, Height = 42, IsVisible = true },
-            new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 3, X = 100, Y = 340, Width = 90, Height = 42, IsVisible = false }] });
+            new WarehouseMapElement { Kind = WarehouseMapElementKind.Rack, RowCode = "A", RackNumber = 3, X = 100, Y = 340, Width = 90, Height = 42, IsVisible = false }]
+        });
         await db.SaveChangesAsync();
         var model = CreateModel(db);
         await model.OnGetAsync(["A"], 20, racks: 3, play: true);

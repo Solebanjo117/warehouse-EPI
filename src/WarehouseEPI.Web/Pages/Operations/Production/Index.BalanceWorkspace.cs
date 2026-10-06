@@ -76,8 +76,13 @@ public sealed partial class IndexModel
         if (exists)
         {
             var prior = command is null ? null : await captures.FindBalanceEditAsync(command, token);
-            return new JsonResult(new { registered = prior?.Success == true, conflict = prior?.Success != true,
-                operationId = edit.OperationId, recordId = prior?.Id });
+            return new JsonResult(new
+            {
+                registered = prior?.Success == true,
+                conflict = prior?.Success != true,
+                operationId = edit.OperationId,
+                recordId = prior?.Id
+            });
         }
         if (!await LoadBalanceWorkspaceAsync(edit.WeekId, edit.Date, input.Products.ToArray(), token)) return BadRequest();
         var rows = Daily!.Products.ToDictionary(x => x.ProductId);
@@ -90,10 +95,16 @@ public sealed partial class IndexModel
             return new { cell, current = current?.ToString("0.####", CultureInfo.InvariantCulture), blocked,
                 conflict = !decimal.TryParse(cell.Observed, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var observed) || observed != current };
         }).ToArray();
-        return new JsonResult(new { registered = false, conflict = false, html = await RenderBalanceRowsAsync(), cells,
+        return new JsonResult(new
+        {
+            registered = false,
+            conflict = false,
+            html = await RenderBalanceRowsAsync(),
+            cells,
             operationId = HasBalancePlanning(edit) ? Guid.NewGuid() : edit.OperationId,
             blocked = !ConfigurationReady || Daily.Status != ProductionScheduleWeekStatus.Open,
-            unavailable = input.Products.Where(x => !ActiveBalanceProducts.Contains(x)).ToArray() });
+            unavailable = input.Products.Where(x => !ActiveBalanceProducts.Contains(x)).ToArray()
+        });
     }
 
     private async Task<string> RenderBalanceRowsAsync()

@@ -2,8 +2,8 @@ using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
-using WarehouseEPI.Infrastructure.Production;
 using WarehouseEPI.Infrastructure.Persistence;
+using WarehouseEPI.Infrastructure.Production;
 
 namespace WarehouseEPI.Tests.Production;
 
@@ -29,12 +29,20 @@ public sealed class ProductionBalanceOptimizationTests
         db.ProductionShifts.Add(historicalShift);
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         for (var index = 0; index < 503; index++)
-            db.ProductionDailyCaptures.Add(new() { OperationId = Guid.NewGuid(), RequestFingerprint = "fixture",
-                WeekId = seed.Week.Id, EffectiveDate = seed.Date, ProductId = index == 502 ? other.Id : seed.Product.Id,
-                Area = ProductionDailyArea.Cutting, StageId = config.CuttingStageId!.Value,
-                ShiftId = index == 500 ? historicalShift.Id : seed.Shift, Quantity = 1.0001m,
+            db.ProductionDailyCaptures.Add(new()
+            {
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "fixture",
+                WeekId = seed.Week.Id,
+                EffectiveDate = seed.Date,
+                ProductId = index == 502 ? other.Id : seed.Product.Id,
+                Area = ProductionDailyArea.Cutting,
+                StageId = config.CuttingStageId!.Value,
+                ShiftId = index == 500 ? historicalShift.Id : seed.Shift,
+                Quantity = 1.0001m,
                 Status = index == 501 ? ProductionDailyCaptureStatus.Reversed : ProductionDailyCaptureStatus.Active,
-                ResponsibleUserId = seed.User.Id });
+                ResponsibleUserId = seed.User.Id
+            });
         await db.SaveChangesAsync();
         var service = new ProductionDailyBalanceService(db);
         foreach (var physical in new[] { false, true })
@@ -48,13 +56,13 @@ public sealed class ProductionBalanceOptimizationTests
         }
         var capture = ProductionDailyFlexibleTests.Capture(db);
         foreach (var area in Enum.GetValues<ProductionDailyArea>())
-        foreach (var priorOnly in new[] { false, true })
-        {
-            var full = await capture.GetAvailabilityAsync(seed.Date, area, priorOnly);
-            var scoped = await capture.GetAvailabilityAsync(seed.Date, area, priorOnly, [seed.Product.Id], default);
-            Assert.Equal(full.Where(x => x.ProductId == seed.Product.Id), scoped);
-            Assert.Empty(await capture.GetAvailabilityAsync(seed.Date, area, priorOnly, [], default));
-        }
+            foreach (var priorOnly in new[] { false, true })
+            {
+                var full = await capture.GetAvailabilityAsync(seed.Date, area, priorOnly);
+                var scoped = await capture.GetAvailabilityAsync(seed.Date, area, priorOnly, [seed.Product.Id], default);
+                Assert.Equal(full.Where(x => x.ProductId == seed.Product.Id), scoped);
+                Assert.Empty(await capture.GetAvailabilityAsync(seed.Date, area, priorOnly, [], default));
+            }
         var day = (await service.GetDailySummaryAsync(seed.Week.Id, new(seed.Date)))!.Products.Single(x => x.ProductId == seed.Product.Id);
         Assert.Equal(501.0501m, day.Cutting.Completed);
         Assert.Equal(-401.0501m, day.Cutting.SignedPending);

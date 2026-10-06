@@ -1,8 +1,8 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-using System.Collections.Concurrent;
 
 namespace WarehouseEPI.Web.Backups;
 
@@ -138,7 +138,8 @@ public sealed class RestoreUploadService(ManualBackupSettings settings, RestoreJ
     private void Fail(RestoreJob job, string message)
     {
         try { store.ClearContent(job.Id); store.Save(job with { State = RestoreJobState.Failed, Error = message }); }
-        catch (IOException) { } catch (UnauthorizedAccessException) { }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
     private async Task SweepAsync(CancellationToken token)
     {
@@ -158,7 +159,8 @@ public sealed class RestoreUploadService(ManualBackupSettings settings, RestoreJ
                                 Fail(job, "La validación se interrumpió. Carga el respaldo de nuevo.");
                         }
                 }
-                catch (IOException) { } catch (UnauthorizedAccessException) { }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
             while (await timer.WaitForNextTickAsync(token));
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

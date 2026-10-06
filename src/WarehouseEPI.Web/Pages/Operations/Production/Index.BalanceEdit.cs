@@ -61,8 +61,11 @@ public sealed partial class IndexModel
 
     public async Task<IActionResult> OnPostBalanceEditPreviewAsync([FromBody] BalanceEditInput? input, CancellationToken token)
     {
-        if (HasBalancePlanning(input)) return new JsonResult(new { canConfirm = false,
-            errors = new[] { texts["Programado del día es de solo consulta. Edita la programación en Programa semanal."].Value } });
+        if (HasBalancePlanning(input)) return new JsonResult(new
+        {
+            canConfirm = false,
+            errors = new[] { texts["Programado del día es de solo consulta. Edita la programación en Programa semanal."].Value }
+        });
         var command = BalanceCommand(input);
         if (command is null) return new JsonResult(new { canConfirm = false, errors = new[] { texts["Indica una cantidad válida. Solo punto decimal."].Value } });
         if ((command.PlanChanges?.Count > 0 || command.NewPlans?.Count > 0) && command.AdminActorId is null) return Forbid();
@@ -79,11 +82,19 @@ public sealed partial class IndexModel
             SummaryPage = Math.Clamp(SummaryPage, 1, SummaryPages);
             weeklyHtml = await RenderWeeklyPreviewAsync();
         }
-        return new JsonResult(new { preview.CanConfirm, preview.RequiresAdmin, preview.RequiresReason, preview.Fingerprint,
-            preview.Balance, weeklyHtml, Errors = preview.Errors.Select(BalanceError).ToArray(),
+        return new JsonResult(new
+        {
+            preview.CanConfirm,
+            preview.RequiresAdmin,
+            preview.RequiresReason,
+            preview.Fingerprint,
+            preview.Balance,
+            weeklyHtml,
+            Errors = preview.Errors.Select(BalanceError).ToArray(),
             Cells = preview.Cells.Select(x => x with { Errors = x.Errors.Select(BalanceError).ToArray() }).ToArray(),
             NewPlans = preview.NewPlans?.Select(x => x with { Errors = x.Errors.Select(BalanceError).ToArray() }).ToArray(),
-            Plans = preview.Plans?.Select(x => x with { Errors = x.Errors.Select(BalanceError).ToArray() }).ToArray() });
+            Plans = preview.Plans?.Select(x => x with { Errors = x.Errors.Select(BalanceError).ToArray() }).ToArray()
+        });
     }
 
     public async Task<IActionResult> OnPostBalanceEditConfirmAsync([FromBody] BalanceEditInput? input, CancellationToken token)
@@ -93,8 +104,14 @@ public sealed partial class IndexModel
         if (command is null) return BadRequest();
         if ((command.PlanChanges?.Count > 0 || command.NewPlans?.Count > 0) && command.AdminActorId is null) return Forbid();
         var result = await captures.ConfirmBalanceEditAsync(command, token);
-        return new JsonResult(new { result.Success, operationId = command.OperationId, recordId = result.Id,
-            Errors = result.Errors?.Select(BalanceError).ToArray(), status = result.Status.ToString() });
+        return new JsonResult(new
+        {
+            result.Success,
+            operationId = command.OperationId,
+            recordId = result.Id,
+            Errors = result.Errors?.Select(BalanceError).ToArray(),
+            status = result.Status.ToString()
+        });
     }
 
     private async Task<string> RenderWeeklyPreviewAsync()

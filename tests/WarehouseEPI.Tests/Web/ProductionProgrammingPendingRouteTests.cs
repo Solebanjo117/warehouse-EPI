@@ -1,7 +1,7 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Tests.Production;
@@ -24,12 +24,27 @@ public sealed class ProductionProgrammingPendingRouteTests
         var config = await db.ProductionDailyConfigurations.SingleAsync();
         var actor = new User { FullName = "Test", RoleId = 1, PinLookup = "pending-route", PinHash = "test" };
         var date = new DateOnly(2026, 9, 21);
-        var week = new ProductionScheduleWeek { CreatedByUser = actor, WeekStart = date, WeekEnd = date.AddDays(6),
-            RequestFingerprint = "pending-route", Status = ProductionScheduleWeekStatus.Closed };
+        var week = new ProductionScheduleWeek
+        {
+            CreatedByUser = actor,
+            WeekStart = date,
+            WeekEnd = date.AddDays(6),
+            RequestFingerprint = "pending-route",
+            Status = ProductionScheduleWeekStatus.Closed
+        };
         week.Lines.Add(new() { Product = product, PlannedDate = date, Quantity = 300, Sequence = 1 });
-        week.Captures.Add(new() { Product = product, EffectiveDate = date, Area = ProductionDailyArea.Sewing,
-            StageId = config.SewingStageId!.Value, ShiftId = config.Shift1Id!.Value, Quantity = 298,
-            ResponsibleUser = actor, OperationId = Guid.NewGuid(), RequestFingerprint = "route-capture" });
+        week.Captures.Add(new()
+        {
+            Product = product,
+            EffectiveDate = date,
+            Area = ProductionDailyArea.Sewing,
+            StageId = config.SewingStageId!.Value,
+            ShiftId = config.Shift1Id!.Value,
+            Quantity = 298,
+            ResponsibleUser = actor,
+            OperationId = Guid.NewGuid(),
+            RequestFingerprint = "route-capture"
+        });
         db.Add(week); await db.SaveChangesAsync();
         var rawHtml = await client.GetStringAsync($"/Operations/Production?Tab=balance&WeekId={week.Id}&Through={date:yyyy-MM-dd}");
         var html = WebUtility.HtmlDecode(rawHtml);
