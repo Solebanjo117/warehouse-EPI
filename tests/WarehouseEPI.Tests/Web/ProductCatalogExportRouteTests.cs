@@ -24,8 +24,13 @@ public sealed class ProductCatalogExportRouteTests
         for (var i = 0; i < 35; i++) db.Add(new Product { Sku = $"CAT-{i:000}", BaseUnitId = 1, IsActive = i % 2 == 0 });
         if (role is not null)
         {
-            var user = new User { FullName = "Export test", RoleId = (await db.Roles.SingleAsync(x => x.Code == role)).Id,
-                PinHash = "", PinLookup = "" };
+            var user = new User
+            {
+                FullName = "Export test",
+                RoleId = (await db.Roles.SingleAsync(x => x.Code == role)).Id,
+                PinHash = "",
+                PinLookup = ""
+            };
             await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(user, "0123");
             db.Add(user);
         }

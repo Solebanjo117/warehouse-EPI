@@ -202,7 +202,11 @@ public sealed class ProductWarehouseVisibilityTests
         var other = new Product { Sku = "OTHER-SKU", BaseUnitId = 1 };
         var positions = Enumerable.Range(1, 7).Select(pallet => new Location
         {
-            Code = $"A-1-{pallet}", Kind = LocationKind.Rack, RowCode = "A", RackNumber = 1, PalletNumber = (short)pallet
+            Code = $"A-1-{pallet}",
+            Kind = LocationKind.Rack,
+            RowCode = "A",
+            RackNumber = 1,
+            PalletNumber = (short)pallet
         }).ToArray();
         positions[4].Description = "Empty assigned position";
         var firstLot = new ProductLot { Product = product, Number = "FIRST", NormalizedNumber = "FIRST" };

@@ -29,7 +29,7 @@ public sealed class ProductionDayOverviewTests
                 new(ProductionDailyArea.Sewing, true, 2, -2, 0, ToReconcile: 2),
                 new(ProductionDailyArea.ReadyToPack, false, 0, 0, 0), []));
         }
-        var overview = ProductionDayOverview.Create(new(Guid.NewGuid(), new(2026,9,21), new(2026,9,27), new(2026,9,21), ProductionScheduleWeekStatus.Open, products), metadata, shift);
+        var overview = ProductionDayOverview.Create(new(Guid.NewGuid(), new(2026, 9, 21), new(2026, 9, 27), new(2026, 9, 21), ProductionScheduleWeekStatus.Open, products), metadata, shift);
         var cutting = overview.Areas[0];
         Assert.Equal(4, cutting.Quantities.Count);
         Assert.Equal(5, overview.AttentionProductCount);
@@ -59,10 +59,21 @@ public sealed class ProductionDayOverviewTests
             (config.Shift1Id!.Value, 12m, ProductionDailyCaptureStatus.Active),
             (config.Shift2Id!.Value, 6m, ProductionDailyCaptureStatus.Active),
             (config.Shift1Id.Value, 900m, ProductionDailyCaptureStatus.Reversed) })
-            db.Add(new ProductionDailyCapture { WeekId = seed.WeekId, EffectiveDate = seed.Date,
-                ProductId = products[0].Id, Area = ProductionDailyArea.Cutting, StageId = config.CuttingStageId!.Value,
-                ShiftId = shiftId, Quantity = quantity, Status = state, IsFlexible = true,
-                OperationId = Guid.NewGuid(), RequestFingerprint = "overview-fixture", ResponsibleUserId = week.CreatedByUserId });
+            db.Add(new ProductionDailyCapture
+            {
+                WeekId = seed.WeekId,
+                EffectiveDate = seed.Date,
+                ProductId = products[0].Id,
+                Area = ProductionDailyArea.Cutting,
+                StageId = config.CuttingStageId!.Value,
+                ShiftId = shiftId,
+                Quantity = quantity,
+                Status = state,
+                IsFlexible = true,
+                OperationId = Guid.NewGuid(),
+                RequestFingerprint = "overview-fixture",
+                ResponsibleUserId = week.CreatedByUserId
+            });
         await db.SaveChangesAsync();
         using var client = factory.CreateClient(new() { BaseAddress = new("https://localhost") });
         var today = await scope.ServiceProvider.GetRequiredService<WarehouseClock>().GetDateAsync(
@@ -71,21 +82,21 @@ public sealed class ProductionDayOverviewTests
         Assert.Contains("day-overview", home);
         Assert.Contains($"value=\"{today:yyyy-MM-dd}\"", home);
         foreach (var language in new[] { "es", "en" })
-        foreach (var shift in new[] { 0, 1, 2 })
-        {
-            var url = $"/Operations/Production?Tab=summary&Day={seed.Date:yyyy-MM-dd}&OverviewShift={shift}&culture={language}&ui-culture={language}";
-            var html = await client.GetStringAsync(url);
-            Assert.Equal(3, Regex.Count(html, "data-overview-area="));
-            var expected = shift == 0 ? 18 : shift == 1 ? 12 : 6;
-            Assert.Contains($"<strong>{expected}</strong>", html);
-            Assert.DoesNotContain("<strong>900</strong>", html);
-            Assert.Contains("RECOVER-001", html);
-            Assert.Contains("Tab=balance", html);
-            Assert.Contains("Through=2026-09-21", html);
-            Assert.Contains("Sku=RECOVER-001", html);
-            Assert.Contains("Tab=capture", html);
-            await Fixture($"summary-{language}-{shift}", html);
-        }
+            foreach (var shift in new[] { 0, 1, 2 })
+            {
+                var url = $"/Operations/Production?Tab=summary&Day={seed.Date:yyyy-MM-dd}&OverviewShift={shift}&culture={language}&ui-culture={language}";
+                var html = await client.GetStringAsync(url);
+                Assert.Equal(3, Regex.Count(html, "data-overview-area="));
+                var expected = shift == 0 ? 18 : shift == 1 ? 12 : 6;
+                Assert.Contains($"<strong>{expected}</strong>", html);
+                Assert.DoesNotContain("<strong>900</strong>", html);
+                Assert.Contains("RECOVER-001", html);
+                Assert.Contains("Tab=balance", html);
+                Assert.Contains("Through=2026-09-21", html);
+                Assert.Contains("Sku=RECOVER-001", html);
+                Assert.Contains("Tab=capture", html);
+                await Fixture($"summary-{language}-{shift}", html);
+            }
         var empty = await client.GetStringAsync("/Operations/Production?Tab=summary&Day=2035-01-01");
         Assert.DoesNotContain("data-overview-area=", empty);
         await Fixture("summary-empty", empty);

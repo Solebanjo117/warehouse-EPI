@@ -20,8 +20,15 @@ public sealed class ProductCatalogExportTests
         unit.IsActive = false;
         var productClass = new ProductClass { Code = "0008", Name = "Export class", IsActive = false };
         db.Add(productClass);
-        for (var i = 0; i < 32; i++) db.Add(new Product { Sku = $"000{i:000}", BaseUnitId = 1,
-            ProductClass = productClass, IsActive = i % 2 == 0, Description = "Descripción, con acento", ExternalReference = $"REF-{i}" });
+        for (var i = 0; i < 32; i++) db.Add(new Product
+        {
+            Sku = $"000{i:000}",
+            BaseUnitId = 1,
+            ProductClass = productClass,
+            IsActive = i % 2 == 0,
+            Description = "Descripción, con acento",
+            ExternalReference = $"REF-{i}"
+        });
         db.Add(new Product { Sku = "UNASSIGNED-ITEM", BaseUnitId = 18, IsActive = false });
         await db.SaveChangesAsync();
         using var workbook = new XLWorkbook(new MemoryStream(await new ProductCatalogExportService(db).ExportAsync()));

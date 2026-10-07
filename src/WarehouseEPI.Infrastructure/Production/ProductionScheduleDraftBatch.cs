@@ -196,7 +196,8 @@ public sealed partial class ProductionDailyScheduleService
         catch (Exception exception) when (exception is DbUpdateException ||
             exception.GetBaseException() is PostgresException { SqlState: "40001" or "40P01" })
         {
-            if (transaction is not null) await transaction.RollbackAsync(token);
+            // Disposal rolls back an active transaction and also accepts one PostgreSQL ended at COMMIT.
+            if (transaction is not null) await transaction.DisposeAsync();
             db.ChangeTracker.Clear();
             return new(ProductionDailyCommandStatus.ConcurrencyConflict);
         }

@@ -64,13 +64,15 @@ public sealed class ProductionBalanceEntryTests
     }
 
     [Theory]
-    [InlineData("")]
-    [InlineData("&Tab=unknown")]
-    public async Task Entry_opens_editable_balance_and_preserves_requested_day_without_capture_navigation(string query)
+    [InlineData("&Tab=balance")]
+    [InlineData("&Through={day}")]
+    [InlineData("&Tab=unknown&Through={day}")]
+    public async Task Explicit_or_legacy_balance_entry_preserves_requested_day_without_capture_navigation(string query)
     {
         using var original = new AdminRouteTests.WarehouseApplicationFactory();
         using var factory = Configure(original);
         var seed = await SeedAsync(factory.Services);
+        query = query.Replace("{day}", $"{seed.Date:yyyy-MM-dd}", StringComparison.Ordinal);
         using var client = factory.CreateClient(new() { BaseAddress = new("https://localhost") });
         var html = WebUtility.HtmlDecode(await client.GetStringAsync(
             $"/Operations/Production?Day={seed.Date:yyyy-MM-dd}{query}"));
@@ -87,6 +89,28 @@ public sealed class ProductionBalanceEntryTests
         var menu = WebUtility.HtmlDecode(await client.GetStringAsync("/Modules/production"));
         Assert.DoesNotContain("view=capture", menu);
         Assert.DoesNotContain("Tab=capture", menu);
+        using var scope = factory.Services.CreateScope();
+        Assert.Empty(await scope.ServiceProvider.GetRequiredService<WarehouseDbContext>().ProductionDailyCaptures.ToListAsync());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("&Tab=unknown")]
+    public async Task Default_entry_opens_daily_summary_and_preserves_requested_day(string query)
+    {
+        using var original = new AdminRouteTests.WarehouseApplicationFactory();
+        using var factory = Configure(original);
+        var seed = await SeedAsync(factory.Services);
+        using var client = factory.CreateClient(new() { BaseAddress = new("https://localhost") });
+        var html = WebUtility.HtmlDecode(await client.GetStringAsync(
+            $"/Operations/Production?Day={seed.Date:yyyy-MM-dd}{query}"));
+
+        Assert.Contains("class=\"day-overview\"", html);
+        Assert.Contains($"name=\"Day\" type=\"date\" value=\"{seed.Date:yyyy-MM-dd}\"", html);
+        Assert.Contains("Tab=balance", html);
+        Assert.Contains($"Through={seed.Date:yyyy-MM-dd}", html);
+        Assert.DoesNotContain("id=\"production-balance-table\"", html);
+        Assert.DoesNotContain("id=\"balance-editor\"", html);
         using var scope = factory.Services.CreateScope();
         Assert.Empty(await scope.ServiceProvider.GetRequiredService<WarehouseDbContext>().ProductionDailyCaptures.ToListAsync());
     }

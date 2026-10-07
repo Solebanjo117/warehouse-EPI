@@ -22,8 +22,12 @@ public sealed record ProductionDayOverview(IReadOnlyList<ProductionOverviewArea>
         foreach (var area in Enum.GetValues<ProductionDailyArea>())
         {
             var rows = summary.Products.Select(product => (Product: product, Meta: metadata[product.ProductId],
-                Balance: area switch { ProductionDailyArea.Cutting => product.Cutting,
-                    ProductionDailyArea.Sewing => product.Sewing, _ => product.ReadyToPack }))
+                Balance: area switch
+                {
+                    ProductionDailyArea.Cutting => product.Cutting,
+                    ProductionDailyArea.Sewing => product.Sewing,
+                    _ => product.ReadyToPack
+                }))
                 .Where(x => x.Balance.Completed != 0 || x.Balance.SignedPending != 0 || x.Balance.Opening != 0 ||
                     x.Balance.ProgrammedToday != 0 || x.Balance.ToReconcile != 0).ToArray();
             // Unknown units are never combined, even with another unknown product.

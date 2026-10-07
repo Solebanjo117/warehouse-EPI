@@ -13,6 +13,36 @@ public sealed class ProductionScheduleCarryoverPostgreSqlTests
         WithDatabaseAsync(db => ProductionScheduleCarryoverCopyTests.VerifyOpenAsync(db, true));
 
     [Fact]
+    public Task Serialization_failure_at_commit_returns_conflict_and_allows_retry() => WithDatabaseAsync(async db =>
+    {
+        var (service, actor, product) = await ProductionScheduleCarryoverCopyTests.SeedAsync(db);
+        var start = new DateOnly(2026, 9, 28);
+        var targetId = (await service.CreateWeekAsync(new(Guid.NewGuid(), start, actor))).Id!.Value;
+        var target = (await service.GetWeekAsync(targetId))!;
+        var command = new SaveProductionScheduleDraftCommand(Guid.NewGuid(), targetId, target.Version,
+            [new("add", null, null, new(start, product, 1, null, null, null, null))], actor);
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE FUNCTION reject_schedule_commit() RETURNS trigger LANGUAGE plpgsql AS $$
+            BEGIN RAISE EXCEPTION 'Injected serialization failure at commit' USING ERRCODE = '40001'; END; $$;
+            CREATE CONSTRAINT TRIGGER reject_schedule_commit
+                AFTER INSERT ON production_schedule_revisions DEFERRABLE INITIALLY DEFERRED
+                FOR EACH ROW EXECUTE FUNCTION reject_schedule_commit();
+            """);
+
+        var result = await service.SaveDraftChangesAsync(command);
+
+        Assert.Equal(ProductionDailyCommandStatus.ConcurrencyConflict, result.Status);
+        Assert.Empty(db.ChangeTracker.Entries());
+        Assert.False(await db.ProductionScheduleLines.AnyAsync(x => x.WeekId == targetId));
+        Assert.False(await db.ProductionScheduleRevisions.AnyAsync(x => x.OperationId == command.OperationId));
+        Assert.Equal(target.Version, await db.ProductionScheduleWeeks.Where(x => x.Id == targetId).Select(x => x.Version).SingleAsync());
+        await db.Database.ExecuteSqlRawAsync("DROP TRIGGER reject_schedule_commit ON production_schedule_revisions");
+        Assert.True((await service.SaveDraftChangesAsync(command)).Success);
+        Assert.Single(await db.ProductionScheduleLines.Where(x => x.WeekId == targetId).ToListAsync());
+        Assert.Single(await db.ProductionScheduleRevisions.Where(x => x.OperationId == command.OperationId).ToListAsync());
+    });
+
+    [Fact]
     public Task Concurrent_destinations_cannot_reserve_the_same_source_pending_twice() => WithDatabaseAsync(async db =>
     {
         await ProductionScheduleCarryoverCopyTests.VerifyOpenAsync(db);

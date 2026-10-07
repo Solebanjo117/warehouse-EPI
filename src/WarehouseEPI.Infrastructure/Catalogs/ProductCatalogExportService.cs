@@ -17,9 +17,12 @@ public sealed class ProductCatalogExportService(WarehouseDbContext db)
         var products = await db.Products.AsNoTracking().OrderBy(x => x.Sku).ThenBy(x => x.Id)
             .Select(x => new
             {
-                x.Sku, x.Description, x.ExternalReference,
+                x.Sku,
+                x.Description,
+                x.ExternalReference,
                 Class = x.ProductClass == null ? null : x.ProductClass.Code,
-                UnitCode = x.BaseUnit.Code, UnitName = x.BaseUnit.Name
+                UnitCode = x.BaseUnit.Code,
+                UnitName = x.BaseUnit.Name
             }).Take(MaxRows + 1).ToListAsync(token);
         if (products.Count > MaxRows) throw new InvalidOperationException(LimitMessage);
 
