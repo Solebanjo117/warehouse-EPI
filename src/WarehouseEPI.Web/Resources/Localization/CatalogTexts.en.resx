@@ -5516,4 +5516,10 @@
   <data name="U/M pendiente: Inventario interno indica {0}; se conserva {1} porque el producto tiene movimientos." xml:space="preserve"><value>Pending unit: internal inventory specifies {0}; {1} is preserved because the product has movements.</value></data>
   <data name="Importación terminada: {0} productos insertados, {1} actualizados, {2} existentes sin modificar y {3} duplicados consolidados." xml:space="preserve"><value>Import completed: {0} products added, {1} updated, {2} existing products unchanged and {3} duplicates consolidated.</value></data>
   <data name="{0} conflictos de U/M pendientes; se conservaron las unidades locales." xml:space="preserve"><value>{0} pending unit conflicts; local units were preserved.</value></data>
+  <data name="Eliminar producto" xml:space="preserve"><value>Delete product</value></data>
+  <data name="Confirmar eliminación" xml:space="preserve"><value>Confirm deletion</value></data>
+  <data name="Producto eliminado." xml:space="preserve"><value>Product deleted.</value></data>
+  <data name="No se puede eliminar: el producto tiene existencias, historial o dependencias. Puedes desactivarlo desde Editar producto." xml:space="preserve"><value>Cannot delete: the product has stock, history or dependencies. You can deactivate it from Edit product.</value></data>
+  <data name="El producto cambió mientras intentabas eliminarlo. Vuelve a revisar su estado." xml:space="preserve"><value>The product changed while you were trying to delete it. Review its status again.</value></data>
+  <data name="El producto no tiene existencias ni historial de uso. Se eliminarán también sus códigos de barras y asignaciones de ubicación. Esta acción no se puede deshacer." xml:space="preserve"><value>The product has no stock or usage history. Its barcodes and location assignments will also be deleted. This action cannot be undone.</value></data>
 </root>

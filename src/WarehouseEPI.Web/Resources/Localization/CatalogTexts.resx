@@ -5516,4 +5516,10 @@
   <data name="U/M pendiente: Inventario interno indica {0}; se conserva {1} porque el producto tiene movimientos." xml:space="preserve"><value>U/M pendiente: Inventario interno indica {0}; se conserva {1} porque el producto tiene movimientos.</value></data>
   <data name="Importación terminada: {0} productos insertados, {1} actualizados, {2} existentes sin modificar y {3} duplicados consolidados." xml:space="preserve"><value>Importación terminada: {0} productos insertados, {1} actualizados, {2} existentes sin modificar y {3} duplicados consolidados.</value></data>
   <data name="{0} conflictos de U/M pendientes; se conservaron las unidades locales." xml:space="preserve"><value>{0} conflictos de U/M pendientes; se conservaron las unidades locales.</value></data>
+  <data name="Eliminar producto" xml:space="preserve"><value>Eliminar producto</value></data>
+  <data name="Confirmar eliminación" xml:space="preserve"><value>Confirmar eliminación</value></data>
+  <data name="Producto eliminado." xml:space="preserve"><value>Producto eliminado.</value></data>
+  <data name="No se puede eliminar: el producto tiene existencias, historial o dependencias. Puedes desactivarlo desde Editar producto." xml:space="preserve"><value>No se puede eliminar: el producto tiene existencias, historial o dependencias. Puedes desactivarlo desde Editar producto.</value></data>
+  <data name="El producto cambió mientras intentabas eliminarlo. Vuelve a revisar su estado." xml:space="preserve"><value>El producto cambió mientras intentabas eliminarlo. Vuelve a revisar su estado.</value></data>
+  <data name="El producto no tiene existencias ni historial de uso. Se eliminarán también sus códigos de barras y asignaciones de ubicación. Esta acción no se puede deshacer." xml:space="preserve"><value>El producto no tiene existencias ni historial de uso. Se eliminarán también sus códigos de barras y asignaciones de ubicación. Esta acción no se puede deshacer.</value></data>
 </root>

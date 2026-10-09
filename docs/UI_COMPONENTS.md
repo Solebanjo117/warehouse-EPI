@@ -1,5 +1,21 @@
 # Componentes y patrones de interfaz existentes
 
+## Eliminación de productos sin uso
+
+`Pages/Admin/Catalogs/Products/Edit.cshtml` enlaza a `Delete.cshtml(.cs)` para
+revisar SKU y descripción y confirmar mediante POST con antiforgery, solo ADMIN.
+Reutiliza tarjetas, alertas, botones Bootstrap y `CatalogTexts` ES/EN; no requiere
+JavaScript. Ejemplo: Editar producto → Eliminar producto → Confirmar eliminación
+regresa al catálogo con confirmación. Cancelar regresa al editor.
+`ProductDeletionService` comprueba todas las relaciones EF hacia Product: solo
+códigos de barras y asignaciones de ubicación pueden eliminarse junto al producto.
+Saldos (incluso cero o negativos), movimientos, lotes, documentos, producción y
+otras dependencias bloquean el borrado e indican la alternativa de desactivación.
+El POST revalida bajo transacción y bloqueo del producto en PostgreSQL; GET no
+escribe. Pruebas: `ProductDeletionTests` y `ProductDeletionPostgreSqlTests`;
+la segunda requiere credenciales con permiso para crear una base temporal propia
+con prefijo `warehouse_epi_product_delete_test_`.
+
 Catálogo para agentes y desarrolladores. Consultarlo antes de implementar UI y
 preferir lo existente sin requerir una petición explícita del usuario.
 Las rutas enlazadas son la fuente de verdad; verificar su estado antes de usarlas.

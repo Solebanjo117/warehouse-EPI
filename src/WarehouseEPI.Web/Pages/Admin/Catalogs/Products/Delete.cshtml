@@ -1,0 +1,30 @@
+@page "{id:guid}"
+@model WarehouseEPI.Web.Pages.Admin.Catalogs.Products.DeleteModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@{
+    ViewData["Title"] = CatTexts["Eliminar producto"].Value;
+}
+<h1 class="h2">@CatTexts["Eliminar producto"]</h1>
+@if (TempData["Error"] is string error)
+{
+    <div class="alert alert-danger" role="alert" tabindex="-1">@error</div>
+}
+<div class="card">
+    <div class="card-body">
+        <h2 class="h4">@Model.Product.Sku</h2>
+        <p>@(Model.Product.Description ?? CatTexts["Sin descripción"].Value)</p>
+        @if (Model.CanDelete)
+        {
+            <p>@CatTexts["El producto no tiene existencias ni historial de uso. Se eliminarán también sus códigos de barras y asignaciones de ubicación. Esta acción no se puede deshacer."]</p>
+            <form method="post" asp-route-id="@Model.Product.Id" class="d-flex flex-wrap gap-2">
+                <a asp-page="Edit" asp-route-id="@Model.Product.Id" class="btn btn-outline-secondary btn-lg">@CatTexts["Cancelar"]</a>
+                <button type="submit" class="btn btn-danger btn-lg">@CatTexts["Confirmar eliminación"]</button>
+            </form>
+        }
+        else
+        {
+            <p class="alert alert-warning">@CatTexts["No se puede eliminar: el producto tiene existencias, historial o dependencias. Puedes desactivarlo desde Editar producto."]</p>
+            <a asp-page="Edit" asp-route-id="@Model.Product.Id" class="btn btn-outline-secondary btn-lg">@CatTexts["Editar producto"]</a>
+        }
+    </div>
+</div>

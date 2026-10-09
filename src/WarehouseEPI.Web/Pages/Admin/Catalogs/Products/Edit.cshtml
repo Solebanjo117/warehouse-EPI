@@ -17,6 +17,8 @@
         <div class="d-flex flex-wrap gap-2"><a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-primary">@CatTexts["Ver ficha"]</a><a asp-page="Index" class="btn btn-outline-secondary">@CatTexts["Volver a productos"]</a></div>
     </header>
 
+    <div class="d-flex justify-content-end mb-3"><a asp-page="Delete" asp-route-id="@Model.Input.Id" class="btn btn-outline-danger">@CatTexts["Eliminar producto"]</a></div>
+
     <nav class="product-editor-tabs" aria-label="@CatTexts["Secciones del producto"]" role="tablist">
         <a href="#product-general" class="product-editor-tab" role="tab" data-product-tab="general" aria-controls="product-general"><span>@CatTexts["Datos generales"]</span><small data-product-dirty-indicator data-clean-label="Sin cambios">@CatTexts["Sin cambios"]</small></a>
         <a href="#product-production" class="product-editor-tab" role="tab" data-product-tab="production" aria-controls="product-production-panel"><span>@CatTexts["Receta y procesos"]</span><small data-product-dirty-indicator data-clean-label="@recipeCount materiales">@recipeCount materiales</small></a>
