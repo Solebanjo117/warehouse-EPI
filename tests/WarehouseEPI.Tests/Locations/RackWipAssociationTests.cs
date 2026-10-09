@@ -63,13 +63,13 @@ public sealed class RackWipAssociationTests
             Assert.Equal(100, Assert.Single(report.Inventory).Delivered);
         }
         Assert.Equal(7, Assert.Single((await reports.GetTrackedPageAsync(new(null, null, WipAreaId: position.Id), 1, 25)).Inventory).Delivered);
-        var export = new WarehouseEPI.Web.Pages.Admin.Reports.Wip.ExportModel(reports, clock, new PassthroughStringLocalizer<CatalogTexts>());
+        var export = new WarehouseEPI.Web.Pages.Admin.Reports.Wip.ExportModel(reports, clock, new PassthroughStringLocalizer<CatalogTexts>(), new WarehouseSettingsService(db), TimeProvider.System, db);
         var csv = Assert.IsType<FileContentResult>(await export.OnGetAsync("csv", null, null, null, area.Id, default));
         Assert.Contains("\"100\"", Encoding.UTF8.GetString(csv.FileContents));
         var xlsx = Assert.IsType<FileContentResult>(await export.OnGetAsync("xlsx", null, null, null, area.Id, default));
         using var book = new XLWorkbook(new MemoryStream(xlsx.FileContents));
-        Assert.Equal(2, book.Worksheet(1).LastRowUsed()!.RowNumber());
-        Assert.Equal(100, book.Worksheet(1).Cell(2, 8).GetValue<decimal>());
+        Assert.Equal(2, book.Worksheet("WIP").LastRowUsed()!.RowNumber());
+        Assert.Equal(100, book.Worksheet("WIP").Cell(2, 8).GetValue<decimal>());
         Assert.Equal(LocationRackSaveStatus.Success, (await service.SaveAsync(Command(user.Id, other.Id, previous: area.Id))).Status);
         Assert.Equal(100, Assert.Single((await reports.GetTrackedPageAsync(new(null, null, WipAreaId: area.Id), 1, 25)).Inventory).Delivered);
         Assert.Equal(42, await db.InventoryBalances.SumAsync(x => x.Quantity));

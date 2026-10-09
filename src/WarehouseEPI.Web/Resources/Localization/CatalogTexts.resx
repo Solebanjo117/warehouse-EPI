@@ -5536,6 +5536,17 @@
   <data name="Seleccionado" xml:space="preserve">
     <value>Seleccionado</value>
   </data>
+  <data name="Seguimiento de pendientes" xml:space="preserve"><value>Seguimiento de pendientes</value></data>
+  <data name="Todos los documentos" xml:space="preserve"><value>Todos los documentos</value></data>
+  <data name="Documentos pendientes" xml:space="preserve"><value>Documentos pendientes</value></data>
+  <data name="Pendientes antiguos — {0} días o más" xml:space="preserve"><value>Pendientes antiguos — {0} días o más</value></data>
+  <data name="Los conteos incluyen toda la búsqueda por fechas y área, antes del filtro de seguimiento." xml:space="preserve"><value>Los conteos incluyen toda la búsqueda por fechas y área, antes del filtro de seguimiento.</value></data>
+  <data name="Pendiente documental por unidad" xml:space="preserve"><value>Pendiente documental por unidad</value></data>
+  <data name="Cantidades de todos los resultados del filtro seleccionado, no solo de esta página." xml:space="preserve"><value>Cantidades de todos los resultados del filtro seleccionado, no solo de esta página.</value></data>
+  <data name="No hay cantidades documentales pendientes con estos filtros." xml:space="preserve"><value>No hay cantidades documentales pendientes con estos filtros.</value></data>
+  <data name="Sin unidad definida" xml:space="preserve"><value>Sin unidad definida</value></data>
+  <data name="Más recientes" xml:space="preserve"><value>Más recientes</value></data>
+  <data name="Más antiguas" xml:space="preserve"><value>Más antiguas</value></data>
   <data name="Eliminar producto" xml:space="preserve"><value>Eliminar producto</value></data>
   <data name="Confirmar eliminación" xml:space="preserve"><value>Confirmar eliminación</value></data>
   <data name="Producto eliminado." xml:space="preserve"><value>Producto eliminado.</value></data>

@@ -7,6 +7,16 @@
 
 .wip-report { max-width: 84rem; }
 
+.wip-summary-metrics, .wip-summary-units { display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+.wip-summary-metric { display: flex; flex-direction: column; gap: .35rem; min-height: 44px; padding: 1rem; border: 2px solid var(--bs-border-color); border-radius: .65rem; background: var(--bs-body-bg); color: var(--bs-body-color); text-decoration: none; }
+.wip-summary-metric strong { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+.wip-summary-metric small { font-weight: 600; }
+.wip-summary-metric:hover { background: var(--bs-tertiary-bg); }
+.wip-summary-metric[aria-current="true"] { border-color: var(--bs-primary); }
+.wip-summary a:focus-visible { outline: 3px solid var(--bs-primary); outline-offset: 3px; }
+.wip-summary-units > div { padding: .75rem; border: 1px solid var(--bs-border-color); border-radius: .5rem; overflow-wrap: anywhere; }
+.wip-summary-units dd { margin-bottom: 0; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+
 .wip-report-header {
     display: flex;
     flex-wrap: wrap;

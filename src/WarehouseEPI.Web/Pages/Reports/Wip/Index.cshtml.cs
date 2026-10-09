@@ -4,6 +4,7 @@ using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Inventory;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Settings;
+using WarehouseEPI.Web.Reporting;
 
 namespace WarehouseEPI.Web.Pages.Reports.Wip;
 
@@ -24,17 +25,21 @@ public sealed class IndexModel(
     public string? Search { get; private set; }
     public Guid? WipAreaId { get; private set; }
     public string? Attention { get; private set; }
+    public string Sort { get; private set; } = "newest";
+    public WipDocumentSummary Summary { get; private set; } = new(0, 0, []);
     public int WipReminderDays { get; private set; }
     public bool RequiresCutover { get; private set; }
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(TrackedReport.TotalActivityCount / (double)PageSize));
     public IReadOnlyList<int> VisiblePages { get; private set; } = [];
 
     public async Task OnGetAsync(DateOnly? from, DateOnly? to, string? search, Guid? wipAreaId, string? attention,
-        int pageNumber = 1, CancellationToken cancellationToken = default)
+        int pageNumber = 1, string? sort = null, CancellationToken cancellationToken = default)
     {
         RequiresCutover = await dbContext.InventoryBalances.AnyAsync(x => x.Location.OperationalRole == LocationOperationalRole.Wip && x.Quantity != 0, cancellationToken);
         var now = timeProvider.GetUtcNow();
-        Attention = string.Equals(attention, "aged", StringComparison.OrdinalIgnoreCase) ? "aged" : null;
+        var selection = WipReportSelection.FromQuery(attention, sort);
+        Attention = selection.Attention;
+        Sort = selection.Sort;
         // Imported deliveries retain their original date, even when captured much later.
         // Empty date bounds mean all history, consistently with the export endpoint.
         From = from;
@@ -47,8 +52,8 @@ public sealed class IndexModel(
         var settings = await settingsService.GetAsync(cancellationToken);
         WipReminderDays = settings.WipReminderDays;
         var interval = await clock.GetUtcIntervalAsync(From, To, cancellationToken);
-        var filter = new WipReportFilter(interval.FromInclusive, interval.ToExclusive, Search, WipAreaId,
-            AgedBefore: Attention is null ? null : now.AddDays(-WipReminderDays));
+        var filter = selection.Apply(new WipReportFilter(interval.FromInclusive, interval.ToExclusive, Search, WipAreaId), now, WipReminderDays);
+        Summary = await reportService.GetDocumentSummaryAsync(filter, now.AddDays(-WipReminderDays), cancellationToken);
         TrackedReport = await reportService.GetTrackedPageAsync(filter, pageNumber, PageSize, cancellationToken);
         var currentPage = Math.Min(TrackedReport.PageNumber, TotalPages);
         var firstVisible = Math.Max(1, currentPage - 2);

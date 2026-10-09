@@ -1,0 +1,39 @@
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
+@model WarehouseEPI.Web.Pages.Reports.Wip.IndexModel
+<section class="wip-summary mb-4" aria-labelledby="wip-summary-title">
+    <h2 class="h4" id="wip-summary-title">@CatTexts["Seguimiento de pendientes"]</h2>
+    <p>@CatTexts["El pendiente documental no representa existencias físicas ni material disponible en almacén."]</p>
+    <a class="btn btn-outline-secondary mb-2" data-wip-all asp-page="Index"
+       asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-search="@Model.Search"
+       asp-route-wipAreaId="@Model.WipAreaId" asp-route-sort="@Model.Sort" asp-route-attention="" asp-route-pageNumber="1"
+       aria-current="@(Model.Attention is null ? "true" : null)">@CatTexts["Todos los documentos"]</a>
+    <div class="wip-summary-metrics">
+        @foreach (var item in new[] { (Key: "pending", Count: Model.Summary.PendingDocuments, Label: CatTexts["Documentos pendientes"].Value),
+            (Key: "aged", Count: Model.Summary.AgedDocuments, Label: CatTexts["Pendientes antiguos — {0} días o más", Model.WipReminderDays].Value) })
+        {
+            <a class="wip-summary-metric" data-wip-attention="@item.Key" asp-page="Index"
+               asp-route-from="@Model.From?.ToString("yyyy-MM-dd")" asp-route-to="@Model.To?.ToString("yyyy-MM-dd")" asp-route-search="@Model.Search"
+               asp-route-wipAreaId="@Model.WipAreaId" asp-route-attention="@item.Key" asp-route-sort="oldest" asp-route-pageNumber="1"
+               aria-current="@(Model.Attention == item.Key ? "true" : null)">
+                <strong>@item.Count.ToString("N0")</strong><span>@item.Label</span>
+                @if (Model.Attention == item.Key) { <small>@CatTexts["Seleccionado"]</small> }
+            </a>
+        }
+    </div>
+    <p class="form-text">@CatTexts["Los conteos incluyen toda la búsqueda por fechas y área, antes del filtro de seguimiento."]</p>
+    <h3 class="h5">@CatTexts["Pendiente documental por unidad"]</h3>
+    <p class="form-text">@CatTexts["Cantidades de todos los resultados del filtro seleccionado, no solo de esta página."]</p>
+    @if (Model.Summary.Units.Count == 0)
+    {
+        <p data-wip-summary-empty>@CatTexts["No hay cantidades documentales pendientes con estos filtros."]</p>
+    }
+    else
+    {
+        <dl class="wip-summary-units">
+            @foreach (var unit in Model.Summary.Units)
+            {
+                <div><dt>@(unit.Sku is null ? unit.Unit : $"{unit.Sku} · {CatTexts["Sin unidad definida"]}")</dt><dd>@unit.Quantity.ToString("0.####")</dd></div>
+            }
+        </dl>
+    }
+</section>

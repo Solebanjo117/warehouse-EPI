@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
+using WarehouseEPI.Core;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
 using WarehouseEPI.Infrastructure.Settings;
@@ -13,7 +14,12 @@ public sealed record WipReportFilter(
     Guid? WipAreaId = null,
     Guid? ResponsibleUserId = null,
     DateTimeOffset? AgedBefore = null,
-    bool RequireNoEffectiveReturn = false);
+    bool RequireNoEffectiveReturn = false,
+    bool PendingOnly = false,
+    bool OldestFirst = false);
+
+public sealed record WipPendingUnit(short UnitId, string Unit, Guid? ProductId, string? Sku, decimal Quantity);
+public sealed record WipDocumentSummary(int PendingDocuments, int AgedDocuments, IReadOnlyList<WipPendingUnit> Units);
 
 public sealed record WipIssueRow(
     Guid MovementId,
@@ -97,11 +103,7 @@ public sealed record WipTrackedReportPage(
 
 public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseClock warehouseClock)
 {
-    public async Task<WipTrackedReportPage> GetTrackedPageAsync(
-        WipReportFilter filter,
-        int pageNumber,
-        int pageSize,
-        CancellationToken cancellationToken = default)
+    private IQueryable<WipDocument> DocumentQuery(WipReportFilter filter)
     {
         var query = dbContext.WipDocuments.AsNoTracking().Where(x => !x.IsCancelled);
         if (filter.WipAreaId is Guid area) query = query.Where(x => x.WipLocationId == area);
@@ -114,15 +116,64 @@ public sealed class WipReportService(WarehouseDbContext dbContext, WarehouseCloc
             query = query.Where(x => x.Product.Sku.ToUpper().Contains(term) ||
                 (x.Product.Description != null && x.Product.Description.ToUpper().Contains(term)) || x.WipLocation.Code.ToUpper().Contains(term));
         }
-        if (filter.AgedBefore is DateTimeOffset aged)
-            query = query.Where(x => x.OccurredAt <= aged && x.Quantity > x.Applications
-                .Where(a => a.Kind != WipDocumentApplicationKind.Reversal && !dbContext.WipDocumentApplications.Any(r => r.ReversesApplicationId == a.Id)).Sum(a => a.Quantity));
+        return query;
+    }
+
+    private sealed class DocumentBalance
+    {
+        public WipDocument Document { get; init; } = null!;
+        public decimal Pending { get; init; }
+    }
+
+    private IQueryable<DocumentBalance> Balances(WipReportFilter filter) => DocumentQuery(filter).Select(x => new DocumentBalance
+    {
+        Document = x,
+        Pending = x.Quantity - (x.Applications.Where(a => a.Kind != WipDocumentApplicationKind.Reversal &&
+            !x.Applications.Any(r => r.ReversesApplicationId == a.Id)).Sum(a => (decimal?)a.Quantity) ?? 0m)
+    });
+
+    private static IQueryable<DocumentBalance> ApplyAttention(IQueryable<DocumentBalance> query, WipReportFilter filter)
+    {
+        if (filter.PendingOnly || filter.AgedBefore.HasValue) query = query.Where(x => x.Pending > 0);
+        if (filter.AgedBefore is DateTimeOffset aged) query = query.Where(x => x.Document.OccurredAt <= aged);
+        return query;
+    }
+
+    public async Task<WipDocumentSummary> GetDocumentSummaryAsync(WipReportFilter filter, DateTimeOffset agedBefore,
+        CancellationToken cancellationToken = default)
+    {
+        var pending = Balances(filter).Where(x => x.Pending > 0);
+        var count = await pending.CountAsync(cancellationToken);
+        var agedCount = await pending.CountAsync(x => x.Document.OccurredAt <= agedBefore, cancellationToken);
+        var units = await ApplyAttention(pending, filter)
+            .GroupBy(x => new
+            {
+                UnitId = x.Document.Product.BaseUnitId,
+                Unit = x.Document.Product.BaseUnit.Code,
+                ProductId = x.Document.Product.BaseUnit.Code == CatalogDefaults.UnassignedUnitCode ? (Guid?)x.Document.ProductId : null,
+                Sku = x.Document.Product.BaseUnit.Code == CatalogDefaults.UnassignedUnitCode ? x.Document.Product.Sku : null
+            })
+            .OrderBy(g => g.Key.Unit).ThenBy(g => g.Key.Sku).ThenBy(g => g.Key.UnitId).ThenBy(g => g.Key.ProductId)
+            .Select(g => new WipPendingUnit(g.Key.UnitId, g.Key.Unit, g.Key.ProductId, g.Key.Sku, g.Sum(x => x.Pending)))
+            .ToListAsync(cancellationToken);
+        return new(count, agedCount, units);
+    }
+
+    public async Task<WipTrackedReportPage> GetTrackedPageAsync(
+        WipReportFilter filter,
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ApplyAttention(Balances(filter), filter).Select(x => x.Document);
         var total = await query.CountAsync(cancellationToken);
         var size = Math.Clamp(pageSize, 1, 10_001);
         var page = Math.Clamp(pageNumber, 1, Math.Max(1, (int)Math.Ceiling(total / (double)size)));
-        var documents = await query.Include(x => x.Product).ThenInclude(x => x.BaseUnit)
+        var ordered = filter.OldestFirst ? query.OrderBy(x => x.OccurredAt).ThenBy(x => x.Id)
+            : query.OrderByDescending(x => x.OccurredAt).ThenBy(x => x.Id);
+        var documents = await ordered.Include(x => x.Product).ThenInclude(x => x.BaseUnit)
             .Include(x => x.WipLocation).Include(x => x.ResponsibleUser).Include(x => x.Applications)
-            .OrderByDescending(x => x.OccurredAt).ThenBy(x => x.Id).Skip((page - 1) * size).Take(size).ToListAsync(cancellationToken);
+            .Skip((page - 1) * size).Take(size).ToListAsync(cancellationToken);
         var rows = new List<WipInventoryRow>();
         foreach (var document in documents)
         {

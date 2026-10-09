@@ -50,6 +50,30 @@ silenciosas, encabezados repetidos y filas indivisibles. Acceso público como Et
 sin NIP, persistencia ni movimientos. Pruebas: SupplierSheetRouteTests y
 tests/javascript/supplier-sheet.browser.cjs; impresión/lector físicos requieren validación.
 
+## Resumen documental WIP
+
+`Pages/Reports/Wip/_Summary.cshtml` recibe el PageModel de WIP y presenta conteos
+de documentos pendientes y antiguos sobre la búsqueda base, más cantidades
+pendientes de todos los resultados filtrados por unidad. `UNASSIGNED` permanece
+separado por producto. No son existencias físicas. Las aplicaciones revertidas
+no descuentan pendiente; los documentos cancelados no participan.
+
+Depende de `WipReportService.GetDocumentSummaryAsync`, `WipReportSelection`,
+`WarehouseClock`, `TimeProvider`, `WipReminderDays`, `CatalogTexts` ES/EN y
+`wip-report-index.css`. El parcial es específico del reporte, no un cálculo en Razor.
+Ejemplo: `/Reports/Wip?attention=aged&sort=oldest&wipAreaId=…` muestra pendientes
+antiguos del área; las tarjetas conservan fechas ISO y búsqueda, vuelven a página 1
+y ordenan por entrega más antigua. «Todos los documentos» quita solo `attention`.
+El formulario permite `newest`/`oldest`; sin orden explícito se usan recientes para
+la entrada habitual y antiguas para seguimiento. Listado y exportación ADMIN
+comparten selección y consulta documental, con límites y permisos existentes.
+
+Pruebas: `WipSummaryTests`, `WipSummaryRouteTests`, `WipSummaryPostgreSqlTests` y
+`tests/javascript/wip-summary.browser.cjs`. `WAREHOUSE_WIP_SUMMARY_FIXTURES` exporta
+HTML Razor aislado. La prueba PostgreSQL crea una base nueva con prefijo
+`warehouse_epi_wip_summary_test_` y elimina solo esa base tras crearla con éxito;
+no reinicia `warehouse_epi_test` ni usa la base operativa como destino.
+
 ## Indicadores de cobertura como filtros
 
 Las seis tarjetas de Cobertura en `Pages/Reports/Inventory/Index.cshtml` usan
@@ -585,6 +609,20 @@ implementaciones o crear abstracciones generales para necesidades hipotéticas.
   croquis/ficha suprimen stock y asignaciones; el rótulo es
   `WIP · Sin control de existencias`. Los racks mixtos calculan ocupación
   exclusivamente sobre almacenamiento.
+
+### Exportación Excel WIP
+
+`Infrastructure/Reporting/WipExcelExporter.cs` construye el libro documental con
+ClosedXML a partir de filas ya filtradas y `WipExcelContext`. El consumidor real
+es `Pages/Admin/Reports/Wip/Export.cshtml.cs`: resuelve área, filtros efectivos y
+hora local con `WarehouseClock` antes de llamar `WipExcelExporter.Export(rows, context)`.
+La hoja inicial `Resumen` agrega únicamente pendientes positivos de esas filas,
+por unidad y por producto/SKU para `UNASSIGNED`, sin total entre unidades.
+`WIP` conserva las 14 columnas, encabezados en fila 1 y datos en fila 2; incluye
+autofiltro, fila inmovilizada, tipos nativos y texto literal protegido.
+Se conservan ADMIN, límite de 10 000 documentos, consulta y CSV existentes.
+`WipExcelExporterTests` reabre el libro y genera ejemplos aislados cuando se define
+`WAREHOUSE_WIP_EXCEL_FIXTURES`. La revisión del libro no valida impresión física.
 
 ### Asociación de racks a un área WIP
 
