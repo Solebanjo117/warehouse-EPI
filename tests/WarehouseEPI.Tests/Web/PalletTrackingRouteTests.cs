@@ -12,7 +12,7 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Tests.Web;
 
-public sealed class PalletTrackingRouteTests
+public sealed partial class PalletTrackingRouteTests
 {
     [Fact]
     public async Task Operational_forms_hide_manual_pallet_capture_and_apply_automatic_tracking()

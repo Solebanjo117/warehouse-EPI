@@ -43,7 +43,7 @@ public sealed class ModuleNavigationTests
     {
         string[] expected = [
             "/Operations/Entry", "/Operations/Entry", "/Operations/Exit", "/Operations/Transfer", "/Operations/Adjustment",
-            "/Operations/CycleCounts/Index", "/Operations/Production/Index", "/Operations/Staging/Index",
+            "/Operations/CycleCounts/Index", "/Operations/Production/Index", "/Operations/Staging/Index", "/Operations/Incidents/Index",
             "/Admin/Production/Processes",
             "/Admin/Production/Routes", "/Admin/Production/Schedule",
             "/Reports/Notifications/Index", "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",

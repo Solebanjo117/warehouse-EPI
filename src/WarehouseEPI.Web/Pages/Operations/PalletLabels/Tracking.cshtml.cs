@@ -8,7 +8,7 @@ using WarehouseEPI.Web.Localization;
 
 namespace WarehouseEPI.Web.Pages.Operations.PalletLabels;
 
-public sealed class TrackingModel(PalletTrackingService tracking, WarehouseClock clock, IStringLocalizer<OperationsTexts> texts) : PageModel
+public sealed class TrackingModel(PalletTrackingService tracking, WarehouseClock clock, IStringLocalizer<OperationsTexts> texts, MaterialIncidentQuery incidentQuery) : PageModel
 {
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Status { get; set; }
@@ -17,6 +17,7 @@ public sealed class TrackingModel(PalletTrackingService tracking, WarehouseClock
     [BindProperty] public ActivationInput Activation { get; set; } = new();
     [BindProperty] public VoidInput Void { get; set; } = new();
     public IReadOnlyList<PalletQueryRow> Rows { get; private set; } = [];
+    public IReadOnlyDictionary<Guid, IncidentCounts> Incidents { get; private set; } = new Dictionary<Guid, IncidentCounts>();
     public IReadOnlyList<Location> Locations { get; private set; } = [];
     public IReadOnlyList<PalletOrderLink> Orders { get; private set; } = [];
     public List<(PalletPlateEvent Event, DateTimeOffset Local, PalletHistoryRow Detail)> History { get; } = [];
@@ -25,6 +26,7 @@ public sealed class TrackingModel(PalletTrackingService tracking, WarehouseClock
         Locations = await tracking.LocationsAsync(token);
         if (id.HasValue) Search = id.ToString();
         Rows = await tracking.SearchAsync(Search, Status, OriginId, PageNumber, token);
+        Incidents = await incidentQuery.CountsAsync(Rows.Select(r => new IncidentLinkContext(r.Id, r.ProductId, PlateId: r.Id)).ToArray(), token);
         if (Rows.Count == 1)
         {
             Void.PlateId = Rows[0].Id; Void.ExpectedVersion = Rows[0].Version;

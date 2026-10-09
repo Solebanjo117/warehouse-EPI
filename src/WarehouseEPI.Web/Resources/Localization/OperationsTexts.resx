@@ -821,11 +821,79 @@
   <data name="Resumen global de pendientes" xml:space="preserve"><value>Resumen global de pendientes</value></data>
   <data name="Total pendiente" xml:space="preserve"><value>Total pendiente</value></data>
   <data name="Urgente" xml:space="preserve"><value>Urgente</value></data>
+  <data name="Reportar incidencia" xml:space="preserve"><value>Reportar incidencia</value></data>
+  <data name="Incidencias de material" xml:space="preserve"><value>Incidencias de material</value></data>
+  <data name="Reportar y dar seguimiento a problemas del material." xml:space="preserve"><value>Reportar y dar seguimiento a problemas del material.</value></data>
+  <data name="Este registro no cambia existencias ni bloquea movimientos." xml:space="preserve"><value>Este registro no cambia existencias ni bloquea movimientos.</value></data>
+  <data name="No hay productos con ese criterio en esta ubicación." xml:space="preserve"><value>No hay productos con ese criterio en esta ubicación.</value></data>
+  <data name="No fue posible consultar. Intenta nuevamente." xml:space="preserve"><value>No fue posible consultar. Intenta nuevamente.</value></data>
+  <data name="Placa opcional" xml:space="preserve"><value>Placa opcional</value></data>
+  <data name="Toda la llegada" xml:space="preserve"><value>Toda la llegada</value></data>
+  <data name="Recepción no determinada" xml:space="preserve"><value>Recepción no determinada</value></data>
+  <data name="Ubicación de detección" xml:space="preserve"><value>Ubicación de detección</value></data>
+  <data name="Ámbito" xml:space="preserve"><value>Ámbito</value></data>
+  <data name="Cantidad afectada (opcional)" xml:space="preserve"><value>Cantidad afectada (opcional)</value></data>
+  <data name="Estado observado" xml:space="preserve"><value>Estado observado</value></data>
+  <data name="Situación actual de la placa" xml:space="preserve"><value>Situación actual de la placa</value></data>
+  <data name="Placas descendientes relacionadas" xml:space="preserve"><value>Placas descendientes relacionadas</value></data>
+  <data name="Corrección vinculada" xml:space="preserve"><value>Corrección vinculada</value></data>
+  <data name="Corrección vinculada (opcional)" xml:space="preserve"><value>Corrección vinculada (opcional)</value></data>
+  <data name="Comentario o motivo" xml:space="preserve"><value>Comentario o motivo</value></data>
+  <data name="Abierta" xml:space="preserve"><value>Abierta</value></data>
+  <data name="Resuelta" xml:space="preserve"><value>Resuelta</value></data>
+  <data name="Recepción" xml:space="preserve"><value>Recepción</value></data>
+  <data name="Almacén" xml:space="preserve"><value>Almacén</value></data>
+  <data name="Por determinar" xml:space="preserve"><value>Por determinar</value></data>
+  <data name="Daño" xml:space="preserve"><value>Daño</value></data>
+  <data name="Diferencia de cantidad" xml:space="preserve"><value>Diferencia de cantidad</value></data>
+  <data name="Producto incorrecto" xml:space="preserve"><value>Producto incorrecto</value></data>
+  <data name="Falta de identificación" xml:space="preserve"><value>Falta de identificación</value></data>
+  <data name="Faltante" xml:space="preserve"><value>Faltante</value></data>
+  <data name="Sobrante" xml:space="preserve"><value>Sobrante</value></data>
+  <data name="Agregar seguimiento" xml:space="preserve"><value>Agregar seguimiento</value></data>
+  <data name="Pasar a revisión" xml:space="preserve"><value>Pasar a revisión</value></data>
+  <data name="Resolver (ADMIN)" xml:space="preserve"><value>Resolver (ADMIN)</value></data>
+  <data name="Anular (ADMIN)" xml:space="preserve"><value>Anular (ADMIN)</value></data>
+  <data name="Reabrir (ADMIN)" xml:space="preserve"><value>Reabrir (ADMIN)</value></data>
+  <data name="Folio, placa, producto, ubicación o referencia" xml:space="preserve"><value>Folio, placa, producto, ubicación o referencia</value></data>
+  <data name="Abiertas y en revisión" xml:space="preserve"><value>Abiertas y en revisión</value></data>
+  <data name="No hay incidencias con estos filtros." xml:space="preserve"><value>No hay incidencias con estos filtros.</value></data>
+  <data name="Vuelve a seleccionar las fotografías antes de confirmar." xml:space="preserve"><value>Vuelve a seleccionar las fotografías antes de confirmar.</value></data>
+  <data name="Fotografías opcionales" xml:space="preserve"><value>Fotografías opcionales</value></data>
+  <data name="Hasta 5 fotografías por incidencia; PNG/JPEG, 5 MiB y 4096 × 4096 por imagen." xml:space="preserve"><value>Hasta 5 fotografías por incidencia; PNG/JPEG, 5 MiB y 4096 × 4096 por imagen.</value></data>
+  <data name="Quitar foto" xml:space="preserve"><value>Quitar foto</value></data>
+  <data name="Selecciona hasta 5 fotografías PNG/JPEG de máximo 5 MiB cada una." xml:space="preserve"><value>Selecciona hasta 5 fotografías PNG/JPEG de máximo 5 MiB cada una.</value></data>
+  <data name="Confirmar incidencia" xml:space="preserve"><value>Confirmar incidencia</value></data>
+  <data name="El contexto del material no es válido. Consulta nuevamente." xml:space="preserve"><value>El contexto del material no es válido. Consulta nuevamente.</value></data>
+  <data name="NIP inválido o usuario sin permiso operativo." xml:space="preserve"><value>NIP inválido o usuario sin permiso operativo.</value></data>
+  <data name="El material cambió. Revisa el contexto actualizado antes de confirmar." xml:space="preserve"><value>El material cambió. Revisa el contexto actualizado antes de confirmar.</value></data>
+  <data name="Revisa la descripción, cantidad y clasificación de la incidencia." xml:space="preserve"><value>Revisa la descripción, cantidad y clasificación de la incidencia.</value></data>
+  <data name="La incidencia cambió. Actualiza y revisa antes de confirmar." xml:space="preserve"><value>La incidencia cambió. Actualiza y revisa antes de confirmar.</value></data>
+  <data name="Transición no permitida. Resolver, anular o reabrir requiere NIP ADMIN." xml:space="preserve"><value>Transición no permitida. Resolver, anular o reabrir requiere NIP ADMIN.</value></data>
+  <data name="La corrección no corresponde al material de esta incidencia." xml:space="preserve"><value>La corrección no corresponde al material de esta incidencia.</value></data>
+  <data name="La operación ya fue usada con datos distintos." xml:space="preserve"><value>La operación ya fue usada con datos distintos.</value></data>
+  <data name="Máximo 5 fotografías por incidencia." xml:space="preserve"><value>Máximo 5 fotografías por incidencia.</value></data>
+  <data name="Cada fotografía debe pesar como máximo 5 MiB." xml:space="preserve"><value>Cada fotografía debe pesar como máximo 5 MiB.</value></data>
+  <data name="Selecciona fotografías PNG/JPEG válidas de hasta 4096 × 4096." xml:space="preserve"><value>Selecciona fotografías PNG/JPEG válidas de hasta 4096 × 4096.</value></data>
+  <data name="Escribe un comentario o motivo para el seguimiento." xml:space="preserve"><value>Escribe un comentario o motivo para el seguimiento.</value></data>
+  <data name="Incidencias abiertas: {0}" xml:space="preserve"><value>Incidencias abiertas: {0}</value></data>
+  <data name="Relacionadas por división o traslado: {0}" xml:space="preserve"><value>Relacionadas por división o traslado: {0}</value></data>
+  <data name="Abiertas reportadas aquí: {0}" xml:space="preserve"><value>Abiertas reportadas aquí: {0}</value></data>
+  <data name="Otras relacionadas con placas aquí: {0}" xml:space="preserve"><value>Otras relacionadas con placas aquí: {0}</value></data>
+  <data name="Movimiento corregido" xml:space="preserve"><value>Movimiento corregido</value></data>
+  <data name="Incidencia relacionada" xml:space="preserve"><value>Incidencia relacionada</value></data>
+  <data name="Ubicación actual de la placa" xml:space="preserve"><value>Ubicación actual de la placa</value></data>
+  <data name="Ubicación observada de la placa" xml:space="preserve"><value>Ubicación observada de la placa</value></data>
+  <data name="Consultar existencias" xml:space="preserve"><value>Consultar existencias</value></data>
   <data name="Más acciones" xml:space="preserve"><value>Más acciones</value></data>
 <data name="Opcional: puedes elegir otra ubicación" xml:space="preserve"><value>Opcional: puedes elegir otra ubicación</value></data>
 <data name="No hay ubicaciones sugeridas con stock. Busca o escanea un destino" xml:space="preserve"><value>No hay ubicaciones sugeridas con stock. Busca o escanea un destino</value></data>
 <data name="Ubicaciones sugeridas" xml:space="preserve"><value>Ubicaciones sugeridas</value></data>
 <data name="Saldo actual" xml:space="preserve"><value>Saldo actual</value></data>
+<data name="Registrar incidencia" xml:space="preserve"><value>Registrar incidencia</value></data>
+<data name="Producto y ubicación de detección" xml:space="preserve"><value>Producto y ubicación de detección</value></data>
+<data name="Selecciona el producto y después la ubicación donde detectaste el problema." xml:space="preserve"><value>Selecciona el producto y después la ubicación donde detectaste el problema.</value></data>
+<data name="Continuar" xml:space="preserve"><value>Continuar</value></data>
   <data name="Hoja de códigos para proveedores" xml:space="preserve"><value>Hoja de códigos para proveedores</value></data>
   <data name="Agrega productos y genera una hoja carta con sus números de parte y códigos de barras." xml:space="preserve"><value>Agrega productos y genera una hoja carta con sus números de parte y códigos de barras.</value></data>
   <data name="Selecciona hasta 100 productos. Cada producto aparece una sola vez." xml:space="preserve"><value>Selecciona hasta 100 productos. Cada producto aparece una sola vez.</value></data>

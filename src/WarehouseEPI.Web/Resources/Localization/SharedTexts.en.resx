@@ -230,6 +230,8 @@
   <data name="Registrar una entrada con destino STAGING" xml:space="preserve"><value>Record an entry into STAGING</value></data>
   <data name="{0} llegada pendiente de acomodo o identificación" xml:space="preserve"><value>{0} arrival pending putaway or identification</value></data>
   <data name="{0} llegadas pendientes de acomodo o identificación" xml:space="preserve"><value>{0} arrivals pending putaway or identification</value></data>
+  <data name="Incidencias de material" xml:space="preserve"><value>Material issues</value></data>
+  <data name="Reportar y dar seguimiento a problemas del material." xml:space="preserve"><value>Report and follow up on material issues.</value></data>
   <data name="Hoja de códigos para proveedores" xml:space="preserve"><value>Supplier barcode sheet</value></data>
   <data name="Lista de productos con códigos para imprimir o guardar como PDF." xml:space="preserve"><value>Product list with barcodes to print or save as PDF.</value></data>
 </root>

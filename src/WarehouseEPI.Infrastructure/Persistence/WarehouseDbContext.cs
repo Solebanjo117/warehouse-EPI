@@ -9,6 +9,9 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     : DbContext(options)
 {
     public DbSet<Role> Roles => Set<Role>();
+    public DbSet<MaterialIncident> MaterialIncidents => Set<MaterialIncident>();
+    public DbSet<MaterialIncidentEvent> MaterialIncidentEvents => Set<MaterialIncidentEvent>();
+    public DbSet<MaterialIncidentPhoto> MaterialIncidentPhotos => Set<MaterialIncidentPhoto>();
     public DbSet<PalletPlate> PalletPlates => Set<PalletPlate>();
     public DbSet<PalletPlateLot> PalletPlateLots => Set<PalletPlateLot>();
     public DbSet<PalletPlateEvent> PalletPlateEvents => Set<PalletPlateEvent>();
@@ -121,6 +124,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+        MaterialIncidentMapping.Configure(modelBuilder);
         PalletPlateConfiguration.Configure(modelBuilder);
 
         ConfigureRole(modelBuilder);
@@ -1468,6 +1472,11 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
 
     private void EnsureMovementHistoryIsImmutable()
     {
+        if (ChangeTracker.Entries<MaterialIncident>().Any(e => e.State == EntityState.Deleted || e.State == EntityState.Modified &&
+            e.Properties.Any(p => p.IsModified && p.Metadata.Name is not (nameof(MaterialIncident.Status) or nameof(MaterialIncident.Version)))) ||
+            ChangeTracker.Entries<MaterialIncidentEvent>().Any(e => e.State is EntityState.Modified or EntityState.Deleted) ||
+            ChangeTracker.Entries<MaterialIncidentPhoto>().Any(e => e.State is EntityState.Modified or EntityState.Deleted))
+            throw new InvalidOperationException("El reporte inicial y las evidencias de incidencias son inmutables.");
         // An unconfirmed import draft may be deleted with its working revisions; a confirmed one stays as the import record.
         var deletableDrafts = ChangeTracker.Entries<ProductionImportDraft>()
             .Where(entry => entry.State == EntityState.Deleted && entry.OriginalValues.GetValue<ProductionImportDraftStatus>(

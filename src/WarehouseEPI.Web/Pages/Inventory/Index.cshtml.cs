@@ -8,9 +8,10 @@ namespace WarehouseEPI.Web.Pages.Inventory;
 public sealed class IndexModel(
     OperationalInventoryQueryService operationalQuery,
     InventoryQueryService inventoryQuery,
-    IStringLocalizer<CatalogTexts> text) : PageModel
+    IStringLocalizer<CatalogTexts> text, MaterialIncidentQuery incidentQuery) : PageModel
 {
     private const int PageSize = 25;
+    public IReadOnlyDictionary<Guid, IncidentCounts> Incidents { get; private set; } = new Dictionary<Guid, IncidentCounts>();
 
     public OperationalProductResult? Product { get; private set; }
     public OperationalLocationResult? Location { get; private set; }
@@ -23,6 +24,14 @@ public sealed class IndexModel(
     public int TotalPages => Math.Max(1, (int)Math.Ceiling(Results.TotalCount / (double)PageSize));
 
     public async Task OnGetAsync(
+        Guid? productId, string? productCode, Guid? locationId, string? locationCode, string? code, string? filter,
+        int? pageNumber = null, Guid? highlightLocationId = null, Guid? highlightProductId = null, CancellationToken cancellationToken = default)
+    {
+        await LoadAsync(productId, productCode, locationId, locationCode, code, filter, pageNumber, highlightLocationId, highlightProductId, cancellationToken);
+        Incidents = await incidentQuery.CountsAsync(Results.Items.Select(p => new IncidentLinkContext(Product is null ? p.ProductId : p.LocationId, p.ProductId, p.LocationId)).ToArray(), cancellationToken);
+    }
+
+    private async Task LoadAsync(
         Guid? productId,
         string? productCode,
         Guid? locationId,

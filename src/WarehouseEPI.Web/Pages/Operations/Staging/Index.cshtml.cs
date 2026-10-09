@@ -9,7 +9,7 @@ using WarehouseEPI.Web.Localization;
 namespace WarehouseEPI.Web.Pages.Operations.Staging;
 
 public sealed class IndexModel(WarehouseDbContext db, PalletTrackingService tracking, WarehouseClock clock, TimeProvider timeProvider,
-    IStringLocalizer<OperationsTexts> texts) : PageModel
+    IStringLocalizer<OperationsTexts> texts, MaterialIncidentQuery incidentQuery) : PageModel
 {
     [BindProperty(SupportsGet = true)] public string? Search { get; set; }
     [BindProperty(SupportsGet = true)] public string? Priority { get; set; }
@@ -20,6 +20,7 @@ public sealed class IndexModel(WarehouseDbContext db, PalletTrackingService trac
     [BindProperty] public Guid OperationId { get; set; }
     [BindProperty] public decimal? PhysicalQuantity { get; set; }
     public StagingArrivalPage Arrivals { get; private set; } = new([], false);
+    public IReadOnlyDictionary<Guid, IncidentCounts> Incidents { get; private set; } = new Dictionary<Guid, IncidentCounts>();
     public Dictionary<Guid, DateTimeOffset> LocalTimes { get; } = [];
     public Dictionary<Guid, string> Ages { get; } = [];
     public Dictionary<Guid, StagingPriority> Priorities { get; } = [];
@@ -67,6 +68,7 @@ public sealed class IndexModel(WarehouseDbContext db, PalletTrackingService trac
             var overview = await new StagingArrivalQuery(db).OverviewAsync(Search, priority, PageNumber, asOf, token);
             Arrivals = overview.Page; Summary = overview.Summary;
         }
+        Incidents = await incidentQuery.CountsAsync(Arrivals.Items.Select(r => new IncidentLinkContext(r.LineId, r.ProductId, ArrivalLineId: r.LineId)).ToArray(), token);
         var localTimes = await clock.ConvertManyAsync(Arrivals.Items.Select(r => r.OccurredAt), token);
         foreach (var row in Arrivals.Items)
         {

@@ -1,0 +1,38 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Incidents.DetailsModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Web.Pages.Operations.Incidents
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> T
+@{ ViewData["Title"] = Model.Incident.Folio; var closed = Model.Incident.Status is MaterialIncidentStatus.Resolved or MaterialIncidentStatus.Voided; }
+<h1 class="h3 text-break">@Model.Incident.Folio</h1><p>@T[IncidentUi.Label(Model.Incident.Status)] · @Model.LocalTimes[Model.Incident.ReportedAt].ToString("dd/MM/yyyy HH:mm") · @Model.Incident.ReportedBy.FullName</p>
+<a asp-page="Index" class="btn btn-outline-secondary btn-lg mb-3">@T["Incidencias de material"]</a>
+@if (!ViewData.ModelState.IsValid) { <div class="alert alert-danger" role="alert" tabindex="-1">@foreach(var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <p>@T[error.ErrorMessage]</p> }</div> }
+<section class="card card-body mb-3" data-incident-context><h2 class="h5">@Model.Snapshot.Sku · @Model.Snapshot.Unit</h2>
+    <p>@T["Ubicación de detección"]: <a asp-page="/Locations/Details" asp-route-id="@Model.Incident.DetectionLocationId">@Model.Snapshot.Location</a></p>
+    <p>@T["Estado observado"]: @T[Model.Snapshot.State] · @(Model.Snapshot.ObservedQuantity?.ToString("0.####") ?? "—") @Model.Snapshot.Unit</p>
+    @if (Model.Snapshot.ActualPlateLocation is {} observed) { <p>@T["Ubicación observada de la placa"]: @observed</p> }
+    <p>@T[IncidentUi.Label(Model.Incident.Scope)] · @T[IncidentUi.Label(Model.Incident.Kind)] · @T[IncidentUi.Label(Model.Incident.Difference)]</p>
+    <p>@T["Cantidad afectada (opcional)"]: @(Model.Incident.Quantity?.ToString("0.####") ?? "—") @Model.Snapshot.Unit</p><p class="text-break">@Model.Incident.Description</p>
+    @if (Model.CanOpenStaging) { <a asp-page="/Operations/Staging/Index" asp-route-arrivalLineId="@Model.Incident.ArrivalLineId" class="btn btn-outline-secondary btn-lg">@T["Ver llegada en staging"]</a> }
+    else if (Model.ArrivalMovementId.HasValue) { <a asp-page="/Operations/Receipt" asp-route-id="@Model.ArrivalMovementId" class="btn btn-outline-secondary btn-lg">@T["Ver llegada"]</a> }
+    else { <p>@T["Recepción no determinada"]</p> }
+    @if (Model.Plate is {} plate) { <p class="mt-3">@T["Situación actual de la placa"]: @plate.Location.Code · @T[Model.CurrentPlateState] · @plate.Quantity.ToString("0.####")</p><a asp-page="/Operations/PalletLabels/Tracking" asp-route-id="@plate.Id" class="btn btn-outline-secondary btn-lg text-break">@plate.Identifier</a> }
+    @if (Model.Descendants.Count > 0) { <h3 class="h6 mt-3">@T["Placas descendientes relacionadas"]</h3>@foreach(var id in Model.Descendants) { <a asp-page="/Operations/PalletLabels/Tracking" asp-route-id="@id" class="btn btn-link text-break">PLT-@id.ToString("N").ToUpperInvariant()</a> } }
+</section>
+<h2 class="h4">@T["Historial"]</h2>
+@foreach(var entry in Model.Events) {
+    <article class="card card-body mb-3"><h3 class="h6">@T[IncidentUi.Label(entry.Action)] · @Model.LocalTimes[entry.RecordedAt].ToString("dd/MM/yyyy HH:mm") · @entry.Responsible.FullName</h3><p class="text-break">@entry.Comment</p>
+        @if(entry.CorrectionId.HasValue && Model.Corrections.FirstOrDefault(c => c.Id == entry.CorrectionId) is {} correction) { <a asp-page="/Operations/Receipt" asp-route-id="@correction.ReversalMovementId" class="btn btn-outline-secondary btn-lg">@T["Corrección vinculada"]</a> }
+        <div class="row g-2">@foreach(var photo in Model.Images.Where(p => p.EventId == entry.Id)) { <div class="col-6 col-md-3"><a asp-page-handler="Photo" asp-route-id="@Model.Id" asp-route-photoId="@photo.Id"><img src="@Url.Page("Details", "Photo", new { id = Model.Id, photoId = photo.Id })" class="img-fluid rounded" loading="lazy" alt="@photo.Name" /></a></div> }</div>
+    </article>
+}
+<form method="post" enctype="multipart/form-data" class="card card-body" data-incident-form>
+    <input type="hidden" asp-for="Id" /><input type="hidden" asp-for="OperationId" /><input type="hidden" asp-for="ExpectedVersion" />
+    <label asp-for="Action" class="form-label">@T["Acción"]</label><select asp-for="Action" class="form-select form-select-lg" data-review-label="@T["Acción"]">
+    @foreach(var action in closed ? new[] { "Reopen" } : Model.Incident.Status == MaterialIncidentStatus.Open ? new[] { "Comment", "Review", "Void" } : new[] { "Comment", "Resolve", "Void" }) { <option value="@action">@T[IncidentUi.Label(action)]</option> }
+    </select>
+    <label asp-for="Comment" class="form-label mt-3">@T["Comentario o motivo"]</label><textarea asp-for="Comment" maxlength="2000" rows="3" class="form-control form-control-lg" data-review-label="@T["Comentario o motivo"]"></textarea>
+    @if (!closed && Model.Corrections.Count > 0) { <label asp-for="CorrectionId" class="form-label mt-3">@T["Corrección vinculada (opcional)"]</label><select asp-for="CorrectionId" class="form-select form-select-lg" data-review-label="@T["Corrección vinculada"]"><option value="">—</option>@foreach(var correction in Model.Corrections) { <option value="@correction.Id">@correction.Reason · @correction.Id</option> }</select> }
+    <partial name="_Capture" model="Model" />
+</form>
+@section Scripts { <script src="~/js/material-incidents.js" asp-append-version="true"></script> }

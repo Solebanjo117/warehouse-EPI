@@ -50,6 +50,27 @@ silenciosas, encabezados repetidos y filas indivisibles. Acceso público como Et
 sin NIP, persistencia ni movimientos. Pruebas: SupplierSheetRouteTests y
 tests/javascript/supplier-sheet.browser.cjs; impresión/lector físicos requieren validación.
 
+## Registro central de incidencias
+
+`/Operations/Incidents` ofrece «Registrar incidencia». El enlace lleva a
+`Create` vacío y conserva los filtros únicamente en `ReturnUrl`; no los usa como
+contexto del reporte. `CreateModel.ListUrl` solo admite una URL local del listado y
+descarta destinos externos u otras pantallas. El regreso se conserva en GET y POST
+fallido; el éxito abre el detalle existente.
+
+`_InitialContext.cshtml` y `incident-context.js` reutilizan `suggestion-lookup.js`
+para seleccionar primero Producto y luego Ubicación de detección. No hay precargas
+automáticas. Cambiar producto limpia la ubicación y cancela sus sugerencias pendientes.
+El handler `Products` admite búsqueda global por palabras de descripción mediante
+`WhereProductText`; con `locationId` conserva el buscador contextual existente.
+`Locations` exige producto válido y devuelve hasta 12 ubicaciones no WIP relacionadas
+por saldo (incluido cero/negativo), asignación o movimientos históricos. Ambos admiten
+catálogos inactivos/bloqueados. «Continuar» usa los IDs seleccionados; el servidor
+revalida mediante `MaterialIncidentService.ContextAsync`/`ProductsAt`, sin inventar
+placa ni recepción. Dependencias: Bootstrap, `ClientTexts`/`OperationsTexts` ES/EN y
+formulario/revisión/NIP/fotografías actuales. Ejemplo: abrir Create, seleccionar un
+producto histórico y una ubicación bloqueada, continuar y reportar desde el formulario.
+
 En el historial de placas, **Imprimir placa** de una transferencia utiliza solo
 placas del producto que siguen en su ubicación destino. No ofrece el remanente
 del origen. `PalletTrackingService.PrintablePlatesForMovementsAsync` aplica este
@@ -73,6 +94,17 @@ tanto en traslados completos como parciales.
   capturado y limpia el NIP mediante el flujo existente. Sin sugerencias, el mensaje
   invita a buscar/escanear. Dependencias: Bootstrap, `site.css`, textos OperationsTexts
   ES/EN y validación de transferencia existente. Ejemplo: `/Operations/Staging/Putaway?arrival=...`.
+
+- **Acciones compactas por llegada:** `Pages/Operations/Staging/Index.cshtml`
+  reutiliza el dropdown y collapse del bundle Bootstrap cargado por `_Layout`.
+  La acción visible es Acomodar, Identificar material o seguimiento de placas según
+  el estado. «Más acciones» agrupa Ver llegada, Dividir material (solo con pendiente
+  identificado) y Reportar incidencia. Cada menú conserva los IDs de su llegada y
+  usa un identificador único para `aria-labelledby`; las opciones `py-3` mantienen
+  el tamaño táctil. El enlace de incidencias abiertas aparece debajo solo con
+  contador mayor que cero. Ejemplo: `/Operations/Staging?arrivalLineId=...` usa
+  las mismas acciones que el listado, sin cambiar permisos, consultas ni movimientos.
+  Textos en `OperationsTexts` ES/EN; flechas y Escape mediante Bootstrap, sin JS nuevo.
 
 ### Acceso Recibir en STAGING
 
@@ -278,6 +310,30 @@ Antes de adaptar un buscador:
   mantiene cada texto dentro de su fila y permite llegar al final con flechas.
   Verificado en `tests/javascript/supplier-sheet.browser.cjs` (390/800/1440 px,
   claro/oscuro, ES/EN), sin cambiar handlers ni selección.
+  Ejemplos reales: `kardex-product-lookup.js` conserva el envío al elegir SKU;
+  `incident-filters.js` en `/Operations/Incidents` conserva la selección hasta Buscar.
+  Los handlers `Products` y `Locations` del listado de incidencias devuelven hasta
+  12 sugerencias, admiten históricos/inactivos/bloqueados y excluyen ubicaciones WIP.
+  El texto libre mantiene la búsqueda parcial. Editar o borrar limpia el ID previo;
+  elegir conserva el ID exacto. Los enlaces de contexto muestran el código del ID,
+  salvo `relation=current`, que conserva separada la ubicación actual de las placas
+  respecto del filtro de ubicación de detección.
+  Al elegir una ubicación, `SingleStockProduct` suma saldos por producto (todos sus
+  lotes) y autocompleta Producto únicamente si hay exactamente uno con saldo neto
+  positivo. No usa el lookup operativo, que excluye catálogos históricos y ubicaciones
+  bloqueadas. Cero o varios productos mantienen la captura manual; cambiar ubicación
+  limpia únicamente el producto autocompletado. Las respuestas tardías no reemplazan
+  cambios manuales ni selecciones posteriores. El motor compartido devuelve `setValue`
+  para aplicar la precarga y cancelar sugerencias pendientes sin simular teclado.
+  Se anuncia el resultado con `ClientTexts` ES/EN; errores permiten selección manual.
+  A la inversa, `SingleStockLocation` agrupa por ubicación y completa la única
+  ubicación de almacén con saldo neto positivo del producto seleccionado (excluye
+  WIP; admite ubicaciones históricas/inactivas/bloqueadas para consultar incidencias).
+  `incident-filters.js` comparte la precarga en ambas direcciones: `setValue` no
+  inicia otra consulta, evitando ciclos. Editar el campo origen limpia solo el
+  destino autocompletado; una selección manual cancela respuestas pendientes.
+  El cierre diferido al perder foco comprueba que el campo siga sin foco, para no
+  cancelar una búsqueda nueva cuando el operador alterna rápidamente los filtros.
 
 - En movimientos, el handler `ProductLocations` de `Lookup.cshtml.cs` reutiliza
   `OperationalInventoryQueryService.GetProductLocationsAsync` para las sugerencias
@@ -595,3 +651,71 @@ sin cambiar las identidades ni las reglas de confirmación.
   No toma material de otras placas individuales ni de reservas/preparaciones.
   Las placas agotadas o trasladadas no vuelven a identificarse automáticamente.
   Las demás áreas conservan su flujo de impresión.
+
+
+## Incidencias de material
+
+- **Caso de uso:** documentar un problema desde una llegada exacta en staging, una
+  placa (también agotada/anulada/dividida) o producto y ubicación. No escribe
+  movimientos, saldos, reservas ni prioridades; tampoco bloquea operaciones.
+- **Consumidores:** tarjeta de Operaciones → `/Operations/Incidents`;
+  `Staging/Index` → `Create?arrivalLineId=…`; `PalletLabels/Tracking` →
+  `Create?plateId=…`; `Inventory/Index` → `Create?productId=…&locationId=…`.
+  `Locations/Details` abre `Create?locationId=…` con buscador de producto.
+  Se admiten catálogos inactivos y saldo histórico, cero o negativo; WIP se excluye.
+- **Captura compartida:** `Pages/Operations/Incidents/Create.cshtml(.cs)`,
+  `_Capture.cshtml`, `IncidentUi.cs` y `wwwroot/js/material-incidents.js`.
+  Comparte revisión Bootstrap con NIP, selección/cámara de fotografías, vista
+  previa, foco y recuperación con `Details.cshtml(.cs)`. No persiste NIP; los
+  errores conservan campos, limpian NIP y avisan si hay que seleccionar fotos otra vez.
+- **Buscador contextual:** reutiliza el patrón de sugerencias Bootstrap y la consulta
+  `ProductTextSearch.WhereProductText`, con flechas, Enter y Escape. El handler
+  `Create?handler=Products&locationId=…&q=…` restringe a saldo, asignación o historia
+  en la ubicación, incluidos productos inactivos. No carga `operations.js`: ese
+  controlador requiere un movimiento y filtra catálogos operables, un contrato
+  diferente al reporte histórico. Las sugerencias conservan el ID, no sustituyen
+  un material inexistente por otro SKU. Ejemplo: abrir desde una ubicación bloqueada,
+  buscar un producto histórico y revisar su contexto antes de confirmar.
+- **Persistencia y comandos:** `Core/Entities/MaterialIncident.cs`,
+  `Infrastructure/Persistence/MaterialIncidentMapping.cs`, migración
+  `20261009125100_AddMaterialIncidents` y `MaterialIncidentService`.
+  Folio estable `INC-{GUID}`, instantánea de códigos/unidad/estado/cantidad/versiones,
+  reporte inicial inmutable, eventos anexados y referencias restrictivas.
+  Una llegada sin identificación muestra cantidad pendiente desconocida (—),
+  nunca la suma de otras llegadas del mismo producto.
+- **Confirmación:** NIP/rol operativo en todos los comandos; ADMIN para resolver,
+  anular y reabrir; motivo obligatorio para cierre y reapertura. Se resuelve desde
+  En revisión; el seguimiento admite comentario, fotografía o corrección vinculada.
+  GET de solo lectura, antiforgery
+  en POST, operación + huella sin NIP para reintentos, versión esperada y bloqueo
+  transaccional para concurrencia. Reporte/evento/fotos se guardan juntos. Un cambio
+  de contexto requiere nueva revisión y conserva la ubicación de detección elegida.
+- **Trazabilidad:** `MaterialIncidentLineage` recorre relaciones verificables por
+  división y transferencias con un donante y una placa nueva inequívocos. No usa SKU,
+  posición ni solo movimiento de origen. Mezclas o identidades ambiguas dejan
+  «Recepción no determinada», incluso con ámbito Recepción. Las incidencias
+  relacionadas conservan el reporte original; no se distribuye su cantidad.
+  `CorrectionsForAsync` comparte la validación y selección de comprobantes existentes.
+- **Consulta:** `MaterialIncidentQuery.ListAsync` aplica estado/ámbito/tipo/producto/
+  ubicación y búsqueda antes de páginas de 25, en orden de reporte e ID. Por defecto
+  incluye Abiertas y En revisión. `CountsAsync` prepara los accesos por contexto en
+  lotes, sin consultas desde las vistas ni por tarjeta. En inventario «reportadas aquí»
+  y «otras relacionadas con placas aquí» son conjuntos disjuntos; no suman dos veces
+  una incidencia. No hay sondeo en segundo plano.
+- **Fotografías:** PNG/JPEG, hasta 5 contenidos distintos por incidencia, hasta 5 MiB
+  y 4096 × 4096 por foto. Reutiliza `LabelAssetService.ImageDimensions` como validación
+  estructural; los bytes y metadatos viven exclusivamente en `material_incident_photos`,
+  nunca en el catálogo de imágenes de etiquetas. `Details?handler=Photo&id=…&photoId=…`
+  exige la relación exacta con la incidencia y usa el acceso de consulta operativa;
+  no publica archivos estáticos. Los listados no seleccionan bytes. La vista previa
+  usa data URLs compatibles con CSP y espera su lectura antes de abrir la revisión.
+- **Dependencias:** EF Core/PostgreSQL, `UserPinService`, `TimeProvider`,
+  `WarehouseClock`, `StagingArrivalQuery`, Bootstrap y recursos OperationsTexts/
+  SharedTexts ES/EN. No agrega un motor de movimientos ni cambia permisos existentes.
+- **Verificación:** `MaterialIncidentTests.cs`, `MaterialIncidentRouteTests.cs`,
+  `MaterialIncidentPostgreSqlTests.cs` y `tests/javascript/material-incidents.browser.cjs`.
+  La prueba PostgreSQL crea bases con prefijo `warehouse_epi_incidents_test_`, valida
+  migraciones, concurrencia, fallo atómico y respaldo/restauración con fotos, y las
+  elimina al terminar. Nunca migra la base configurada de la aplicación. La suite de
+  navegador usa HTML Razor de fixtures, ES/EN, claro/oscuro y tamaños emulados;
+  cámara, lector y tablet físicos requieren revisión separada. Sin publicación.

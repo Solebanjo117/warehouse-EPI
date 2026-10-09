@@ -182,7 +182,7 @@ public sealed class LabelAssetService(WarehouseDbContext db, TimeProvider timePr
     }
     public async Task<bool> SetArchivedAsync(Guid id, bool archived, CancellationToken token = default) { var asset = await db.LabelAssets.SingleOrDefaultAsync(item => item.Id == id, token); if (asset is null) return false; asset.IsArchived = archived; await db.SaveChangesAsync(token); return true; }
 
-    private static (int Width, int Height)? ImageDimensions(byte[] data, string contentType)
+    public static (int Width, int Height)? ImageDimensions(byte[] data, string contentType)
     {
         if (contentType == "image/png")
         {

@@ -80,3 +80,4 @@
     .inventory-workspace .inventory-search-card .input-group > [data-inventory-camera] { width: 52px; }
     .inventory-workspace .inventory-search-card .input-group > button[type="submit"] { flex: 1 0 100%; margin: .5rem 0 0; border-radius: .4rem; }
 }
+.inventory-position-actions { grid-column: 1 / -1; }

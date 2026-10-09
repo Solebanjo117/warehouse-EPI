@@ -91,6 +91,7 @@ public static class ModuleNavigation
                 new("Salida", "Retirar material o surtir WIP.", "exit", "/Operations/Exit"),
                 new("Transferencia", "Mover material entre ubicaciones.", "transfer", "/Operations/Transfer"),
                 new("Lista de staging", "Acomodar cada llegada de material.", "transfer", "/Operations/Staging/Index"),
+                new("Incidencias de material", "Reportar y dar seguimiento a problemas del material.", "alert", "/Operations/Incidents/Index"),
                 new("Ajuste", "Corregir existencias con trazabilidad.", "adjust", "/Operations/Adjustment")]),
             new("Verificación", [new("Conteos cíclicos", "Capturar y revisar conteos de inventario.", "inventory", "/Operations/CycleCounts/Index")])
         ]),

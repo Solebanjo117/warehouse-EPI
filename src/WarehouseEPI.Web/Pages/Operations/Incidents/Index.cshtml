@@ -1,0 +1,52 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Incidents.IndexModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Web.Pages.Operations.Incidents
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> T
+@{
+    ViewData["Title"] = T["Incidencias de material"].Value;
+    var returnRoutes = new Microsoft.AspNetCore.Routing.RouteValueDictionary();
+    foreach (var pair in Model.Routes(Model.PageNumber)) { returnRoutes[pair.Key] = pair.Value; }
+}
+<header class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+    <h1 class="mb-0">@T["Incidencias de material"]</h1>
+    <a asp-page="Create" asp-route-returnUrl="@Url.Page("Index", returnRoutes)" class="btn btn-primary btn-lg">@T["Registrar incidencia"]</a>
+</header>
+<p>@T["Este registro no cambia existencias ni bloquea movimientos."]</p>
+<form method="get" class="row g-3 mb-4">
+    <input type="hidden" asp-for="ProductId" /><input type="hidden" asp-for="LocationId" /><input type="hidden" asp-for="PlateId" /><input type="hidden" asp-for="ArrivalLineId" /><input type="hidden" asp-for="Relation" />
+    <div class="col-md-6">
+        <div class="lookup-field" data-incident-filter="product" data-url="@Url.Page("Index", "Products")" data-single-location-url="@Url.Page("Index", "SingleStockLocation")" data-id-input="ProductId">
+            <label asp-for="ProductCode" class="form-label">@T["Producto"]</label>
+            <input asp-for="ProductCode" class="form-control form-control-lg" type="search" autocomplete="off" autocapitalize="characters" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="incident-products" aria-describedby="incident-products-feedback" data-suggestion-input />
+            <div id="incident-products" class="lookup-results list-group" role="listbox" aria-label="@T["Producto"]" data-suggestion-results></div>
+            <div id="incident-products-feedback" class="form-text" role="status" aria-live="polite" data-suggestion-feedback></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="lookup-field" data-incident-filter="location" data-url="@Url.Page("Index", "Locations")" data-single-product-url="@Url.Page("Index", "SingleStockProduct")" data-id-input="LocationId">
+            <label asp-for="LocationCode" class="form-label">@T["Ubicación de detección"]</label>
+            <input asp-for="LocationCode" class="form-control form-control-lg" type="search" autocomplete="off" autocapitalize="characters" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="incident-locations" aria-describedby="incident-locations-feedback" data-suggestion-input />
+            <div id="incident-locations" class="lookup-results list-group" role="listbox" aria-label="@T["Ubicación de detección"]" data-suggestion-results></div>
+            <div id="incident-locations-feedback" class="form-text" role="status" aria-live="polite" data-suggestion-feedback></div>
+        </div>
+    </div>
+    <div class="col-md-6"><label asp-for="Search" class="form-label">@T["Folio, placa, producto, ubicación o referencia"]</label><input asp-for="Search" class="form-control form-control-lg" type="search" /></div>
+    <div class="col-md-6"><label asp-for="Status" class="form-label">@T["Estado"]</label><select asp-for="Status" class="form-select form-select-lg"><option value="">@T["Abiertas y en revisión"]</option><option value="all">@T["Todas"]</option>@foreach(var value in Enum.GetValues<MaterialIncidentStatus>()) { <option value="@value.ToString().ToLowerInvariant()">@T[IncidentUi.Label(value)]</option> }</select></div>
+    <div class="col-md-6"><label asp-for="Scope" class="form-label">@T["Ámbito"]</label><select asp-for="Scope" class="form-select form-select-lg"><option value="">@T["Todos"]</option>@foreach(var value in Enum.GetValues<MaterialIncidentScope>()) { <option value="@value">@T[IncidentUi.Label(value)]</option> }</select></div>
+    <div class="col-md-6"><label asp-for="Kind" class="form-label">@T["Tipo"]</label><select asp-for="Kind" class="form-select form-select-lg"><option value="">@T["Todos"]</option>@foreach(var value in Enum.GetValues<MaterialIncidentKind>()) { <option value="@value">@T[IncidentUi.Label(value)]</option> }</select></div>
+    <div><button class="btn btn-primary btn-lg">@T["Buscar"]</button> <a asp-page="Index" class="btn btn-outline-secondary btn-lg">@T["Limpiar filtros"]</a></div>
+</form>
+@section Scripts {
+    <script src="~/js/suggestion-lookup.js" asp-append-version="true"></script>
+    <script src="~/js/incident-filters.js" asp-append-version="true"></script>
+}
+@if (Model.Results.Items.Count == 0) { <p role="status">@T["No hay incidencias con estos filtros."]</p> }
+<div class="row g-3">@foreach(var item in Model.Results.Items) {
+    <div class="col-12 col-xl-6"><article class="card card-body h-100"><h2 class="h5 text-break"><a asp-page="Details" asp-route-id="@item.Id">@item.Folio</a></h2>
+        <strong>@item.Product.Sku · @item.DetectionLocation.Code</strong><p>@Model.LocalTimes[item.ReportedAt].ToString("dd/MM/yyyy HH:mm") · @T[IncidentUi.Label(item.Status)]</p>
+        @if (Model.PlateId.HasValue && item.PlateId != Model.PlateId || Model.Relation == "current") { <p><span class="badge text-bg-secondary">@T["Incidencia relacionada"]</span></p> }
+        <p>@T[IncidentUi.Label(item.Scope)] · @T[IncidentUi.Label(item.Kind)]</p><p class="text-break">@item.Description</p>
+    </article></div>
+}</div>
+<nav class="d-flex gap-2 mt-3" aria-label="@T["Paginación"]">@if (Model.PageNumber > 1) { <a asp-page="Index" asp-all-route-data="@Model.Routes(Model.PageNumber - 1)" class="btn btn-outline-secondary btn-lg">@T["Anterior"]</a> }@if (Model.Results.HasMore) { <a asp-page="Index" asp-all-route-data="@Model.Routes(Model.PageNumber + 1)" class="btn btn-outline-secondary btn-lg">@T["Siguiente"]</a> }</nav>

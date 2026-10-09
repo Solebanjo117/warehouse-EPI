@@ -91,9 +91,14 @@ else
                     {
                         <li><a asp-page="Split" asp-route-arrivalLineId="@row.LineId" class="dropdown-item py-3">@OpTexts["Dividir material"]</a></li>
                     }
+                    <li><a asp-page="/Operations/Incidents/Create" asp-route-arrivalLineId="@row.LineId" class="dropdown-item py-3">@OpTexts["Reportar incidencia"]</a></li>
                 </ul>
             </div>
         </div>
+        @if (Model.Incidents[row.LineId].Reported > 0)
+        {
+            <div class="mt-2"><a asp-page="/Operations/Incidents/Index" asp-route-arrivalLineId="@row.LineId" class="d-inline-flex align-items-center py-3" data-open-incidents>@OpTexts["Incidencias abiertas: {0}", Model.Incidents[row.LineId].Reported]</a></div>
+        }
         @if (row.NeedsIdentification)
         {
             <div class="collapse" id="identify-@row.LineId">

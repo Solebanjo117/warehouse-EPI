@@ -177,6 +177,8 @@ builder.Services.AddScoped<ProductLotQueryService>();
 builder.Services.AddScoped<ProductCatalogQueryService>();
 builder.Services.AddScoped<InventoryQueryService>();
 builder.Services.AddScoped<StagingArrivalQuery>();
+builder.Services.AddScoped<MaterialIncidentService>();
+builder.Services.AddScoped<MaterialIncidentQuery>();
 builder.Services.AddScoped<CycleCountService>();
 builder.Services.AddScoped<WarehouseEPI.Web.Security.CycleCountPreparationProtector>();
 builder.Services.AddScoped<WarehouseEPI.Web.Security.CycleCountOperatorSession>();

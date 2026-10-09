@@ -1,0 +1,71 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Incidents.CreateModel
+@using WarehouseEPI.Core.Entities
+@using WarehouseEPI.Web.Pages.Operations.Incidents
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> T
+@{ ViewData["Title"] = T["Reportar incidencia"].Value; }
+<h1>@T["Reportar incidencia"]</h1>
+<p>@T["Este registro no cambia existencias ni bloquea movimientos."]</p>
+<div class="d-flex flex-wrap gap-2 mb-3">
+@if (Model.ArrivalLineId.HasValue) { <a asp-page="/Operations/Staging/Index" asp-route-arrivalLineId="@Model.ArrivalLineId" class="btn btn-outline-secondary btn-lg">@T["Ver llegada en staging"]</a> }
+else if (Model.PlateId.HasValue) { <a asp-page="/Operations/PalletLabels/Tracking" asp-route-id="@Model.PlateId" class="btn btn-outline-secondary btn-lg">@T["Seguimiento de placas"]</a> }
+else if (Model.LocationId.HasValue) { <a asp-page="/Inventory/Index" asp-route-locationId="@Model.LocationId" class="btn btn-outline-secondary btn-lg">@T["Consultar existencias"]</a> }
+<a href="@Model.ListUrl" class="btn btn-outline-secondary btn-lg">@T["Incidencias de material"]</a>
+</div>
+@if (!ViewData.ModelState.IsValid) { <div class="alert alert-danger" role="alert" tabindex="-1">@foreach(var error in ViewData.ModelState.Values.SelectMany(v => v.Errors)) { <p>@T[error.ErrorMessage]</p> }</div> }
+@if (Model.NeedsInitialContext)
+{
+    <partial name="_InitialContext" model="Model" />
+}
+else if (Model.Context is null)
+{
+    <section class="card card-body" data-incident-picker data-url="@Url.Page("Create", "Products", new { locationId = Model.LocationId })" data-create-url="@Url.Page("Create", new { locationId = Model.LocationId, returnUrl = Model.ListUrl })" data-empty="@T["No hay productos con ese criterio en esta ubicación."]" data-error="@T["No fue posible consultar. Intenta nuevamente."]">
+        <label for="incident-product" class="form-label">@T["Producto"]</label>
+        <input id="incident-product" type="search" class="form-control form-control-lg" autocomplete="off" data-product-search aria-controls="incident-products" />
+        <div id="incident-products" class="list-group mt-2" data-product-results aria-live="polite"></div>
+    </section>
+}
+else
+{
+    @if (Model.Plates.Count > 0)
+    {
+        <form method="get" class="mb-3 d-flex flex-wrap gap-2">
+            <input type="hidden" name="ArrivalLineId" value="@Model.ArrivalLineId" />
+            <input type="hidden" name="ReturnUrl" value="@Model.ListUrl" />
+            <label for="incident-plate" class="form-label">@T["Placa opcional"]</label>
+            <select id="incident-plate" name="PlateId" class="form-select form-select-lg"><option value="">@T["Toda la llegada"]</option>
+                @foreach(var id in Model.Plates) { <option value="@id" selected="@(id == Model.PlateId)">PLT-@id.ToString("N").ToUpperInvariant()</option> }</select>
+            <button class="btn btn-outline-secondary btn-lg">@T["Seleccionar / recargar"]</button>
+        </form>
+    }
+    <form method="post" enctype="multipart/form-data" class="card card-body" data-incident-form>
+        <input type="hidden" name="ReturnUrl" value="@Model.ListUrl" />
+        <input type="hidden" asp-for="ArrivalLineId" /><input type="hidden" asp-for="PlateId" /><input type="hidden" asp-for="ProductId" />
+        <input type="hidden" asp-for="OperationId" /><input type="hidden" asp-for="ContextToken" />
+        <div data-incident-context><strong>@Model.Context.Sku · @Model.Context.Location</strong><p>@T[Model.Context.State] · @(Model.Context.ObservedQuantity?.ToString("0.####") ?? "—") @Model.Context.Unit</p>
+        @if (Model.PlateId.HasValue) { <p class="text-break">PLT-@Model.PlateId.Value.ToString("N").ToUpperInvariant()</p> }
+        @if (Model.Context.ActualPlateLocation is {} actual) { <p>@T["Ubicación actual de la placa"]: @actual</p> }
+        @if (!Model.Context.ArrivalLineId.HasValue) { <p>@T["Recepción no determinada"]</p> }</div>
+        @if (Model.PlateId.HasValue)
+        {
+            <label asp-for="LocationId" class="form-label">@T["Ubicación de detección"]</label>
+            <select asp-for="LocationId" class="form-select form-select-lg mb-3" data-review-label="@T["Ubicación de detección"]">@foreach(var location in Model.Locations) { <option value="@location.Id">@location.Code</option> }</select>
+        }
+        else { <input type="hidden" asp-for="LocationId" /> }
+        <div class="row g-3">
+            <div class="col-md-4"><label asp-for="Scope" class="form-label">@T["Ámbito"]</label><select asp-for="Scope" class="form-select form-select-lg" data-review-label="@T["Ámbito"]">@foreach(var value in Enum.GetValues<MaterialIncidentScope>()) { <option value="@value">@T[IncidentUi.Label(value)]</option> }</select></div>
+            <div class="col-md-4"><label asp-for="Kind" class="form-label">@T["Tipo"]</label><select asp-for="Kind" class="form-select form-select-lg" data-review-label="@T["Tipo"]">@foreach(var value in Enum.GetValues<MaterialIncidentKind>()) { <option value="@value">@T[IncidentUi.Label(value)]</option> }</select></div>
+            <div class="col-md-4" data-difference-field><label asp-for="Difference" class="form-label">@T["Diferencia"]</label><select asp-for="Difference" class="form-select form-select-lg" data-review-label="@T["Diferencia"]">@foreach(var value in Enum.GetValues<MaterialIncidentDifference>()) { <option value="@value">@T[IncidentUi.Label(value)]</option> }</select></div>
+            <div class="col-md-4"><label asp-for="Quantity" class="form-label">@T["Cantidad afectada (opcional)"] · @Model.Context.Unit</label><input asp-for="Quantity" type="number" min="@(Model.Context.AllowsDecimals ? "0.0001" : "1")" step="@(Model.Context.AllowsDecimals ? "0.0001" : "1")" class="form-control form-control-lg" data-review-label="@T["Cantidad afectada (opcional)"]" /></div>
+            <div class="col-12"><label asp-for="Description" class="form-label">@T["Descripción"]</label><textarea asp-for="Description" required maxlength="2000" rows="4" class="form-control form-control-lg" data-review-label="@T["Descripción"]"></textarea></div>
+        </div>
+        <partial name="_Capture" model="Model" />
+    </form>
+}
+@section Scripts {
+    @if (Model.NeedsInitialContext) {
+        <script src="~/js/suggestion-lookup.js" asp-append-version="true"></script>
+        <script src="~/js/incident-context.js" asp-append-version="true"></script>
+    }
+    <script src="~/js/material-incidents.js" asp-append-version="true"></script>
+}

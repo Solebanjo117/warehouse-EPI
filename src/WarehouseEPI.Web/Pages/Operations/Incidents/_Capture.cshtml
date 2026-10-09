@@ -1,0 +1,22 @@
+@model WarehouseEPI.Web.Pages.Operations.Incidents.IncidentCaptureModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> T
+@if (Model.ReselectPhotos) { <p class="alert alert-warning">@T["Vuelve a seleccionar las fotografías antes de confirmar."]</p> }
+<div class="mt-3" data-incident-photos>
+    <label for="incident-photos" class="form-label">@T["Fotografías opcionales"]</label>
+    <input id="incident-photos" name="Photos" type="file" multiple accept="image/png,image/jpeg" class="form-control form-control-lg" data-photos />
+    <button type="button" class="btn btn-outline-secondary btn-lg mt-2" data-open-camera>@T["Tomar foto"]</button>
+    <input id="incident-camera" type="file" accept="image/png,image/jpeg" capture="environment" class="visually-hidden" data-photo-camera />
+    <p class="form-text">@T["Hasta 5 fotografías por incidencia; PNG/JPEG, 5 MiB y 4096 × 4096 por imagen."]</p>
+    <div class="d-flex flex-wrap gap-2" data-photo-preview data-remove="@T["Quitar foto"]" data-invalid="@T["Selecciona hasta 5 fotografías PNG/JPEG de máximo 5 MiB cada una."]"></div>
+</div>
+<button type="button" class="btn btn-primary btn-lg mt-3" data-incident-review>@T["Revisar y confirmar"]</button>
+<div class="modal fade" id="incident-confirm" tabindex="-1" aria-labelledby="incident-confirm-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable"><div class="modal-content">
+        <div class="modal-header"><h2 id="incident-confirm-title" class="h5 modal-title">@T["Confirmar incidencia"]</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="@T["Cerrar"]"></button></div>
+        <div class="modal-body"><p>@T["Este registro no cambia existencias ni bloquea movimientos."]</p><div data-incident-summary class="text-break"></div>
+            <label for="incident-pin" class="form-label mt-3">@T["NIP del responsable"]</label>
+            <input id="incident-pin" name="Pin" value="" type="password" inputmode="numeric" pattern="[0-9]{4,8}" maxlength="8" autocomplete="off" class="form-control form-control-lg" data-incident-pin />
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-outline-secondary btn-lg" data-bs-dismiss="modal">@T["Volver"]</button><button class="btn btn-primary btn-lg" type="submit">@T["Confirmar"]</button></div>
+    </div></div>
+</div>

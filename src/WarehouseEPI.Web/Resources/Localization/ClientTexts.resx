@@ -455,6 +455,10 @@
   <data name="Sin capturar" xml:space="preserve"><value>Sin capturar</value></data>
   <data name="No hay coincidencias. Puedes buscar con el texto escrito." xml:space="preserve"><value>No hay coincidencias. Puedes buscar con el texto escrito.</value></data>
   <data name="Coincidencias: {0}. Usa flechas y Enter para elegir." xml:space="preserve"><value>Coincidencias: {0}. Usa flechas y Enter para elegir.</value></data>
+  <data name="No fue posible consultar el stock. Selecciona el producto manualmente." xml:space="preserve"><value>No fue posible consultar el stock. Selecciona el producto manualmente.</value></data>
+  <data name="Producto completado: {0}. Es el único con stock en esta ubicación." xml:space="preserve"><value>Producto completado: {0}. Es el único con stock en esta ubicación.</value></data>
+  <data name="Ubicación completada: {0}. Es la única con stock de este producto." xml:space="preserve"><value>Ubicación completada: {0}. Es la única con stock de este producto.</value></data>
+  <data name="No fue posible consultar el stock. Selecciona la ubicación manualmente." xml:space="preserve"><value>No fue posible consultar el stock. Selecciona la ubicación manualmente.</value></data>
 <data name="No hay coincidencias. Prueba otra búsqueda." xml:space="preserve"><value>No hay coincidencias. Prueba otra búsqueda.</value></data>
   <data name="Quitar {0}" xml:space="preserve"><value>Quitar {0}</value></data>
   <data name="La selección cambió. Genera la hoja nuevamente para imprimir." xml:space="preserve"><value>La selección cambió. Genera la hoja nuevamente para imprimir.</value></data>

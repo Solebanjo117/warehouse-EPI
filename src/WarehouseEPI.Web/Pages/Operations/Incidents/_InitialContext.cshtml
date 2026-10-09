@@ -1,0 +1,23 @@
+@model WarehouseEPI.Web.Pages.Operations.Incidents.CreateModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> T
+<form method="get" asp-page="Create" class="card card-body" data-incident-context-picker data-products-url="@Url.Page("Create", "Products")" data-locations-url="@Url.Page("Create", "Locations")">
+    <h2 class="h5">@T["Producto y ubicación de detección"]</h2>
+    <p>@T["Selecciona el producto y después la ubicación donde detectaste el problema."]</p>
+    <input type="hidden" name="ReturnUrl" value="@Model.ListUrl" />
+    <input type="hidden" name="ProductId" /><input type="hidden" name="LocationId" />
+    <div class="row g-3">
+        <div class="col-md-6 lookup-field">
+            <label for="new-incident-product" class="form-label">@T["Producto"]</label>
+            <input id="new-incident-product" type="search" class="form-control form-control-lg" autocomplete="off" autocapitalize="characters" required role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="new-incident-products" aria-describedby="new-incident-product-feedback" />
+            <div id="new-incident-products" class="lookup-results list-group" role="listbox" aria-label="@T["Producto"]"></div>
+            <div id="new-incident-product-feedback" class="form-text" role="status" aria-live="polite"></div>
+        </div>
+        <div class="col-md-6 lookup-field">
+            <label for="new-incident-location" class="form-label">@T["Ubicación de detección"]</label>
+            <input id="new-incident-location" type="search" class="form-control form-control-lg" autocomplete="off" autocapitalize="characters" required disabled role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="new-incident-locations" aria-describedby="new-incident-location-feedback" />
+            <div id="new-incident-locations" class="lookup-results list-group" role="listbox" aria-label="@T["Ubicación de detección"]"></div>
+            <div id="new-incident-location-feedback" class="form-text" role="status" aria-live="polite"></div>
+        </div>
+        <div class="d-flex flex-wrap gap-2"><button type="submit" class="btn btn-primary btn-lg" disabled data-context-continue>@T["Continuar"]</button><a href="@Model.ListUrl" class="btn btn-outline-secondary btn-lg">@T["Cancelar"]</a></div>
+    </div>
+</form>

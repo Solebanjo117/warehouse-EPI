@@ -821,11 +821,79 @@
   <data name="Resumen global de pendientes" xml:space="preserve"><value>Global pending summary</value></data>
   <data name="Total pendiente" xml:space="preserve"><value>Total pending</value></data>
   <data name="Urgente" xml:space="preserve"><value>Urgent</value></data>
+  <data name="Reportar incidencia" xml:space="preserve"><value>Report material issue</value></data>
+  <data name="Incidencias de material" xml:space="preserve"><value>Material issues</value></data>
+  <data name="Reportar y dar seguimiento a problemas del material." xml:space="preserve"><value>Report and follow up on material issues.</value></data>
+  <data name="Este registro no cambia existencias ni bloquea movimientos." xml:space="preserve"><value>This record does not change inventory or block movements.</value></data>
+  <data name="No hay productos con ese criterio en esta ubicación." xml:space="preserve"><value>No matching products at this location.</value></data>
+  <data name="No fue posible consultar. Intenta nuevamente." xml:space="preserve"><value>Unable to load results. Try again.</value></data>
+  <data name="Placa opcional" xml:space="preserve"><value>Optional plate</value></data>
+  <data name="Toda la llegada" xml:space="preserve"><value>Entire arrival</value></data>
+  <data name="Recepción no determinada" xml:space="preserve"><value>Receipt not determined</value></data>
+  <data name="Ubicación de detección" xml:space="preserve"><value>Detection location</value></data>
+  <data name="Ámbito" xml:space="preserve"><value>Scope</value></data>
+  <data name="Cantidad afectada (opcional)" xml:space="preserve"><value>Affected quantity (optional)</value></data>
+  <data name="Estado observado" xml:space="preserve"><value>Observed state</value></data>
+  <data name="Situación actual de la placa" xml:space="preserve"><value>Current plate situation</value></data>
+  <data name="Placas descendientes relacionadas" xml:space="preserve"><value>Related descendant plates</value></data>
+  <data name="Corrección vinculada" xml:space="preserve"><value>Linked correction</value></data>
+  <data name="Corrección vinculada (opcional)" xml:space="preserve"><value>Linked correction (optional)</value></data>
+  <data name="Comentario o motivo" xml:space="preserve"><value>Comment or reason</value></data>
+  <data name="Abierta" xml:space="preserve"><value>Open</value></data>
+  <data name="Resuelta" xml:space="preserve"><value>Resolved</value></data>
+  <data name="Recepción" xml:space="preserve"><value>Receiving</value></data>
+  <data name="Almacén" xml:space="preserve"><value>Warehouse</value></data>
+  <data name="Por determinar" xml:space="preserve"><value>Undetermined</value></data>
+  <data name="Daño" xml:space="preserve"><value>Damage</value></data>
+  <data name="Diferencia de cantidad" xml:space="preserve"><value>Quantity discrepancy</value></data>
+  <data name="Producto incorrecto" xml:space="preserve"><value>Wrong product</value></data>
+  <data name="Falta de identificación" xml:space="preserve"><value>Missing identification</value></data>
+  <data name="Faltante" xml:space="preserve"><value>Shortage</value></data>
+  <data name="Sobrante" xml:space="preserve"><value>Surplus</value></data>
+  <data name="Agregar seguimiento" xml:space="preserve"><value>Add follow-up</value></data>
+  <data name="Pasar a revisión" xml:space="preserve"><value>Start review</value></data>
+  <data name="Resolver (ADMIN)" xml:space="preserve"><value>Resolve (ADMIN)</value></data>
+  <data name="Anular (ADMIN)" xml:space="preserve"><value>Void (ADMIN)</value></data>
+  <data name="Reabrir (ADMIN)" xml:space="preserve"><value>Reopen (ADMIN)</value></data>
+  <data name="Folio, placa, producto, ubicación o referencia" xml:space="preserve"><value>Issue number, plate, product, location or reference</value></data>
+  <data name="Abiertas y en revisión" xml:space="preserve"><value>Open and under review</value></data>
+  <data name="No hay incidencias con estos filtros." xml:space="preserve"><value>No material issues match these filters.</value></data>
+  <data name="Vuelve a seleccionar las fotografías antes de confirmar." xml:space="preserve"><value>Select the photos again before confirming.</value></data>
+  <data name="Fotografías opcionales" xml:space="preserve"><value>Optional photos</value></data>
+  <data name="Hasta 5 fotografías por incidencia; PNG/JPEG, 5 MiB y 4096 × 4096 por imagen." xml:space="preserve"><value>Up to 5 photos per issue; PNG/JPEG, 5 MiB and 4096 × 4096 per image.</value></data>
+  <data name="Quitar foto" xml:space="preserve"><value>Remove photo</value></data>
+  <data name="Selecciona hasta 5 fotografías PNG/JPEG de máximo 5 MiB cada una." xml:space="preserve"><value>Select up to 5 PNG/JPEG photos, up to 5 MiB each.</value></data>
+  <data name="Confirmar incidencia" xml:space="preserve"><value>Confirm material issue</value></data>
+  <data name="El contexto del material no es válido. Consulta nuevamente." xml:space="preserve"><value>The material context is invalid. Load it again.</value></data>
+  <data name="NIP inválido o usuario sin permiso operativo." xml:space="preserve"><value>Invalid PIN or user without warehouse permission.</value></data>
+  <data name="El material cambió. Revisa el contexto actualizado antes de confirmar." xml:space="preserve"><value>The material changed. Review the updated context before confirming.</value></data>
+  <data name="Revisa la descripción, cantidad y clasificación de la incidencia." xml:space="preserve"><value>Check the issue description, quantity and classification.</value></data>
+  <data name="La incidencia cambió. Actualiza y revisa antes de confirmar." xml:space="preserve"><value>The issue changed. Refresh and review before confirming.</value></data>
+  <data name="Transición no permitida. Resolver, anular o reabrir requiere NIP ADMIN." xml:space="preserve"><value>Transition not allowed. Resolving, voiding or reopening requires an ADMIN PIN.</value></data>
+  <data name="La corrección no corresponde al material de esta incidencia." xml:space="preserve"><value>The correction does not match this issue’s material.</value></data>
+  <data name="La operación ya fue usada con datos distintos." xml:space="preserve"><value>This operation was already used with different data.</value></data>
+  <data name="Máximo 5 fotografías por incidencia." xml:space="preserve"><value>Maximum 5 photos per issue.</value></data>
+  <data name="Cada fotografía debe pesar como máximo 5 MiB." xml:space="preserve"><value>Each photo must be no larger than 5 MiB.</value></data>
+  <data name="Selecciona fotografías PNG/JPEG válidas de hasta 4096 × 4096." xml:space="preserve"><value>Select valid PNG/JPEG photos up to 4096 × 4096.</value></data>
+  <data name="Escribe un comentario o motivo para el seguimiento." xml:space="preserve"><value>Enter a comment or reason for the follow-up.</value></data>
+  <data name="Incidencias abiertas: {0}" xml:space="preserve"><value>Open issues: {0}</value></data>
+  <data name="Relacionadas por división o traslado: {0}" xml:space="preserve"><value>Related through splits or transfers: {0}</value></data>
+  <data name="Abiertas reportadas aquí: {0}" xml:space="preserve"><value>Open issues reported here: {0}</value></data>
+  <data name="Otras relacionadas con placas aquí: {0}" xml:space="preserve"><value>Other issues related to plates here: {0}</value></data>
+  <data name="Movimiento corregido" xml:space="preserve"><value>Corrected movement</value></data>
+  <data name="Incidencia relacionada" xml:space="preserve"><value>Related issue</value></data>
+  <data name="Ubicación actual de la placa" xml:space="preserve"><value>Current plate location</value></data>
+  <data name="Ubicación observada de la placa" xml:space="preserve"><value>Observed plate location</value></data>
+  <data name="Consultar existencias" xml:space="preserve"><value>View inventory</value></data>
   <data name="Más acciones" xml:space="preserve"><value>More actions</value></data>
 <data name="Opcional: puedes elegir otra ubicación" xml:space="preserve"><value>Optional: you can choose another location</value></data>
 <data name="No hay ubicaciones sugeridas con stock. Busca o escanea un destino" xml:space="preserve"><value>No suggested locations with stock. Search or scan a destination</value></data>
 <data name="Ubicaciones sugeridas" xml:space="preserve"><value>Suggested locations</value></data>
 <data name="Saldo actual" xml:space="preserve"><value>Current balance</value></data>
+<data name="Registrar incidencia" xml:space="preserve"><value>Register material issue</value></data>
+<data name="Producto y ubicación de detección" xml:space="preserve"><value>Product and detection location</value></data>
+<data name="Selecciona el producto y después la ubicación donde detectaste el problema." xml:space="preserve"><value>Select the product, then the location where you detected the problem.</value></data>
+<data name="Continuar" xml:space="preserve"><value>Continue</value></data>
   <data name="Hoja de códigos para proveedores" xml:space="preserve"><value>Supplier barcode sheet</value></data>
   <data name="Agrega productos y genera una hoja carta con sus números de parte y códigos de barras." xml:space="preserve"><value>Add products and generate a letter-size sheet with their part numbers and barcodes.</value></data>
   <data name="Selecciona hasta 100 productos. Cada producto aparece una sola vez." xml:space="preserve"><value>Select up to 100 products. Each product appears once.</value></data>

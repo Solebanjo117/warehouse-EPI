@@ -1,4 +1,5 @@
 @page "/Inventory"
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> IncidentTexts
 @inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> CatTexts
 @using WarehouseEPI.Infrastructure.Inventory
 @model WarehouseEPI.Web.Pages.Inventory.IndexModel
@@ -112,6 +113,12 @@
                     <div class="inventory-position-location"><span class="inventory-card-label">@CatTexts["Ubicación"]</span><a asp-page="/Locations/Details" asp-route-id="@position.LocationId" class="fw-bold">@position.LocationCode</a><small>@(position.LocationDescription ?? CatTexts["Ubicación operativa"].Value)</small>@if (!position.LocationIsActive) { <span class="inv-chip is-muted">@CatTexts["Ubicación inactiva"]</span> } else if (position.LocationIsBlocked) { <span class="inv-chip is-warning">@CatTexts["Ubicación bloqueada"]</span> }</div>
                     <div class="inventory-position-state"><span class="inventory-card-label">@CatTexts["Estado"]</span>@if (position.HasActiveAssignment && position.Quantity == 0) { <span class="inv-chip is-muted">@CatTexts["Asignado · saldo cero"]</span> } else if (position.HasActiveAssignment) { <span class="inv-state-normal">@CatTexts["Asignado · con saldo"]</span> } else { <span class="inv-chip is-warning">@CatTexts["Saldo sin asignación"]</span> } @if (position.IsNegative) { <span class="inv-chip is-danger">@CatTexts["Saldo negativo"]</span> }</div>
                     <div class="inventory-position-quantity @(position.IsNegative ? "is-negative" : null)"><span class="inventory-card-label">@CatTexts["Cantidad"]</span><strong>@position.Quantity.ToString("0.####") @position.UnitCode</strong></div>
+                    <div class="inventory-position-actions d-flex flex-wrap gap-2">
+                        @{ var counts = Model.Incidents[Model.Product is null ? position.ProductId : position.LocationId]; }
+                        <a asp-page="/Operations/Incidents/Create" asp-route-productId="@position.ProductId" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary btn-lg">@IncidentTexts["Reportar incidencia"]</a>
+                        <a asp-page="/Operations/Incidents/Index" asp-route-productId="@position.ProductId" asp-route-locationId="@position.LocationId" class="btn btn-outline-secondary btn-lg">@IncidentTexts["Abiertas reportadas aquí: {0}", counts.Reported]</a>
+                        <a asp-page="/Operations/Incidents/Index" asp-route-productId="@position.ProductId" asp-route-locationId="@position.LocationId" asp-route-relation="current" class="btn btn-outline-secondary btn-lg">@IncidentTexts["Otras relacionadas con placas aquí: {0}", counts.Related]</a>
+                    </div>
                 </article>
             }
         </section>
