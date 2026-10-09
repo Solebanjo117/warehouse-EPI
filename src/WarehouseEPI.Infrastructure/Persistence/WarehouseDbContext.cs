@@ -620,6 +620,7 @@ public sealed class WarehouseDbContext(DbContextOptions<WarehouseDbContext> opti
         entity.Property(location => location.PalletNumber).HasColumnName("pallet_number");
         entity.Property(location => location.Description).HasColumnName("description").HasMaxLength(200);
         entity.Property(location => location.IsBlocked).HasColumnName("is_blocked").HasDefaultValue(false);
+        entity.Property(location => location.WarnOnMixedProducts).HasColumnName("warn_on_mixed_products").HasDefaultValue(true);
         entity.Property(location => location.BlockReason).HasColumnName("block_reason").HasMaxLength(200);
         entity.Property(location => location.IsActive).HasColumnName("is_active").HasDefaultValue(true);
         entity.Property(location => location.IsPhysicallyPresent).HasColumnName("is_physically_present").HasDefaultValue(true);

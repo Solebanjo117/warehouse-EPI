@@ -1,5 +1,7 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
@@ -52,6 +54,36 @@ public sealed class LocationCatalogTests
         Assert.Equal(area.Id, page.Input.Id);
         Assert.Equal(LocationOperationalRole.Wip, page.Input.OperationalRole);
         Assert.Equal("Área WIP existente", page.Input.Description);
+    }
+
+    [Fact]
+    public async Task Area_editor_persists_and_reloads_the_mixed_product_warning_preference()
+    {
+        await using var fixture = new Fixture();
+        var pins = new UserPinService(fixture.Db, new PinProtector("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
+        AreaModel Editor() => new(fixture.Db, new LocationAreaAdministrationService(fixture.Db, pins, TimeProvider.System),
+            new ProductionProcessConfigurationService(fixture.Db, pins, TimeProvider.System,
+                NullLogger<ProductionProcessConfigurationService>.Instance), new PassthroughStringLocalizer<CatalogTexts>())
+        {
+            TempData = new TempDataDictionary(new DefaultHttpContext(), new EmptyTempDataProvider())
+        };
+        var create = Editor();
+        await create.OnGetAsync(null, CancellationToken.None);
+        Assert.True(create.Input.WarnOnMixedProducts);
+        create.Input.Code = "STAGING";
+        create.Input.OperationalRole = LocationOperationalRole.Storage;
+        create.Input.WarnOnMixedProducts = false;
+
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToPageResult>(await create.OnPostAsync(CancellationToken.None));
+        var area = await fixture.Db.Locations.SingleAsync(x => x.Code == "STAGING");
+        Assert.False(area.WarnOnMixedProducts);
+        var edit = Editor();
+        await edit.OnGetAsync(area.Id, CancellationToken.None);
+        Assert.False(edit.Input.WarnOnMixedProducts);
+        edit.Input.WarnOnMixedProducts = true;
+        Assert.IsType<Microsoft.AspNetCore.Mvc.RedirectToPageResult>(await edit.OnPostAsync(CancellationToken.None));
+        Assert.True((await fixture.Db.Locations.AsNoTracking().SingleAsync(x => x.Id == area.Id)).WarnOnMixedProducts);
+        Assert.Equal(LocationOperationalRole.Storage, area.OperationalRole);
     }
 
     [Fact]
@@ -1600,6 +1632,12 @@ public sealed class LocationCatalogTests
         public WarehouseDbContext CreateDb() => new(Options);
 
         public async ValueTask DisposeAsync() { await Db.DisposeAsync(); cache.Dispose(); }
+    }
+
+    private sealed class EmptyTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object> LoadTempData(HttpContext context) => new Dictionary<string, object>();
+        public void SaveTempData(HttpContext context, IDictionary<string, object> values) { }
     }
 
     private sealed class AdjustableTimeProvider(DateTimeOffset current) : TimeProvider

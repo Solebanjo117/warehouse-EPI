@@ -6,6 +6,7 @@ public sealed class Location
     public required string Code { get; set; }
     public LocationKind Kind { get; set; }
     public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Storage;
+    public bool WarnOnMixedProducts { get; set; } = true;
     public string? RowCode { get; set; }
     public short? RackNumber { get; set; }
     public short? PalletNumber { get; set; }

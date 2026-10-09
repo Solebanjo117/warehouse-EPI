@@ -31,6 +31,32 @@ public sealed class ReceivingServiceTests
     }
 
     [Fact]
+    public async Task Document_receipt_respects_the_area_mixed_product_warning_preference()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var existing = await fixture.AddProductAsync("STAGING-RCV-EXISTING");
+        var added = await fixture.AddProductAsync("STAGING-RCV-ADDED");
+        var staging = await fixture.AddLocationAsync("STAGING-RCV");
+        staging.WarnOnMixedProducts = false;
+        await fixture.Db.SaveChangesAsync();
+        var first = await fixture.Receiving.OpenAsync(new(Guid.NewGuid(), ReceivingDocumentType.PurchaseOrder,
+            "STAGING-PO-1", "Proveedor", null, null, fixture.Pin, [new(existing.Id, 3m)]));
+        Assert.Equal(ReceivingCommandStatus.Success, (await fixture.Receiving.ConfirmAsync(new(Guid.NewGuid(),
+            first.DocumentId!.Value, fixture.Pin, [new(existing.Id, 3m, staging.Id)]))).Status);
+        var second = await fixture.Receiving.OpenAsync(new(Guid.NewGuid(), ReceivingDocumentType.PurchaseOrder,
+            "STAGING-PO-2", "Proveedor", null, null, fixture.Pin, [new(added.Id, 2m)]));
+
+        var result = await fixture.Receiving.ConfirmAsync(new(Guid.NewGuid(), second.DocumentId!.Value,
+            fixture.Pin, [new(added.Id, 2m, staging.Id)]));
+
+        Assert.Equal(ReceivingCommandStatus.Success, result.Status);
+        Assert.Equal(ReceivingDocumentStatus.Completed, result.DocumentStatus);
+        Assert.Equal(2, await fixture.Db.InventoryMovements.CountAsync());
+        Assert.Equal(3m, await fixture.Db.InventoryBalances.Where(x => x.ProductId == existing.Id && x.LocationId == staging.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(2m, await fixture.Db.InventoryBalances.Where(x => x.ProductId == added.Id && x.LocationId == staging.Id).SumAsync(x => x.Quantity));
+    }
+
+    [Fact]
     public async Task Overage_requires_explicit_acknowledgement_and_note_without_changing_inventory()
     {
         await using var fixture = await Fixture.CreateAsync();

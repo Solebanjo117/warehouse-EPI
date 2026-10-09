@@ -81,6 +81,24 @@ Antes de adaptar un buscador:
 - Verificar las reglas de productos activos/inactivos y los permisos del endpoint de destino. Un buscador de consulta no define las reglas de captura.
 - Mantener separados texto escrito y selección válida cuando el servidor requiera un ID.
 
+### Aviso configurable al compartir un área
+
+- **Caso de uso:** áreas con varios materiales pendientes de acomodo, como
+  STAGING, pueden omitir la confirmación de compartir sin cambiar su función
+  operativa ni el control de existencias.
+- **Archivos:** `Pages/Admin/Catalogs/Locations/Area.cshtml` y `Area.cshtml.cs`,
+  `Core/Entities/Location.cs` e `Infrastructure/Inventory/InventoryMovementStore.cs`.
+- **Dependencias:** `Location.WarnOnMixedProducts`, persistencia EF Core,
+  `CatalogTexts` ES/EN y la confirmación existente en `_GuidedMovementForm.cshtml`.
+- **Integración real:** ADMIN desmarca `Input.WarnOnMixedProducts` en
+  `/Admin/Catalogs/Locations/Area?locationId=...` para STAGING. Entrada,
+  Transferencia y recepción contra documento reutilizan la decisión del servidor.
+  El aviso está activado por defecto; los racks conservan su confirmación y WIP
+  conserva sus reglas documentales. Solo el saldo neto positivo de otros productos
+  cuenta como ocupación para el aviso; cero y negativo no lo disparan. El saldo
+  se suma por producto/ubicación entre lotes. Se conservan NIP, antiforgery,
+  idempotencia, disponibilidad, saldos e historial.
+
 ### Búsqueda de productos en el croquis y las ubicaciones
 
 `Pages/Locations/_LocationIndex.cshtml`, `wwwroot/js/location-index.js` y

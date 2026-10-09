@@ -127,7 +127,7 @@ public sealed class LocationLocalizationTests
         using var factory = new AdminRouteTests.WarehouseApplicationFactory();
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
-        var area = new Location { Code = "LOC-AREA", Kind = LocationKind.Area };
+        var area = new Location { Code = "LOC-AREA", Kind = LocationKind.Area, WarnOnMixedProducts = language == "en" };
         db.AddRange(area, new Location { Code = "E-2-1", Kind = LocationKind.Rack, RowCode = "E", RackNumber = 2, PalletNumber = 1 });
         var role = await db.Roles.SingleAsync(item => item.Code == "ADMIN");
         var user = new User { FullName = "Location editor admin", RoleId = role.Id, PinLookup = "", PinHash = "" };
@@ -146,6 +146,11 @@ public sealed class LocationLocalizationTests
         Assert.Contains(language == "en" ? "Type E-2 to confirm" : "Escribe E-2 para confirmar", rack);
         var html = WebUtility.HtmlDecode(await client.GetStringAsync($"/Admin/Catalogs/Locations/Area?locationId={area.Id}"));
         Assert.Contains(language == "en" ? "Type LOC-AREA to confirm" : "Escribe LOC-AREA para confirmar", html);
+        Assert.Contains(language == "en" ? "Warn when adding a product while the area contains others" : "Avisar al agregar un producto cuando el área contiene otros", html);
+        Assert.Contains("name=\"Input.WarnOnMixedProducts\"", html);
+        var warningInput = Regex.Match(html, "<input[^>]*type=\"checkbox\"[^>]*name=\"Input.WarnOnMixedProducts\"[^>]*>");
+        Assert.True(warningInput.Success);
+        Assert.Equal(area.WarnOnMixedProducts, warningInput.Value.Contains("checked=\"checked\"", StringComparison.Ordinal));
     }
 
     private static async Task SignInAsync(HttpClient client)

@@ -256,6 +256,95 @@ public sealed class InventoryMovementServiceTests
     }
 
     [Theory]
+    [InlineData(InventoryMovementType.Entry, LocationOperationalRole.Storage)]
+    [InlineData(InventoryMovementType.Transfer, LocationOperationalRole.Storage)]
+    [InlineData(InventoryMovementType.Entry, LocationOperationalRole.Other)]
+    [InlineData(InventoryMovementType.Transfer, LocationOperationalRole.Other)]
+    public async Task Area_can_receive_mixed_products_without_sharing_confirmation_and_preserves_stock(
+        InventoryMovementType type, LocationOperationalRole role)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var existing = await fixture.AddProductAsync("STAGING-EXISTING");
+        var added = await fixture.AddProductAsync("STAGING-ADDED");
+        var staging = await fixture.AddLocationAsync("STAGING", role);
+        staging.WarnOnMixedProducts = false;
+        await fixture.Db.SaveChangesAsync();
+        await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(existing.Id, 3m, DestinationLocationId: staging.Id)]));
+        Guid? sourceId = null;
+        if (type == InventoryMovementType.Transfer)
+        {
+            var source = await fixture.AddLocationAsync("STAGING-SOURCE");
+            sourceId = source.Id;
+            await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+                [new(added.Id, 5m, DestinationLocationId: source.Id)]));
+        }
+        var countBefore = await fixture.Db.InventoryMovements.CountAsync();
+        var command = new InventoryMovementCommand(Guid.NewGuid(), type, fixture.OperatorPin,
+            [new(added.Id, 2m, SourceLocationId: sourceId, DestinationLocationId: staging.Id)]);
+
+        var result = await fixture.Service.ConfirmAsync(command);
+        var retry = await fixture.Service.ConfirmAsync(command);
+
+        Assert.Equal(InventoryMovementStatus.Success, result.Status);
+        Assert.Empty(result.Conflicts);
+        Assert.Equal(result.MovementId, retry.MovementId);
+        Assert.Equal(countBefore + 1, await fixture.Db.InventoryMovements.CountAsync());
+        Assert.Equal(3m, await fixture.Db.InventoryBalances.Where(x => x.ProductId == existing.Id && x.LocationId == staging.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(2m, await fixture.Db.InventoryBalances.Where(x => x.ProductId == added.Id && x.LocationId == staging.Id).SumAsync(x => x.Quantity));
+        Assert.Equal(2, await fixture.Db.ProductLocationAssignments.CountAsync(x => x.LocationId == staging.Id && x.IsActive));
+        if (sourceId is not null)
+            Assert.Equal(3m, await fixture.Db.InventoryBalances.Where(x => x.ProductId == added.Id && x.LocationId == sourceId).SumAsync(x => x.Quantity));
+    }
+
+    [Theory]
+    [InlineData(LocationKind.Area)]
+    [InlineData(LocationKind.Rack)]
+    public async Task Reenabled_area_warning_and_racks_still_require_sharing_confirmation(LocationKind kind)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var existing = await fixture.AddProductAsync("WARNING-EXISTING");
+        var added = await fixture.AddProductAsync("WARNING-ADDED");
+        var location = await fixture.AddLocationAsync("WARNING-TARGET", kind: kind);
+        location.WarnOnMixedProducts = false;
+        await fixture.Db.SaveChangesAsync();
+        await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(existing.Id, 3m, DestinationLocationId: location.Id)]));
+        if (kind == LocationKind.Area)
+        {
+            location.WarnOnMixedProducts = true;
+            await fixture.Db.SaveChangesAsync();
+        }
+
+        var result = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(added.Id, 2m, DestinationLocationId: location.Id)]));
+
+        Assert.Equal(InventoryMovementStatus.RequiresLocationSharingConfirmation, result.Status);
+        Assert.Equal(location.Id, Assert.Single(result.Conflicts).LocationId);
+        Assert.False(await fixture.Db.InventoryBalances.AnyAsync(x => x.ProductId == added.Id));
+    }
+
+    [Fact]
+    public async Task Area_without_mixed_product_warning_still_requires_pin_and_operational_availability()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var product = await fixture.AddProductAsync("STAGING-PROTECTED");
+        var staging = await fixture.AddLocationAsync("STAGING-PROTECTED");
+        staging.WarnOnMixedProducts = false;
+        await fixture.Db.SaveChangesAsync();
+        var command = new InventoryMovementCommand(Guid.NewGuid(), InventoryMovementType.Entry, "9999",
+            [new(product.Id, 2m, DestinationLocationId: staging.Id)]);
+
+        Assert.Equal(InventoryMovementStatus.InvalidPin, (await fixture.Service.ConfirmAsync(command)).Status);
+        staging.IsBlocked = true;
+        staging.BlockReason = "Área retenida";
+        await fixture.Db.SaveChangesAsync();
+        Assert.Equal(InventoryMovementStatus.ValidationFailed,
+            (await fixture.Service.ConfirmAsync(command with { Pin = fixture.OperatorPin })).Status);
+        Assert.Empty(await fixture.Db.InventoryMovements.ToListAsync());
+    }
+
+    [Theory]
     [InlineData(InventoryMovementPurpose.Standard, LocationKind.Area)]
     [InlineData(InventoryMovementPurpose.Standard, LocationKind.Rack)]
     [InlineData(InventoryMovementPurpose.ProductionIssue, LocationKind.Area)]
@@ -319,6 +408,35 @@ public sealed class InventoryMovementServiceTests
 
         Assert.Equal(InventoryMovementStatus.Success, result.Status);
         Assert.Empty(result.Conflicts);
+    }
+
+    [Theory]
+    [InlineData(LocationKind.Area, 0, 0, false)]
+    [InlineData(LocationKind.Area, -3, 0, false)]
+    [InlineData(LocationKind.Area, 5, -8, false)]
+    [InlineData(LocationKind.Area, 5, -5, false)]
+    [InlineData(LocationKind.Area, 5, -3, true)]
+    [InlineData(LocationKind.Rack, 5, -8, false)]
+    [InlineData(LocationKind.Rack, 5, -3, true)]
+    public async Task Sharing_warning_uses_only_other_products_with_positive_net_stock(
+        LocationKind kind, decimal firstBalance, decimal secondBalance, bool expectsWarning)
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var existing = await fixture.AddProductAsync("NET-STOCK-EXISTING");
+        var added = await fixture.AddProductAsync("NET-STOCK-ADDED");
+        var location = await fixture.AddLocationAsync("NET-STOCK-TARGET", kind: kind);
+        fixture.Db.InventoryBalances.AddRange(
+            new InventoryBalance { ProductId = existing.Id, LocationId = location.Id, Quantity = firstBalance },
+            new InventoryBalance { ProductId = existing.Id, LocationId = location.Id, Quantity = secondBalance });
+        await fixture.Db.SaveChangesAsync();
+
+        var result = await fixture.Service.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, fixture.OperatorPin,
+            [new(added.Id, 1m, DestinationLocationId: location.Id)]));
+
+        Assert.Equal(expectsWarning ? InventoryMovementStatus.RequiresLocationSharingConfirmation : InventoryMovementStatus.Success, result.Status);
+        Assert.Equal(expectsWarning ? 1 : 0, result.Conflicts.Count);
+        Assert.Equal(firstBalance + secondBalance, await fixture.Db.InventoryBalances
+            .Where(x => x.ProductId == existing.Id && x.LocationId == location.Id).SumAsync(x => x.Quantity));
     }
 
     [Fact]

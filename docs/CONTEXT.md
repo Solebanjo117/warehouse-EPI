@@ -257,7 +257,10 @@ de cero y se desactivan cuando el saldo queda exactamente en cero. Una
 transferencia total mueve también la ubicación principal de entrada al único
 destino resultante; una salida, ajuste o conteo sin destino la limpia. La
 confirmación de pallet compartido considera únicamente otros productos con
-saldo neto distinto de cero, no asignaciones administrativas agotadas. Las
+saldo neto positivo, no asignaciones administrativas agotadas ni saldos cero o
+negativos. ADMIN puede desactivar este aviso por área en Crear/Editar área,
+por ejemplo para STAGING; el aviso está activado por defecto y los racks
+conservan su confirmación. La preferencia no cambia NIP, existencias ni historial. Las
 ubicaciones con función WIP admiten varios productos sin esta confirmación,
 incluidas las salidas a WIP y las transferencias a WIP.
 
@@ -3116,6 +3119,23 @@ con `tests/javascript/internal-inventory.browser.cjs` en ES/EN, anchos 800/1024/
 Claro/Oscuro/Sistema, teclado, carga y limpieza de contraseña. Evidencia visual
 local en `artifacts/ui/playwright/internal-inventory-*.png`. Pendiente validación
 física en tablet y consulta operativa posterior al despliegue autorizado.
+
+### 2026-10-07 — Aviso configurable para áreas compartidas como STAGING
+
+Crear/Editar área permite activar o desactivar la confirmación al agregar otros
+productos mediante `WarnOnMixedProducts`. Está activada por defecto, incluidas
+las áreas existentes. La decisión se aplica en el servidor a los movimientos y
+las recepciones existentes; los racks y WIP conservan sus reglas. El aviso solo
+considera otros productos con saldo neto positivo entre todos sus lotes: cero y
+negativo no lo disparan. No cambia NIP, saldos, historial ni idempotencia.
+
+Migración `20261007154234_AddAreaMixedProductWarning` generada con valor inicial
+`true`, sin aplicarla a la base operativa. Compilación sin advertencias y 131
+pruebas focales aprobadas (movimientos, recepción, áreas, modelo/snapshot,
+localización ES/EN, conteos y CSP), con evidencia en
+`artifacts/staging-area-tests/staging-area.trx`. Script SQL idempotente generado
+sin conexión a la base. Publicación, revisión visual en navegador y validación
+física pendientes. Integración documentada en `docs/UI_COMPONENTS.md`.
 
 ### Inventario interno como fuente del catálogo (2026-10-09)
 

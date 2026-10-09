@@ -39,6 +39,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             Code = location.Code,
             Description = location.Description,
             OperationalRole = location.OperationalRole,
+            WarnOnMixedProducts = location.WarnOnMixedProducts,
             ProcessIds = selected,
             IsActive = location.IsActive,
             IsBlocked = location.IsBlocked,
@@ -112,6 +113,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             target.OperationalRole = Input.OperationalRole; target.UpdatedAt = DateTimeOffset.UtcNow;
         }
         target.IsActive = Input.IsActive;
+        target.WarnOnMixedProducts = Input.WarnOnMixedProducts;
         target.IsBlocked = Input.IsBlocked;
         target.BlockReason = Input.BlockReason;
         var association = await processes.ApplyAreaAsync(target.Id, Input.OperationalRole, Input.ProcessIds, Input.ProcessConfigurationVersion, cancellationToken);
@@ -160,6 +162,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
             Code = location.Code,
             Description = location.Description,
             OperationalRole = location.OperationalRole,
+            WarnOnMixedProducts = location.WarnOnMixedProducts,
             IsActive = location.IsActive,
             IsBlocked = location.IsBlocked,
             BlockReason = location.BlockReason,
@@ -216,6 +219,7 @@ public sealed class AreaModel(WarehouseDbContext dbContext, LocationAreaAdminist
         [StringLength(200)] public string? Description { get; set; }
         [EnumDataType(typeof(LocationOperationalRole))]
         public LocationOperationalRole OperationalRole { get; set; } = LocationOperationalRole.Other;
+        public bool WarnOnMixedProducts { get; set; } = true;
         public bool IsActive { get; set; } = true;
         public bool IsBlocked { get; set; }
         [StringLength(200)] public string? BlockReason { get; set; }

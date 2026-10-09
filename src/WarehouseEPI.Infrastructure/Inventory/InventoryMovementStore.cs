@@ -31,15 +31,16 @@ internal sealed class InventoryMovementStore(WarehouseDbContext dbContext, TimeP
                 group.Key.Sku,
                 Quantity = group.Sum(balance => balance.Quantity)
             })
-            .Where(balance => balance.Quantity != 0)
+            .Where(balance => balance.Quantity > 0)
             .ToArray();
         var approved = approvals.Select(item => new InventoryAssignmentKey(item.ProductId, item.LocationId)).ToHashSet();
         var conflicts = new List<SharedLocationConflict>();
 
         foreach (var pair in pairs)
         {
-            // WIP locations routinely hold multiple products without sharing approval.
-            if (locations[pair.LocationId].IsWip)
+            // Only areas can opt out of sharing confirmation; racks retain their existing rule.
+            var location = locations[pair.LocationId];
+            if (location.IsWip || (location.Kind == LocationKind.Area && !location.WarnOnMixedProducts))
                 continue;
 
             var sameProductHasStock = occupiedBalances.Any(balance =>
