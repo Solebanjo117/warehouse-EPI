@@ -1,8 +1,38 @@
 # Recompilar, aplicar migraciones y actualizar Warehouse EPI en producción
 
 Guía para actualizar una laptop donde el servicio WarehouseEPI ya está instalado.
-Preparada el 5 de octubre de 2026; revisada el 6 de octubre de 2026 contra los scripts del repositorio.
+Preparada el 5 de octubre de 2026; revisada el 7 de octubre de 2026 contra los scripts del repositorio.
 Para instalar otra laptop desde cero, consulta [INSTALLATION_SERVER.md](INSTALLATION_SERVER.md).
+
+## Ruta rápida: preparar una vez y activar después
+
+El ahorro principal consiste en completar compilación, pruebas y publicación
+mientras el servicio sigue disponible, y conservar esa entrega para los reintentos.
+Los bloques siguientes se ejecutan en **la misma sesión de PowerShell 7**:
+comparten variables y funciones; un bloque aislado no constituye un despliegue completo.
+
+| Situación | Recorrido |
+| --- | --- |
+| Código nuevo o evidencia de validación incompleta | Pasos 1–7 con el servicio activo; paso 8 en la ventana operativa; paso 9 para verificar. |
+| Paquete preparado en esta sesión, sin cambios posteriores | Continúa desde el paso 8; conserva SQL revisado, TRX, cobertura y resultado JavaScript. |
+| Cero migraciones pendientes | Sigue los mismos pasos; los bloques 5 y 8 omiten automáticamente generar y aplicar SQL. |
+| Falló una activación del mismo paquete | Consulta «Reintentar sin repetir la preparación validada» antes de repetir comandos. |
+| La versión solicitada ya está activa | Verifica el paso 9; no vuelvas a publicar ni instalar esa versión. |
+
+**Preparación, servicio disponible:** pasos 1–7. Restaura herramientas una vez
+en la copia, compila Release, ejecuta las pruebas con esa compilación y publica
+win-x64. El publicador hace su propia compilación para ese runtime: es necesaria
+con el script actual. No ejecutes además `scripts/quality.ps1`: el paso 4 ya
+incluye sus comprobaciones y el paso 5 valida el modelo y prepara el SQL.
+
+**Ventana operativa:** detener servicio → respaldo final → SQL pendiente
+→ actualizar ejecutable → verificar. La duración depende del respaldo y las
+migraciones; esta guía no promete un tiempo fijo. Si necesitas ensayar una
+restauración, hazlo durante la preparación con un respaldo preliminar.
+
+Los pasos 10 y 11 se usan sólo si corresponde un corte WIP o una recuperación.
+Las entregas fechadas al final son antecedentes; usa los pasos generales para
+una versión nueva.
 
 ## Qué hace cada operación
 
@@ -18,7 +48,7 @@ Para instalar otra laptop desde cero, consulta [INSTALLATION_SERVER.md](INSTALLA
 | Corte documental WIP en /Admin/Inventory/WipCutover | Convierte los saldos WIP históricos mediante una operación ADMIN independiente, con vista previa, motivo y NIP. No se ejecuta al migrar o actualizar el servicio. |
 
 **Orden de trabajo:** comprobar producción → preparar código → compilar y validar
-→ preparar/revisar SQL → publicar paquete → respaldar → detener servicio
+→ preparar/revisar SQL → publicar paquete → preparar respaldo → detener servicio → respaldar
 → aplicar SQL → actualizar servicio → verificar base y aplicación.
 
 Ejecuta los bloques en orden, en la misma ventana de PowerShell. Detente ante
@@ -59,15 +89,16 @@ function Invoke-NativeChecked([scriptblock]$Command) {
 }
 
 Invoke-NativeChecked { dotnet --version }
-Invoke-NativeChecked { dotnet tool restore --tool-manifest (Join-Path $sourceRoot 'dotnet-tools.json') }
-Invoke-NativeChecked { dotnet ef --version }
+Invoke-NativeChecked { node --version }
 Invoke-NativeChecked { git status --short }
 ~~~
 
 El SDK debe satisfacer global.json: banda 10.0.400 y parches compatibles;
 10.0.401 fue el SDK usado en la preparación del 5 de octubre.
 El proyecto utiliza EF Core 10.0.10 y fija dotnet-ef en esa misma versión mediante
-dotnet-tools.json, ubicado en la raíz. Usa la herramienta local restaurada;
+dotnet-tools.json, ubicado en la raíz. Se restaura una vez en el paso 4, dentro
+de la copia que se publicará. Usa Node.js 22 o posterior para las pruebas JavaScript.
+Usa la herramienta local restaurada;
 si falla la restauración, consulta el apartado de errores antes de seguir.
 
 PowerShell no detiene automáticamente todos los ejecutables externos al
@@ -184,16 +215,17 @@ Si cambias el código después, prepara otra copia y otra versión.
 Restaura la herramienta local en la copia y verifica formato antes de compilar
 sin especificar win-x64. Esta compilación también permite ejecutar las
 herramientas de EF y las pruebas con sus rutas normales. Las comprobaciones
-de formato no modifican archivos y excluyen las migraciones inmutables,
-igual que scripts/quality.ps1.
+de formato no modifican archivos y excluyen las migraciones inmutables.
+Una sola llamada a `dotnet format` comprueba espacios, estilo y analizadores;
+evita cargar la solución tres veces con sus subcomandos separados. Se conservan
+las categorías de comprobación de scripts/quality.ps1.
 
 ~~~powershell
 Invoke-NativeChecked { dotnet tool restore --tool-manifest (Join-Path $buildRoot 'dotnet-tools.json') }
+Invoke-NativeChecked { dotnet ef --version }
 Invoke-NativeChecked { dotnet restore WarehouseEPI.sln --locked-mode }
 Invoke-NativeChecked { git diff --check }
-Invoke-NativeChecked { dotnet format whitespace WarehouseEPI.sln --verify-no-changes --no-restore --exclude 'src/WarehouseEPI.Infrastructure/Persistence/Migrations/**' }
-Invoke-NativeChecked { dotnet format style WarehouseEPI.sln --verify-no-changes --no-restore --exclude 'src/WarehouseEPI.Infrastructure/Persistence/Migrations/**' }
-Invoke-NativeChecked { dotnet format analyzers WarehouseEPI.sln --verify-no-changes --no-restore --exclude 'src/WarehouseEPI.Infrastructure/Persistence/Migrations/**' }
+Invoke-NativeChecked { dotnet format WarehouseEPI.sln --verify-no-changes --no-restore --exclude 'src/WarehouseEPI.Infrastructure/Persistence/Migrations/**' }
 Invoke-NativeChecked { dotnet build WarehouseEPI.sln --configuration Release --no-restore }
 ~~~
 
@@ -254,6 +286,23 @@ finally {
 Cada intento conserva su propio directorio de resultados. La puerta de cobertura
 exige al menos 85 % de líneas y 45 % de ramas, igual que scripts/quality.ps1.
 Conserva el TRX y coverage.cobertura.xml; un incumplimiento detiene el procedimiento.
+
+Ejecuta también las pruebas JavaScript de lógica y DOM simulado de la misma
+copia. No requieren instalar Playwright. Conserva su salida junto al TRX:
+
+~~~powershell
+$javascriptTests = @(Get-ChildItem -LiteralPath (Join-Path $buildRoot 'tests\javascript') -Filter '*.test.cjs' -File | Sort-Object Name | ForEach-Object FullName)
+if ($javascriptTests.Count -eq 0) { throw 'No se encontraron pruebas JavaScript.' }
+$javascriptResultsPath = Join-Path $testResultsPath 'javascript-tests.log'
+Invoke-NativeChecked {
+    node --test @javascriptTests 2>&1 | Tee-Object -FilePath $javascriptResultsPath
+}
+~~~
+
+Comprueba que se ejecutaron pruebas y que no hubo fallos. Los archivos
+`*.browser.cjs` son comprobaciones independientes en navegador: cuando la entrega
+cambie una pantalla, ejecuta las correspondientes según su documentación y
+conserva la evidencia. La suite anterior no sustituye esa revisión visual.
 
 El despliegue habitual excluye únicamente la categoría `PostgreSQLPerformance`.
 Conserva las pruebas funcionales, integración PostgreSQL, migraciones y los mismos
@@ -374,34 +423,74 @@ if ($releaseManifest.version -cne $releaseVersion -or
 El publicador recompila para win-x64;
 no copies los archivos bin/Release sobre la carpeta de un servicio activo.
 
-## 7. Crear y comprobar un respaldo nuevo
+## 7. Preparar el respaldo antes de la ventana operativa
 
-Todavía no detengas el servicio. Crea un respaldo de la base confirmada y sus
-referencias del croquis. El script valida el dump con pg_restore --list.
-Para una entrega con cambios de datos o esquema importantes, ejecuta también
-la validación de recuperación en una base temporal antes de seguir.
+Comprueba herramientas, directorio y acceso administrativo mientras el servicio
+sigue disponible. Define la función que creará el respaldo final en el paso 8,
+después de detener las capturas. Así una recuperación incluye las operaciones
+confirmadas hasta la parada. El script valida el dump con pg_restore --list.
 
 ~~~powershell
+$backupDirectory = 'C:\ProgramData\WarehouseEPI\Backups'
+$pgDumpPath = Join-Path $pgBin 'pg_dump.exe'
+$pgRestorePath = Join-Path $pgBin 'pg_restore.exe'
+foreach ($tool in @($pgDumpPath, $pgRestorePath)) {
+    if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw "Falta $tool" }
+}
+if (-not (Test-Path -LiteralPath $backupDirectory -PathType Container)) {
+    throw 'Falta el directorio de respaldos. Revise OPERATIONS.md.'
+}
 $savedBackupPassword = $env:PGPASSWORD
+$savedBackupPassFile = $env:PGPASSFILE
+$savedBackupTimeout = $env:PGCONNECT_TIMEOUT
 try {
     $env:PGPASSWORD = $null
+    $env:PGPASSFILE = $backupPassFile
+    $env:PGCONNECT_TIMEOUT = '10'
     Invoke-NativeChecked {
-        pwsh -NoProfile -File (Join-Path $sourceRoot 'scripts\security\Invoke-WarehouseEpiBackup.ps1') -DatabaseHost $dbHost -DatabasePort ([int]$dbPort) -DatabaseName $database
+        & $psqlPath -X -w -h $dbHost -p $dbPort -U postgres -d $database -v ON_ERROR_STOP=1 -c 'SELECT 1;' | Out-Null
     }
 }
-finally { $env:PGPASSWORD = $savedBackupPassword }
-Assert-WarehouseEpiValidatedBackup
-$backup = Get-ChildItem -LiteralPath 'C:\ProgramData\WarehouseEPI\Backups' -Filter 'warehouseEPI-*.dump' -File | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
-$backup | Select-Object FullName, LastWriteTimeUtc, Length
+finally {
+    $env:PGPASSWORD = $savedBackupPassword
+    $env:PGPASSFILE = $savedBackupPassFile
+    $env:PGCONNECT_TIMEOUT = $savedBackupTimeout
+}
+
+function New-DeploymentBackup {
+    $existingBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter 'warehouseEPI-*.dump' -File | ForEach-Object FullName)
+    $previousPassword = $env:PGPASSWORD
+    $previousTimeout = $env:PGCONNECT_TIMEOUT
+    try {
+        $env:PGPASSWORD = $null
+        $env:PGCONNECT_TIMEOUT = '10'
+        Invoke-NativeChecked {
+            pwsh -NoProfile -File (Join-Path $sourceRoot 'scripts\security\Invoke-WarehouseEpiBackup.ps1') -DatabaseHost $dbHost -DatabasePort ([int]$dbPort) -DatabaseName $database -PgPassFile $backupPassFile -PgDumpPath $pgDumpPath -PgRestorePath $pgRestorePath -BackupDirectory $backupDirectory | Out-Host
+        }
+    }
+    finally {
+        $env:PGPASSWORD = $previousPassword
+        $env:PGCONNECT_TIMEOUT = $previousTimeout
+    }
+    $createdBackups = @(Get-ChildItem -LiteralPath $backupDirectory -Filter 'warehouseEPI-*.dump' -File | Where-Object { $_.FullName -notin $existingBackups })
+    if ($createdBackups.Count -ne 1) { throw 'No se pudo identificar un único respaldo nuevo.' }
+    $createdBackup = $createdBackups[0]
+    if (-not (Test-Path -LiteralPath (Join-Path $backupDirectory ($createdBackup.BaseName + '-references.zip')) -PathType Leaf)) {
+        throw 'Falta el ZIP pareado del respaldo nuevo.'
+    }
+    return $createdBackup
+}
 ~~~
 
-Debe existir el dump recién creado y el ZIP pareado de referencias.
 La credencial de respaldo se mantiene en BackupCredentials con ACL privada.
 No la pases como argumento ni la copies a la documentación o a Git.
 
-La validación de restauración opcional se ejecuta con
-scripts/security/Invoke-WarehouseEpiRecoveryValidation.ps1 y usa una base
-temporal. Consulta [OPERATIONS.md](OPERATIONS.md) para recuperación y respaldos.
+Para cambios importantes de datos o esquema, crea ahora un respaldo preliminar
+con `New-DeploymentBackup` y valida su restauración aislada según
+[OPERATIONS.md](OPERATIONS.md). Conserva el dump y ZIP exactos de ese ensayo.
+El paso 8 toma otro respaldo después de detener el servicio; el preliminar no
+sustituye ese punto de recuperación. Una entrega rutinaria no necesita tomar
+dos respaldos por este procedimiento.
 
 ## 8. Aplicar las migraciones y actualizar el servicio
 
@@ -423,6 +512,10 @@ foreach ($file in $sourceFingerprint) {
     }
 }
 Test-WarehouseEpiPackageHash $packagePath
+if ($pendingMigrations.Count -gt 0 -and
+    (Get-FileHash -LiteralPath $sqlPath -Algorithm SHA256).Hash -cne $reviewedSqlHash) {
+    throw 'El SQL cambió después de revisarlo.'
+}
 ~~~
 
 La aplicación usa un rol mínimo. Las migraciones se aplican con postgres y la
@@ -442,6 +535,8 @@ $serviceWasStopped = $false
 try {
     $serviceWasStopped = $true
     Stop-WarehouseEpiServiceSafely
+    $backup = New-DeploymentBackup
+    $backup | Select-Object FullName, LastWriteTimeUtc, Length
     if ($pendingMigrations.Count -gt 0) {
         if ((Get-FileHash -LiteralPath $sqlPath -Algorithm SHA256).Hash -cne $reviewedSqlHash) {
             throw 'El SQL cambió después de revisarlo.'
@@ -521,6 +616,7 @@ if (Compare-Object $knownMigrations $appliedFinal) { throw 'Quedan diferencias e
     packageSha256 = (Get-FileHash -LiteralPath $packagePath -Algorithm SHA256).Hash
     backup = $backup.FullName
     testResults = $testResultsPath
+    javascriptResults = $javascriptResultsPath
     appliedMigrations = $pendingMigrations
     previousVersion = $previousVersion
     serviceState = $serviceAfter.State
@@ -546,6 +642,7 @@ ni ocultes la redirección siguiéndola automáticamente en esta comprobación.
 Guarda versión, commit de la copia, hash del paquete, respaldo usado,
 migraciones aplicadas, resultado de pruebas y verificaciones HTTP.
 Conserva binlogs, SQL revisado, reportes TRX y coverage.cobertura.xml.
+Conserva también javascript-tests.log y la evidencia de navegador que corresponda.
 Al finalizar, limpia los objetos que contienen la configuración:
 
 ~~~powershell
@@ -606,8 +703,22 @@ activa. Sigue el procedimiento de [OPERATIONS.md](OPERATIONS.md).
 
 ## Reintentar sin repetir la preparación validada
 
+Usa esta tabla con la misma copia y paquete. Conserva abierta la sesión que
+contiene las variables del procedimiento. Si se cerró, reconstruye primero
+el contexto a partir del manifiesto de la copia, paquete, SQL y reportes;
+no ejecutes el paso 8 con variables de otra entrega ni uses los scripts fechados.
+
+| Estado comprobado | Acción mínima |
+| --- | --- |
+| Preparación completa, todavía no se aplicó SQL ni se instaló la versión | Repite las comprobaciones del paso 8 y activa; conserva compilación y pruebas. |
+| Falló el SQL y la transacción se revirtió | Resuelve la causa; si cambió el SQL, vuelve a revisarlo y guarda su hash. Si exige modificar migraciones o código, prepara una versión nueva. Repite el paso 8 con un respaldo final nuevo. |
+| El SQL se confirmó, pero la versión nueva no quedó instalada | Consulta el historial actual, asigna ese resultado a `appliedBefore` y repite el paso 5 para calcular lo que falta; conserva el paquete. Después continúa en el paso 8. |
+| La versión nueva está activa | Ejecuta el paso 9 y las comprobaciones funcionales pendientes. |
+| La carpeta de la versión existe pero está inactiva | Sigue la activación controlada descrita abajo; el actualizador no admite reinstalar sobre esa carpeta. |
+| Cambió el código o las dependencias del paquete | Prepara una copia y versión nuevas; la evidencia anterior ya no valida ese paquete. |
+
 Compila, prueba y publica mientras el servicio sigue disponible. Conserva la copia
-inmutable, su manifiesto de código, TRX, cobertura, paquete y SHA-256. No vuelvas
+inmutable, su manifiesto de código, TRX, cobertura, resultado JavaScript, paquete y SHA-256. No vuelvas
 a compilar ni ejecutar pruebas por un fallo de UAC, certificado o comprobación
 HTTP si esos artefactos siguen siendo exactamente los validados. Si cambia código,
 dependencias o configuración relevante para las pruebas, invalida la evidencia
