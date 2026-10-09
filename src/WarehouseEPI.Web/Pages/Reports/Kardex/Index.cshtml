@@ -63,7 +63,7 @@
                     <option value="">@CatTexts["Consolidado global"]</option>
                     @foreach (var opt in Model.LocationOptions)
                     {
-                        <option value="@opt.Value" selected="@(Model.LocationId?.ToString() == opt.Value)">@opt.Text</option>
+                        <option value="@opt.Id" selected="@(Model.LocationId == opt.Id)">@(opt.IsActive ? opt.Code : $"{opt.Code} · {CatTexts["Inactiva"]}")</option>
                     }
                 </select>
             </div>

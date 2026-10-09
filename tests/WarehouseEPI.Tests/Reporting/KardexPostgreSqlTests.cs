@@ -35,6 +35,30 @@ public sealed class KardexPostgreSqlTests(PostgreSqlInventoryFixture fixture)
         Assert.Equal(4m, result.Summary.TotalExits);
         Assert.Equal(6m, Assert.Single(result.Rows).RunningBalance);
 
+        // Exercise the actual page lookup against PostgreSQL, including its correlated EXISTS.
+        location.IsActive = false;
+        location.IsBlocked = false;
+        location.IsPhysicallyPresent = false;
+        var selected = new Location { Code = $"EMPTY-{suffix}", IsActive = false };
+        var excluded = new Location { Code = $"EXCLUDED-{suffix}", IsActive = false };
+        db.AddRange(selected, excluded);
+        await db.SaveChangesAsync();
+        var settings = new WarehouseEPI.Infrastructure.Settings.WarehouseSettingsService(db);
+        var model = new WarehouseEPI.Web.Pages.Reports.Kardex.IndexModel(
+            new KardexReportService(db), new KardexExportService(settings),
+            new WarehouseEPI.Infrastructure.Settings.WarehouseClock(settings), settings, db);
+        await model.OnGetAsync(null, selected.Id, period: "today");
+        Assert.Contains(model.LocationOptions, x => x.Id == location.Id && !x.IsActive);
+        Assert.Contains(model.LocationOptions, x => x.Id == selected.Id);
+        Assert.DoesNotContain(model.LocationOptions, x => x.Id == excluded.Id);
+        location.IsActive = true;
+        location.IsBlocked = true;
+        location.BlockReason = "Bloqueo de prueba";
+        location.IsPhysicallyPresent = true;
+        await db.SaveChangesAsync();
+        await model.OnGetAsync(null, selected.Id, period: "today");
+        Assert.Contains(model.LocationOptions, x => x.Id == location.Id && x.IsActive);
+
         void AddEntry(decimal quantity, DateTimeOffset at, string fingerprint)
         {
             var movement = Movement(InventoryMovementType.Entry, InventoryMovementPurpose.Standard, at, fingerprint);

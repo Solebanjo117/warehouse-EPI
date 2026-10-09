@@ -2,7 +2,6 @@ using WarehouseEPI.Infrastructure.Inventory;
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
 using WarehouseEPI.Core.Entities;
@@ -34,7 +33,7 @@ public sealed class IndexModel(
     public string? ErrorMessage { get; private set; }
     public int PageNumber { get; private set; } = 1;
     public DateTimeOffset CurrentAtLocal { get; private set; }
-    public IReadOnlyList<SelectListItem> LocationOptions { get; private set; } = [];
+    public IReadOnlyList<KardexLocationOption> LocationOptions { get; private set; } = [];
     public IReadOnlyList<Product> MatchingProducts { get; private set; } = [];
 
     public async Task OnGetAsync(
@@ -46,7 +45,7 @@ public sealed class IndexModel(
         int pageNumber = 1,
         CancellationToken cancellationToken = default)
     {
-        await LoadLocationsAsync(cancellationToken);
+        await LoadLocationsAsync(locationId, cancellationToken);
         await SetRequestStateAsync(sku, locationId, period, from, to, cancellationToken);
         PageNumber = Math.Max(1, pageNumber);
 
@@ -175,18 +174,18 @@ public sealed class IndexModel(
         return matches.Count == 1 ? matches[0] : null;
     }
 
-    private async Task LoadLocationsAsync(CancellationToken cancellationToken)
+    private async Task LoadLocationsAsync(Guid? selectedLocationId, CancellationToken cancellationToken)
     {
-        var locations = await dbContext.Locations
+        // Historical scope follows balance changes, just like the Kardex itself.
+        // Neither the selected product nor the reporting period limits this list.
+        LocationOptions = await dbContext.Locations
             .AsNoTracking()
-            .Where(l => l.IsActive)
+            .Where(l => l.IsActive || l.Id == selectedLocationId ||
+                dbContext.InventoryBalanceChanges.Any(c => c.LocationId == l.Id))
             .OrderBy(l => l.Code)
-            .Select(l => new { l.Id, l.Code })
+            .ThenBy(l => l.Id)
+            .Select(l => new KardexLocationOption(l.Id, l.Code, l.IsActive))
             .ToListAsync(cancellationToken);
-
-        LocationOptions = locations
-            .Select(l => new SelectListItem(l.Code, l.Id.ToString()))
-            .ToList();
     }
 
     private async Task SetRequestStateAsync(
@@ -271,3 +270,4 @@ public sealed class IndexModel(
 }
 
 public sealed record KardexProductSuggestion(string Sku, string? Description, string? ExternalReference, bool IsActive);
+public sealed record KardexLocationOption(Guid Id, string Code, bool IsActive);

@@ -13,6 +13,61 @@ namespace WarehouseEPI.Tests.Web;
 
 public sealed class KardexRouteTests
 {
+    [Fact]
+    public async Task Kardex_location_options_preserve_history_and_explicit_selection()
+    {
+        var (model, db) = CreateModel();
+        await using (db)
+        {
+            var active = new Location { Code = "A-ACTIVE" };
+            var historical = new Location { Code = "B-HISTORY", IsActive = false, IsBlocked = true, IsPhysicallyPresent = false };
+            var selected = new Location { Code = "C-SELECTED", IsActive = false };
+            var excluded = new Location { Code = "D-EMPTY", IsActive = false };
+            var unit = new Unit { Id = 1, Code = "PZA", Name = "Pieza" };
+            var product = new Product { Sku = "OLD-PRODUCT", BaseUnit = unit };
+            var otherProduct = new Product { Sku = "OTHER-PRODUCT", BaseUnit = unit };
+            var user = new User { FullName = "History", PinLookup = "lk", PinHash = "ph", RoleId = 1 };
+            var movement = new InventoryMovement
+            {
+                OperationId = Guid.NewGuid(), Type = InventoryMovementType.Entry,
+                ResponsibleUser = user, OccurredAt = new DateTimeOffset(2020, 1, 1, 12, 0, 0, TimeSpan.Zero),
+                RequestFingerprint = "historical-location"
+            };
+            var line = new InventoryMovementLine { Movement = movement, Product = product, Unit = unit,
+                DestinationLocation = historical, Quantity = 5m, LineNumber = 1 };
+            line.BalanceChanges.Add(new InventoryBalanceChange { MovementLine = line, Location = historical,
+                DeltaQuantity = 5m, PreviousQuantity = 0m, ResultingQuantity = 5m });
+            db.AddRange(active, historical, selected, excluded, otherProduct, line);
+            db.InventoryBalances.Add(new InventoryBalance { Product = product, Location = historical, Quantity = 0m });
+            await db.SaveChangesAsync();
+
+            await model.OnGetAsync(otherProduct.Sku, null, period: "today");
+            Assert.Equal(new[] { active.Id, historical.Id }, model.LocationOptions.Select(x => x.Id));
+            Assert.False(model.LocationOptions.Single(x => x.Id == historical.Id).IsActive);
+            Assert.Empty(model.Kardex!.Rows);
+
+            await model.OnGetAsync(null, selected.Id, period: "all");
+            Assert.Equal(selected.Id, model.LocationId);
+            Assert.Equal(new[] { active.Id, historical.Id, selected.Id }, model.LocationOptions.Select(x => x.Id));
+
+            await model.OnGetAsync(product.Sku, historical.Id, period: "all");
+            Assert.Equal(historical.Id, model.LocationId);
+            Assert.Equal(historical.Id, model.Kardex!.ScopedLocation!.Id);
+            Assert.Equal(movement.Id, Assert.Single(model.Kardex.Rows).MovementId);
+
+            var csv = Assert.IsType<FileContentResult>(await model.OnGetExportAsync("csv", product.Sku, historical.Id, period: "all"));
+            Assert.Contains(historical.Code, System.Text.Encoding.UTF8.GetString(csv.FileContents));
+            var xlsx = Assert.IsType<FileContentResult>(await model.OnGetExportAsync("xlsx", product.Sku, historical.Id, period: "all"));
+            using var stream = new MemoryStream(xlsx.FileContents);
+            using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+            Assert.Contains($"Ubicación: {historical.Code}", workbook.Worksheet("Kardex").Cell(2, 1).GetString());
+
+            model.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+            Assert.IsType<ForbidResult>(await model.OnGetExportAsync("xlsx", product.Sku, historical.Id, period: "all"));
+            Assert.IsType<ForbidResult>(await model.OnGetExportAsync("csv", product.Sku, historical.Id, period: "all"));
+        }
+    }
+
     private static WarehouseDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<WarehouseDbContext>()
@@ -230,6 +285,14 @@ public sealed class KardexRouteTests
 
         Assert.Contains("data-kardex-product-input", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-pageNumber", page, StringComparison.Ordinal);
+        Assert.Contains("asp-route-locationId=\"@Model.LocationId\"", page, StringComparison.Ordinal);
+        Assert.Contains("selected=\"@(Model.LocationId == opt.Id)\"", page, StringComparison.Ordinal);
+        Assert.Contains("CatTexts[\"Inactiva\"]", page, StringComparison.Ordinal);
+        foreach (var (resource, expected) in new[] { ("CatalogTexts.resx", "Inactiva"), ("CatalogTexts.en.resx", "Inactive") })
+        {
+            var document = System.Xml.Linq.XDocument.Load(RepositoryPath("src", "WarehouseEPI.Web", "Resources", "Localization", resource));
+            Assert.Equal(expected, document.Root!.Elements("data").Single(x => (string?)x.Attribute("name") == "Inactiva").Element("value")!.Value);
+        }
         Assert.Contains("isAdmin && row.Corrections.Count > 0", page, StringComparison.Ordinal);
         Assert.Contains("event.key === \"ArrowDown\"", script, StringComparison.Ordinal);
         Assert.Contains("event.key === \"Escape\"", script, StringComparison.Ordinal);
