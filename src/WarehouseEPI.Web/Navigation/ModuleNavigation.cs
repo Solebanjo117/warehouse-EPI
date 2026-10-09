@@ -118,6 +118,7 @@ public static class ModuleNavigation
         [
             new("Impresión", [
                 new("Generar etiquetas", "Imprimir usando formatos publicados.", "label", "/Operations/Labels/Index"),
+                new("Hoja de códigos para proveedores", "Lista de productos con códigos para imprimir o guardar como PDF.", "label", "/Operations/Labels/SupplierSheet"),
                 new("Placas de pallet", "Identificar saldo libre por ubicación e imprimir placas.", "label", "/Operations/PalletLabels/Index")]),
             new("Administración", [new("Diseñar formatos", "Diseñar y publicar formatos de etiquetas.", "label", "/Admin/Labels/Templates/Index", true)])
         ]),

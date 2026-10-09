@@ -230,4 +230,6 @@
   <data name="Registrar una entrada con destino STAGING" xml:space="preserve"><value>Registrar una entrada con destino STAGING</value></data>
   <data name="{0} llegada pendiente de acomodo o identificación" xml:space="preserve"><value>{0} llegada pendiente de acomodo o identificación</value></data>
   <data name="{0} llegadas pendientes de acomodo o identificación" xml:space="preserve"><value>{0} llegadas pendientes de acomodo o identificación</value></data>
+  <data name="Hoja de códigos para proveedores" xml:space="preserve"><value>Hoja de códigos para proveedores</value></data>
+  <data name="Lista de productos con códigos para imprimir o guardar como PDF." xml:space="preserve"><value>Lista de productos con códigos para imprimir o guardar como PDF.</value></data>
 </root>

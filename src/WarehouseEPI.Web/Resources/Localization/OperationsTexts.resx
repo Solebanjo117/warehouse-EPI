@@ -826,4 +826,28 @@
 <data name="No hay ubicaciones sugeridas con stock. Busca o escanea un destino" xml:space="preserve"><value>No hay ubicaciones sugeridas con stock. Busca o escanea un destino</value></data>
 <data name="Ubicaciones sugeridas" xml:space="preserve"><value>Ubicaciones sugeridas</value></data>
 <data name="Saldo actual" xml:space="preserve"><value>Saldo actual</value></data>
+  <data name="Hoja de códigos para proveedores" xml:space="preserve"><value>Hoja de códigos para proveedores</value></data>
+  <data name="Agrega productos y genera una hoja carta con sus números de parte y códigos de barras." xml:space="preserve"><value>Agrega productos y genera una hoja carta con sus números de parte y códigos de barras.</value></data>
+  <data name="Selecciona hasta 100 productos. Cada producto aparece una sola vez." xml:space="preserve"><value>Selecciona hasta 100 productos. Cada producto aparece una sola vez.</value></data>
+  <data name="Busca un producto para comenzar la hoja." xml:space="preserve"><value>Busca un producto para comenzar la hoja.</value></data>
+  <data name="Generar hoja" xml:space="preserve"><value>Generar hoja</value></data>
+  <data name="Imprimir / Guardar PDF" xml:space="preserve"><value>Imprimir / Guardar PDF</value></data>
+  <data name="Usa papel carta vertical, escala 100 % y desactiva los encabezados y pies del navegador." xml:space="preserve"><value>Usa papel carta vertical, escala 100 % y desactiva los encabezados y pies del navegador.</value></data>
+  <data name="Número de parte / SKU" xml:space="preserve"><value>Número de parte / SKU</value></data>
+  <data name="Selecciona entre 1 y 100 productos." xml:space="preserve"><value>Selecciona entre 1 y 100 productos.</value></data>
+  <data name="Hay productos repetidos. Quita las filas repetidas y vuelve a generar." xml:space="preserve"><value>Hay productos repetidos. Quita las filas repetidas y vuelve a generar.</value></data>
+  <data name="Producto no disponible" xml:space="preserve"><value>Producto no disponible</value></data>
+  <data name="El producto {0} ya no existe. Quítalo de la selección." xml:space="preserve"><value>El producto {0} ya no existe. Quítalo de la selección.</value></data>
+  <data name="El producto {0} está inactivo. Quítalo de la selección." xml:space="preserve"><value>El producto {0} está inactivo. Quítalo de la selección.</value></data>
+  <data name="El código de {0} es demasiado ancho para esta hoja. Revisa el SKU." xml:space="preserve"><value>El código de {0} es demasiado ancho para esta hoja. Revisa el SKU.</value></data>
+  <data name="El SKU {0} no es compatible con Code 128. Revisa el catálogo." xml:space="preserve"><value>El SKU {0} no es compatible con Code 128. Revisa el catálogo.</value></data>
+  <data name="Quitar {0}" xml:space="preserve"><value>Quitar {0}</value></data>
+  <data name="Productos" xml:space="preserve"><value>Productos</value></data>
+  <data name="Código de barras" xml:space="preserve"><value>Código de barras</value></data>
+  <data name="Nombre del proveedor (opcional)" xml:space="preserve"><value>Nombre del proveedor (opcional)</value></data>
+  <data name="Proveedor" xml:space="preserve"><value>Proveedor</value></data>
+  <data name="El nombre del proveedor admite hasta 200 caracteres." xml:space="preserve"><value>El nombre del proveedor admite hasta 200 caracteres.</value></data>
+  <data name="Todos los productos activos" xml:space="preserve"><value>Todos los productos activos</value></data>
+  <data name="Incluye solo productos activos, ordenados por SKU. Sin límite de 100 productos." xml:space="preserve"><value>Incluye solo productos activos, ordenados por SKU. Sin límite de 100 productos.</value></data>
+  <data name="No hay productos activos para generar la hoja." xml:space="preserve"><value>No hay productos activos para generar la hoja.</value></data>
 </root>

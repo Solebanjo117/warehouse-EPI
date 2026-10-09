@@ -47,7 +47,7 @@ public sealed class ModuleNavigationTests
             "/Admin/Production/Processes",
             "/Admin/Production/Routes", "/Admin/Production/Schedule",
             "/Reports/Notifications/Index", "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",
-            "/Admin/Inventory/Lots/Index", "/Admin/Inventory/Alerts", "/Operations/Labels/Index",
+            "/Admin/Inventory/Lots/Index", "/Admin/Inventory/Alerts", "/Operations/Labels/Index", "/Operations/Labels/SupplierSheet",
             "/Operations/PalletLabels/Index", "/Admin/Labels/Templates/Index", "/Reports/Dashboard/Index",
             "/Reports/Workload/Index", "/Reports/Inventory/Index", "/Reports/Kardex/Index", "/Reports/Wip/Index",
             "/Reports/Production/Index",

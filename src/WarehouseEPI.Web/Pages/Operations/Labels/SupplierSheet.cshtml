@@ -1,0 +1,91 @@
+@page
+@model WarehouseEPI.Web.Pages.Operations.Labels.SupplierSheetModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> Texts
+@using System.Globalization
+@{ ViewData["Title"] = Texts["Hoja de códigos para proveedores"].Value; }
+<div class="supplier-sheet-workspace">
+    <header class="supplier-sheet-controls mb-4">
+        <h1 class="h2">@Texts["Hoja de códigos para proveedores"]</h1>
+        <p class="text-body-secondary">@Texts["Agrega productos y genera una hoja carta con sus números de parte y códigos de barras."]</p>
+    </header>
+    <form method="post" asp-page="/Operations/Labels/SupplierSheet" asp-page-handler="" class="supplier-sheet-controls" data-supplier-sheet
+          data-restore-url="@Url.Page("/Operations/Labels/SupplierSheet", "Restore")"
+          data-products-url="@Url.Page("/Operations/Lookup", "Products")"
+          data-resolve-url="@Url.Page("/Operations/Lookup", "ResolveProduct")">
+        <div asp-validation-summary="All" class="text-danger" role="alert" tabindex="-1"></div>
+        <div class="mb-3">
+            <label asp-for="SupplierName" class="form-label fw-bold">@Texts["Nombre del proveedor (opcional)"]</label>
+            <input asp-for="SupplierName" class="form-control form-control-lg" maxlength="200" autocomplete="off" data-supplier-name />
+            <span asp-validation-for="SupplierName" class="text-danger"></span>
+        </div>
+        <div class="form-check mb-3">
+            <input asp-for="AllProducts" class="form-check-input" data-all-products aria-describedby="all-products-help" />
+            <label asp-for="AllProducts" class="form-check-label py-2">@Texts["Todos los productos activos"]</label>
+            <div id="all-products-help" class="form-text">@Texts["Incluye solo productos activos, ordenados por SKU. Sin límite de 100 productos."]</div>
+        </div>
+        <div data-manual-products hidden="@Model.AllProducts">
+        <label for="supplier-product" class="form-label fw-bold">@Texts["Producto"]</label>
+        <div class="lookup-field mb-3">
+            <input id="supplier-product" name="SearchText" value="@Model.SearchText" class="form-control form-control-lg" type="search" autocomplete="off"
+                   autocapitalize="characters" spellcheck="false" autofocus aria-autocomplete="list"
+                   aria-controls="supplier-results" aria-describedby="supplier-feedback"
+                   placeholder="@Texts["SKU, código o descripción"]" />
+            <div id="supplier-results" class="lookup-results list-group" role="listbox" aria-label="@Texts["Productos"]"></div>
+        </div>
+        <p id="supplier-feedback" role="status" aria-live="polite"></p>
+        <p>@Texts["Selecciona hasta 100 productos. Cada producto aparece una sola vez."]</p>
+        <ul class="list-group mb-3" data-supplier-selection>
+            @foreach (var product in Model.Selection)
+            {
+                <li class="list-group-item d-flex align-items-center gap-3" data-product-id="@product.Id">
+                    <input type="hidden" name="ProductIds" value="@product.Id" />
+                    <div class="flex-grow-1 supplier-selected-text"><strong>@product.Sku</strong><span class="d-block">@product.Description</span></div>
+                    <button type="button" class="btn btn-outline-danger" data-remove-product aria-label="@Texts["Quitar {0}", product.Sku]">@Texts["Quitar"]</button>
+                </li>
+            }
+        </ul>
+        <p data-supplier-empty hidden="@(Model.Selection.Count > 0)">@Texts["Busca un producto para comenzar la hoja."]</p>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg" data-generate-sheet disabled="@(!Model.AllProducts && Model.Selection.Count == 0)">@Texts["Generar hoja"]</button>
+    </form>
+    <p class="supplier-sheet-controls mt-3" data-sheet-status role="status" aria-live="polite"></p>
+    @if (Model.Rows.Count > 0)
+    {
+        <section data-sheet-preview class="mt-4">
+            <div class="supplier-sheet-controls mb-3">
+                <button type="button" class="btn btn-primary btn-lg" data-print-sheet>@Texts["Imprimir / Guardar PDF"]</button>
+                <p class="mt-2">@Texts["Usa papel carta vertical, escala 100 % y desactiva los encabezados y pies del navegador."]</p>
+            </div>
+            <div class="supplier-sheet-scroll">
+                <article class="supplier-sheet-paper">
+                    <h2>@Texts["Hoja de códigos para proveedores"]</h2>
+                    @if (!string.IsNullOrWhiteSpace(Model.SupplierName))
+                    {
+                        <p class="supplier-sheet-name" data-printed-supplier><strong>@Texts["Proveedor"]:</strong> @Model.SupplierName</p>
+                    }
+                    <table class="supplier-sheet-table">
+                        <colgroup><col class="supplier-sku-column" /><col class="supplier-barcode-column" /></colgroup>
+                        <thead><tr><th scope="col">@Texts["Número de parte / SKU"]</th><th scope="col">@Texts["Código de barras"]</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in Model.Rows)
+                            {
+                                <tr data-sheet-row>
+                                    <th scope="row">@row.Product.Sku</th>
+                                    <td class="supplier-barcode-cell">
+                                        <div class="supplier-barcode" style="width:@(row.Barcode.PrintWidthInches.ToString(CultureInfo.InvariantCulture))in">@Html.Raw(row.Barcode.Markup)</div>
+                                        <span>@row.Product.Sku</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </article>
+            </div>
+        </section>
+    }
+</div>
+@section Styles { <link rel="stylesheet" href="~/css/supplier-sheet.css" asp-append-version="true" /> }
+@section Scripts {
+    <script src="~/js/suggestion-lookup.js" asp-append-version="true"></script>
+    <script src="~/js/supplier-sheet.js" asp-append-version="true"></script>
+}

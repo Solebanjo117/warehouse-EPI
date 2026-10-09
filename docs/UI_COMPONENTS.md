@@ -16,6 +16,40 @@ escribe. Pruebas: `ProductDeletionTests` y `ProductDeletionPostgreSqlTests`;
 la segunda requiere credenciales con permiso para crear una base temporal propia
 con prefijo `warehouse_epi_product_delete_test_`.
 
+## Hoja de códigos para proveedores
+
+`/Operations/Labels/SupplierSheet` agrega hasta 100 productos activos en orden de
+selección o permite elegir Todos los productos activos (excluye inactivos, sin límite
+de 100, ordenados por SKU e ID). Genera una tabla carta vertical con solo SKU y
+Code 128 del SKU exacto: columna de 155.9 mm, 150 mm útiles para el código a 203 DPI.
+La descripción permanece en el buscador y la selección, no en la hoja impresa.
+Su adaptador `wwwroot/js/supplier-sheet.js` usa
+`warehouseSuggestionLookup` (`suggestion-lookup.js`, cargado primero), los handlers
+Products/ResolveProduct de Operations/Lookup, estilos lookup de site.css y textos
+ClientTexts/OperationsTexts ES/EN. Flechas/Enter eligen sugerencias; Enter sin opción
+activa resuelve SKU/código exacto para HID. Las respuestas tardías no agregan productos
+después de editar o eliminar. No carga el controlador de movimientos ni cámara.
+
+Ejemplo: buscar dos productos, elegir cada sugerencia, generar e imprimir/guardar PDF.
+El nombre de proveedor es opcional (hasta 200 caracteres), se conserva al validar
+y aparece como texto en el encabezado impreso. Editarlo invalida la vista previa;
+no crea ni modifica un catálogo de proveedores.
+Al cambiar ES/EN, el adaptador actualiza la cookie mediante Preferences/Language
+y reenvía proveedor, IDs, búsqueda y opción Todos los productos al handler POST
+Restore con antiforgery. En ese modo el servidor consulta solo el catálogo activo; no
+manda sus IDs como miles de campos ocultos. El selector manual se oculta y conserva
+su selección; cambiar modalidad invalida la vista previa.
+Restore reconsulta los productos y regenera la hoja solo si había vista previa;
+un borrador permanece como borrador. No usa almacenamiento local ni traduce SKU,
+nombre del proveedor o descripciones del catálogo. Fallos de red conservan la captura.
+Quitar o agregar invalida la vista previa; duplicados se anuncian sin agregarlos.
+El POST con antiforgery revalida los IDs en lote, conserva selecciones inválidas para
+quitarlas y usa BarcodeRenderingService; códigos incompatibles o demasiado anchos
+bloquean toda la impresión. `supplier-sheet.css` conserva medidas físicas, zonas
+silenciosas, encabezados repetidos y filas indivisibles. Acceso público como Etiquetas,
+sin NIP, persistencia ni movimientos. Pruebas: SupplierSheetRouteTests y
+tests/javascript/supplier-sheet.browser.cjs; impresión/lector físicos requieren validación.
+
 En el historial de placas, **Imprimir placa** de una transferencia utiliza solo
 placas del producto que siguen en su ubicación destino. No ofrece el remanente
 del origen. `PalletTrackingService.PrintablePlatesForMovementsAsync` aplica este
@@ -240,6 +274,10 @@ Antes de adaptar un buscador:
   Las opciones `.lookup-results > .list-group-item` de `site.css` no se comprimen
   en el contenedor flex de Bootstrap: conservan altura natural, mínimo táctil de
   44 px y ajuste de palabras largas; el desplazamiento ocurre en la lista.
+  Ejemplo: el buscador de SupplierSheet con 12 coincidencias de descripción larga
+  mantiene cada texto dentro de su fila y permite llegar al final con flechas.
+  Verificado en `tests/javascript/supplier-sheet.browser.cjs` (390/800/1440 px,
+  claro/oscuro, ES/EN), sin cambiar handlers ni selección.
 
 - En movimientos, el handler `ProductLocations` de `Lookup.cshtml.cs` reutiliza
   `OperationalInventoryQueryService.GetProductLocationsAsync` para las sugerencias

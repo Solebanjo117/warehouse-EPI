@@ -826,4 +826,28 @@
 <data name="No hay ubicaciones sugeridas con stock. Busca o escanea un destino" xml:space="preserve"><value>No suggested locations with stock. Search or scan a destination</value></data>
 <data name="Ubicaciones sugeridas" xml:space="preserve"><value>Suggested locations</value></data>
 <data name="Saldo actual" xml:space="preserve"><value>Current balance</value></data>
+  <data name="Hoja de códigos para proveedores" xml:space="preserve"><value>Supplier barcode sheet</value></data>
+  <data name="Agrega productos y genera una hoja carta con sus números de parte y códigos de barras." xml:space="preserve"><value>Add products and generate a letter-size sheet with their part numbers and barcodes.</value></data>
+  <data name="Selecciona hasta 100 productos. Cada producto aparece una sola vez." xml:space="preserve"><value>Select up to 100 products. Each product appears once.</value></data>
+  <data name="Busca un producto para comenzar la hoja." xml:space="preserve"><value>Search for a product to start the sheet.</value></data>
+  <data name="Generar hoja" xml:space="preserve"><value>Generate sheet</value></data>
+  <data name="Imprimir / Guardar PDF" xml:space="preserve"><value>Print / Save PDF</value></data>
+  <data name="Usa papel carta vertical, escala 100 % y desactiva los encabezados y pies del navegador." xml:space="preserve"><value>Use portrait letter paper at 100% scale and disable browser headers and footers.</value></data>
+  <data name="Número de parte / SKU" xml:space="preserve"><value>Part number / SKU</value></data>
+  <data name="Selecciona entre 1 y 100 productos." xml:space="preserve"><value>Select between 1 and 100 products.</value></data>
+  <data name="Hay productos repetidos. Quita las filas repetidas y vuelve a generar." xml:space="preserve"><value>Some products are repeated. Remove duplicate rows and generate again.</value></data>
+  <data name="Producto no disponible" xml:space="preserve"><value>Product unavailable</value></data>
+  <data name="El producto {0} ya no existe. Quítalo de la selección." xml:space="preserve"><value>Product {0} no longer exists. Remove it from the selection.</value></data>
+  <data name="El producto {0} está inactivo. Quítalo de la selección." xml:space="preserve"><value>Product {0} is inactive. Remove it from the selection.</value></data>
+  <data name="El código de {0} es demasiado ancho para esta hoja. Revisa el SKU." xml:space="preserve"><value>The barcode for {0} is too wide for this sheet. Review the SKU.</value></data>
+  <data name="El SKU {0} no es compatible con Code 128. Revisa el catálogo." xml:space="preserve"><value>SKU {0} is not compatible with Code 128. Review the catalog.</value></data>
+  <data name="Quitar {0}" xml:space="preserve"><value>Remove {0}</value></data>
+  <data name="Productos" xml:space="preserve"><value>Products</value></data>
+  <data name="Código de barras" xml:space="preserve"><value>Barcode</value></data>
+  <data name="Nombre del proveedor (opcional)" xml:space="preserve"><value>Supplier name (optional)</value></data>
+  <data name="Proveedor" xml:space="preserve"><value>Supplier</value></data>
+  <data name="El nombre del proveedor admite hasta 200 caracteres." xml:space="preserve"><value>The supplier name allows up to 200 characters.</value></data>
+  <data name="Todos los productos activos" xml:space="preserve"><value>All active products</value></data>
+  <data name="Incluye solo productos activos, ordenados por SKU. Sin límite de 100 productos." xml:space="preserve"><value>Includes active products only, sorted by SKU. No 100-product limit.</value></data>
+  <data name="No hay productos activos para generar la hoja." xml:space="preserve"><value>There are no active products to generate the sheet.</value></data>
 </root>

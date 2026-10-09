@@ -1,0 +1,26 @@
+.supplier-sheet-workspace { max-width: 1100px; margin-inline: auto; }
+.supplier-sheet-workspace button { min-height: 44px; }
+.supplier-selected-text { min-width: 0; overflow-wrap: anywhere; }
+.supplier-sheet-scroll { overflow-x: auto; }
+.supplier-sheet-paper { width: 191.9mm; padding: 0; background: white; color: black; }
+.supplier-sheet-paper h2 { padding: 4mm 2mm; font-size: 16pt; }
+.supplier-sheet-name { padding-inline: 2mm; overflow-wrap: anywhere; }
+.supplier-sheet-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 10pt; }
+.supplier-sheet-table th, .supplier-sheet-table td { border: 1px solid black; padding: 2mm; vertical-align: middle; overflow-wrap: anywhere; }
+.supplier-sheet-table thead { display: table-header-group; }
+.supplier-sheet-table tr { break-inside: avoid; page-break-inside: avoid; }
+.supplier-sku-column { width: 36mm; }
+.supplier-barcode-column { width: 155.9mm; }
+.supplier-barcode-cell { text-align: center; }
+.supplier-barcode { margin: 1mm auto; max-width: none; }
+.supplier-barcode svg { display: block; width: 100%; height: 15mm; }
+@page { size: letter portrait; margin: 12mm; }
+@media print {
+    html, body, .app-content, .app-main { background: white !important; color: black !important; color-scheme: light !important; }
+    .supplier-sheet-controls, .app-sidebar, .app-topbar, .app-footer { display: none !important; }
+    .app-content { margin: 0 !important; }
+    .app-main { padding: 0 !important; max-width: none !important; }
+    .supplier-sheet-workspace, .supplier-sheet-scroll { max-width: none; overflow: visible; }
+    [data-sheet-preview] { margin: 0 !important; }
+    .supplier-sheet-paper { width: 100%; }
+}

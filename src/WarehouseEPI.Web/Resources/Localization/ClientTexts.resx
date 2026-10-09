@@ -455,4 +455,14 @@
   <data name="Sin capturar" xml:space="preserve"><value>Sin capturar</value></data>
   <data name="No hay coincidencias. Puedes buscar con el texto escrito." xml:space="preserve"><value>No hay coincidencias. Puedes buscar con el texto escrito.</value></data>
   <data name="Coincidencias: {0}. Usa flechas y Enter para elegir." xml:space="preserve"><value>Coincidencias: {0}. Usa flechas y Enter para elegir.</value></data>
+<data name="No hay coincidencias. Prueba otra búsqueda." xml:space="preserve"><value>No hay coincidencias. Prueba otra búsqueda.</value></data>
+  <data name="Quitar {0}" xml:space="preserve"><value>Quitar {0}</value></data>
+  <data name="La selección cambió. Genera la hoja nuevamente para imprimir." xml:space="preserve"><value>La selección cambió. Genera la hoja nuevamente para imprimir.</value></data>
+  <data name="El producto {0} ya está incluido." xml:space="preserve"><value>El producto {0} ya está incluido.</value></data>
+  <data name="La hoja admite hasta 100 productos. Quita uno antes de agregar otro." xml:space="preserve"><value>La hoja admite hasta 100 productos. Quita uno antes de agregar otro.</value></data>
+  <data name="Producto {0} agregado." xml:space="preserve"><value>Producto {0} agregado.</value></data>
+  <data name="No se encontró un código exacto. Escribe para buscar y elige una sugerencia." xml:space="preserve"><value>No se encontró un código exacto. Escribe para buscar y elige una sugerencia.</value></data>
+  <data name="Quitar" xml:space="preserve"><value>Quitar</value></data>
+  <data name="El proveedor cambió. Genera la hoja nuevamente para imprimir." xml:space="preserve"><value>El proveedor cambió. Genera la hoja nuevamente para imprimir.</value></data>
+  <data name="No fue posible cambiar el idioma. Conservamos la hoja; vuelve a intentarlo." xml:space="preserve"><value>No fue posible cambiar el idioma. Conservamos la hoja; vuelve a intentarlo.</value></data>
 </root>

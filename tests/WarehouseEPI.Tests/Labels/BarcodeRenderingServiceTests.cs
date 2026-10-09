@@ -73,6 +73,18 @@ public sealed partial class BarcodeRenderingServiceTests
         Assert.True(dense.DotsPerModule < 2);
     }
 
+    [Theory]
+    [InlineData("SUP-001")]
+    [InlineData("Y6-E-60SP-18M-CFX06-US")]
+    [InlineData("#2 CREPED 24\" X 100YD 121F PK22")]
+    public void Supplier_sheet_width_preserves_sku_and_readable_density(string sku)
+    {
+        var barcode = new BarcodeRenderingService().RenderCode128Svg(sku, new(Width: 5905, Height: 150));
+        Assert.Equal(sku, Decode(barcode));
+        Assert.False(barcode.IsBelowRecommendedDensity);
+        Assert.True(barcode.PrintWidthInches * 25.4m <= 150m);
+    }
+
     private static string Decode(BarcodeSvg barcode)
     {
         var pixels = Enumerable.Repeat((byte)255, barcode.Width * barcode.Height * 3).ToArray();
