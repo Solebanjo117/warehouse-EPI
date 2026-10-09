@@ -1,11 +1,17 @@
+using System.Net;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using WarehouseEPI.Core.Entities;
 using WarehouseEPI.Infrastructure.Persistence;
 using WarehouseEPI.Infrastructure.Reporting;
+using WarehouseEPI.Infrastructure.Security;
 using WarehouseEPI.Infrastructure.Settings;
 using WarehouseEPI.Web.Pages.Reports.Dashboard;
 
@@ -13,6 +19,98 @@ namespace WarehouseEPI.Tests.Web;
 
 public sealed class DashboardRouteTests
 {
+    [Theory]
+    [InlineData("es", 3)]
+    [InlineData("en", 3)]
+    [InlineData("es", 0)]
+    [InlineData("en", 0)]
+    public async Task Initial_chart_points_match_metrics_json_without_refresh(string language, int entries)
+    {
+        using var factory = new AdminRouteTests.WarehouseApplicationFactory();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<WarehouseDbContext>();
+        var admin = new User { FullName = "Dashboard test", RoleId = 1, PinHash = "", PinLookup = "" };
+        await scope.ServiceProvider.GetRequiredService<UserPinService>().AssignAsync(admin, "0123");
+        db.Users.Add(admin);
+        await db.SaveChangesAsync();
+        using var client = factory.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+        var login = await client.GetStringAsync("/Admin/Login");
+        var token = Regex.Match(login, "name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"").Groups[1].Value;
+        var signedIn = await client.PostAsync("/Admin/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["Input.Pin"] = "0123",
+            ["__RequestVerificationToken"] = WebUtility.HtmlDecode(token)
+        }));
+        Assert.Equal(HttpStatusCode.Redirect, signedIn.StatusCode);
+
+        var date = new DateOnly(2026, 10, 7);
+        var points = Enumerable.Range(0, 14).Select(index => new MovementActivityPointDto(
+            date.AddDays(index - 13), $"Day {index + 1}", entries, entries * 2, entries * 3,
+            entries * 4, entries * 10, entries)).ToArray();
+        factory.Services.GetRequiredService<IMemoryCache>().Set("reporting:daily-dashboard:14-days",
+            new DailyDashboardSnapshotDto(date, new(2026, 10, 7, 12, 0, 0, TimeSpan.Zero),
+                new(entries * 10, 0, 0, entries * 4, points)));
+
+        var cache = factory.Services.GetRequiredService<IMemoryCache>();
+        var generated = new DateTimeOffset(2026, 10, 7, 12, 0, 0, TimeSpan.Zero);
+        var calendarPoints = Enumerable.Range(0, 90).Select(index => points[0] with { Date = date.AddDays(index - 89) }).ToArray();
+        cache.Set("reporting:dashboard-activity:90", new DashboardActivityDto(date, generated, 90, calendarPoints));
+        foreach (var days in new[] { 7, 14, 90 })
+        {
+            foreach (var page in new[] { 1, 2 })
+            {
+                var items = entries == 0 ? [] : Enumerable.Range((page - 1) * 10, page == 1 ? 10 : 2)
+                    .Select(index => new DashboardProductDto(Guid.NewGuid(), $"DASH-{index:00}", "Product <safe>",
+                        entries * 10, 10m, entries, entries * 2, entries * 3, entries * 4,
+                        [new DashboardLocationDto("RACK-1", entries)])).ToArray();
+                cache.Set($"reporting:dashboard-products:{days}:{page}", new DashboardProductsDto(date.AddDays(1 - days), date,
+                    generated, days, page, entries == 0 ? 0 : 12, entries * 10 * days, items));
+            }
+        }
+
+        client.DefaultRequestHeaders.Add("Cookie", $"WarehouseEPI.Language={language}");
+        var html = await client.GetStringAsync("/Reports/Dashboard");
+        Assert.Contains($"<html lang=\"{language}\"", html, StringComparison.Ordinal);
+        var attribute = Regex.Match(html, "data-points=\"([^\"]+)\"");
+        Assert.True(attribute.Success);
+        using var initial = JsonDocument.Parse(WebUtility.HtmlDecode(attribute.Groups[1].Value));
+        using var refreshed = JsonDocument.Parse(await client.GetStringAsync("/Reports/Dashboard?handler=Metrics"));
+        var trend = refreshed.RootElement.GetProperty("metrics").GetProperty("recentActivityTrend");
+        Assert.Equal(14, initial.RootElement.GetArrayLength());
+        for (var index = 0; index < 14; index++)
+        {
+            foreach (var key in new[] { "date", "dayLabel", "entryCount", "exitCount", "transferCount",
+                "adjustmentCount", "totalEffectiveOperations", "distinctSkusCount" })
+                Assert.Equal(trend[index].GetProperty(key).ToString(), initial.RootElement[index].GetProperty(key).ToString());
+            Assert.Equal(entries, initial.RootElement[index].GetProperty("entryCount").GetInt32());
+            Assert.Equal(entries * 10, initial.RootElement[index].GetProperty("totalEffectiveOperations").GetInt32());
+        }
+
+        var output = Environment.GetEnvironmentVariable("WAREHOUSE_DASHBOARD_FIXTURES");
+        if (!string.IsNullOrWhiteSpace(output))
+        {
+            Directory.CreateDirectory(output);
+            await File.WriteAllTextAsync(Path.Combine(output, $"dashboard-{language}-{entries}.html"),
+                Regex.Replace(html, "<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", ""));
+            await File.WriteAllTextAsync(Path.Combine(output, $"metrics-{entries}.json"), refreshed.RootElement.GetRawText());
+            await File.WriteAllTextAsync(Path.Combine(output, $"activity-{entries}.json"),
+                await client.GetStringAsync("/Reports/Dashboard?handler=Activity&days=90"));
+            foreach (var days in new[] { 7, 14, 90 })
+                foreach (var page in new[] { 1, 2 })
+                    await File.WriteAllTextAsync(Path.Combine(output, $"products-{entries}-{days}-{page}.json"),
+                        await client.GetStringAsync($"/Reports/Dashboard?handler=Products&days={days}&pageNumber={page}"));
+        }
+        foreach (var handler in new[] { "Activity", "Products" })
+        {
+            Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync($"/Reports/Dashboard?handler={handler}&days=365")).StatusCode);
+            using var anonymous = factory.CreateClient(new() { BaseAddress = new("https://localhost"), AllowAutoRedirect = false });
+            Assert.Equal(HttpStatusCode.Redirect, (await anonymous.GetAsync($"/Reports/Dashboard?handler={handler}")).StatusCode);
+            var refreshedResponse = await client.GetAsync($"/Reports/Dashboard?handler={handler}&refresh=true");
+            Assert.Equal(HttpStatusCode.OK, refreshedResponse.StatusCode);
+            Assert.Contains("no-store", refreshedResponse.Headers.CacheControl!.ToString(), StringComparison.Ordinal);
+        }
+    }
+
     [Fact]
     public async Task Metrics_handler_returns_snapshot_and_disables_http_caching()
     {

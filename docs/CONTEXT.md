@@ -3139,6 +3139,24 @@ se aplican a documentos comunes con producción. Véase [WIP documental](WIP_DOC
 para persistencia, restricciones, conversión ADMIN y procedimiento de activación.
 La migración no ejecuta el corte operativo ni autoriza publicar.
 
+### Vistas de actividad del almacén (7 de octubre de 2026)
+
+- El mismo bloque de `/Reports/Dashboard` integra barras/líneas de 7/14 días,
+  calendario de 90 días y productos paginados con detalle desplegable.
+- La carga inicial conserva el JSON camelCase corregido y renderiza también
+  productos. Calendario y tabla usan consultas agregadas independientes,
+  movimientos efectivos distintos y límites locales UTC que respetan DST.
+- Las nuevas consultas conservan ADMIN, caché de 30 segundos y refresco de
+  60 segundos. Los cambios se aplican juntos, descartan respuestas atrasadas y
+  conservan el resultado válido ante fallo. No modifican saldos ni movimientos.
+- Evidencia en `artifacts/dashboard-initial/`: 50 pruebas de servicio/web,
+  contratos y localización; 2 PostgreSQL en instancia temporal independiente;
+  8 escenarios de navegador con fixtures Razor, español/inglés, claro/oscuro,
+  escritorio/tablet emulada, teclado, paginación y recuperación de red.
+- PostgreSQL temporal se detuvo al terminar. Sin migración nueva, cambios en la
+  base operativa, publicación ni reinicio del servicio. Validación física y
+  despliegue pendientes. Contratos e integración en `docs/UI_COMPONENTS.md`.
+
 ### 2026-10-07 — Importar productos desde Inventario interno
 
 Se añadió una fuente ADMIN con contraseña transitoria y URL fija al importador

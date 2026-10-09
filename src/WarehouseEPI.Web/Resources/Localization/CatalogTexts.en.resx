@@ -5491,6 +5491,19 @@
   <data name="Exportar productos" xml:space="preserve"><value>Export products</value></data>
   <data name="El Excel incluye todos los productos activos e inactivos, sin aplicar filtros ni paginación. PACKED BY (AREA) queda vacío porque ese dato no está guardado." xml:space="preserve"><value>The Excel file includes all active and inactive products, regardless of filters or pagination. PACKED BY (AREA) is blank because this data is not stored.</value></data>
   <data name="El catálogo supera el límite de 10,000 productos por archivo. No se exportó una lista parcial." xml:space="preserve"><value>The catalogue exceeds the limit of 10,000 products per file. No partial list was exported.</value></data>
+  <data name="Vista de actividad" xml:space="preserve"><value>Activity view</value></data>
+  <data name="Barras" xml:space="preserve"><value>Bars</value></data>
+  <data name="Calendario" xml:space="preserve"><value>Calendar</value></data>
+  <data name="Calendario de actividad de 90 días" xml:space="preserve"><value>90-day activity calendar</value></data>
+  <data name="Mayor actividad" xml:space="preserve"><value>More activity</value></data>
+  <data name="Ver datos por día" xml:space="preserve"><value>View daily data</value></data>
+  <data name="Productos con mayor actividad" xml:space="preserve"><value>Products with the most activity</value></data>
+  <data name="Una operación puede incluir varios productos; los porcentajes no necesariamente suman 100 %." xml:space="preserve"><value>An operation can include multiple products; percentages do not necessarily add up to 100%.</value></data>
+  <data name="Ubicaciones con mayor actividad" xml:space="preserve"><value>Locations with the most activity</value></data>
+  <data name="Sin ubicaciones registradas" xml:space="preserve"><value>No recorded locations</value></data>
+  <data name="Ver movimientos del producto" xml:space="preserve"><value>View product movements</value></data>
+  <data name="Páginas de productos" xml:space="preserve"><value>Product pages</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Retry</value></data>
   <data name="Desde Inventario interno" xml:space="preserve"><value>From internal inventory</value></data>
   <data name="Consulta Inventario interno para agregar productos nuevos. Los SKU existentes se omiten y las existencias no se importan." xml:space="preserve"><value>Read internal inventory to add new products. Existing SKUs are skipped and stock quantities are not imported.</value></data>
   <data name="Contraseña de Inventario interno" xml:space="preserve"><value>Internal inventory password</value></data>

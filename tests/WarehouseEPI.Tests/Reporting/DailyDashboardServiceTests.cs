@@ -46,6 +46,15 @@ public sealed class DailyDashboardServiceTests
         Assert.Equal(3, snapshot.Metrics.EffectiveMovementsToday);
         Assert.Equal(1, snapshot.Metrics.EffectiveAdjustmentsToday);
         Assert.Contains(snapshot.Metrics.RecentActivityTrend, point => point.TotalEffectiveOperations == 0);
+        var activity = await Service(db).GetActivityAsync(NowUtc, 90);
+        Assert.Equal(90, activity.Points.Count);
+        Assert.Equal(previousDay, activity.Points[^2]);
+        Assert.Equal(today, activity.Points[^1]);
+        var products = await Service(db).GetActivityProductsAsync(NowUtc, 14);
+        Assert.Equal(4, products.TotalOperations);
+        Assert.Equal(4, products.Items[0].Operations);
+        Assert.Equal(100m, products.Items[0].Percent);
+        Assert.Equal(25m, products.Items[1].Percent);
         Assert.NotNull(snapshot.Comparison);
         Assert.Equal(new MetricComparisonDto(3, 1, 2, 200m, MetricComparisonState.Increased), snapshot.Comparison.TodayOperations);
         Assert.Equal(MetricComparisonState.New, snapshot.Comparison.SevenDayOperations.State);
@@ -97,6 +106,13 @@ public sealed class DailyDashboardServiceTests
         Assert.Equal(0, today.TransferCount);
         Assert.Equal(1, today.AdjustmentCount);
         Assert.Equal(1, snapshot.Metrics.EffectiveAdjustmentsToday);
+        var activity = await Service(db).GetActivityAsync(NowUtc, 90);
+        Assert.Equal(today, activity.Points[^1]);
+        var products = await Service(db).GetActivityProductsAsync(NowUtc, 90);
+        Assert.Equal(1, products.TotalOperations);
+        var only = Assert.Single(products.Items);
+        Assert.Equal(1, only.AdjustmentCount);
+        Assert.Equal(1, only.Operations);
     }
 
     [Fact]
@@ -119,6 +135,45 @@ public sealed class DailyDashboardServiceTests
 
         Assert.Equal(1, snapshot.Metrics.NegativePositionsCount);
         Assert.Equal(2, snapshot.Metrics.LowStockProductsCount);
+    }
+
+    [Fact]
+    public async Task Activity_paginates_products_deduplicates_lines_and_limits_locations()
+    {
+        await using var db = CreateDbContext();
+        var user = User();
+        var products = Enumerable.Range(0, 12).Select(i => Product($"RANK-{i:00}")).ToArray();
+        db.Add(user); db.AddRange(products);
+        for (var i = 0; i < products.Length; i++)
+            AddMovement(db, user, products[i], InventoryMovementType.Entry, NowUtc, 1, products[i]);
+        var locations = Enumerable.Range(0, 7).Select(i => new Location { Code = $"RANK-L{i}", Kind = LocationKind.Area }).ToArray();
+        db.AddRange(locations);
+        foreach (var location in locations)
+        {
+            var movement = AddMovement(db, user, products[0], InventoryMovementType.Transfer, NowUtc, 1, products[0]);
+            foreach (var line in movement.Lines) { line.SourceLocation = location; line.DestinationLocation = location; }
+        }
+        // Exclude both sides of the complete local-day interval, rather than using UTC dates.
+        AddMovement(db, user, products[0], InventoryMovementType.Exit, new(2026, 8, 14, 4, 59, 59, TimeSpan.Zero), 1);
+        AddMovement(db, user, products[0], InventoryMovementType.Exit, new(2026, 8, 21, 5, 0, 0, TimeSpan.Zero), 1);
+        await db.SaveChangesAsync();
+        var service = Service(db);
+        var first = await service.GetActivityProductsAsync(NowUtc, 7);
+        Assert.Equal(19, first.TotalOperations);
+        Assert.Equal(12, first.TotalProducts);
+        Assert.Equal(10, first.Items.Count);
+        Assert.Equal(8, first.Items[0].Operations);
+        Assert.Equal(7, first.Items[0].TransferCount);
+        Assert.Equal(5, first.Items[0].Locations.Count);
+        Assert.All(first.Items[0].Locations, item => Assert.Equal(1, item.Operations));
+        var last = await service.GetActivityProductsAsync(NowUtc, 7, int.MaxValue);
+        Assert.Equal(2, last.PageNumber);
+        Assert.Equal(new[] { "RANK-10", "RANK-11" }, last.Items.Select(item => item.Sku));
+        var activity = await service.GetActivityAsync(NowUtc, 7);
+        Assert.Equal(19, activity.Points.Sum(day => day.TotalEffectiveOperations));
+        Assert.Equal(12, activity.Points[^1].DistinctSkusCount);
+        Assert.All(activity.Points.Take(6), point => Assert.Equal(0, point.TotalEffectiveOperations));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => service.GetActivityAsync(NowUtc, 91));
     }
 
     private static DailyDashboardService Service(WarehouseDbContext db) =>

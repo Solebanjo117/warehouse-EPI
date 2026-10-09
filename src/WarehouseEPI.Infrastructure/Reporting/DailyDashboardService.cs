@@ -7,7 +7,7 @@ using WarehouseEPI.Infrastructure.Settings;
 namespace WarehouseEPI.Infrastructure.Reporting;
 
 /// <summary>Construye las métricas ligeras del tablero operativo diario.</summary>
-public sealed class DailyDashboardService(
+public sealed partial class DailyDashboardService(
     WarehouseDbContext dbContext,
     WarehouseSettingsService settingsService)
 {

@@ -441,6 +441,27 @@
   <data name="(obligatoria)" xml:space="preserve"><value>(obligatoria)</value></data>
   <data name="(opcional)" xml:space="preserve"><value>(opcional)</value></data>
   <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>La cantidad se validará contra el pendiente documental al confirmar.</value></data>
+  <data name="Vista de actividad" xml:space="preserve"><value>Vista de actividad</value></data>
+  <data name="Barras" xml:space="preserve"><value>Barras</value></data>
+  <data name="Líneas" xml:space="preserve"><value>Líneas</value></data>
+  <data name="Calendario" xml:space="preserve"><value>Calendario</value></data>
+  <data name="Calendario de actividad de 90 días" xml:space="preserve"><value>Calendario de actividad de 90 días</value></data>
+  <data name="Mayor actividad" xml:space="preserve"><value>Mayor actividad</value></data>
+  <data name="Ver datos por día" xml:space="preserve"><value>Ver datos por día</value></data>
+  <data name="Productos con mayor actividad" xml:space="preserve"><value>Productos con mayor actividad</value></data>
+  <data name="Una operación puede incluir varios productos; los porcentajes no necesariamente suman 100 %." xml:space="preserve"><value>Una operación puede incluir varios productos; los porcentajes no necesariamente suman 100 %.</value></data>
+  <data name="operaciones" xml:space="preserve"><value>operaciones</value></data>
+  <data name="Ubicaciones con mayor actividad" xml:space="preserve"><value>Ubicaciones con mayor actividad</value></data>
+  <data name="Sin ubicaciones registradas" xml:space="preserve"><value>Sin ubicaciones registradas</value></data>
+  <data name="Ver movimientos del producto" xml:space="preserve"><value>Ver movimientos del producto</value></data>
+  <data name="Páginas de productos" xml:space="preserve"><value>Páginas de productos</value></data>
+  <data name="Página {0} de {1}" xml:space="preserve"><value>Página {0} de {1}</value></data>
+  <data name="Anterior" xml:space="preserve"><value>Anterior</value></data>
+  <data name="Siguiente" xml:space="preserve"><value>Siguiente</value></data>
+  <data name="Entradas" xml:space="preserve"><value>Entradas</value></data>
+  <data name="Salidas" xml:space="preserve"><value>Salidas</value></data>
+  <data name="Transferencias" xml:space="preserve"><value>Transferencias</value></data>
+  <data name="Ajustes" xml:space="preserve"><value>Ajustes</value></data>
   <data name="Selecciona una ubicación de almacenamiento distinta de STAGING." xml:space="preserve"><value>Selecciona una ubicación de almacenamiento distinta de STAGING.</value></data>
   <data name="{0} de {1} listos" xml:space="preserve"><value>{0} de {1} listos</value></data>
   <data name="Confirmando…" xml:space="preserve"><value>Confirmando…</value></data>

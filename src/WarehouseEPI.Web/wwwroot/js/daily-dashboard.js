@@ -29,6 +29,26 @@
   let currentPoints = [];
   let tooltipIndex = -1;
   let chart;
+  let activeView = "bar";
+  let chartRange = 14;
+  let productPage = number(dashboard.querySelector("[data-dashboard-products]")?.dataset.page) || 1;
+  let requestVersion = 0;
+  let controller;
+  let retryRequest;
+  const views = [...dashboard.querySelectorAll("[data-dashboard-view]")];
+  const calendar = dashboard.querySelector("[data-dashboard-calendar]");
+  const calendarGrid = dashboard.querySelector("[data-dashboard-calendar-grid]");
+  const activityStatus = dashboard.querySelector("[data-dashboard-activity-status]");
+  const retryButton = dashboard.querySelector("[data-dashboard-retry]");
+  const productList = dashboard.querySelector("[data-dashboard-product-list]");
+  const localPoints = (points) => points.map(point => ({ ...point, dayLabel: new Intl.DateTimeFormat(presentationLocale,
+    { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(`${point.date}T12:00:00Z`)) }));
+  const element = (tag, value, className) => {
+    const node = document.createElement(tag);
+    if (value !== undefined) node.textContent = text(value);
+    if (className) node.className = className;
+    return node;
+  };
 
   const updateMetric = (name, value) => {
     const element = dashboard.querySelector(`[data-dashboard-metric="${name}"]`);
@@ -133,11 +153,11 @@
     return {
       labels: points.map((point) => text(point.dayLabel)),
       datasets: [
-        { label: "Entradas", data: points.map((point) => number(point.entryCount)), backgroundColor: colors.entry, hoverBackgroundColor: colors.entry, borderColor: colors.entry, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false },
-        { label: "Salidas", data: points.map((point) => number(point.exitCount)), backgroundColor: colors.exit, hoverBackgroundColor: colors.exit, borderColor: colors.exit, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false },
-        { label: "Transferencias", data: points.map((point) => number(point.transferCount)), backgroundColor: colors.transfer, hoverBackgroundColor: colors.transfer, borderColor: colors.transfer, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false },
-        { label: "Ajustes", data: points.map((point) => number(point.adjustmentCount)), backgroundColor: colors.adjustment, hoverBackgroundColor: colors.adjustment, borderColor: colors.adjustment, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false }
-      ]
+        { label: translate("Entradas"), data: points.map((point) => number(point.entryCount)), backgroundColor: colors.entry, hoverBackgroundColor: colors.entry, borderColor: colors.entry, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false },
+        { label: translate("Salidas"), data: points.map((point) => number(point.exitCount)), backgroundColor: colors.exit, hoverBackgroundColor: colors.exit, borderColor: colors.exit, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false },
+        { label: translate("Transferencias"), data: points.map((point) => number(point.transferCount)), backgroundColor: colors.transfer, hoverBackgroundColor: colors.transfer, borderColor: colors.transfer, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false },
+        { label: translate("Ajustes"), data: points.map((point) => number(point.adjustmentCount)), backgroundColor: colors.adjustment, hoverBackgroundColor: colors.adjustment, borderColor: colors.adjustment, borderWidth: 1, borderRadius: segmentRadius, borderSkipped: false }
+      ].map(dataset => ({ ...dataset, borderWidth: activeView === "line" ? 2 : 1, tension: 0, fill: false, pointRadius: 3 }))
     };
   };
   const dashboardColumnHighlight = {
@@ -168,6 +188,7 @@
   const dashboardStackTotals = {
     id: "dashboardStackTotals",
     afterDatasetsDraw: (instance) => {
+      if (activeView !== "bar") return;
       const points = visiblePoints();
       const x = instance.scales.x;
       const y = instance.scales.y;
@@ -194,6 +215,7 @@
     selectedIndex = Math.max(0, Math.min(index, points.length - 1));
     selectedDate = text(points[selectedIndex].date);
     detail(points[selectedIndex]);
+    if (activeView === "calendar") { markCalendarSelection(); return; }
     chart.setActiveElements([{ datasetIndex: 0, index: selectedIndex }]);
     chart.tooltip.setActiveElements([], { x: 0, y: 0 });
     chart.update("none");
@@ -201,7 +223,13 @@
   const refreshChart = (mode = "none") => {
     const points = visiblePoints();
     const data = chartData();
+    chart.setActiveElements([]);
+    chart.tooltip.setActiveElements([], { x: 0, y: 0 });
     chart.data = data;
+    chart.config.type = activeView === "line" ? "line" : "bar";
+    canvas.setAttribute("aria-label", `${translate("Vista de actividad")}: ${translate(activeView === "line" ? "Líneas" : "Barras")}`);
+    chart.options.scales.x.stacked = activeView !== "line";
+    chart.options.scales.y.stacked = activeView !== "line";
     const colors = chartColors();
     chart.options.scales.x.ticks.color = (context) => text(points[context.index]?.date) === dashboard.dataset.warehouseDate ? colors.text : colors.label;
     chart.options.scales.y.ticks.color = colors.label;
@@ -214,9 +242,12 @@
     setSummary(points);
     const selectedByDate = points.findIndex((point) => text(point.date) === selectedDate);
     if (selectedByDate >= 0) selectedIndex = selectedByDate;
-    else selectedIndex = points.length - 1;
+    else selectedIndex = Math.max(0, points.findIndex(point => point.date === dashboard.dataset.warehouseDate));
+    selectedDate = text(points[selectedIndex]?.date);
     detail(points[selectedIndex]);
-    chart.update(mode);
+    renderDayTable(points);
+    if (activeView === "calendar") renderCalendar(points);
+    else chart.update(mode);
   };
   const createChart = () => {
     const data = chartData();
@@ -305,7 +336,8 @@
   const renderSnapshot = (snapshot) => {
     const metrics = snapshot?.metrics;
     if (!metrics || !Array.isArray(metrics.recentActivityTrend)) throw new Error(translate("Respuesta del tablero incompleta."));
-    currentPoints = metrics.recentActivityTrend;
+    currentPoints = localPoints(metrics.recentActivityTrend);
+    dashboard.dataset.warehouseDate = snapshot.warehouseDate;
     updateMetric("effectiveMovementsToday", metrics.effectiveMovementsToday);
     updateMetric("negativePositionsCount", metrics.negativePositionsCount);
     updateMetric("lowStockProductsCount", metrics.lowStockProductsCount);
@@ -315,21 +347,177 @@
     refreshChart("none");
     if (status) { status.classList.remove("is-stale"); status.replaceChildren(document.createTextNode(translate("Datos generados: "))); const time = document.createElement("time"); time.dateTime = snapshot.generatedAtLocal; time.textContent = timestamp(snapshot.generatedAtLocal); status.appendChild(time); }
   };
-  const schedule = () => { window.clearTimeout(timerId); if (!document.hidden) timerId = window.setTimeout(refresh, intervalMilliseconds); };
-  const refresh = async (forceRefresh = false) => {
+  const markCalendarSelection = () => calendarGrid?.querySelectorAll("[data-calendar-date]").forEach(button => {
+    button.setAttribute("aria-pressed", String(button.dataset.calendarDate === selectedDate));
+  });
+  const renderCalendar = (points) => {
+    if (!calendarGrid) return;
+    const fragment = document.createDocumentFragment();
+    // Rows are Monday-Sunday; columns are weeks. Blank cells are outside the 90-day interval.
+    for (let day = 0; day < 7; day++) fragment.append(element("span", new Intl.DateTimeFormat(presentationLocale,
+      { weekday: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 5 + day))), "dashboard-calendar-weekday"));
+    const offset = (new Date(`${points[0].date}T12:00:00Z`).getUTCDay() + 6) % 7;
+    const maximum = Math.max(1, ...points.map(point => number(point.totalEffectiveOperations)));
+    for (let index = 0; index < offset; index++) fragment.append(element("span", "", "dashboard-calendar-blank"));
+    points.forEach((point, index) => {
+      const count = number(point.totalEffectiveOperations);
+      const button = element("button", new Intl.DateTimeFormat(presentationLocale, { day: "2-digit", month: "2-digit", timeZone: "UTC" }).format(new Date(`${point.date}T12:00:00Z`)));
+      button.type = "button";
+      button.dataset.calendarDate = point.date;
+      button.dataset.level = count === 0 ? "0" : String(Math.ceil(count * 4 / maximum));
+      const label = `${point.date} · ${point.dayLabel} · ${translate("Total: {0} operaciones", format(count))}`;
+      button.setAttribute("aria-label", label); button.title = label;
+      button.addEventListener("click", () => select(index));
+      button.addEventListener("keydown", event => {
+        const step = { ArrowLeft: -7, ArrowRight: 7, ArrowUp: -1, ArrowDown: 1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        const next = Math.max(0, Math.min(points.length - 1, index + step));
+        select(next); calendarGrid.querySelectorAll("button")[next]?.focus();
+      });
+      fragment.append(button);
+    });
+    const focusedDate = calendarGrid.contains(document.activeElement) ? document.activeElement.dataset.calendarDate : null;
+    calendarGrid.replaceChildren(fragment); markCalendarSelection();
+    if (focusedDate) calendarGrid.querySelector(`[data-calendar-date="${focusedDate}"]`)?.focus({ preventScroll: true });
+  };
+  const renderDayTable = (points) => {
+    const rows = dashboard.querySelector("[data-dashboard-day-rows]");
+    if (!rows) return;
+    const fragment = document.createDocumentFragment();
+    points.forEach(point => {
+      const row = element("tr");
+      const day = element("th", point.dayLabel); day.scope = "row"; row.append(day);
+      ["totalEffectiveOperations", ...segmentKeys, "distinctSkusCount"].forEach(key => row.append(element("td", format(point[key]))));
+      fragment.append(row);
+    });
+    rows.replaceChildren(fragment); dashboard.querySelector("[data-dashboard-table]").hidden = false;
+  };
+  const renderProducts = (products) => {
+    if (!productList) return;
+    const expanded = new Set([...productList.querySelectorAll("details[open]")].map(node => node.dataset.productId));
+    const focusedProduct = document.activeElement?.closest("[data-product-id]")?.dataset.productId;
+    const focusedPage = document.activeElement?.dataset.dashboardProductPage;
+    const fragment = document.createDocumentFragment();
+    if (!products.items.length) fragment.append(element("p", translate("Sin actividad en el período."), "text-body-secondary"));
+    products.items.forEach(product => {
+      const row = element("details", undefined, "dashboard-product"); row.dataset.productId = product.productId; row.open = expanded.has(product.productId);
+      const summary = element("summary"); const title = element("span");
+      title.append(element("strong", product.sku), element("small", product.description));
+      summary.append(title, element("span", `${format(product.operations)} ${translate("operaciones")}`),
+        element("span", `${number(product.percent).toLocaleString(presentationLocale, { maximumFractionDigits: 1 })} %`));
+      const body = element("div", undefined, "dashboard-product-detail"); const counts = element("dl");
+      segmentKeys.forEach((key, index) => { const group = element("div"); group.append(element("dt", translate(["Entradas", "Salidas", "Transferencias", "Ajustes"][index])), element("dd", format(product[key]))); counts.append(group); });
+      body.append(counts, element("p", translate("Ubicaciones con mayor actividad"), "fw-semibold"));
+      const locations = element("ul");
+      product.locations.forEach(location => locations.append(element("li", `${location.code} · ${format(location.operations)} ${translate("operaciones")}`)));
+      body.append(locations);
+      if (!product.locations.length) body.append(element("p", translate("Sin ubicaciones registradas")));
+      const link = element("a", translate("Ver movimientos del producto"));
+      const target = new URL("/Admin/Inventory/Movements", window.location.origin);
+      Object.entries({ view: "effective", period: "custom", from: products.from, to: products.to, sku: product.sku }).forEach(([key, value]) => target.searchParams.set(key, value));
+      link.href = target.toString(); body.append(link); row.append(summary, body); fragment.append(row);
+    });
+    const nav = element("nav", undefined, "dashboard-product-pages"); nav.setAttribute("aria-label", translate("Páginas de productos"));
+    const pageButton = (page, label) => { const button = element("button", translate(label), "btn btn-outline-secondary"); button.type = "button"; button.dataset.dashboardProductPage = text(page); return button; };
+    if (products.pageNumber > 1) nav.append(pageButton(products.pageNumber - 1, "Anterior"));
+    const pageLabel = element("span", translate("Página {0} de {1}", products.pageNumber, products.totalPages)); pageLabel.tabIndex = -1;
+    nav.append(pageLabel);
+    if (products.pageNumber < products.totalPages) nav.append(pageButton(products.pageNumber + 1, "Siguiente"));
+    fragment.append(nav); productList.replaceChildren(fragment);
+    dashboard.querySelector("[data-dashboard-products-period]").textContent = translate("Últimos {0} días", products.days);
+    productPage = products.pageNumber;
+    if (focusedProduct) productList.querySelector(`[data-product-id="${focusedProduct}"] summary`)?.focus({ preventScroll: true });
+    if (focusedPage) (productList.querySelector(`[data-dashboard-product-page="${focusedPage}"]`) || pageLabel).focus({ preventScroll: true });
+  };
+  const schedule = () => { window.clearTimeout(timerId); if (!document.hidden) timerId = window.setTimeout(() => refresh(false), intervalMilliseconds); };
+  const load = async (view, days, page, forceRefresh = false) => {
+    if (document.hidden) return;
+    const version = ++requestVersion;
+    controller?.abort(); controller = new AbortController();
+    const signal = controller.signal;
+    window.clearTimeout(timerId);
+    retryRequest = [view, days, page, forceRefresh];
+    requestInProgress = true; shell.setAttribute("aria-busy", "true");
+    calendar?.setAttribute("aria-busy", "true");
+    dashboard.querySelector("[data-dashboard-products]")?.setAttribute("aria-busy", "true");
+    refreshButton?.setAttribute("disabled", "disabled");
+    activityStatus.hidden = false; activityStatus.textContent = translate("Actualizando datos…"); retryButton.hidden = true;
+    const fetchJson = async (address, values) => {
+      const url = new URL(address, window.location.href);
+      Object.entries(values).forEach(([key, value]) => url.searchParams.set(key, text(value)));
+      if (forceRefresh) url.searchParams.set("refresh", "true");
+      const response = await fetch(url, { headers: { Accept: "application/json" }, cache: "no-store", signal });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    };
+    try {
+      const [activity, products] = await Promise.all([
+        fetchJson(view === "calendar" ? dashboard.dataset.activityUrl : dashboard.dataset.metricsUrl, view === "calendar" ? { days } : {}),
+        fetchJson(dashboard.dataset.productsUrl, { days, pageNumber: page })
+      ]);
+      if (version !== requestVersion) return;
+      const points = view === "calendar" ? activity.points : activity.metrics?.recentActivityTrend;
+      if (!Array.isArray(points) || !points.length || !Array.isArray(products.items)) throw new Error("Incomplete dashboard response");
+      activeView = view; selectedRange = days;
+      if (view !== "calendar") chartRange = days;
+      shell.hidden = view === "calendar"; calendar.hidden = view !== "calendar";
+      dashboard.querySelector("[data-dashboard-ranges]").hidden = view === "calendar";
+      dashboard.querySelector(".dashboard-warehouse-legend").hidden = view === "calendar";
+      views.forEach(button => { const active = button.dataset.dashboardView === view; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+      ranges.forEach(button => { const active = number(button.dataset.dashboardRange) === chartRange; button.classList.toggle("active", active); button.setAttribute("aria-pressed", String(active)); });
+      if (view === "calendar") {
+        currentPoints = localPoints(points); dashboard.dataset.warehouseDate = activity.warehouseDate; refreshChart();
+      } else renderSnapshot(activity);
+      renderProducts(products);
+      activityStatus.textContent = `${translate("Datos generados: ")}${timestamp(activity.generatedAtLocal)}`;
+      if (status) status.classList.remove("is-stale");
+      retryRequest = null;
+    } catch (error) {
+      if (version !== requestVersion || error.name === "AbortError") return;
+      const message = translate("Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente.");
+      activityStatus.textContent = message; retryButton.hidden = false;
+      if (status) { status.classList.add("is-stale"); status.textContent = message; }
+    } finally {
+      if (version === requestVersion) {
+        requestInProgress = false; shell.setAttribute("aria-busy", "false");
+        calendar?.setAttribute("aria-busy", "false");
+        dashboard.querySelector("[data-dashboard-products]")?.setAttribute("aria-busy", "false");
+        refreshButton?.removeAttribute("disabled"); schedule();
+      }
+    }
+  };
+  const refresh = (forceRefresh = false) => {
     if (requestInProgress || document.hidden) return;
-    requestInProgress = true; shell.setAttribute("aria-busy", "true"); refreshButton?.setAttribute("disabled", "disabled"); if (status) status.textContent = translate("Actualizando datos…");
-    try { const metricsUrl = new URL(dashboard.dataset.metricsUrl, window.location.href); if (forceRefresh) metricsUrl.searchParams.set("refresh", "true"); const response = await fetch(metricsUrl, { headers: { Accept: "application/json" }, cache: "no-store" }); if (!response.ok) throw new Error(`HTTP ${response.status}`); renderSnapshot(await response.json()); }
-    catch { if (status) { status.classList.add("is-stale"); status.textContent = translate("Datos sin actualizar. Se conserva el último snapshot válido y reintentaremos automáticamente."); } }
-    finally { requestInProgress = false; shell.setAttribute("aria-busy", "false"); refreshButton?.removeAttribute("disabled"); schedule(); }
+    return retryRequest ? load(retryRequest[0], retryRequest[1], retryRequest[2], forceRefresh || retryRequest[3])
+      : load(activeView, selectedRange, productPage, forceRefresh);
   };
 
-  currentPoints = JSON.parse(canvas.dataset.points || "[]");
+  currentPoints = localPoints(JSON.parse(canvas.dataset.points || "[]"));
   createChart();
-  ranges.forEach((button) => button.addEventListener("click", () => { selectedRange = number(button.dataset.dashboardRange); ranges.forEach((candidate) => { const active = number(candidate.dataset.dashboardRange) === selectedRange; candidate.classList.toggle("active", active); candidate.setAttribute("aria-pressed", String(active)); }); refreshChart("none"); }));
+  setSummary(visiblePoints());
+  renderDayTable(visiblePoints());
+  views.forEach(button => button.addEventListener("click", () => {
+    const view = button.dataset.dashboardView;
+    if (view !== "calendar" && activeView !== "calendar" && !requestInProgress && !retryRequest) {
+      activeView = view; views.forEach(candidate => { const active = candidate === button; candidate.classList.toggle("active", active); candidate.setAttribute("aria-pressed", String(active)); }); refreshChart();
+    } else load(view, view === "calendar" ? 90 : chartRange, 1);
+  }));
+  ranges.forEach(button => button.addEventListener("click", () => load(activeView === "calendar" ? "bar" : activeView, number(button.dataset.dashboardRange), 1)));
+  productList?.addEventListener("click", event => {
+    const button = event.target.closest("[data-dashboard-product-page]");
+    if (!button) return;
+    event.preventDefault(); load(activeView, selectedRange, number(button.dataset.dashboardProductPage));
+  });
+  retryButton?.addEventListener("click", () => retryRequest ? load(...retryRequest) : refresh(true));
   canvas.addEventListener("keydown", (event) => { if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); select(selectedIndex + (event.key === "ArrowLeft" ? -1 : 1)); } if (event.key === " " || event.key === "Enter") { event.preventDefault(); select(selectedIndex); } });
   refreshButton?.addEventListener("click", () => refresh(true));
-  document.addEventListener("visibilitychange", () => { if (document.hidden) window.clearTimeout(timerId); else refresh(false); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      window.clearTimeout(timerId); controller?.abort(); ++requestVersion; requestInProgress = false;
+      refreshButton?.removeAttribute("disabled");
+    } else refresh(false);
+  });
   new MutationObserver(() => refreshChart("none")).observe(document.documentElement, { attributes: true, attributeFilter: ["data-bs-theme"] });
   schedule();
 })();

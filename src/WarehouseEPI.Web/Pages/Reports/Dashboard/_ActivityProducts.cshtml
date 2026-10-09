@@ -1,0 +1,24 @@
+@model WarehouseEPI.Infrastructure.Reporting.DashboardProductsDto
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.CatalogTexts> Text
+@if (Model.Items.Count == 0)
+{
+    <p class="text-body-secondary">@Text["Sin actividad en el período."]</p>
+}
+@foreach (var item in Model.Items)
+{
+    <details class="dashboard-product" data-product-id="@item.ProductId">
+        <summary><span><strong>@item.Sku</strong><small>@item.Description</small></span><span>@item.Operations.ToString("N0") @Text["Operaciones"]</span><span>@item.Percent.ToString("0.#") %</span></summary>
+        <div class="dashboard-product-detail">
+            <dl><div><dt>@Text["Entradas"]</dt><dd>@item.EntryCount</dd></div><div><dt>@Text["Salidas"]</dt><dd>@item.ExitCount</dd></div><div><dt>@Text["Transferencias"]</dt><dd>@item.TransferCount</dd></div><div><dt>@Text["Ajustes"]</dt><dd>@item.AdjustmentCount</dd></div></dl>
+            <p class="fw-semibold">@Text["Ubicaciones con mayor actividad"]</p>
+            <ul>@foreach (var location in item.Locations) { <li>@location.Code · @location.Operations @Text["Operaciones"]</li> }</ul>
+            @if (item.Locations.Count == 0) { <p>@Text["Sin ubicaciones registradas"]</p> }
+            <a asp-page="/Admin/Inventory/Movements/Index" asp-route-view="effective" asp-route-period="custom" asp-route-from="@Model.From.ToString("yyyy-MM-dd")" asp-route-to="@Model.To.ToString("yyyy-MM-dd")" asp-route-sku="@item.Sku">@Text["Ver movimientos del producto"]</a>
+        </div>
+    </details>
+}
+<nav class="dashboard-product-pages" aria-label="@Text["Páginas de productos"]">
+    @if (Model.PageNumber > 1) { <a class="btn btn-outline-secondary" asp-route-productPage="@(Model.PageNumber - 1)" data-dashboard-product-page="@(Model.PageNumber - 1)">@Text["Anterior"]</a> }
+    <span>@Text["Página {0} de {1}", Model.PageNumber, Model.TotalPages]</span>
+    @if (Model.PageNumber < Model.TotalPages) { <a class="btn btn-outline-secondary" asp-route-productPage="@(Model.PageNumber + 1)" data-dashboard-product-page="@(Model.PageNumber + 1)">@Text["Siguiente"]</a> }
+</nav>

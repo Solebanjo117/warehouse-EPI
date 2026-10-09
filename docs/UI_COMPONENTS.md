@@ -419,6 +419,35 @@ espera la referencia completa en la columna 12 y no admite este layout directame
 
 ## Mantenimiento
 
+### Actividad del almacén: barras, líneas, calendario y productos
+
+- **Caso de uso:** explorar movimientos efectivos desde el bloque de actividad
+  de `/Reports/Dashboard`, con barras/líneas de 7 o 14 días y calendario de 90 días.
+  Mantiene la autorización ADMIN vigente del reporte; las consultas no escriben.
+- **Archivos:** `Pages/Reports/Dashboard/Index.cshtml`, su PageModel y el parcial
+  `_ActivityProducts.cshtml`; `wwwroot/js/daily-dashboard.js`,
+  `wwwroot/css/dashboard-index.css` y `Infrastructure/Reporting/DailyDashboardActivity.cs`.
+- **Dependencias:** Chart.js local, Bootstrap, CatalogTexts/ClientTexts ES/EN,
+  `DailyDashboardService`, `WhereEffective` y la zona horaria del almacén.
+  El servicio es parcial para mantener separadas las agregaciones nuevas del
+  snapshot existente; no es un controlador JavaScript genérico.
+- **Contrato:** `Metrics` conserva su respuesta. `Activity?days=90` devuelve
+  puntos diarios y `Products?days=14&pageNumber=1` devuelve diez productos,
+  porcentajes sobre movimientos del periodo y hasta cinco ubicaciones por SKU.
+  Se aceptan únicamente 7/14/90 días; `refresh=true` omite la caché de 30 segundos.
+  Las respuestas usan camelCase y no tienen caché HTTP. Los cortes diarios se
+  agregan en SQL mediante límites UTC de cada medianoche local, incluido DST.
+- **Integración real:** `Index.cshtml` renderiza `_ActivityProducts` con
+  `Model.Products` para la primera carga, y expone `data-activity-url` y
+  `data-products-url` al controlador existente. El cambio de periodo carga
+  gráfica y productos antes de reemplazar ambos; descarta respuestas anteriores
+  y conserva la vista válida ante errores. El día elegido solo cambia su detalle.
+- **Accesibilidad:** filas nativas `details/summary`, tabla diaria alternativa,
+  calendario lunes–domingo con fechas/cantidades accesibles y navegación por
+  flechas, foco visible y desplazamiento horizontal dentro del calendario.
+  La clasificación cuenta movimientos distintos, nunca cantidades físicas;
+  una operación con varios productos puede participar en varias filas.
+
 ### Administración de áreas
 
 `Pages/Admin/Catalogs/Locations/Areas.cshtml` y su `PageModel` ofrecen consulta

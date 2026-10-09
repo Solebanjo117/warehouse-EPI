@@ -441,6 +441,27 @@
   <data name="(obligatoria)" xml:space="preserve"><value>(required)</value></data>
   <data name="(opcional)" xml:space="preserve"><value>(optional)</value></data>
   <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>The quantity will be checked against the documentary pending amount upon confirmation.</value></data>
+  <data name="Vista de actividad" xml:space="preserve"><value>Activity view</value></data>
+  <data name="Barras" xml:space="preserve"><value>Bars</value></data>
+  <data name="Líneas" xml:space="preserve"><value>Lines</value></data>
+  <data name="Calendario" xml:space="preserve"><value>Calendar</value></data>
+  <data name="Calendario de actividad de 90 días" xml:space="preserve"><value>90-day activity calendar</value></data>
+  <data name="Mayor actividad" xml:space="preserve"><value>More activity</value></data>
+  <data name="Ver datos por día" xml:space="preserve"><value>View daily data</value></data>
+  <data name="Productos con mayor actividad" xml:space="preserve"><value>Products with the most activity</value></data>
+  <data name="Una operación puede incluir varios productos; los porcentajes no necesariamente suman 100 %." xml:space="preserve"><value>An operation can include multiple products; percentages do not necessarily add up to 100%.</value></data>
+  <data name="operaciones" xml:space="preserve"><value>operations</value></data>
+  <data name="Ubicaciones con mayor actividad" xml:space="preserve"><value>Locations with the most activity</value></data>
+  <data name="Sin ubicaciones registradas" xml:space="preserve"><value>No recorded locations</value></data>
+  <data name="Ver movimientos del producto" xml:space="preserve"><value>View product movements</value></data>
+  <data name="Páginas de productos" xml:space="preserve"><value>Product pages</value></data>
+  <data name="Página {0} de {1}" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="Anterior" xml:space="preserve"><value>Previous</value></data>
+  <data name="Siguiente" xml:space="preserve"><value>Next</value></data>
+  <data name="Entradas" xml:space="preserve"><value>Receipts</value></data>
+  <data name="Salidas" xml:space="preserve"><value>Issues</value></data>
+  <data name="Transferencias" xml:space="preserve"><value>Transfers</value></data>
+  <data name="Ajustes" xml:space="preserve"><value>Adjustments</value></data>
   <data name="Selecciona una ubicación de almacenamiento distinta de STAGING." xml:space="preserve"><value>Select a storage location other than STAGING.</value></data>
   <data name="{0} de {1} listos" xml:space="preserve"><value>{0} of {1} ready</value></data>
   <data name="Confirmando…" xml:space="preserve"><value>Confirming…</value></data>
