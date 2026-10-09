@@ -5533,6 +5533,9 @@
   <data name="U/M pendiente: Inventario interno indica {0}; se conserva {1} porque el producto tiene movimientos." xml:space="preserve"><value>Pending unit: internal inventory specifies {0}; {1} is preserved because the product has movements.</value></data>
   <data name="Importación terminada: {0} productos insertados, {1} actualizados, {2} existentes sin modificar y {3} duplicados consolidados." xml:space="preserve"><value>Import completed: {0} products added, {1} updated, {2} existing products unchanged and {3} duplicates consolidated.</value></data>
   <data name="{0} conflictos de U/M pendientes; se conservaron las unidades locales." xml:space="preserve"><value>{0} pending unit conflicts; local units were preserved.</value></data>
+  <data name="Seleccionado" xml:space="preserve">
+    <value>Selected</value>
+  </data>
   <data name="Eliminar producto" xml:space="preserve"><value>Delete product</value></data>
   <data name="Confirmar eliminación" xml:space="preserve"><value>Confirm deletion</value></data>
   <data name="Producto eliminado." xml:space="preserve"><value>Product deleted.</value></data>

@@ -413,13 +413,99 @@
             }
         </div>
 
-                <section class="analytics-metrics mb-3" aria-label="@CatTexts["Resumen de cobertura"]">
-            <article class="is-danger"><strong>@summary.CriticalCount</strong><span>@CatTexts["Críticos (&lt; 7d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.CriticalCount" aria-label="@CatTexts["Críticos (&lt; 7d)"]">@summary.CriticalCount</meter></article>
-            <article class="is-warning"><strong>@summary.LowCount</strong><span>@CatTexts["Bajos (7–14d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.LowCount" aria-label="@CatTexts["Bajos (7–14d)"]">@summary.LowCount</meter></article>
-            <article><strong>@summary.NormalCount</strong><span>@CatTexts["Normales (15–45d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NormalCount" aria-label="@CatTexts["Normales (15–45d)"]">@summary.NormalCount</meter></article>
-            <article><strong>@summary.ExcessCount</strong><span>@CatTexts["Exceso (&gt; 45d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExcessCount" aria-label="@CatTexts["Exceso (&gt; 45d)"]">@summary.ExcessCount</meter></article>
-            <article><strong>@summary.NoRecentConsumptionCount</strong><span>@CatTexts["Sin consumo reciente"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NoRecentConsumptionCount" aria-label="@CatTexts["Sin consumo reciente"]">@summary.NoRecentConsumptionCount</meter></article>
-            <article class="is-danger"><strong>@summary.ExhaustedCount</strong><span>@CatTexts["Agotados"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExhaustedCount" aria-label="@CatTexts["Agotados"]">@summary.ExhaustedCount</meter></article>
+        <div class="mb-2">
+            <a class="btn btn-outline-secondary" data-coverage-all
+               asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+               asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+               asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+               asp-route-coverageClass="" asp-route-pageNumber="1"
+               aria-current="@(Model.CoverageClass is null ? "true" : null)">@CatTexts["Todas las clasificaciones"]</a>
+        </div>
+        <section class="analytics-metrics coverage-metrics mb-3" aria-label="@CatTexts["Resumen de cobertura"]">
+            <article class="is-danger">
+                <a class="coverage-metric" data-coverage-class="critical"
+                   asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+                   asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+                   asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+                   asp-route-coverageClass="critical" asp-route-pageNumber="1"
+                   aria-current="@(Model.CoverageClass == CoverageClassification.Critical ? "true" : null)">
+                    <strong>@summary.CriticalCount</strong><span>@CatTexts["Críticos (&lt; 7d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.CriticalCount" aria-label="@CatTexts["Críticos (&lt; 7d)"]">@summary.CriticalCount</meter>
+                    @if (Model.CoverageClass == CoverageClassification.Critical)
+                    {
+                        <small class="coverage-selected">@CatTexts["Seleccionado"]</small>
+                    }
+                </a>
+            </article>
+            <article class="is-warning">
+                <a class="coverage-metric" data-coverage-class="low"
+                   asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+                   asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+                   asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+                   asp-route-coverageClass="low" asp-route-pageNumber="1"
+                   aria-current="@(Model.CoverageClass == CoverageClassification.Low ? "true" : null)">
+                    <strong>@summary.LowCount</strong><span>@CatTexts["Bajos (7–14d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.LowCount" aria-label="@CatTexts["Bajos (7–14d)"]">@summary.LowCount</meter>
+                    @if (Model.CoverageClass == CoverageClassification.Low)
+                    {
+                        <small class="coverage-selected">@CatTexts["Seleccionado"]</small>
+                    }
+                </a>
+            </article>
+            <article>
+                <a class="coverage-metric" data-coverage-class="normal"
+                   asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+                   asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+                   asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+                   asp-route-coverageClass="normal" asp-route-pageNumber="1"
+                   aria-current="@(Model.CoverageClass == CoverageClassification.Normal ? "true" : null)">
+                    <strong>@summary.NormalCount</strong><span>@CatTexts["Normales (15–45d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NormalCount" aria-label="@CatTexts["Normales (15–45d)"]">@summary.NormalCount</meter>
+                    @if (Model.CoverageClass == CoverageClassification.Normal)
+                    {
+                        <small class="coverage-selected">@CatTexts["Seleccionado"]</small>
+                    }
+                </a>
+            </article>
+            <article>
+                <a class="coverage-metric" data-coverage-class="excess"
+                   asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+                   asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+                   asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+                   asp-route-coverageClass="excess" asp-route-pageNumber="1"
+                   aria-current="@(Model.CoverageClass == CoverageClassification.Excess ? "true" : null)">
+                    <strong>@summary.ExcessCount</strong><span>@CatTexts["Exceso (&gt; 45d)"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExcessCount" aria-label="@CatTexts["Exceso (&gt; 45d)"]">@summary.ExcessCount</meter>
+                    @if (Model.CoverageClass == CoverageClassification.Excess)
+                    {
+                        <small class="coverage-selected">@CatTexts["Seleccionado"]</small>
+                    }
+                </a>
+            </article>
+            <article>
+                <a class="coverage-metric" data-coverage-class="norecentconsumption"
+                   asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+                   asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+                   asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+                   asp-route-coverageClass="norecentconsumption" asp-route-pageNumber="1"
+                   aria-current="@(Model.CoverageClass == CoverageClassification.NoRecentConsumption ? "true" : null)">
+                    <strong>@summary.NoRecentConsumptionCount</strong><span>@CatTexts["Sin consumo reciente"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.NoRecentConsumptionCount" aria-label="@CatTexts["Sin consumo reciente"]">@summary.NoRecentConsumptionCount</meter>
+                    @if (Model.CoverageClass == CoverageClassification.NoRecentConsumption)
+                    {
+                        <small class="coverage-selected">@CatTexts["Seleccionado"]</small>
+                    }
+                </a>
+            </article>
+            <article class="is-danger">
+                <a class="coverage-metric" data-coverage-class="exhausted"
+                   asp-page="/Reports/Inventory/Index" asp-route-view="coverage"
+                   asp-route-period="@Model.Period" asp-route-status="@Model.Status"
+                   asp-route-search="@Model.Search" asp-route-unitId="@Model.UnitId"
+                   asp-route-coverageClass="exhausted" asp-route-pageNumber="1"
+                   aria-current="@(Model.CoverageClass == CoverageClassification.Exhausted ? "true" : null)">
+                    <strong>@summary.ExhaustedCount</strong><span>@CatTexts["Agotados"]</span><meter class="analytics-count-bar" min="0" max="@(Math.Max(1, new[] { summary.CriticalCount, summary.LowCount, summary.NormalCount, summary.ExcessCount, summary.NoRecentConsumptionCount, summary.ExhaustedCount }.Max()))" value="@summary.ExhaustedCount" aria-label="@CatTexts["Agotados"]">@summary.ExhaustedCount</meter>
+                    @if (Model.CoverageClass == CoverageClassification.Exhausted)
+                    {
+                        <small class="coverage-selected">@CatTexts["Seleccionado"]</small>
+                    }
+                </a>
+            </article>
         </section>
         <p class="form-text">@CatTexts["Conteos del resumen completo. Barras comparadas con el mayor conteo del grupo; no representan porcentajes."]</p>
         <div class="table-responsive analytics-table">

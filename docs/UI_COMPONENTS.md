@@ -50,6 +50,23 @@ silenciosas, encabezados repetidos y filas indivisibles. Acceso público como Et
 sin NIP, persistencia ni movimientos. Pruebas: SupplierSheetRouteTests y
 tests/javascript/supplier-sheet.browser.cjs; impresión/lector físicos requieren validación.
 
+## Indicadores de cobertura como filtros
+
+Las seis tarjetas de Cobertura en `Pages/Reports/Inventory/Index.cshtml` usan
+enlaces GET a la misma página con `coverageClass`; conservan `search`, `period`,
+`status` y `unitId` aplicados y vuelven a `pageNumber=1`. «Todas las clasificaciones»
+quita solo la clasificación. Por ejemplo, desde cobertura de 60 días y una unidad,
+«Críticos» muestra esa categoría dentro del mismo conjunto de productos.
+Las cifras siguen representando todas las categorías dentro de los filtros base.
+
+Dependen del filtro existente de `InventoryAnalyticsService`, `CatalogTexts` ES/EN
+y `wwwroot/css/reports-inventory-index.css` (`coverage-metrics`, `coverage-metric`).
+El estado activo usa `aria-current` y «Seleccionado»; todo el enlace admite teclado
+y funciona sin JavaScript. El patrón se limita a categorías con un filtro equivalente;
+no conecta cifras de poblaciones distintas. Verificación: `CoverageMetricLinkTests`,
+`InventoryAnalyticsCoverageTests` y `tests/javascript/coverage-metrics.browser.cjs`.
+`WAREHOUSE_COVERAGE_FIXTURES` permite guardar HTML Razor aislado para esa suite.
+
 ## Registro central de incidencias
 
 `/Operations/Incidents` ofrece «Registrar incidencia». El enlace lleva a

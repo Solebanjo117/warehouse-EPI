@@ -143,6 +143,18 @@ public sealed class InventoryAnalyticsCoverageTests
         Assert.Equal(1, summary.NoRecentConsumptionCount);
         Assert.Equal(1, summary.ExhaustedCount);
 
+        foreach (var classification in Enum.GetValues<CoverageClassification>().Where(x => x != CoverageClassification.All))
+        {
+            var selectedFilter = filter with { CoverageClassification = classification, PageNumber = 5 };
+            var selectedReport = await service.GetCoveragePageAsync(selectedFilter, NowUtc);
+            Assert.Equal(summary, selectedReport.Summary);
+            Assert.Equal(1, selectedReport.Page.TotalCount);
+            Assert.Equal(1, selectedReport.Page.PageNumber);
+            Assert.Equal(classification, Assert.Single(selectedReport.Page.Items).Classification);
+            var export = await service.GetCoverageExportAsync(selectedFilter, NowUtc);
+            Assert.Equal(classification, Assert.Single(export.Items).Classification);
+        }
+
         var itemsBySku = report.Page.Items.ToDictionary(x => x.Sku);
 
         // 1. Sin consumo reciente: CoverageDays is null, no division by zero

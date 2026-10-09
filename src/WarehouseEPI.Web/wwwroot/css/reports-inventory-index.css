@@ -122,6 +122,41 @@
 
 .inventory-analytics .analytics-metrics .is-warning { border-color: var(--bs-warning-border-subtle); }
 
+.inventory-analytics .analytics-metrics.coverage-metrics article {
+    padding: 0;
+}
+
+.inventory-analytics .coverage-metric {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 44px;
+    padding: 1rem;
+    border: 2px solid transparent;
+    border-radius: .65rem;
+    color: var(--bs-body-color);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+}
+
+.inventory-analytics .coverage-metric:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+.inventory-analytics .coverage-metric[aria-current="true"] {
+    border-color: var(--bs-primary);
+}
+
+.inventory-analytics .coverage-metric:focus-visible {
+    outline: 3px solid var(--bs-primary);
+    outline-offset: 3px;
+}
+
+.inventory-analytics .coverage-selected {
+    margin-top: .5rem;
+    font-weight: 600;
+}
+
 /* Barra proporcional en la tabla de ocupación: el ojo encuentra la fila floja
    sin leer nueve columnas de números. */
 .analytics-utilization-cell {
