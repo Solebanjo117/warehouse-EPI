@@ -180,6 +180,16 @@ tanto en traslados completos como parciales.
   `IdentifyStagingEntryAsync` con `ArrivalLineId`; identificar no mueve existencias.
   Fechas mediante `WarehouseClock`, textos ES/EN y paginación después de excluir agotados.
 
+## Generación de etiquetas en serie
+
+- **Caso de uso:** numerar un campo personalizado de texto o número utilizado por un formato publicado, por ejemplo Roll Number de 001 a 020.
+- **Archivos:** `Pages/Operations/Labels/Index.cshtml` y su PageModel, `Infrastructure/Labels/LabelSeries.cs`, `wwwroot/js/label-4x6.js`.
+- **Dependencias:** motor `LabelDocumentService`, buscador de producto y estilos de etiquetas existentes, recursos `OperationsTexts` ES/EN. Sin cambios de inventario ni persistencia de captura.
+- **Integración real:** en `/Operations/Labels`, seleccionar Campo en serie = Roll Number, capturar 001 en el campo original, final 003 y dos copias: imprime 001, 001, 002, 002, 003, 003. Sin serie conserva la impresión de copias idénticas.
+- **Contrato:** `RenderBatch` conserva `Render` para consumidores actuales. Rango inclusivo de enteros no negativos, máximo 100 etiquetas contando copias, validación en servidor y salida completa o ningún documento. Los campos de texto conservan el ancho inicial con ceros; los numéricos usan su normalización habitual.
+- **Valores iniciales:** al abrir un formato se selecciona Roll Number si existe entre los campos elegibles. Las fechas MFG (`receivingMfgDate`, `mfd`, `input.manufacturingDate`) toman el día local del navegador, sin conversión UTC. Los POST conservan la fecha capturada y la elección explícita de Sin serie.
+- **Disposición:** el script agrupa el campo inicial y Valor final en una fila del formulario; cambia el grupo al elegir otro campo y restaura la disposición original al seleccionar Sin serie. En móvil los dos controles se apilan en orden inicial/final.
+
 Catálogo para agentes y desarrolladores. Consultarlo antes de implementar UI y
 preferir lo existente sin requerir una petición explícita del usuario.
 Las rutas enlazadas son la fuente de verdad; verificar su estado antes de usarlas.

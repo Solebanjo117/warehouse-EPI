@@ -37,6 +37,59 @@
   const workspace = document.querySelector("[data-label-workspace]");
   if (!workspace) return;
 
+  // Use local calendar components: UTC conversion can select the previous/next day.
+  if (workspace.dataset.labelDeviceDate === 'true') {
+    const today = new Date();
+    const localDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    workspace.querySelectorAll('input[type="date"]').forEach(input => {
+      if (['Input.Values[input.manufacturingDate]', 'Input.Values[receivingMfgDate]', 'Input.Values[mfd]'].includes(input.name)) {
+        input.value = localDate;
+      }
+    });
+  }
+
+  const seriesField = workspace.querySelector('[data-label-series-field]');
+  const seriesEnd = workspace.querySelector('[data-label-series-end]');
+  const endContainer = workspace.querySelector('[data-label-series-end-container]');
+  const endHome = document.createComment('series-end-position');
+  endContainer?.before(endHome);
+  let seriesGroup;
+  let startColumn;
+  const updateSeries = () => {
+    if (seriesGroup) {
+      seriesGroup.before(startColumn);
+      endHome.after(endContainer);
+      seriesGroup.remove();
+      seriesGroup = undefined;
+    }
+    const enabled = Boolean(seriesField?.value);
+    const container = workspace.querySelector('[data-label-series-end-container]');
+    if (container) container.hidden = !enabled;
+    if (seriesEnd) { seriesEnd.disabled = !enabled; seriesEnd.required = enabled; }
+    const name = workspace.querySelector('[data-label-series-name]');
+    if (name) name.textContent = enabled ? `· ${seriesField.selectedOptions[0].textContent}` : '';
+    const normal = workspace.querySelector('[data-label-copies-normal]');
+    const series = workspace.querySelector('[data-label-copies-series]');
+    if (normal) normal.hidden = enabled;
+    if (series) series.hidden = !enabled;
+    if (enabled && endContainer) {
+      const start = Array.from(workspace.querySelectorAll('input[name]'))
+        .find(input => input.name === `Input.Values[${seriesField.value}]`);
+      startColumn = start?.closest('.col-sm-6');
+      if (startColumn) {
+        seriesGroup = document.createElement('div');
+        seriesGroup.className = 'col-12';
+        const row = document.createElement('div');
+        row.className = 'row g-3';
+        startColumn.before(seriesGroup);
+        seriesGroup.append(row);
+        row.append(startColumn, endContainer);
+      }
+    }
+  };
+  seriesField?.addEventListener('change', updateSeries);
+  updateSeries();
+
   const search = workspace.querySelector("[data-label-product-search]");
   const productId = workspace.querySelector("[data-label-product-id]");
   const results = workspace.querySelector("[data-label-product-results]");

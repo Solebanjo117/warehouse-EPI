@@ -222,7 +222,7 @@ public sealed record LabelRenderedElement(LabelElementDefinition Definition, str
 public sealed record LabelRenderDocument(string TemplateCode, string TemplateName, int TemplateVersion, LabelSizeDefinition Size, int Copies, IReadOnlyList<LabelRenderedElement> Elements);
 public sealed record LabelGenerationResult(LabelRenderDocument? Document, IReadOnlyList<string> Errors, IReadOnlyList<string> Warnings);
 
-public sealed class LabelDocumentService(BarcodeRenderingService barcodes)
+public sealed partial class LabelDocumentService(BarcodeRenderingService barcodes)
 {
     public LabelGenerationResult Render(LabelTemplateVersion version, OperationalProductResult product, IReadOnlyDictionary<string, string> submitted, int copies, IReadOnlyDictionary<string, string>? systemValues = null)
     {

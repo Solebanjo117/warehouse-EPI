@@ -19,7 +19,10 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
     public LabelTemplateChoice? SelectedTemplate { get; private set; }
     public LabelDesignDocumentV1? Design { get; private set; }
     public OperationalProductResult? SelectedProduct { get; private set; }
-    public LabelRenderDocument? Preview { get; private set; }
+    public IReadOnlyList<LabelRenderDocument> Previews { get; private set; } = [];
+    public LabelRenderDocument? Preview => Previews.FirstOrDefault();
+    public int TotalLabels => Previews.Sum(x => x.Copies);
+    public IReadOnlyList<LabelFieldDefinition> SeriesFields => LabelDocumentService.SeriesFields(Design);
     public IReadOnlyList<string> PrintWarnings { get; private set; } = [];
 
     public async Task OnGetAsync(CancellationToken token)
@@ -34,6 +37,9 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
         Input.Values["input.manufacturingDate"] = (await warehouseClock.GetDateAsync(timeProvider.GetUtcNow(), token)).ToString("yyyy-MM-dd");
         Input.Values["input.quantity"] = "1";
         ApplyDefaults();
+        Input.SeriesField = SeriesFields.FirstOrDefault(field =>
+            string.Equals(field.Key, "rollNumber", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(field.Label.Trim(), "Roll Number", StringComparison.OrdinalIgnoreCase))?.Key;
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken token)
@@ -46,15 +52,17 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
         if (Input.ProductId == Guid.Empty) ModelState.AddModelError("Input.ProductId", texts["Selecciona un producto activo."]);
         else { SelectedProduct = await products.GetProductAsync(Input.ProductId, cancellationToken: token); if (SelectedProduct is null) ModelState.AddModelError("Input.ProductId", texts["El producto no existe o está inactivo."]); }
         if (!ModelState.IsValid || entity is null || SelectedProduct is null) return Page();
-        var rendered = documents.Render(entity, SelectedProduct, Input.Values, Input.Copies);
+        var rendered = documents.RenderBatch(entity, SelectedProduct, Input.Values, Input.Copies,
+            new LabelSeriesRequest(Input.SeriesField ?? "", Input.SeriesEnd));
+        foreach (var error in rendered.FieldErrors) ModelState.AddModelError($"Input.{error.Key}", texts[error.Value]);
         foreach (var error in rendered.Errors) ModelState.AddModelError(string.Empty, error);
         PrintWarnings = rendered.Warnings;
-        Preview = rendered.Document;
+        Previews = rendered.Documents;
         return Page();
     }
 
     public bool Uses(string binding) => Design?.Elements.Any(item => item.Binding == binding) == true;
     private async Task LoadTemplatesAsync(CancellationToken token) => Templates = await templates.GetPublishedAsync(token: token);
     private void ApplyDefaults() { if (Design is null) return; foreach (var field in Design.Fields) if (!Input.Values.ContainsKey(field.Key) && field.DefaultValue is not null) Input.Values[field.Key] = field.DefaultValue; }
-    public sealed class InputModel { public Guid TemplateVersionId { get; set; } public Guid ProductId { get; set; } [Range(1, 100)] public int Copies { get; set; } = 1; public Dictionary<string, string> Values { get; set; } = new(StringComparer.Ordinal); }
+    public sealed class InputModel { public Guid TemplateVersionId { get; set; } public Guid ProductId { get; set; } [Range(1, 100)] public int Copies { get; set; } = 1; public string? SeriesField { get; set; } public string? SeriesEnd { get; set; } public Dictionary<string, string> Values { get; set; } = new(StringComparer.Ordinal); }
 }

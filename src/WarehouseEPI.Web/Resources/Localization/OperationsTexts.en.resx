@@ -734,6 +734,17 @@
   <data name="No fue posible identificar la entrada. Consulta nuevamente." xml:space="preserve"><value>The entry could not be identified. Reload it.</value></data>
   <data name="Selecciona placas vigentes de entradas en STAGING. Consulta nuevamente si cambiaron." xml:space="preserve"><value>Select current plates for entries in STAGING. Reload if they changed.</value></data>
   <data name="En STAGING no se pueden unir placas de entradas distintas." xml:space="preserve"><value>Plates from different entries cannot be merged in STAGING.</value></data>
+  <data name="El valor del campo seleccionado es el inicio de la serie." xml:space="preserve"><value>The selected field value is the start of the sequence.</value></data>
+  <data name="La serie no puede superar 100 etiquetas, incluidas las copias." xml:space="preserve"><value>The sequence cannot exceed 100 labels, including copies.</value></data>
+  <data name="Selecciona un campo de texto o número utilizado por la plantilla." xml:space="preserve"><value>Select a text or number field used by the template.</value></data>
+  <data name="{0} etiquetas" xml:space="preserve"><value>{0} labels</value></data>
+  <data name="Copias por número" xml:space="preserve"><value>Copies per number</value></data>
+  <data name="Campo en serie" xml:space="preserve"><value>Sequence field</value></data>
+  <data name="Sin serie" xml:space="preserve"><value>No sequence</value></data>
+  <data name="El valor inicial debe ser un entero no negativo, sin prefijos ni decimales." xml:space="preserve"><value>The start value must be a nonnegative integer without prefixes or decimals.</value></data>
+  <data name="El valor final debe ser un entero no negativo, sin prefijos ni decimales." xml:space="preserve"><value>The end value must be a nonnegative integer without prefixes or decimals.</value></data>
+  <data name="El valor final debe ser mayor o igual al inicial." xml:space="preserve"><value>The end value must be greater than or equal to the start value.</value></data>
+  <data name="Valor final" xml:space="preserve"><value>End value</value></data>
   <data name="Acomodar" xml:space="preserve"><value>Put away</value></data>
   <data name="Acomodar cada llegada de material." xml:space="preserve"><value>Put away each material arrival.</value></data>
   <data name="Acomodar llegada de staging" xml:space="preserve"><value>Put away staging arrival</value></data>
