@@ -1,0 +1,118 @@
+@page "/Operations/Staging"
+@model WarehouseEPI.Web.Pages.Operations.Staging.IndexModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
+@{ ViewData["Title"] = OpTexts["Lista de staging"].Value; }
+<header class="mb-4">
+    <h1 class="h2">@OpTexts["Lista de staging"]</h1>
+    <p class="text-body-secondary">@OpTexts["Cada llegada conserva su pendiente. Selecciona una para acomodarla."]</p>
+</header>
+@if (!ViewData.ModelState.IsValid)
+{
+    <div asp-validation-summary="All" class="alert alert-danger" role="alert" tabindex="-1"></div>
+}
+@if (Model.Receipt is Guid receipt)
+{
+    <div class="alert alert-success" role="status">@OpTexts["Acomodo registrado."]
+        <a asp-page="/Operations/Receipt" asp-route-id="@receipt">@OpTexts["Ver comprobante"]</a>
+    </div>
+}
+@if (Model.ArrivalLineId.HasValue)
+{
+    <a asp-page="Index" class="btn btn-outline-secondary btn-lg mb-4">@OpTexts["Ver todas las llegadas"]</a>
+}
+else
+{
+<section class="card card-body mb-3" aria-labelledby="staging-summary-title" data-staging-summary>
+    <h2 class="h5" id="staging-summary-title">@OpTexts["Resumen global de pendientes"]</h2>
+    <p class="text-body-secondary">@OpTexts["Incluye todas las llegadas pendientes, sin aplicar los filtros."]</p>
+    <dl class="d-flex flex-wrap gap-4 mb-0">
+        <div><dt>@OpTexts["Total pendiente"]</dt><dd class="fs-4 mb-0" data-pending-total>@Model.Summary.Total</dd></div>
+        <div><dt>@OpTexts["Normal"]</dt><dd class="fs-4 mb-0" data-pending-normal>@Model.Summary.Normal</dd></div>
+        <div><dt>@OpTexts["Atender pronto"]</dt><dd class="fs-4 mb-0" data-pending-soon>@Model.Summary.Soon</dd></div>
+        <div><dt>@OpTexts["Urgente"]</dt><dd class="fs-4 mb-0" data-pending-urgent>@Model.Summary.Urgent</dd></div>
+    </dl>
+</section>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-4">
+    <div class="flex-grow-1"><label asp-for="Search" class="form-label">@OpTexts["Producto o referencia"]</label>
+        <input asp-for="Search" type="search" class="form-control form-control-lg" autocomplete="off" maxlength="120" /></div>
+    <div><label asp-for="Priority" class="form-label">@OpTexts["Prioridad"]</label>
+        <select asp-for="Priority" class="form-select form-select-lg"><option value="">@OpTexts["Todas"]</option><option value="normal">@OpTexts["Normal"]</option><option value="soon">@OpTexts["Atender pronto"]</option><option value="urgent">@OpTexts["Urgente"]</option></select></div>
+    <button class="btn btn-primary btn-lg" type="submit">@OpTexts["Buscar"]</button>
+    <a asp-page="Index" asp-route-search="@Model.Search" asp-route-priority="@Model.Priority" asp-route-pageNumber="@Model.PageNumber" class="btn btn-outline-secondary btn-lg">@OpTexts["Actualizar"]</a>
+    <a asp-page="Index" class="btn btn-outline-secondary btn-lg">@OpTexts["Limpiar filtros"]</a>
+</form>
+<p class="text-body-secondary">@OpTexts["Prioridad por tiempo continuo: atender pronto desde 24 h; urgente desde 48 h."]</p>
+}
+@if (Model.Arrivals.Items.Count == 0)
+{
+    <p class="alert alert-info" role="status">@OpTexts["No hay llegadas pendientes con estos filtros."]</p>
+}
+<div class="row g-3">
+@foreach (var row in Model.Arrivals.Items)
+{
+    <div class="col-12 col-xl-6"><article class="card h-100"><div class="card-body">
+        <h2 class="h5">@row.Sku</h2><p>@row.Description</p>
+        @if (Model.Priorities.TryGetValue(row.LineId, out var priority))
+        { <p><span class="badge @WarehouseEPI.Web.Pages.Operations.Staging.IndexModel.PriorityClass(priority)" data-arrival-priority="@priority.ToString().ToLowerInvariant()">@OpTexts["Prioridad"]: @OpTexts[WarehouseEPI.Web.Pages.Operations.Staging.IndexModel.PriorityText(priority)]</span></p> }
+        <dl class="row mb-2">
+            <dt class="col-5">@OpTexts["Llegada"]</dt><dd class="col-7">@Model.LocalTimes[row.LineId].ToString("dd/MM/yyyy HH:mm")</dd>
+            <dt class="col-5">@OpTexts["Antigüedad"]</dt><dd class="col-7" data-arrival-age>@Model.Ages[row.LineId]</dd>
+            <dt class="col-5">@OpTexts["Origen"]</dt><dd class="col-7">@(row.Origin == "Entrada" ? OpTexts["Entrada"].Value : row.Origin) → STAGING</dd>
+            <dt class="col-5">@OpTexts["Referencia"]</dt><dd class="col-7 text-break">@(row.Reference ?? "—")</dd>
+            <dt class="col-5">@OpTexts["Recibido"]</dt><dd class="col-7">@row.Received.ToString("0.####") @row.Unit</dd>
+            <dt class="col-5">@OpTexts["Pendiente"]</dt><dd class="col-7 fw-bold">@(row.Pending?.ToString("0.####") ?? "—") @row.Unit</dd>
+        </dl>
+        @if (row.NeedsIdentification)
+        {
+            <p class="text-warning-emphasis">@OpTexts["Requiere identificación"]</p>
+        }
+        else if (!(row.Pending > 0))
+        {
+            <p role="status">@OpTexts["Esta llegada ya no tiene material pendiente en STAGING"]</p>
+        }
+        <div class="d-flex flex-wrap gap-2 align-items-start" data-staging-actions>
+            @if (row.NeedsIdentification)
+            {
+                <button type="button" class="btn btn-primary btn-lg" data-bs-toggle="collapse" data-bs-target="#identify-@row.LineId" aria-expanded="false" aria-controls="identify-@row.LineId">@OpTexts["Identificar material"]</button>
+            }
+            else if (row.Pending > 0)
+            {
+                <a asp-page="Putaway" asp-route-arrival="@row.LineId" class="btn btn-primary btn-lg">@OpTexts["Acomodar"]</a>
+            }
+            else
+            {
+                <a asp-page="/Operations/PalletLabels/Tracking" asp-route-OriginId="@row.MovementId" class="btn btn-outline-primary btn-lg">@OpTexts["Ver placas de esta operación"]</a>
+            }
+            <div class="dropdown">
+                <button type="button" id="arrival-actions-@row.LineId" class="btn btn-outline-secondary btn-lg dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">@OpTexts["Más acciones"]</button>
+                <ul class="dropdown-menu" aria-labelledby="arrival-actions-@row.LineId">
+                    <li><a asp-page="/Operations/Receipt" asp-route-id="@row.MovementId" class="dropdown-item py-3">@OpTexts["Ver llegada"]</a></li>
+                    @if (!row.NeedsIdentification && row.Pending > 0)
+                    {
+                        <li><a asp-page="Split" asp-route-arrivalLineId="@row.LineId" class="dropdown-item py-3">@OpTexts["Dividir material"]</a></li>
+                    }
+                </ul>
+            </div>
+        </div>
+        @if (row.NeedsIdentification)
+        {
+            <div class="collapse" id="identify-@row.LineId">
+                <form method="post" asp-page-handler="Identify" class="mt-3">
+                    <input type="hidden" name="Arrival" value="@row.LineId" />
+                    <input type="hidden" asp-for="ArrivalLineId" />
+                    <input type="hidden" name="OperationId" value="@(Model.Arrival == row.LineId && Model.OperationId != Guid.Empty ? Model.OperationId : Guid.NewGuid())" />
+                    <input type="hidden" asp-for="Search" /><input type="hidden" asp-for="PageNumber" /><input type="hidden" name="Priority" value="@Model.Priority" />
+                    <label for="physical-@row.LineId" class="form-label">@OpTexts["Cantidad física restante de esta llegada"]</label>
+                    <input id="physical-@row.LineId" name="PhysicalQuantity" type="number" class="form-control form-control-lg" inputmode="decimal" step="0.0001" min="0.0001" max="@row.Received.ToString(System.Globalization.CultureInfo.InvariantCulture)" required />
+                    <p class="form-text">@OpTexts["Confirma únicamente el material de esta llegada que sigue en STAGING."]</p>
+                    <button type="submit" class="btn btn-primary btn-lg">@OpTexts["Identificar y continuar"]</button>
+                </form>
+            </div>
+        }
+    </div></article></div>
+}
+</div>
+<nav class="d-flex gap-2 mt-4" aria-label="@OpTexts["Paginación"]">
+    @if (Model.PageNumber > 1) { <a asp-page="Index" asp-route-search="@Model.Search" asp-route-priority="@Model.Priority" asp-route-pageNumber="@(Model.PageNumber - 1)" class="btn btn-outline-secondary btn-lg">@OpTexts["Anterior"]</a> }
+    @if (Model.Arrivals.HasMore) { <a asp-page="Index" asp-route-search="@Model.Search" asp-route-priority="@Model.Priority" asp-route-pageNumber="@(Model.PageNumber + 1)" class="btn btn-outline-secondary btn-lg">@OpTexts["Siguiente"]</a> }
+</nav>

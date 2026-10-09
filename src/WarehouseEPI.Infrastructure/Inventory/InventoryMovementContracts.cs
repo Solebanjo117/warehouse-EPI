@@ -28,7 +28,8 @@ public sealed record InventoryMovementLineCommand(
     IReadOnlyList<decimal>? PalletQuantities = null,
     IReadOnlyList<PalletSelection>? PlateCounts = null,
     Guid? MaterialIssueLinkId = null,
-    bool AutomaticPalletHandling = false);
+    bool AutomaticPalletHandling = false,
+    Guid? StagingArrivalLineId = null);
 
 public sealed record PalletSelection(Guid PlateId, decimal Quantity, long ExpectedVersion);
 public sealed record PalletMovementResult(Guid PlateId, string Identifier, Guid LocationId, decimal Quantity, long Version, string Status);

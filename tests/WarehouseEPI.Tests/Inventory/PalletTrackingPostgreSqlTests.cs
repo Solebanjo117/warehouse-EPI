@@ -9,6 +9,42 @@ namespace WarehouseEPI.Tests.Inventory;
 public sealed class PalletTrackingPostgreSqlTests(PostgreSqlInventoryFixture fixture)
 {
     [Fact]
+    public async Task Staging_historical_identification_is_atomic_and_entry_scoped()
+    {
+        await fixture.WithIsolatedDatabaseAsync(async isolated =>
+        {
+            var seed = await isolated.SeedAsync("PG-STAGING", "OLD-STAGING", "7348");
+            var entry = await isolated.ConfirmAsync(new(Guid.NewGuid(), InventoryMovementType.Entry, seed.Pin,
+                [new(seed.ProductId, 100, DestinationLocationId: seed.LocationId)]));
+            await using (var setup = isolated.CreateDbContext())
+            {
+                var location = await setup.Locations.SingleAsync(x => x.Id == seed.LocationId);
+                location.Kind = LocationKind.Area;
+                location.Code = "STAGING";
+                await setup.SaveChangesAsync();
+            }
+            async Task<InventoryMovementResult> IdentifyAsync()
+            {
+                await using var db = isolated.CreateDbContext();
+                var tracking = new PalletTrackingService(db,
+                    new UserPinService(db, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
+                return await tracking.IdentifyStagingEntryAsync(new(Guid.NewGuid(), entry.MovementId!.Value, seed.LocationId, 100));
+            }
+            var results = await Task.WhenAll(IdentifyAsync(), IdentifyAsync());
+            Assert.Single(results, x => x.Status == InventoryMovementStatus.Success);
+            Assert.Single(results, x => x.Status == InventoryMovementStatus.ValidationFailed);
+            await using var verify = isolated.CreateDbContext();
+            var service = new PalletTrackingService(verify,
+                new UserPinService(verify, new PinProtector(PostgreSqlInventoryFixture.LookupKey)), TimeProvider.System);
+            var row = Assert.Single((await service.StagingEntriesAsync(seed.LocationId)).Items);
+            var plate = Assert.Single(row.Plates);
+            Assert.True(await service.CanPrintStagingPlatesAsync(seed.LocationId, [plate.Id]));
+            Assert.Equal(100, await verify.InventoryBalances.Where(x => x.ProductId == seed.ProductId).SumAsync(x => x.Quantity));
+            Assert.Single(await verify.PalletPlates.Where(x => x.ProductId == seed.ProductId).ToListAsync());
+        });
+    }
+
+    [Fact]
     public async Task Concurrent_identifications_create_only_one_plate_from_the_same_expected_state()
     {
         var seed = await fixture.SeedAsync("PG-IDENTIFY-CONCURRENCY", "PG-IDENTIFY-A", "7314");

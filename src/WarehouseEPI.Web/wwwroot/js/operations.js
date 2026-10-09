@@ -9,9 +9,11 @@
   };
 
   const requestJson = async (url) => {
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!response.ok) return null;
-    return response.json();
+    try {
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!response.ok) return null;
+      return await response.json();
+    } catch { return null; }
   };
 
   const describeProduct = (item) => [item.description, item.externalReference, item.unitCode]
@@ -349,6 +351,7 @@
     const form = operationShell.querySelector("[data-operation-form]");
     const lookupUrl = operationShell.dataset.lookupUrl;
     const operation = operationShell.dataset.operation;
+    const fixedTransfer = operationShell.dataset.fixedTransfer === "true";
     const exitModePicker = operationShell.querySelector("[data-exit-mode-picker]");
     const isWipExit = () => operation === "exit"
       && exitModePicker?.querySelector('input:checked')?.value === "Wip";
@@ -356,6 +359,7 @@
     const entryWorkstation = operationShell.hasAttribute("data-entry-workstation")
       || operationShell.hasAttribute("data-guided-workstation");
     const quantityInput = operationShell.querySelector("[data-quantity]");
+    const quantityTarget = () => window.WarehousePalletDistribution?.quantityTarget() || quantityInput;
     const unitLabel = operationShell.querySelector("[data-unit-label]");
     const balancePreview = operationShell.querySelector("[data-balance-preview]");
     const balanceText = operationShell.querySelector("[data-balance-text]");
@@ -407,7 +411,8 @@
       if (!entryWorkstation) return;
 
       const quantityComplete = quantityInput.value.trim() !== "" && quantityInput.checkValidity()
-        && (operation === "adjustment" || number(quantityInput.value) > 0);
+        && (operation === "adjustment" || number(quantityInput.value) > 0)
+        && (window.WarehousePalletDistribution?.isValid() ?? true);
       const completed = Object.fromEntries(guidedKinds.map(kind => [kind,
         kind === "exit-mode" ? Boolean(selectedExitMode())
           : kind === "quantity" ? quantityComplete : kind === "notes" ? Boolean(notesInput?.value.trim()) : Boolean(selected[kind])
@@ -427,8 +432,9 @@
         if (isActive) step.setAttribute("aria-current", "step");
         else step.removeAttribute("aria-current");
         const status = step.querySelector("[data-entry-step-status]");
-        status.textContent = isActive ? "En captura" : isComplete ? "Listo" : "Pendiente";
-        step.querySelector("[data-edit-step]")?.classList.toggle("d-none", !isComplete);
+        status.textContent = text(isActive ? "En captura" : isComplete ? "Listo" : "Pendiente");
+        step.querySelector("[data-edit-step]")?.classList.toggle("d-none", !isComplete || step.dataset.fixedStep === "true");
+        if (step.dataset.fixedStep === "true") step.querySelectorAll("[data-camera-scan]").forEach(button => { button.hidden = true; });
       }
 
       const productRecord = lookups.product?.record;
@@ -436,7 +442,7 @@
       const productDetail = productRecord?.querySelector("[data-selected-detail]")?.textContent?.trim();
       const quantityText = quantityComplete
         ? `${format(number(quantityInput.value))} ${unitLabel.textContent.trim()}`
-        : "Sin capturar";
+        : text("Sin capturar");
 
       for (const kind of kinds) {
         const step = operationShell.querySelector(`[data-entry-step="${kind}"]`);
@@ -451,7 +457,7 @@
       }
 
       const progress = operationShell.querySelector("[data-entry-progress]");
-      const progressText = `${completedCount} de ${kinds.length} listos`;
+      const progressText = text("{0} de {1} listos", completedCount, kinds.length);
       if (progress.textContent !== progressText) progress.textContent = progressText;
       const setSummary = (selector, value) => { const element = operationShell.querySelector(selector); if (element) element.textContent = value; };
       setSummary("[data-entry-summary-product]", completed.product ? [productTitle, productDetail].filter(Boolean).join(" · ") : "Sin seleccionar");
@@ -466,14 +472,17 @@
       const ready = completedCount === kinds.length && approvalsReady;
       const missing = kinds.length - completedCount;
       const state = operationShell.querySelector("[data-entry-summary-state]");
-      state.textContent = ready ? "Lista para confirmar"
+      state.textContent = ready ? text("Lista para confirmar")
         : completedCount === kinds.length ? text("Confirma el pallet compartido")
-          : `Faltan ${missing} ${missing === 1 ? "paso" : "pasos"}`;
+          : text(missing === 1 ? "Falta {0} paso" : "Faltan {0} pasos", missing);
       operationShell.querySelector(".entry-summary-card")?.classList.toggle("is-ready", ready);
       operationShell.querySelector("[data-review-button]").disabled = !ready;
     };
 
     const refreshPreview = () => {
+      window.WarehousePalletDistribution?.update({ total: quantityInput.value,
+        unit: selected.product?.unitCode || '', allowsDecimals: selected.product?.allowsDecimals !== false,
+        staging: selected.destination?.code === 'STAGING' });
       const quantity = number(quantityInput.value);
       const source = number(balancePreview.dataset.source);
       const destination = number(balancePreview.dataset.destination);
@@ -492,7 +501,7 @@
       } else if (operation === "transfer" && selected.product && selected.source && selected.destination) {
         const sourceResult = source - quantity;
         const destinationResult = destination + quantity;
-        message = `Origen ${format(source)} → ${format(sourceResult)} · Destino ${format(destination)} → ${format(destinationResult)}`;
+        message = text("Origen {0} → {1} · Destino {2} → {3}", format(source), format(sourceResult), format(destination), format(destinationResult));
         isNegative = sourceResult < 0 || destinationResult < 0;
       } else if (operation === "adjustment" && selected.product && selected.location) {
         const delta = quantity - location;
@@ -624,6 +633,7 @@
     };
 
     const loadProductLocations = async () => {
+      if (fixedTransfer) return;
       if (!selected.product) return;
       const productId = selected.product.id;
       const params = new URLSearchParams({ handler: "ProductLocations", productId, operation });
@@ -646,6 +656,7 @@
     };
 
     const loadLocationProducts = async (kind) => {
+      if (fixedTransfer) return;
       if (!selected[kind]) return;
       const locationId = selected[kind].id;
       const params = new URLSearchParams({ handler: "LocationProducts", locationId });
@@ -658,6 +669,11 @@
     };
 
     const applySelection = async (kind, item, loadRelationships) => {
+      if (fixedTransfer && kind !== "destination") return;
+      if (fixedTransfer && (item.isWip || item.code === "STAGING")) {
+        setOperationFeedback(text("Selecciona una ubicación de almacenamiento distinta de STAGING."));
+        return;
+      }
       const lookup = lookups[kind];
       const lookupKind = kind === "product" ? "product" : "location";
       if (operation === "entry" && kind === "product" && selected.product?.id !== item.id &&
@@ -733,6 +749,7 @@
       ? visibleGuidedKinds().find(kind => kind === "exit-mode"
         ? !selectedExitMode()
         : kind === "quantity" ? quantityInput.value.trim() === "" || !quantityInput.checkValidity()
+          || !(window.WarehousePalletDistribution?.isValid() ?? true)
           : kind === "notes" ? !notesInput?.value.trim() : !selected[kind])
       : requiredKinds().find(kind => !selected[kind]);
 
@@ -749,7 +766,7 @@
           (exitModePicker?.querySelector("input:checked") || exitModePicker?.querySelector("input"))?.focus();
           return;
         }
-        if (next === "quantity") { quantityInput.focus(); quantityInput.select(); return; }
+        if (next === "quantity") { quantityTarget().focus(); quantityTarget().select(); return; }
         if (next === "notes") { notesInput?.focus(); return; }
         if (next) {
           focusLookupInput(next);
@@ -761,8 +778,9 @@
         focusLookupInput(missing);
         return;
       }
-      quantityInput.focus();
-      quantityInput.select();
+      if (fixedTransfer) { operationShell.querySelector("[data-review-button]").focus(); return; }
+      quantityTarget().focus();
+      quantityTarget().select();
     };
 
     const setupLookup = (field) => {
@@ -798,6 +816,7 @@
         };
       }
 
+      if (fixedTransfer && kind !== "destination") return;
       const search = debounce(async (sequence) => {
         if (sequence !== searchSequence) return;
         const query = input.value.trim();
@@ -806,7 +825,11 @@
           : (operation === "wipissue" || isWipExit()) && kind === "destination" ? "WipLocations" : "Locations";
         const items = await requestJson(`${lookupUrl}?${new URLSearchParams({ handler, q: query })}`);
         if (sequence !== searchSequence) return;
-        renderSuggestions(results, items, lookupKind, (item) => {
+        if (fixedTransfer) setOperationFeedback(items === null
+          ? text("No fue posible validar el código. Intenta nuevamente.")
+          : items.filter(item => !item.isWip && item.code !== "STAGING").length === 0
+            ? text("No se encontró un registro operativo con ese código.") : "");
+        renderSuggestions(results, fixedTransfer && items ? items.filter(item => !item.isWip && item.code !== "STAGING") : items, lookupKind, (item) => {
           searchSequence++;
           void applySelection(kind, item, true).then(focusNextRequired);
         });
@@ -852,6 +875,13 @@
 
       const currentItem = lookupKind === "product" ? product : location;
       if (currentItem) {
+        if (fixedTransfer && (currentItem.isWip || currentItem.code === "STAGING")) {
+          const message = text("Selecciona una ubicación de almacenamiento distinta de STAGING.");
+          lookup.input.setCustomValidity(message);
+          if (reportInvalidity) lookup.input.reportValidity();
+          setOperationFeedback(message);
+          return { selected: false, message };
+        }
         await applySelection(kind, currentItem, true);
         setOperationFeedback("");
         focusNextRequired();
@@ -859,7 +889,7 @@
       }
 
       const oppositeItem = lookupKind === "product" ? location : product;
-      if (!oppositeItem) {
+      if (!oppositeItem || fixedTransfer) {
         const message = text("No se encontró un registro operativo con ese código.");
         lookup.input.setCustomValidity(message);
         if (reportInvalidity) lookup.input.reportValidity();
@@ -960,8 +990,19 @@
       if (kind === "product") void loadProductLocations();
       else void loadLocationProducts(kind);
     }
+    form.querySelectorAll('[data-destination-proposal]').forEach(button => {
+      button.addEventListener('click', () => {
+        if (!fixedTransfer) return;
+        void applySelection('destination', {
+          id: button.dataset.locationId, code: button.dataset.locationCode,
+          description: button.dataset.locationDescription, isActive: true,
+          isBlocked: false, isWip: false, tracksInventory: true
+        }, false).then(focusNextRequired);
+      });
+    });
     quantityInput.addEventListener("focus", () => quantityInput.select());
     quantityInput.addEventListener("input", refreshPreview);
+    form.addEventListener("palletdistributionchange", refreshPreview);
     notesInput?.addEventListener("input", refreshEntryState);
     refreshPreview();
 
@@ -970,6 +1011,7 @@
         const kind = step.dataset.entryStep;
         step.addEventListener("focusin", event => {
           if (!event.target.closest("[data-entry-step-body], .entry-step-body")) return;
+          if (step.dataset.fixedStep === "true") return;
           editingEntryStep = kind;
           refreshEntryState();
         });
@@ -990,7 +1032,7 @@
             (exitModePicker?.querySelector("input:checked") || exitModePicker?.querySelector("input"))?.focus();
             return;
           }
-          const target = kind === "quantity" ? quantityInput : kind === "notes" ? notesInput : lookups[kind]?.input;
+          const target = kind === "quantity" ? quantityTarget() : kind === "notes" ? notesInput : lookups[kind]?.input;
           target?.focus();
           target?.select();
         });
@@ -999,6 +1041,8 @@
         .forEach(approval => approval.addEventListener("change", refreshEntryState));
       refreshEntryState();
     }
+
+    if (fixedTransfer && !selected.destination) lookups.destination?.input.focus();
 
     const reviewButton = operationShell.querySelector("[data-review-button]");
     const modalElement = document.getElementById("confirm-operation");
@@ -1033,6 +1077,12 @@
       const balance = document.createElement("small");
       balance.textContent = balanceText.textContent;
       summary.append(productLine, details, balance);
+      const distribution = window.WarehousePalletDistribution?.summary();
+      if (distribution) {
+        const parts = document.createElement('p');
+        parts.textContent = distribution;
+        summary.append(parts);
+      }
       pinInput.required = true;
       modal.show();
       modalElement.addEventListener("shown.bs.modal", () => pinInput.focus(), { once: true });
@@ -1056,7 +1106,7 @@
     form.addEventListener("submit", () => {
       const button = operationShell.querySelector("[data-submit-button]");
       button.disabled = true;
-      button.textContent = "Confirmando…";
+      button.textContent = text("Confirmando…");
     });
   }
 

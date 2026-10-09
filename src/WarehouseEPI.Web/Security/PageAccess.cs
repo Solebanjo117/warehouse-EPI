@@ -24,7 +24,7 @@ public static class PageAccess
     };
     private static readonly string[] PublicFolders =
     ["/Locations", "/Operations/Receiving", "/Operations/CycleCounts", "/Operations/Labels",
-        "/Operations/PalletLabels", "/Operations/ProductionSupply"];
+        "/Operations/PalletLabels", "/Operations/ProductionSupply", "/Operations/Staging"];
 
     public static string? PolicyFor(string page)
     {

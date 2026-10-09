@@ -2,12 +2,14 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Web.Navigation;
+using WarehouseEPI.Infrastructure.Inventory;
 
 namespace WarehouseEPI.Web.Pages.Modules;
 
-public sealed class IndexModel(IAuthorizationService authorization) : PageModel
+public sealed class IndexModel(IAuthorizationService authorization, StagingArrivalQuery staging) : PageModel
 {
     public NavigationModule Module { get; private set; } = null!;
+    public int StagingPendingCount { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(string module)
     {
@@ -18,6 +20,8 @@ public sealed class IndexModel(IAuthorizationService authorization) : PageModel
         if (!visible.Any(item => item.Key == definition.Key) && !(await authorization.AuthorizeAsync(User, null, "AdminOnly")).Succeeded)
             return User.Identity?.IsAuthenticated == true ? Forbid() : Challenge();
         Module = visible.Single(item => item.Key == definition.Key);
+        if (Module.Key == "operations")
+            StagingPendingCount = await staging.CountPendingAsync(HttpContext.RequestAborted);
         return Page();
     }
 }

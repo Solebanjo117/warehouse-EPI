@@ -202,6 +202,8 @@ internal static class InventoryMovementRules
                 builder.Append(":P:").Append(System.Text.Json.JsonSerializer.Serialize(new { line.Plates, line.PlateCounts, line.PalletQuantities, line.DestinationPlateId, line.ExpectedDestinationPlateVersion, line.MaterialIssueLinkId }));
             if (line.AutomaticPalletHandling)
                 builder.Append(":AP:true");
+            if (line.StagingArrivalLineId.HasValue)
+                builder.Append(":STAGING:").Append(line.StagingArrivalLineId.Value.ToString("N"));
         }
 
         foreach (var approval in command.ApprovedSharedAssignments ?? [])

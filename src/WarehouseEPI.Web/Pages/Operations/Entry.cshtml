@@ -4,9 +4,20 @@
 @{
     ViewData["Title"] = OpTexts[Model.PageTitle].Value;
 }
+@if (Model.IsStagingMode)
+{
+    <div class="mb-3">
+        <a asp-page="/Operations/Staging/Index" class="btn btn-outline-primary btn-lg" data-staging-count="@Model.StagingPendingCount"
+           aria-label="@OpTexts[Model.StagingPendingCount == 1 ? "Lista de staging: {0} llegada pendiente de acomodo o identificación" : "Lista de staging: {0} llegadas pendientes de acomodo o identificación", Model.StagingPendingCount]">
+            @OpTexts["Lista de staging"] · @OpTexts[Model.StagingPendingCount == 1 ? "{0} pendiente" : "{0} pendientes", Model.StagingPendingCount]
+        </a>
+    </div>
+    <input type="hidden" name="Mode" value="staging" form="operation-form" />
+}
 <partial name="_GuidedMovementForm" model="Model" />
 
 @section Scripts {
+    @if (Model.IsStagingMode) { <script src="~/js/pallet-distribution.js" asp-append-version="true"></script> }
     <script src="~/lib/zxing/zxing-browser.min.js" asp-append-version="true"></script>
     <script src="~/js/hid-capture.js" asp-append-version="true"></script>
     <script src="~/js/operations.js" asp-append-version="true"></script>

@@ -8,7 +8,7 @@ using WarehouseEPI.Infrastructure.Security;
 
 namespace WarehouseEPI.Tests.Inventory;
 
-public sealed class PalletTrackingTests
+public sealed partial class PalletTrackingTests
 {
     [Fact]
     public async Task Identification_creates_partial_plate_without_changing_inventory_and_retry_is_idempotent()

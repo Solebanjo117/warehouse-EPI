@@ -13,12 +13,22 @@ namespace WarehouseEPI.Web.Pages.Operations.PalletLabels;
 public sealed class IndexModel(LabelTemplateService templates, LabelDocumentService documents,
     PalletLicensePlateService plates, WarehouseClock clock, PalletTrackingService tracking,
     OperationalInventoryQueryService operationalQuery, InventoryHistoryService inventoryHistory,
-    IStringLocalizer<OperationsTexts> texts) : PageModel
+    IStringLocalizer<OperationsTexts> texts, StagingArrivalQuery stagingArrivals) : PageModel
 {
     [BindProperty] public IdentificationInput Identify { get; set; } = new();
     [BindProperty] public ConsolidationInput Consolidate { get; set; } = new();
     [BindProperty] public MovementPrintInput MovementPrint { get; set; } = new();
     [BindProperty] public PrintInput Input { get; set; } = new();
+    [BindProperty] public StagingInput Staging { get; set; } = new();
+    public bool IsStaging { get; private set; }
+    public StagingArrivalRow? SelectedArrival { get; private set; }
+    public int ArrivalBatch { get; private set; }
+    public int ArrivalBatchCount { get; private set; }
+    public Guid? SelectedStagingEntryId { get; private set; }
+    public StagingEntryPage StagingEntries { get; private set; } = new([], false);
+    public Dictionary<Guid, DateTimeOffset> StagingTimes { get; } = [];
+    [BindProperty(SupportsGet = true)] public int EntryPage { get; set; } = 1;
+    public List<LabelRenderDocument> BatchPreviews { get; } = [];
     public PalletLicensePlateEntry? Entry { get; private set; }
     public DateTimeOffset? EntryLocalTime { get; private set; }
     public LabelRenderDocument? Preview { get; private set; }
@@ -36,9 +46,23 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
     {
         Guid? suggestedProduct = productId;
         var printSuggestedPlate = false;
+        var currentPlate = id.HasValue ? await plates.LoadAsync(id.Value, token) : null;
+        // A plate can keep its original STAGING entry ID after being transferred.
+        // Only apply STAGING's entry-print rules while the plate is still there.
+        if (id.HasValue && !(currentPlate?.Entry is { IsTracked: true, Destination: not "STAGING" }) &&
+            await tracking.IsStagingEntryAsync(id.Value, token))
+        {
+            var suggestion = await tracking.SuggestionAsync(id.Value, token);
+            if (suggestion is not null && !await tracking.CanPrintStagingPlatesAsync(suggestion.LocationId, [id.Value], token))
+            {
+                location = "STAGING";
+                suggestedProduct = suggestion.ProductId;
+                id = null;
+            }
+        }
         if (id.HasValue)
         {
-            var load = await plates.LoadAsync(id.Value, token);
+            var load = currentPlate!;
             if (load.Status == PalletLicensePlateStatus.Success && load.Entry!.IsTracked)
             {
                 await LoadEntryAsync(id.Value, token);
@@ -73,6 +97,38 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
 
     public async Task<IActionResult> OnGetProductOptionsAsync(string? q, Guid? locationId, CancellationToken token) =>
         new JsonResult(await tracking.StockProductsAsync(locationId, q, token));
+
+    public async Task<IActionResult> OnGetStagingEntryAsync(Guid movementId, CancellationToken token)
+    {
+        SelectedStagingEntryId = movementId;
+        await LoadIdentificationAsync("STAGING", null, null, token);
+        var row = StagingEntries.Items.SingleOrDefault();
+        if (row is null)
+            ModelState.AddModelError(string.Empty, texts["La entrada no está vigente o no pertenece a STAGING."]);
+        else if (!row.NeedsIdentification && row.Plates.Count > 0)
+        {
+            Staging.LocationId = SelectedLocation!.Id;
+            Staging.PlateIds = row.Plates.Select(x => x.Id).ToList();
+            await BuildStagingPreviewAsync(token);
+        }
+        return Page();
+    }
+
+    public async Task<IActionResult> OnGetStagingArrivalAsync(Guid arrivalLineId, CancellationToken token, int arrivalBatch = 1)
+    {
+        SelectedArrival = await stagingArrivals.GetAsync(arrivalLineId, token);
+        if (SelectedArrival is null) return NotFound();
+        if (!SelectedArrival.NeedsIdentification && SelectedArrival.Pending > 0)
+        {
+            Staging.LocationId = SelectedArrival.LocationId;
+            var selection = StagingArrivalQuery.DecodeVersion(SelectedArrival.Version)!;
+            ArrivalBatchCount = (selection.Count + 99) / 100;
+            ArrivalBatch = Math.Clamp(arrivalBatch, 1, ArrivalBatchCount);
+            Staging.PlateIds = selection.Skip((ArrivalBatch - 1) * 100).Take(100).Select(p => p.PlateId).ToList();
+            await BuildStagingPreviewAsync(token, SelectedArrival);
+        }
+        return Page();
+    }
 
     public async Task<IActionResult> OnGetLocationOptionsAsync(string? q, Guid? productId, CancellationToken token) =>
         new JsonResult(await tracking.StockLocationsAsync(productId, q, token));
@@ -131,6 +187,8 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
             await LoadIdentificationAsync(null, null, null, token);
             return Page();
         }
+        if (await tracking.IsStagingAsync(suggestion.LocationId, token))
+            return RedirectToPage(new { location = suggestion.LocationCode, productId = suggestion.ProductId });
         var summary = (await tracking.IdentificationProductsAsync(suggestion.LocationId, token))
             .SingleOrDefault(x => x.ProductId == suggestion.ProductId);
         if (summary is null)
@@ -192,6 +250,13 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
             SelectedLocation = await operationalQuery.ResolveLocationAsync(locationCode, cancellationToken: token);
             if (SelectedLocation is null) { SearchError ??= texts["No existe una ubicación operativa con ese código."]; return; }
             Identify.LocationId = SelectedLocation.Id;
+            IsStaging = await tracking.IsStagingAsync(SelectedLocation.Id, token);
+            if (IsStaging)
+            {
+                EntryPage = Math.Clamp(EntryPage, 1, 100000);
+                StagingEntries = await tracking.StagingEntriesAsync(SelectedLocation.Id, SelectedProduct?.Id, EntryPage, SelectedStagingEntryId, token);
+                foreach (var row in StagingEntries.Items) StagingTimes[row.MovementId] = await clock.ConvertAsync(row.OccurredAt, token);
+            }
             Products = await tracking.IdentificationProductsAsync(SelectedLocation.Id, token);
             await LoadPrintablePlatesAsync(SelectedLocation.Id, token);
         }
@@ -259,8 +324,74 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
         var rows = new List<RecentMovement>(page.Items.Count);
         foreach (var item in page.Items)
             rows.Add(new(item, await clock.ConvertAsync(item.OccurredAt, token),
-                printable.GetValueOrDefault(item.Id) ?? []));
+                printable.GetValueOrDefault(item.Id) ?? [], await tracking.IsStagingEntryAsync(item.Id, token)));
         RecentMovements = rows;
+    }
+
+    public async Task<IActionResult> OnPostIdentifyStagingEntryAsync(CancellationToken token)
+    {
+        RetainModelStateFor(nameof(Staging));
+        if (ModelState.IsValid)
+        {
+            var entries = await tracking.StagingEntriesAsync(Staging.LocationId,
+                movementId: Staging.MovementId, token: token);
+            var quantity = entries.Items.SingleOrDefault()?.Received ?? 0;
+            var result = await tracking.IdentifyStagingEntryAsync(new(Staging.OperationId, Staging.MovementId,
+                Staging.LocationId, quantity), token);
+            if (result.Status == InventoryMovementStatus.Success && result.Plates?.SingleOrDefault() is { } plate)
+                return RedirectToPage(pageName: null, pageHandler: null,
+                    routeValues: new { id = plate.PlateId, location = "STAGING", print = true }, fragment: "label-preview");
+            foreach (var error in result.ValidationErrors.DefaultIfEmpty("No fue posible identificar la entrada. Consulta nuevamente."))
+                ModelState.AddModelError(string.Empty, texts[error]);
+        }
+        await LoadIdentificationAsync("STAGING", null, null, token);
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostPrintStagingSelectionAsync(CancellationToken token)
+    {
+        RetainModelStateFor(nameof(Staging));
+        await BuildStagingPreviewAsync(token);
+        await LoadIdentificationAsync("STAGING", null, null, token);
+        return Page();
+    }
+
+    private async Task BuildStagingPreviewAsync(CancellationToken token, StagingArrivalRow? arrival = null)
+    {
+        var allowed = arrival is null
+            ? await tracking.CanPrintStagingPlatesAsync(Staging.LocationId, Staging.PlateIds, token)
+            : await tracking.CanPrintStagingArrivalAsync(arrival.LineId, Staging.LocationId, Staging.PlateIds, arrival.Version, token);
+        if (!allowed)
+            ModelState.AddModelError(string.Empty, texts["Selecciona placas vigentes de entradas en STAGING. Consulta nuevamente si cambiaron."]);
+        if (ModelState.IsValid)
+        {
+            foreach (var id in Staging.PlateIds.Distinct())
+            {
+                Entry = null;
+                Preview = null;
+                await LoadEntryAsync(id, token);
+                if (Entry is null)
+                {
+                    ModelState.AddModelError(string.Empty, texts["Selecciona placas vigentes de entradas en STAGING. Consulta nuevamente si cambiaron."]);
+                    break;
+                }
+                await BuildPreviewAsync(token);
+                if (Preview is not null) BatchPreviews.Add(Preview);
+            }
+            if (arrival is not null || Staging.PlateIds.Distinct().Count() > 1) Entry = null;
+            if (arrival is not null && !await tracking.CanPrintStagingArrivalAsync(arrival.LineId,
+                Staging.LocationId, Staging.PlateIds, arrival.Version, token))
+                ModelState.AddModelError(string.Empty, texts["Selecciona placas vigentes de entradas en STAGING. Consulta nuevamente si cambiaron."]);
+            if (!ModelState.IsValid) { Preview = null; BatchPreviews.Clear(); }
+        }
+    }
+
+    public sealed class StagingInput
+    {
+        public Guid OperationId { get; set; } = Guid.NewGuid();
+        public Guid MovementId { get; set; }
+        public Guid LocationId { get; set; }
+        public List<Guid> PlateIds { get; set; } = [];
     }
 
     public sealed class IdentificationInput
@@ -284,7 +415,7 @@ public sealed class IndexModel(LabelTemplateService templates, LabelDocumentServ
         [Required] public Guid MovementId { get; set; }
     }
     public sealed record RecentMovement(InventoryMovementHistoryRow Movement, DateTimeOffset LocalOccurredAt,
-        IReadOnlyList<PalletQueryRow> PrintablePlates);
+        IReadOnlyList<PalletQueryRow> PrintablePlates, bool IsStagingEntry = false);
     public sealed class PrintInput
     {
         public Guid MovementId { get; set; }

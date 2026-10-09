@@ -711,4 +711,108 @@
   <data name="Operación documental registrada. Las existencias del almacén no cambiaron." xml:space="preserve"><value>Document operation recorded. Warehouse stock did not change.</value></data>
   <data name="Descuenta del rack y registra una entrega documental a WIP." xml:space="preserve"><value>Deducts rack stock and records a documentary delivery to WIP.</value></data>
   <data name="El surtimiento conserva el destino WIP y los lotes del origen. Consulta el seguimiento documental de la entrega." xml:space="preserve"><value>The delivery retains its WIP destination and original lots. See the delivery documentary tracking.</value></data>
+  <data name="Imprimir por entrada" xml:space="preserve"><value>Print by entry</value></data>
+  <data name="Cada entrada conserva sus placas. La etiqueta muestra la cantidad restante de cada pallet en STAGING." xml:space="preserve"><value>Each entry retains its plates. The label shows each pallet&apos;s remaining quantity in STAGING.</value></data>
+  <data name="Las entradas históricas se imprimen con la cantidad recibida registrada, siempre que haya saldo disponible en STAGING. No se aumenta el inventario." xml:space="preserve"><value>Historical entries print using their recorded received quantity, provided stock is available in STAGING. Inventory is not increased.</value></data>
+  <data name="Imprimir seleccionadas" xml:space="preserve"><value>Print selected</value></data>
+  <data name="No hay entradas vigentes para estos filtros." xml:space="preserve"><value>No current entries match these filters.</value></data>
+  <data name="Cantidad recibida" xml:space="preserve"><value>Received quantity</value></data>
+  <data name="Cantidad física de esta entrada en STAGING" xml:space="preserve"><value>Physical quantity of this entry in STAGING</value></data>
+  <data name="Confirmar cantidad e imprimir" xml:space="preserve"><value>Confirm quantity and print</value></data>
+  <data name="Sin placas disponibles en STAGING. Consulta el historial si ya se trasladaron o agotaron." xml:space="preserve"><value>No plates available in STAGING. Check the history if they have been moved or depleted.</value></data>
+  <data name="Páginas de entradas" xml:space="preserve"><value>Entry pages</value></data>
+  <data name="En STAGING selecciona Imprimir por entrada para conservar la identidad de cada pallet." xml:space="preserve"><value>In STAGING, select Print by entry to preserve each pallet&apos;s identity.</value></data>
+  <data name="Confirma una cantidad física positiva para esta entrada." xml:space="preserve"><value>Confirm a positive physical quantity for this entry.</value></data>
+  <data name="La impresión por entrada solo está disponible en el área STAGING." xml:space="preserve"><value>Printing by entry is only available in the STAGING area.</value></data>
+  <data name="La entrada no está vigente o no pertenece a STAGING." xml:space="preserve"><value>The entry is no longer current or does not belong to STAGING.</value></data>
+  <data name="La cantidad debe respetar la unidad y no superar lo recibido en esta entrada." xml:space="preserve"><value>The quantity must respect the unit and cannot exceed the quantity received in this entry.</value></data>
+  <data name="Esta entrada ya tiene placas. Consulta su cantidad y ubicación actuales." xml:space="preserve"><value>This entry already has plates. Check their current quantity and location.</value></data>
+  <data name="El producto tiene reservas pendientes. Concilia las reservas antes de separar entradas históricas." xml:space="preserve"><value>The product has pending reservations. Reconcile reservations before separating historical entries.</value></data>
+  <data name="La entrada no conserva lotes suficientes para identificarla. Revisa su historial antes de imprimir." xml:space="preserve"><value>The entry does not retain sufficient lot information for identification. Review its history before printing.</value></data>
+  <data name="El saldo disponible de los lotes de esta entrada no cubre la cantidad. Revisa las placas, reservas y salidas." xml:space="preserve"><value>The available stock in this entry&apos;s lots does not cover the quantity. Review plates, reservations and withdrawals.</value></data>
+  <data name="El saldo o las placas cambiaron. Consulta nuevamente la entrada." xml:space="preserve"><value>Stock or plates changed. Reload the entry.</value></data>
+  <data name="No fue posible identificar la entrada. Consulta nuevamente." xml:space="preserve"><value>The entry could not be identified. Reload it.</value></data>
+  <data name="Selecciona placas vigentes de entradas en STAGING. Consulta nuevamente si cambiaron." xml:space="preserve"><value>Select current plates for entries in STAGING. Reload if they changed.</value></data>
+  <data name="En STAGING no se pueden unir placas de entradas distintas." xml:space="preserve"><value>Plates from different entries cannot be merged in STAGING.</value></data>
+  <data name="Acomodar" xml:space="preserve"><value>Put away</value></data>
+  <data name="Acomodar cada llegada de material." xml:space="preserve"><value>Put away each material arrival.</value></data>
+  <data name="Acomodar llegada de staging" xml:space="preserve"><value>Put away staging arrival</value></data>
+  <data name="Acomodo registrado." xml:space="preserve"><value>Putaway recorded.</value></data>
+  <data name="Actualizar" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Cada llegada conserva su pendiente. Selecciona una para acomodarla." xml:space="preserve"><value>Each arrival keeps its remaining quantity. Select one to put it away.</value></data>
+  <data name="Cantidad física restante de esta llegada" xml:space="preserve"><value>Physical quantity remaining from this arrival</value></data>
+  <data name="Confirma únicamente el material de esta llegada que sigue en STAGING." xml:space="preserve"><value>Confirm only material from this arrival that is still in STAGING.</value></data>
+  <data name="Consulta nuevamente la llegada a STAGING." xml:space="preserve"><value>Reload the STAGING arrival.</value></data>
+  <data name="El pendiente de STAGING cambió. Vuelve a seleccionar la llegada." xml:space="preserve"><value>The STAGING quantity changed. Select the arrival again.</value></data>
+  <data name="Identificar material" xml:space="preserve"><value>Identify material</value></data>
+  <data name="Identificar y continuar" xml:space="preserve"><value>Identify and continue</value></data>
+  <data name="La llegada ya está identificada o no está vigente. Consulta nuevamente STAGING." xml:space="preserve"><value>The arrival is already identified or is no longer effective. Reload STAGING.</value></data>
+  <data name="Lista de staging" xml:space="preserve"><value>Staging list</value></data>
+  <data name="Llegada" xml:space="preserve"><value>Arrival</value></data>
+  <data name="No hay llegadas pendientes con estos filtros." xml:space="preserve"><value>There are no pending arrivals matching these filters.</value></data>
+  <data name="Producto o referencia" xml:space="preserve"><value>Product or reference</value></data>
+  <data name="Requiere identificación" xml:space="preserve"><value>Identification required</value></data>
+  <data name="Selecciona el destino para mover todo el pendiente de esta llegada." xml:space="preserve"><value>Select the destination for all remaining material from this arrival.</value></data>
+  <data name="Selecciona una ubicación de almacenamiento distinta de STAGING." xml:space="preserve"><value>Select a storage location other than STAGING.</value></data>
+  <data name="Ver llegada" xml:space="preserve"><value>View arrival</value></data>
+  <data name="La cantidad física no puede ser menor que el material ya identificado de esta llegada." xml:space="preserve"><value>The physical quantity cannot be less than the material already identified for this arrival.</value></data>
+  <data name="STAGING no está disponible. Selecciona otra ubicación destino" xml:space="preserve"><value>STAGING is unavailable. Select another destination location</value></data>
+  <data name="Lista de staging: {0} llegada pendiente de acomodo o identificación" xml:space="preserve"><value>Staging list: {0} arrival pending putaway or identification</value></data>
+  <data name="Lista de staging: {0} llegadas pendientes de acomodo o identificación" xml:space="preserve"><value>Staging list: {0} arrivals pending putaway or identification</value></data>
+  <data name="{0} pendiente" xml:space="preserve"><value>{0} pending</value></data>
+  <data name="{0} pendientes" xml:space="preserve"><value>{0} pending</value></data>
+  <data name="Ver llegada en staging" xml:space="preserve"><value>View staging arrival</value></data>
+  <data name="Registrar siguiente entrada" xml:space="preserve"><value>Record next entry</value></data>
+  <data name="Esta llegada ya no tiene material pendiente en STAGING" xml:space="preserve"><value>This arrival no longer has material pending in STAGING</value></data>
+  <data name="Ver todas las llegadas" xml:space="preserve"><value>View all arrivals</value></data>
+  <data name="Dividir en pallets o rollos" xml:space="preserve"><value>Split into pallets or rolls</value></data>
+  <data name="Distribución por pallet o rollo" xml:space="preserve"><value>Pallet or roll distribution</value></data>
+  <data name="Parte" xml:space="preserve"><value>Part</value></data>
+  <data name="Quitar parte" xml:space="preserve"><value>Remove part</value></data>
+  <data name="Agregar parte" xml:space="preserve"><value>Add part</value></data>
+  <data name="Total recibido" xml:space="preserve"><value>Total received</value></data>
+  <data name="Total distribuido" xml:space="preserve"><value>Total distributed</value></data>
+  <data name="Falta distribuir / Exceso" xml:space="preserve"><value>Remaining / Excess</value></data>
+  <data name="Distribuye la cantidad completa entre 2 y 100 partes válidas." xml:space="preserve"><value>Distribute the full quantity among 2 to 100 valid parts.</value></data>
+  <data name="La división solo está disponible para entradas a STAGING en modo staging." xml:space="preserve"><value>Splitting is only available for entries into STAGING in staging mode.</value></data>
+  <data name="Se desactivó la división porque el destino ya no es STAGING." xml:space="preserve"><value>Splitting was turned off because the destination is no longer STAGING.</value></data>
+  <data name="La placa tiene material reservado o preparado. Resuelve esas asignaciones antes de dividir." xml:space="preserve"><value>The plate has reserved or prepared material. Resolve those assignments before splitting.</value></data>
+  <data name="La composición por lote no cubre la placa. Consulta nuevamente el inventario." xml:space="preserve"><value>Lot composition does not cover the plate. Check inventory again.</value></data>
+  <data name="Dividir material" xml:space="preserve"><value>Split material</value></data>
+  <data name="La división conserva el inventario y sustituye una placa por nuevos folios." xml:space="preserve"><value>Splitting preserves inventory and replaces one plate with new plate numbers.</value></data>
+  <data name="División registrada" xml:space="preserve"><value>Split recorded</value></data>
+  <data name="Retira la etiqueta original. Usa los nuevos folios para mover el material." xml:space="preserve"><value>Remove the original label. Use the new plate numbers to move the material.</value></data>
+  <data name="Placa a dividir" xml:space="preserve"><value>Plate to split</value></data>
+  <data name="Selecciona una placa" xml:space="preserve"><value>Select a plate</value></data>
+  <data name="Seleccionar / recargar" xml:space="preserve"><value>Select / reload</value></data>
+  <data name="Revisar división" xml:space="preserve"><value>Review split</value></data>
+  <data name="Confirmar división" xml:space="preserve"><value>Confirm split</value></data>
+  <data name="La placa o la llegada cambió. Recarga antes de dividir." xml:space="preserve"><value>The plate or arrival changed. Reload before splitting.</value></data>
+  <data name="No fue posible dividir la placa. Consulta nuevamente." xml:space="preserve"><value>The plate could not be split. Check again.</value></data>
+  <data name="La placa fue dividida. Consulta sus nuevas placas en el seguimiento." xml:space="preserve"><value>The plate was split. View its new plates in tracking.</value></data>
+  <data name="Dividida" xml:space="preserve"><value>Split</value></data>
+  <data name="Creada por división" xml:space="preserve"><value>Created by splitting</value></data>
+  <data name="La llegada alcanzaría más de 1000 placas pendientes. Acomoda material antes de dividir." xml:space="preserve"><value>The arrival would exceed 1000 pending plates. Put material away before splitting.</value></data>
+  <data name="Grupo de impresión {0} de {1}" xml:space="preserve"><value>Print batch {0} of {1}</value></data>
+  <data name="Cantidad a dividir" xml:space="preserve"><value>Quantity to split</value></data>
+  <data name="Captura entre 2 y 100 partes válidas sin superar la cantidad máxima permitida." xml:space="preserve"><value>Enter 2 to 100 valid parts without exceeding the maximum allowed quantity.</value></data>
+  <data name="Antigüedad" xml:space="preserve"><value>Age</value></data>
+  <data name="Atender pronto" xml:space="preserve"><value>Attend soon</value></data>
+  <data name="Hace {0} día y {1} h" xml:space="preserve"><value>{0} day and {1} h ago</value></data>
+  <data name="Hace {0} días y {1} h" xml:space="preserve"><value>{0} days and {1} h ago</value></data>
+  <data name="Hace {0} h" xml:space="preserve"><value>{0} h ago</value></data>
+  <data name="Incluye todas las llegadas pendientes, sin aplicar los filtros." xml:space="preserve"><value>Includes all pending arrivals, regardless of filters.</value></data>
+  <data name="Limpiar filtros" xml:space="preserve"><value>Clear filters</value></data>
+  <data name="Menos de 1 h" xml:space="preserve"><value>Less than 1 h</value></data>
+  <data name="Normal" xml:space="preserve"><value>Normal</value></data>
+  <data name="Prioridad" xml:space="preserve"><value>Priority</value></data>
+  <data name="Prioridad por tiempo continuo: atender pronto desde 24 h; urgente desde 48 h." xml:space="preserve"><value>Priority uses elapsed time: attend soon from 24 h; urgent from 48 h.</value></data>
+  <data name="Resumen global de pendientes" xml:space="preserve"><value>Global pending summary</value></data>
+  <data name="Total pendiente" xml:space="preserve"><value>Total pending</value></data>
+  <data name="Urgente" xml:space="preserve"><value>Urgent</value></data>
+  <data name="Más acciones" xml:space="preserve"><value>More actions</value></data>
+<data name="Opcional: puedes elegir otra ubicación" xml:space="preserve"><value>Optional: you can choose another location</value></data>
+<data name="No hay ubicaciones sugeridas con stock. Busca o escanea un destino" xml:space="preserve"><value>No suggested locations with stock. Search or scan a destination</value></data>
+<data name="Ubicaciones sugeridas" xml:space="preserve"><value>Suggested locations</value></data>
+<data name="Saldo actual" xml:space="preserve"><value>Current balance</value></data>
 </root>

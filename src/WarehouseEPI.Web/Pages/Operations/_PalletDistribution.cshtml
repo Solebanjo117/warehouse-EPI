@@ -1,0 +1,45 @@
+@model WarehouseEPI.Web.Pages.Operations.PalletDistributionEditor
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
+@using System.Globalization
+<div class="mt-3" data-pallet-distribution data-optional="@Model.Optional.ToString().ToLowerInvariant()"
+     data-calculate-total="@Model.CalculateTotal.ToString().ToLowerInvariant()"
+     data-total="@Model.Total.ToString(CultureInfo.InvariantCulture)" data-unit="@Model.Unit" data-decimals="@Model.AllowsDecimals.ToString().ToLowerInvariant()"
+     data-part-label="@OpTexts["Parte"]" data-remove-label="@OpTexts["Quitar parte"]"
+     data-invalid="@OpTexts[Model.CalculateTotal ? "Captura entre 2 y 100 partes válidas sin superar la cantidad máxima permitida." : "Distribuye la cantidad completa entre 2 y 100 partes válidas."]"
+     data-destination-warning="@OpTexts["Se desactivó la división porque el destino ya no es STAGING."]">
+    @if (Model.Optional)
+    {
+        <label class="form-check d-flex gap-2 align-items-center py-2">
+            <input class="form-check-input" type="checkbox" name="Distribution.Enabled" value="true" checked="@Model.Input.Enabled" data-distribution-toggle />
+            <span>@OpTexts["Dividir en pallets o rollos"]</span>
+        </label>
+    }
+    else { <input type="hidden" name="Distribution.Enabled" value="true" /> }
+    <p role="status" aria-live="polite" data-distribution-warning class="text-warning-emphasis"></p>
+    <fieldset data-distribution-fields class="@(Model.Optional && !Model.Input.Enabled ? "d-none" : null)">
+        <legend class="h6">@OpTexts["Distribución por pallet o rollo"]</legend>
+        <div data-distribution-rows class="d-grid gap-2">
+        @for (var i = 0; i < Model.Input.Quantities.Count; i++)
+        {
+            <div class="d-flex gap-2 align-items-end" data-distribution-row>
+                <label class="flex-grow-1"> <span data-part-label>@OpTexts["Parte"] @(i + 1)</span>
+                    <input class="form-control form-control-lg" type="number" inputmode="decimal" min="0.0001" step="0.0001"
+                           name="Distribution.Quantities[@i]" value="@Model.Input.Quantities[i]?.ToString(CultureInfo.InvariantCulture)" data-part-quantity />
+                </label>
+                <span class="pb-2" data-part-unit>@Model.Unit</span>
+                <button type="button" class="btn btn-outline-secondary btn-lg" data-remove-part>@OpTexts["Quitar parte"]</button>
+            </div>
+        }
+        </div>
+        <button type="button" class="btn btn-outline-primary btn-lg mt-2" data-add-part>@OpTexts["Agregar parte"]</button>
+        <dl class="row mt-3 mb-0" aria-live="polite">
+            <dt class="col-7">@OpTexts[Model.Optional ? "Total recibido" : "Cantidad a dividir"]</dt><dd class="col-5" data-distribution-total></dd>
+            @if (!Model.CalculateTotal)
+            {
+            <dt class="col-7">@OpTexts["Total distribuido"]</dt><dd class="col-5" data-distribution-sum></dd>
+            <dt class="col-7">@OpTexts["Falta distribuir / Exceso"]</dt><dd class="col-5" data-distribution-difference></dd>
+            }
+        </dl>
+        <p class="text-danger" data-distribution-error role="status"></p>
+    </fieldset>
+</div>

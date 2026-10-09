@@ -49,6 +49,8 @@ public sealed class PalletLicensePlateService(WarehouseDbContext db)
             .SingleOrDefaultAsync(x => x.Id == movementId, token);
         if (plate is not null)
         {
+            if (await db.PalletPlateEvents.AnyAsync(e => e.PlateId == plate.Id && e.Kind == "StagingSplitSource", token))
+                return new(PalletLicensePlateStatus.NotEligible, Error: "La placa fue dividida. Consulta sus nuevas placas en el seguimiento.");
             if (plate.IsVoided) return new(PalletLicensePlateStatus.NotEligible, Error: "La placa fue anulada. Consulta su historial.");
             var origin = plate.OriginMovementId.HasValue
                 ? await db.InventoryMovements.AsNoTracking().Include(x => x.ResponsibleUser).SingleOrDefaultAsync(x => x.Id == plate.OriginMovementId, token)

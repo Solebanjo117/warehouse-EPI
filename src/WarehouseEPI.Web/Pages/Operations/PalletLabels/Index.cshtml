@@ -17,7 +17,33 @@
         <div asp-validation-summary="All" class="alert alert-danger no-label-print mt-3" role="alert"></div>
     }
     @if (Model.SearchError is not null) { <div class="alert alert-warning no-label-print mt-3" role="alert">@Model.SearchError</div> }
+    @if (Model.SelectedArrival is { } arrival)
+    {
+        <section class="operation-card no-label-print mt-3" data-staging-arrival="@arrival.LineId">
+            <h2 class="h5">@arrival.Sku · @arrival.Description</h2>
+            @if (arrival.NeedsIdentification)
+            {
+                <p role="status">@OpTexts["Requiere identificación"]</p>
+            }
+            else if (arrival.Pending <= 0)
+            {
+                <p role="status">@OpTexts["Esta llegada ya no tiene material pendiente en STAGING"]</p>
+            }
+            <div class="d-flex flex-wrap gap-2">
+                @if (Model.ArrivalBatchCount > 1)
+                {
+                    <span>@OpTexts["Grupo de impresión {0} de {1}", Model.ArrivalBatch, Model.ArrivalBatchCount]</span>
+                    @if (Model.ArrivalBatch > 1) { <a asp-page-handler="StagingArrival" asp-route-arrivalLineId="@arrival.LineId" asp-route-arrivalBatch="@(Model.ArrivalBatch - 1)" class="btn btn-outline-secondary btn-lg">@OpTexts["Anterior"]</a> }
+                    @if (Model.ArrivalBatch < Model.ArrivalBatchCount) { <a asp-page-handler="StagingArrival" asp-route-arrivalLineId="@arrival.LineId" asp-route-arrivalBatch="@(Model.ArrivalBatch + 1)" class="btn btn-outline-secondary btn-lg">@OpTexts["Siguiente"]</a> }
+                }
+                <a asp-page="/Operations/Staging/Index" asp-route-arrivalLineId="@arrival.LineId" class="btn btn-outline-primary btn-lg">@OpTexts["Ver llegada en staging"]</a>
+                <a asp-page="Tracking" asp-route-OriginId="@arrival.MovementId" class="btn btn-outline-secondary btn-lg">@OpTexts["Ver placas de esta operación"]</a>
+            </div>
+        </section>
+    }
 
+    @if (Model.SelectedArrival is null)
+    {
     <section class="operation-card no-label-print mt-3" aria-labelledby="recent-movements-title">
         <div class="d-flex flex-wrap align-items-end justify-content-between gap-2 mb-3">
             <div><span class="label-eyebrow">@OpTexts["Actividad del almacén"]</span><h2 id="recent-movements-title" class="h4 mb-1">@OpTexts["Últimos 10 movimientos"]</h2><p class="text-body-secondary mb-0">@OpTexts["Historial general de todas las ubicaciones."]</p></div>
@@ -44,7 +70,12 @@
                             <td data-label="@OpTexts["Responsable"]">@movement.ResponsibleName</td>
                             <td data-label="@OpTexts["Estado"]">@OpTexts[movement.Status]</td>
                             <td data-label="">
-                                @if (recent.PrintablePlates.Count == 0)
+                                @if (recent.IsStagingEntry)
+                                {
+                                    <a asp-page="Index" asp-page-handler="StagingEntry" asp-route-movementId="@movement.Id"
+                                       class="btn btn-outline-primary btn-sm text-nowrap" asp-fragment="label-preview">@OpTexts["Imprimir por entrada"]</a>
+                                }
+                                else if (recent.PrintablePlates.Count == 0)
                                 {
                                     <form method="post" asp-page-handler="PrepareMovementPrint">
                                         <input type="hidden" name="MovementPrint.OperationId" value="@Guid.NewGuid()" />
@@ -133,7 +164,14 @@
         </div>
     </section>
 
-    @if (Model.SelectedLocation is not null)
+    @if (Model.IsStaging)
+    {
+        @if (Model.Preview is null)
+        {
+            <partial name="_StagingEntries" model="Model" />
+        }
+    }
+    else if (Model.SelectedLocation is not null)
     {
         var displayProducts = Model.Products.Where(x => Model.SelectedProduct is null || x.ProductId == Model.SelectedProduct.Id).ToArray();
         <section class="label-form-card no-label-print mt-3" data-pallet-products>
@@ -191,7 +229,7 @@
         <summary class="h5">@OpTexts["Consultar o reimprimir una placa"]</summary>
         <form method="get" class="input-group input-group-lg mt-3"><input name="folio" class="form-control" value="@Model.Entry?.Identifier" autocomplete="off" placeholder="PLT-UUID" /><button class="btn btn-outline-primary">@OpTexts["Buscar"]</button></form>
     </details>
-
+    }
     @if (Model.Entry is not null)
     {
         <section class="operation-card no-label-print mt-3"><div class="receipt-meta"><div><span>@OpTexts["Placa"]</span><strong>@Model.Entry.Identifier</strong></div><div><span>@OpTexts["Producto"]</span><strong>@Model.Entry.Sku</strong></div><div><span>@OpTexts["Cantidad"]</span><strong>@Model.Entry.Quantity.ToString("0.####") @Model.Entry.UnitCode</strong></div><div><span>@OpTexts["Destino"]</span><strong>@(Model.Entry.Destination ?? "—")</strong></div><div><span>@OpTexts["Fecha"]</span><strong>@(Model.EntryLocalTime?.ToString("dd/MM/yyyy HH:mm") ?? "—")</strong></div><div><span>@OpTexts["Responsable"]</span><strong>@Model.Entry.Responsible</strong></div></div></section>
@@ -202,7 +240,7 @@
     {
         <section id="label-preview" class="label-preview-section"><header class="label-preview-toolbar no-label-print"><div><span class="label-eyebrow">@Model.Preview.TemplateCode · v@Model.Preview.TemplateVersion</span><h2 class="h4 mb-1">@OpTexts["Lista para imprimir"]</h2><p class="text-body-secondary mb-0">@OpTexts["La impresión sigue siendo una acción explícita."]</p></div><button type="button" class="btn btn-primary btn-lg" data-label-print>@OpTexts["Imprimir placas"]</button></header>
         @if (Model.PrintWarnings.Count > 0) { <div class="alert alert-warning no-label-print mt-3"><ul class="mb-0">@foreach (var warning in Model.PrintWarnings) { <li>@warning</li> }</ul></div> }
-        <div class="label-print-pages" data-label-print-pages>@for (var copy = 1; copy <= Model.Preview.Copies; copy++) { <article class="label-dynamic" data-label-copy="@copy" style="--label-width:@(Model.Preview.Size.WidthInches.ToString(CultureInfo.InvariantCulture))in;--label-height:@(Model.Preview.Size.HeightInches.ToString(CultureInfo.InvariantCulture))in">@foreach (var item in Model.Preview.Elements) { var e=item.Definition; var left=e.X*100m/Model.Preview.Size.WidthMils; var top=e.Y*100m/Model.Preview.Size.HeightMils; var width=e.Width*100m/Model.Preview.Size.WidthMils; var height=e.Height*100m/Model.Preview.Size.HeightMils;<div class="label-element label-element-@e.Type.ToString().ToLowerInvariant()" style="left:@(left.ToString(CultureInfo.InvariantCulture))%;top:@(top.ToString(CultureInfo.InvariantCulture))%;width:@(width.ToString(CultureInfo.InvariantCulture))%;height:@(height.ToString(CultureInfo.InvariantCulture))%;transform:rotate(@(e.Rotation)deg);z-index:@e.ZIndex;font-family:'@e.FontFamily';font-size:@(e.FontSize)pt;font-weight:@(e.Bold?700:400);color:@e.Color;background-color:@(e.Type==LabelElementType.Rectangle?e.BackgroundColor:"transparent");border-width:@(e.Type==LabelElementType.Rectangle?e.BorderWidth:0)px;text-align:@e.Align">@if (item.Barcode is not null) { @Html.Raw(item.Barcode.Markup) } else if (item.ImageUrl is not null) { <img src="@item.ImageUrl" alt="Extra Packaging, LLC"/> } else if (e.Type == LabelElementType.Line) { <span class="label-line"></span> } else { @item.Text }</div> }</article> }</div></section>
+        <div class="label-print-pages" data-label-print-pages>@foreach (var document in Model.BatchPreviews.Count > 0 ? Model.BatchPreviews : new List<LabelRenderDocument> { Model.Preview }) { @for (var copy = 1; copy <= document.Copies; copy++) { <article class="label-dynamic" data-label-copy="@copy" style="--label-width:@(document.Size.WidthInches.ToString(CultureInfo.InvariantCulture))in;--label-height:@(document.Size.HeightInches.ToString(CultureInfo.InvariantCulture))in">@foreach (var item in document.Elements) { var e=item.Definition; var left=e.X*100m/document.Size.WidthMils; var top=e.Y*100m/document.Size.HeightMils; var width=e.Width*100m/document.Size.WidthMils; var height=e.Height*100m/document.Size.HeightMils;<div class="label-element label-element-@e.Type.ToString().ToLowerInvariant()" style="left:@(left.ToString(CultureInfo.InvariantCulture))%;top:@(top.ToString(CultureInfo.InvariantCulture))%;width:@(width.ToString(CultureInfo.InvariantCulture))%;height:@(height.ToString(CultureInfo.InvariantCulture))%;transform:rotate(@(e.Rotation)deg);z-index:@e.ZIndex;font-family:'@e.FontFamily';font-size:@(e.FontSize)pt;font-weight:@(e.Bold?700:400);color:@e.Color;background-color:@(e.Type==LabelElementType.Rectangle?e.BackgroundColor:"transparent");border-width:@(e.Type==LabelElementType.Rectangle?e.BorderWidth:0)px;text-align:@e.Align">@if (item.Barcode is not null) { @Html.Raw(item.Barcode.Markup) } else if (item.ImageUrl is not null) { <img src="@item.ImageUrl" alt="Extra Packaging, LLC"/> } else if (e.Type == LabelElementType.Line) { <span class="label-line"></span> } else { @item.Text }</div> }</article> } }</div></section>
     }
 </div>
 

@@ -224,4 +224,10 @@
   <data name="Draft" xml:space="preserve"><value>Draft</value></data>
   <data name="Open" xml:space="preserve"><value>Open</value></data>
   <data name="Closed" xml:space="preserve"><value>Closed</value></data>
+  <data name="Acomodar cada llegada de material." xml:space="preserve"><value>Put away each material arrival.</value></data>
+  <data name="Lista de staging" xml:space="preserve"><value>Staging list</value></data>
+  <data name="Recibir en STAGING" xml:space="preserve"><value>Receive in STAGING</value></data>
+  <data name="Registrar una entrada con destino STAGING" xml:space="preserve"><value>Record an entry into STAGING</value></data>
+  <data name="{0} llegada pendiente de acomodo o identificación" xml:space="preserve"><value>{0} arrival pending putaway or identification</value></data>
+  <data name="{0} llegadas pendientes de acomodo o identificación" xml:space="preserve"><value>{0} arrivals pending putaway or identification</value></data>
 </root>

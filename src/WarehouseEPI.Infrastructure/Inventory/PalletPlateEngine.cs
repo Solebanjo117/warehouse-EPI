@@ -75,8 +75,12 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         IReadOnlyList<ProductLot> lots, ProductLot daily, bool allowsDecimals, bool allowReservedWip, Guid? ownSupplyLineId, CancellationToken token)
     {
         var locationIds = InventoryMovementRules.GetLocations(command, movement.Type).ToArray();
+        var stagingIds = await db.Locations.Where(x => locationIds.Contains(x.Id) && x.Kind == LocationKind.Area &&
+            x.Code == "STAGING" && x.OperationalRole != LocationOperationalRole.Wip).Select(x => x.Id).ToListAsync(token);
         var plates = await db.PalletPlates.Include(x => x.Lots)
             .Where(x => x.ProductId == command.ProductId && locationIds.Contains(x.LocationId) && !x.IsVoided).ToListAsync(token);
+        var dividedIds = await db.PalletPlateEvents.Where(e => e.Kind == "StagingSplitSource" &&
+            e.Plate.ProductId == command.ProductId && locationIds.Contains(e.Plate.LocationId)).Select(e => e.PlateId).ToListAsync(token);
         // Include plates created earlier in a multi-line transaction.
         plates = plates.Concat(db.PalletPlates.Local.Where(x => x.ProductId == command.ProductId && locationIds.Contains(x.LocationId) && !x.IsVoided))
             .DistinctBy(x => x.Id).ToList();
@@ -87,6 +91,7 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         }
         PalletPlate Find(Guid id, Guid location, long? version)
         {
+            if (dividedIds.Contains(id)) throw new PalletPlateException("La placa fue dividida. Consulta sus nuevas placas en el seguimiento.");
             var p = plates.SingleOrDefault(x => x.Id == id && x.LocationId == location);
             if (p is null) throw new PalletPlateException("La placa no pertenece al producto y ubicación seleccionados o fue anulada.");
             var changedInThisMovement = db.PalletPlateEvents.Local.Any(e => e.PlateId == p.Id && e.MovementId == movement.Id);
@@ -111,9 +116,10 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
         }
         if (movement.Type == InventoryMovementType.Entry)
         {
-            // Older integrations can still receive unplated stock. All updated entry forms
-            // explicitly send their distribution (one pallet by default).
-            if (command.PalletQuantities is null && !command.AutomaticPalletHandling)
+            // STAGING preserves entry identity even for callers that do not send a distribution.
+            // Other locations keep their existing opt-in plate behavior.
+            if (command.PalletQuantities is null && !command.AutomaticPalletHandling &&
+                !stagingIds.Contains(command.DestinationLocationId!.Value))
             {
                 InventoryLotEngine.ApplyTrackedLine(movement.Type, command, line, balances, lots, daily, movement.RecordedAt);
                 return;
@@ -144,7 +150,8 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
                 .Select(x => x.PlatesJson).ToListAsync(token);
             var preparedCounts = preparedCountsJson.SelectMany(x => JsonSerializer.Deserialize<List<PalletSelection>>(x) ?? [])
                 .GroupBy(x => x.PlateId).ToDictionary(x => x.Key, x => x.Sum(y => y.Quantity));
-            if (command.AutomaticPalletHandling && existing.Length > 1)
+            var preserveEntries = stagingIds.Contains(command.LocationId!.Value);
+            if (command.AutomaticPalletHandling && existing.Length > 1 && !preserveEntries)
             {
                 var secondaryIds = existing.Skip(1).Select(x => x.Id).ToArray();
                 if (secondaryIds.Any(id => preparedCounts.GetValueOrDefault(id) > 0 || reservedCounts.Keys.Any(key => key.PlateId == id)))
@@ -161,7 +168,9 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
                     }
                 }
             }
-            IReadOnlyList<PalletSelection> counts = command.AutomaticPalletHandling && existing.Length > 0
+            IReadOnlyList<PalletSelection> counts = command.AutomaticPalletHandling && preserveEntries
+                ? []
+                : command.AutomaticPalletHandling && existing.Length > 0
                 ? [new(existing[0].Id, command.Quantity, existing[0].Version)]
                 : command.PlateCounts ?? [];
             var deltas = new Dictionary<Guid, decimal>();
@@ -295,7 +304,8 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
             PalletPlate? target = null;
             if (movement.Type == InventoryMovementType.Transfer && command.DestinationPlateId is Guid targetId)
             { target = Find(targetId, command.DestinationLocationId!.Value, command.ExpectedDestinationPlateVersion); Touch(target); }
-            else if (movement.Type == InventoryMovementType.Transfer && command.AutomaticPalletHandling && parts.Count > 0)
+            else if (movement.Type == InventoryMovementType.Transfer && command.AutomaticPalletHandling && parts.Count > 0 &&
+                !stagingIds.Contains(command.DestinationLocationId!.Value))
             {
                 target = plates.Where(x => x.LocationId == command.DestinationLocationId && x.Quantity > 0)
                     .OrderBy(x => x.CreatedAt).ThenBy(x => x.Identifier).ThenBy(x => x.Id).FirstOrDefault();
@@ -303,6 +313,8 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
             }
             foreach (var part in parts)
             {
+                if (target is not null && stagingIds.Contains(target.LocationId))
+                    throw new PalletPlateException("En STAGING no se pueden unir placas de entradas distintas.");
                 Touch(part.Plate);
                 if (movement.Type == InventoryMovementType.Transfer && target is null && part.Quantity == part.Plate.Quantity && part.Plate.Quantity > 0 &&
                     part.Lots.OrderBy(x => x.LotId).SequenceEqual(part.Plate.Lots.Where(x => x.Quantity != 0).Select(x => new InventoryLotSelection(x.LotId, x.Quantity)).OrderBy(x => x.LotId)))
@@ -315,8 +327,17 @@ internal sealed class PalletPlateEngine(WarehouseDbContext db)
                     { Change(part.Plate, a.LotId, -a.Quantity); if (destination is not null) Change(destination, a.LotId, a.Quantity); }
                 }
             }
-            // The unplated part of a transfer stays unplated at destination. Only quantities
-            // that already belonged to a plate may preserve, split or merge their identity.
+            // A new arrival in STAGING must also identify the unplated portion, without changing balances.
+            if (movement.Type == InventoryMovementType.Transfer && unplated > 0 && stagingIds.Contains(command.DestinationLocationId!.Value))
+            {
+                var arrivalPlate = NewPlate(command.DestinationLocationId.Value);
+                foreach (var allocation in selectedLots)
+                {
+                    var identified = parts.SelectMany(p => p.Lots).Where(l => l.LotId == allocation.LotId).Sum(l => l.Quantity);
+                    var remainder = allocation.Quantity - identified;
+                    if (remainder != 0) Change(arrivalPlate, allocation.LotId, remainder);
+                }
+            }
         }
         foreach (var item in touched.Values)
             Record(item.Plate, item.Before, movement.OperationId, movement.ResponsibleUserId, movement.RecordedAt,

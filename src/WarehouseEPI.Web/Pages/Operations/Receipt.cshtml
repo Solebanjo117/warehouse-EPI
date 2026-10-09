@@ -127,6 +127,20 @@
                 <p class="text-muted">@line.ProductDescription</p>
             }
             <p class="receipt-quantity"><strong>@line.Quantity.ToString("0.####") @line.UnitCode</strong></p>
+            @if (Model.StagingArrivals.TryGetValue(line.LineId, out var arrival))
+            {
+                <div class="d-flex flex-wrap gap-2 mb-3" data-staging-arrival="@line.LineId">
+                    @if (arrival.NeedsIdentification || arrival.Pending > 0)
+                    {
+                        <a asp-page="/Operations/PalletLabels/Index" asp-page-handler="StagingArrival" asp-route-arrivalLineId="@line.LineId" asp-fragment="label-preview" class="btn btn-outline-primary btn-lg">@OpTexts["Imprimir placas"]</a>
+                    }
+                    <a asp-page="/Operations/Staging/Index" asp-route-arrivalLineId="@line.LineId" class="btn btn-outline-primary btn-lg">@OpTexts["Ver llegada en staging"]</a>
+                </div>
+                @if (!arrival.NeedsIdentification && arrival.Pending <= 0)
+                {
+                    <p role="status">@OpTexts["Esta llegada ya no tiene material pendiente en STAGING"]</p>
+                }
+            }
             @if (line.SourceLocationCode is not null || line.DestinationLocationCode is not null)
             {
                 <p class="receipt-route"><strong>@(line.SourceLocationCode ?? "—")</strong><span aria-hidden="true"> → </span><strong>@(line.DestinationLocationCode ?? Model.Receipt.OperationalAreaCode ?? "—")</strong></p>
@@ -154,13 +168,17 @@
     {
         <section class="operation-card"><strong>@OpTexts["Observaciones / motivo"]</strong><p class="mb-0 mt-1">@Model.Receipt.Notes</p></section>
     }
-    @if (canGeneratePalletPlate)
+    @if (canGeneratePalletPlate && !(Model.Receipt.Lines.Count == 1 && Model.StagingArrivals.Count == 1))
     {
         <div class="operation-actions"><a class="btn btn-outline-primary btn-lg" asp-page="/Operations/PalletLabels/Index" asp-route-id="@Model.Receipt.MovementId">@OpTexts["Identificar pallet"]</a></div>
     }
 
     <div class="operation-actions">
         <a asp-page="/Index" class="btn btn-outline-secondary btn-lg">@OpTexts["Menú"]</a>
-        @if(Model.Receipt.Purpose != InventoryMovementPurpose.ProductionReceipt) { <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">@OpTexts["Nueva operación"]</a> }
+        @if (Model.StagingArrivals.Count > 0)
+        {
+            <a asp-page="/Operations/Entry" asp-route-mode="staging" class="btn btn-primary btn-lg flex-grow-1">@OpTexts["Registrar siguiente entrada"]</a>
+        }
+        @if(Model.Receipt.Purpose != InventoryMovementPurpose.ProductionReceipt && !(Model.Receipt.Purpose == InventoryMovementPurpose.Standard && Model.StagingArrivals.Count > 0)) { <a asp-page="@newPage" asp-route-mode="@newMode" class="btn btn-primary btn-lg flex-grow-1">@OpTexts["Nueva operación"]</a> }
     </div>
 </div>

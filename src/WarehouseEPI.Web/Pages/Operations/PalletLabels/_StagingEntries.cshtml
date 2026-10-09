@@ -1,0 +1,70 @@
+@model WarehouseEPI.Web.Pages.Operations.PalletLabels.IndexModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
+
+<section class="label-form-card no-label-print mt-3" id="staging-entries" aria-labelledby="staging-title">
+    <h2 id="staging-title" class="h5">@OpTexts["Imprimir por entrada"] · STAGING</h2>
+    <p>@OpTexts["Cada entrada conserva sus placas. La etiqueta muestra la cantidad restante de cada pallet en STAGING."]</p>
+    <p class="text-body-secondary">@OpTexts["Las entradas históricas se imprimen con la cantidad recibida registrada, siempre que haya saldo disponible en STAGING. No se aumenta el inventario."]</p>
+    <form method="post" asp-page-handler="PrintStagingSelection" id="staging-print-selection" class="mb-3">
+        <input type="hidden" name="Staging.LocationId" value="@Model.SelectedLocation!.Id" />
+        <button type="submit" class="btn btn-primary btn-lg">@OpTexts["Imprimir seleccionadas"]</button>
+    </form>
+    @if (Model.StagingEntries.Items.Count == 0)
+    {
+        <p role="status">@OpTexts["No hay entradas vigentes para estos filtros."]</p>
+    }
+    <div class="d-grid gap-3">
+    @foreach (var entry in Model.StagingEntries.Items)
+    {
+        <article class="operation-card">
+            <h3 class="h6">@entry.Sku · @Model.StagingTimes[entry.MovementId].ToString("dd/MM/yyyy HH:mm")</h3>
+            <dl class="row mb-2">
+                <dt class="col-sm-3">@OpTexts["Entrada"]</dt><dd class="col-sm-9 text-break">@entry.MovementId</dd>
+                <dt class="col-sm-3">@OpTexts["Cantidad recibida"]</dt><dd class="col-sm-9">@entry.Received.ToString("0.####") @entry.UnitCode</dd>
+                <dt class="col-sm-3">@OpTexts["Referencia"]</dt><dd class="col-sm-9 text-break">@(entry.Reference ?? "—")</dd>
+                <dt class="col-sm-3">@OpTexts["Responsable"]</dt><dd class="col-sm-9">@entry.Responsible</dd>
+            </dl>
+            @if (entry.NeedsIdentification)
+            {
+                <form method="post" asp-page-handler="IdentifyStagingEntry">
+                    <input type="hidden" name="Staging.OperationId" value="@Guid.NewGuid()" />
+                    <input type="hidden" name="Staging.MovementId" value="@entry.MovementId" />
+                    <input type="hidden" name="Staging.LocationId" value="@Model.SelectedLocation!.Id" />
+                    <button type="submit" class="btn btn-outline-primary">@OpTexts["Imprimir por entrada"]</button>
+                </form>
+            }
+            else if (entry.Plates.Count == 0)
+            {
+                <p class="mb-0">@OpTexts["Sin placas disponibles en STAGING. Consulta el historial si ya se trasladaron o agotaron."]</p>
+            }
+            else
+            {
+                @foreach (var plate in entry.Plates)
+                {
+                    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+                        <label class="d-flex gap-2 align-items-center py-2 text-break" for="plate-@plate.Id">
+                            <input id="plate-@plate.Id" class="form-check-input" type="checkbox" name="Staging.PlateIds" value="@plate.Id" form="staging-print-selection" />
+                            <span>@plate.Identifier · <strong>@plate.Quantity.ToString("0.####") @entry.UnitCode</strong></span>
+                        </label>
+                        <form method="post" asp-page-handler="PrintStagingSelection">
+                            <input type="hidden" name="Staging.LocationId" value="@Model.SelectedLocation!.Id" />
+                            <input type="hidden" name="Staging.PlateIds" value="@plate.Id" />
+                            <button class="btn btn-outline-primary btn-lg" type="submit">@OpTexts["Imprimir placa"]</button>
+                        </form>
+                    </div>
+                }
+            }
+        </article>
+    }
+    </div>
+    <nav class="d-flex gap-2 mt-3" aria-label="@OpTexts["Páginas de entradas"]">
+        @if (Model.EntryPage > 1)
+        {
+            <a class="btn btn-outline-secondary btn-lg" asp-page="Index" asp-route-location="STAGING" asp-route-productId="@Model.SelectedProduct?.Id" asp-route-entryPage="@(Model.EntryPage - 1)" asp-fragment="staging-entries">@OpTexts["Anterior"]</a>
+        }
+        @if (Model.StagingEntries.HasMore)
+        {
+            <a class="btn btn-outline-secondary btn-lg" asp-page="Index" asp-route-location="STAGING" asp-route-productId="@Model.SelectedProduct?.Id" asp-route-entryPage="@(Model.EntryPage + 1)" asp-fragment="staging-entries">@OpTexts["Siguiente"]</a>
+        }
+    </nav>
+</section>

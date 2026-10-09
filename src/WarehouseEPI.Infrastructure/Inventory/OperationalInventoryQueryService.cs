@@ -73,7 +73,8 @@ public sealed record InventoryReceiptLine(
     string? DestinationLocationCode,
     decimal? PreviousQuantity,
     decimal? AdjustmentDelta,
-    IReadOnlyList<InventoryReceiptChange> Changes);
+    IReadOnlyList<InventoryReceiptChange> Changes,
+    Guid LineId = default);
 
 public sealed record InventoryReceipt(
     Guid MovementId,
@@ -367,7 +368,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
                         change.Location.Code,
                         change.PreviousQuantity,
                         change.DeltaQuantity,
-                        change.ResultingQuantity)).ToArray())).ToArray(), correction);
+                        change.ResultingQuantity)).ToArray(), line.Id)).ToArray(), correction);
     }
 
     private IQueryable<Product> ProductQuery(bool activeOnly)

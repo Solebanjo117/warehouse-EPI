@@ -1,0 +1,27 @@
+@model WarehouseEPI.Web.Pages.Operations.OperationPageModel
+@inject Microsoft.Extensions.Localization.IStringLocalizer<WarehouseEPI.Web.Localization.OperationsTexts> OpTexts
+@if (Model.ShowDestinationProposals)
+{
+    <section class="relationship-panel mt-3" aria-labelledby="destination-proposals-title" data-destination-proposals>
+        <h3 class="h6" id="destination-proposals-title">@OpTexts["Ubicaciones sugeridas"]</h3>
+        <p class="form-text">@OpTexts["Opcional: puedes elegir otra ubicación"]</p>
+        @if (Model.DestinationProposals.Count == 0)
+        {
+            <p class="mb-0">@OpTexts["No hay ubicaciones sugeridas con stock. Busca o escanea un destino"]</p>
+        }
+        else
+        {
+            <div class="relationship-choices destination-proposals-list">
+                @foreach (var proposal in Model.DestinationProposals)
+                {
+                    <button type="button" class="relationship-choice" data-destination-proposal
+                            data-location-id="@proposal.Id" data-location-code="@proposal.Code" data-location-description="@proposal.Description">
+                        <strong>@proposal.Code</strong>
+                        @if (!string.IsNullOrWhiteSpace(proposal.Description)) { <small class="relationship-description">@proposal.Description</small> }
+                        <small>@OpTexts["Saldo actual"]: @proposal.Quantity.ToString("0.####") @Model.SelectedProduct?.UnitCode</small>
+                    </button>
+                }
+            </div>
+        }
+    </section>
+}

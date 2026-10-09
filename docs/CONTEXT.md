@@ -1,5 +1,40 @@
 # Contexto del proyecto Warehouse EPI
 
+## Lista de staging por llegada (7 de octubre de 2026)
+
+Operaciones enlaza a `/Operations/Staging`. Cada línea de entrada o transferencia
+vigente hacia el área STAGING mantiene su pendiente separado. La consulta usa los
+eventos de ingreso de las placas, no únicamente su movimiento de origen; salir y
+regresar genera una llegada nueva. Los traslados nuevos identifican también su
+porción sin placa al llegar a STAGING, sin duplicar saldos ni alterar otras áreas.
+No se permite consolidar distintas llegadas mediante una placa destino en STAGING.
+
+`Staging/Putaway` reutiliza el formulario guiado: producto, origen y cantidad fijos,
+destino por sugerencias/teclado/HID/cámara, revisión y NIP. `ConfirmStagingAsync`
+revalida la llegada y sus placas dentro de la transacción, conserva reservas,
+ubicación compartida y reintentos idempotentes, y regresa al listado con comprobante.
+Los históricos sin identidad suficiente muestran «Requiere identificación» y
+solicitan cantidad física; la recuperación preserva lotes, saldo y otras llegadas.
+No hay migración ni actualización masiva de históricos.
+
+Pruebas focales: `StagingArrivalTests`, `StagingArrivalRouteTests`,
+`StagingArrivalPostgreSqlTests` y `tests/javascript/staging-arrivals.browser.cjs`.
+La prueba web exporta fixtures Razor a `artifacts/staging-ui/fixtures`; el navegador
+los revisa en 768, 1024 y 1440 px, claro/oscuro, sin escribir en una base operativa.
+
+Validación de esta implementación: 132 pruebas de regresión aprobadas, seguidas
+por una pasada focal final `Passed: 46, Failed: 0, Skipped: 0` y 12 combinaciones
+visuales ES/EN × claro/oscuro × ancho. Informe focal:
+`artifacts/staging-validation/staging-final.trx`. Comando ejecutado:
+
+```powershell
+dotnet test tests/WarehouseEPI.Tests/WarehouseEPI.Tests.csproj --filter 'FullyQualifiedName~PalletTrackingTests|FullyQualifiedName~StagingArrivalRouteTests' --no-restore --verbosity minimal -m:1 -p:UseSharedCompilation=false -p:UseAppHost=false -p:OutputPath=bin/StagingValidation/ --logger 'trx;LogFileName=staging-final.trx' --results-directory artifacts/staging-validation
+```
+
+Las dos pruebas nuevas de concurrencia PostgreSQL no pudieron iniciar: el usuario
+configurado no es propietario de `warehouse_epi_test` (42501). No se cambiaron
+permisos ni bases operativas. Lector/cámara físicos y despliegue quedan pendientes.
+
 ## Importación de salidas a WIP (5 de octubre de 2026)
 
 La sección WIP enlaza a `/Admin/Inventory/WipImport` para importar `TRANSFER LOG`
@@ -3103,6 +3138,7 @@ una salida de almacén con destino informativo WIP. Uso, merma y devoluciones
 se aplican a documentos comunes con producción. Véase [WIP documental](WIP_DOCUMENTARY.md)
 para persistencia, restricciones, conversión ADMIN y procedimiento de activación.
 La migración no ejecuta el corte operativo ni autoriza publicar.
+
 ### 2026-10-07 — Importar productos desde Inventario interno
 
 Se añadió una fuente ADMIN con contraseña transitoria y URL fija al importador
@@ -3136,6 +3172,24 @@ localización ES/EN, conteos y CSP), con evidencia en
 `artifacts/staging-area-tests/staging-area.trx`. Script SQL idempotente generado
 sin conexión a la base. Publicación, revisión visual en navegador y validación
 física pendientes. Integración documentada en `docs/UI_COMPONENTS.md`.
+
+## 2026-10-07 — Placas por entrada únicamente en STAGING
+
+`/Operations/PalletLabels?location=STAGING` presenta las entradas vigentes de una
+sola línea, con paginación y filtro de producto, y permite imprimir una o varias
+placas sin consolidarlas. Las nuevas entradas a esta área crean placas propias;
+las demás ubicaciones conservan su comportamiento. Los traslados automáticos
+hacia STAGING preservan la separación y los ajustes automáticos dejan la
+diferencia en el saldo sin placa, sin atribuirla a una entrada arbitraria.
+
+Las entradas históricas sin placa o previamente consolidadas requieren confirmar
+la cantidad física restante. La recuperación extrae material del saldo libre o de
+placas acumuladas elegibles, conserva cantidades totales y deja eventos antes y
+después ligados a la entrada. Se excluyen entradas corregidas, reservas,
+preparaciones y placas individuales de otras entradas. Un reintento no crea otra
+placa. Los históricos sin detalle por lote usan lotes actuales disponibles con
+registro explícito de la asignación nueva. No se modifica el movimiento original.
+No requiere migración ni aplica cambios masivos a las entradas existentes.
 
 ### Inventario interno como fuente del catálogo (2026-10-09)
 

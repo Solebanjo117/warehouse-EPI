@@ -146,7 +146,11 @@ public sealed class OperationLocationSelectionContractTests
             script,
             StringComparison.Ordinal);
         Assert.Contains(
-            "if (next === \"quantity\") { quantityInput.focus(); quantityInput.select(); return; }",
+            "const quantityTarget = () => window.WarehousePalletDistribution?.quantityTarget() || quantityInput;",
+            script,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "if (next === \"quantity\") { quantityTarget().focus(); quantityTarget().select(); return; }",
             script,
             StringComparison.Ordinal);
     }

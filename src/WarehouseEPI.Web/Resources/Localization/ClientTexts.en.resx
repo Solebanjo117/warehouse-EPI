@@ -441,6 +441,18 @@
   <data name="(obligatoria)" xml:space="preserve"><value>(required)</value></data>
   <data name="(opcional)" xml:space="preserve"><value>(optional)</value></data>
   <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>The quantity will be checked against the documentary pending amount upon confirmation.</value></data>
+  <data name="Selecciona una ubicación de almacenamiento distinta de STAGING." xml:space="preserve"><value>Select a storage location other than STAGING.</value></data>
+  <data name="{0} de {1} listos" xml:space="preserve"><value>{0} of {1} ready</value></data>
+  <data name="Confirmando…" xml:space="preserve"><value>Confirming…</value></data>
+  <data name="En captura" xml:space="preserve"><value>In progress</value></data>
+  <data name="Falta {0} paso" xml:space="preserve"><value>{0} step remaining</value></data>
+  <data name="Faltan {0} pasos" xml:space="preserve"><value>{0} steps remaining</value></data>
+  <data name="La cantidad física no puede ser menor que el material ya identificado de esta llegada." xml:space="preserve"><value>The physical quantity cannot be less than the material already identified for this arrival.</value></data>
+  <data name="Lista para confirmar" xml:space="preserve"><value>Ready to confirm</value></data>
+  <data name="Listo" xml:space="preserve"><value>Ready</value></data>
+  <data name="Origen {0} → {1} · Destino {2} → {3}" xml:space="preserve"><value>Source {0} → {1} · Destination {2} → {3}</value></data>
+  <data name="Pendiente" xml:space="preserve"><value>Pending</value></data>
+  <data name="Sin capturar" xml:space="preserve"><value>Not entered</value></data>
   <data name="No hay coincidencias. Puedes buscar con el texto escrito." xml:space="preserve"><value>No matches. You can search using the text entered.</value></data>
   <data name="Coincidencias: {0}. Usa flechas y Enter para elegir." xml:space="preserve"><value>Matches: {0}. Use arrows and Enter to choose.</value></data>
 </root>

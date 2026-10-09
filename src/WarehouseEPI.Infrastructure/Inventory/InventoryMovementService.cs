@@ -17,6 +17,20 @@ public sealed class InventoryMovementService(
     private readonly InventoryMovementStore movementStore = new(dbContext, timeProvider);
     private readonly WarehouseClock warehouseClock = warehouseClock ?? new(new WarehouseSettingsService(dbContext));
 
+    public async Task<InventoryMovementResult> ConfirmStagingAsync(StagingPutawayCommand request, CancellationToken token = default)
+    {
+        var plates = StagingArrivalQuery.DecodeVersion(request.Version);
+        // The immutable original line is available even after a successful retry has exhausted its pending stock.
+        var arrival = await dbContext.InventoryMovementLines.AsNoTracking().SingleOrDefaultAsync(l => l.Id == request.ArrivalLineId, token);
+        if (plates is null || arrival?.DestinationLocationId is not Guid source)
+            return new(InventoryMovementStatus.ValidationFailed, Errors: ["Consulta nuevamente la llegada a STAGING."]);
+        var command = new InventoryMovementCommand(request.OperationId, InventoryMovementType.Transfer, request.Pin,
+            [new(arrival.ProductId, plates.Sum(p => p.Quantity), SourceLocationId: source, DestinationLocationId: request.DestinationId,
+                Plates: plates, StagingArrivalLineId: arrival.Id)],
+            ApprovedSharedAssignments: (request.ApprovedLocations ?? []).Distinct().Select(id => new SharedAssignmentApproval(arrival.ProductId, id)).ToArray());
+        return await ConfirmAsync(command, token);
+    }
+
     public async Task<InventoryMovementResult> ConfirmAsync(
         InventoryMovementCommand command,
         CancellationToken cancellationToken = default)
@@ -112,6 +126,12 @@ public sealed class InventoryMovementService(
         var rollbackTransaction = ownsTransaction ? transaction : null;
         try
         {
+            if (transaction is not null && command.Lines.Any(l => l.StagingArrivalLineId.HasValue))
+            {
+                await dbContext.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({command.OperationId.ToString()}, 0))", cancellationToken);
+                existing = await movementStore.GetExistingResultAsync(command.OperationId, fingerprint, cancellationToken);
+                if (existing is not null) return await AbortAsync(rollbackTransaction, existing, cancellationToken);
+            }
             var pairs = InventoryMovementRules.GetLocationPairs(command).ToArray();
             var locationIds = pairs.Select(pair => pair.LocationId).Distinct().Order().ToArray();
             if (transaction is not null)
@@ -132,6 +152,21 @@ public sealed class InventoryMovementService(
                 locationErrors.Add("El regreso WIP requiere una ubicación de bodega no WIP como destino.");
             if (locationErrors.Count != 0)
                 return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed, Errors: locationErrors), cancellationToken);
+
+            foreach (var line in command.Lines.Where(l => l.StagingArrivalLineId.HasValue))
+            {
+                var arrival = await new StagingArrivalQuery(dbContext).GetAsync(line.StagingArrivalLineId!.Value, cancellationToken);
+                if (command.Type != InventoryMovementType.Transfer || command.Lines.Count != 1 || line.AutomaticPalletHandling ||
+                    line.DestinationPlateId.HasValue || arrival is null || arrival.NeedsIdentification || arrival.Pending <= 0 ||
+                    arrival.ProductId != line.ProductId || arrival.LocationId != line.SourceLocationId || arrival.Pending != line.Quantity ||
+                    arrival.Version != StagingArrivalQuery.EncodeVersion(line.Plates ?? []))
+                    return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.BalanceChanged,
+                        Errors: ["El pendiente de STAGING cambió. Vuelve a seleccionar la llegada."]), cancellationToken);
+                if (locations[line.DestinationLocationId!.Value].OperationalRole == LocationOperationalRole.Wip ||
+                    locations[line.DestinationLocationId.Value].Code == "STAGING")
+                    return await AbortAsync(rollbackTransaction, new(InventoryMovementStatus.ValidationFailed,
+                        Errors: ["Selecciona una ubicación de almacenamiento distinta de STAGING."]), cancellationToken);
+            }
 
             var warehouseReservationErrors = await ValidateWarehouseReservationsAsync(command, productionSupplyLineId, cancellationToken);
             if (warehouseReservationErrors.Count != 0)

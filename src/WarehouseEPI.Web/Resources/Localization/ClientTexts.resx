@@ -441,6 +441,18 @@
   <data name="(obligatoria)" xml:space="preserve"><value>(obligatoria)</value></data>
   <data name="(opcional)" xml:space="preserve"><value>(opcional)</value></data>
   <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>La cantidad se validará contra el pendiente documental al confirmar.</value></data>
+  <data name="Selecciona una ubicación de almacenamiento distinta de STAGING." xml:space="preserve"><value>Selecciona una ubicación de almacenamiento distinta de STAGING.</value></data>
+  <data name="{0} de {1} listos" xml:space="preserve"><value>{0} de {1} listos</value></data>
+  <data name="Confirmando…" xml:space="preserve"><value>Confirmando…</value></data>
+  <data name="En captura" xml:space="preserve"><value>En captura</value></data>
+  <data name="Falta {0} paso" xml:space="preserve"><value>Falta {0} paso</value></data>
+  <data name="Faltan {0} pasos" xml:space="preserve"><value>Faltan {0} pasos</value></data>
+  <data name="La cantidad física no puede ser menor que el material ya identificado de esta llegada." xml:space="preserve"><value>La cantidad física no puede ser menor que el material ya identificado de esta llegada.</value></data>
+  <data name="Lista para confirmar" xml:space="preserve"><value>Lista para confirmar</value></data>
+  <data name="Listo" xml:space="preserve"><value>Listo</value></data>
+  <data name="Origen {0} → {1} · Destino {2} → {3}" xml:space="preserve"><value>Origen {0} → {1} · Destino {2} → {3}</value></data>
+  <data name="Pendiente" xml:space="preserve"><value>Pendiente</value></data>
+  <data name="Sin capturar" xml:space="preserve"><value>Sin capturar</value></data>
   <data name="No hay coincidencias. Puedes buscar con el texto escrito." xml:space="preserve"><value>No hay coincidencias. Puedes buscar con el texto escrito.</value></data>
   <data name="Coincidencias: {0}. Usa flechas y Enter para elegir." xml:space="preserve"><value>Coincidencias: {0}. Usa flechas y Enter para elegir.</value></data>
 </root>

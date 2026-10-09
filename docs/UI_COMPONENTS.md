@@ -16,6 +16,170 @@ escribe. Pruebas: `ProductDeletionTests` y `ProductDeletionPostgreSqlTests`;
 la segunda requiere credenciales con permiso para crear una base temporal propia
 con prefijo `warehouse_epi_product_delete_test_`.
 
+En el historial de placas, **Imprimir placa** de una transferencia utiliza solo
+placas del producto que siguen en su ubicación destino. No ofrece el remanente
+del origen. `PalletTrackingService.PrintablePlatesForMovementsAsync` aplica este
+filtro y `SuggestionAsync` toma el destino de la transferencia. Al abrir una placa
+por ID, `PalletLabels/Index` respeta su ubicación actual aunque conserve el UUID de
+una entrada original en STAGING; las reglas por entrada de STAGING solo se aplican
+mientras permanezca allí. Ejemplo: STAGING → A-1-1 imprime la placa en A-1-1,
+tanto en traslados completos como parciales.
+
+## Lista de staging y transferencia con datos fijos
+
+- **Destinos propuestos al acomodar:** `PutawayModel` carga `DestinationProposals`
+  mediante `GetProductLocationsAsync`, conserva solo saldo neto positivo por ubicación
+  y excluye el origen. Se reutilizan sus filtros de almacén operativo y suma de lotes.
+  `_DestinationProposals.cshtml`, dentro del paso destino del formulario guiado,
+  muestra código, descripción y saldo/unidad en opciones `relationship-choice` con
+  lista desplazable. `ShowDestinationProposals` está desactivado por defecto en otros
+  consumidores. Los botones `data-destination-proposal` llaman a la selección normal
+  de `operations.js` solo al pulsarlos; nunca precargan el destino, ni siquiera con una
+  única opción. GET y POST fallido cargan propuestas; el POST conserva el destino
+  capturado y limpia el NIP mediante el flujo existente. Sin sugerencias, el mensaje
+  invita a buscar/escanear. Dependencias: Bootstrap, `site.css`, textos OperationsTexts
+  ES/EN y validación de transferencia existente. Ejemplo: `/Operations/Staging/Putaway?arrival=...`.
+
+### Acceso Recibir en STAGING
+
+- **Caso de uso:** la tarjeta de Operaciones abre `/Operations/Entry?mode=staging`
+  con STAGING preseleccionado y editable, sin registrar movimientos mediante GET.
+- **Archivos:** `Navigation/ModuleNavigation.cs`, `Pages/Operations/Entry.cshtml.cs`
+  y `Pages/Operations/OperationPageModel.cs`.
+- **Dependencias:** `OperationalInventoryQueryService.ResolveLocationAsync`, aviso
+  `PrefillWarning`, recursos SharedTexts/OperationsTexts ES/EN y formulario guiado existente.
+- **Integración real:** la acción usa `Mode: "staging"`; `RouteValues` conserva
+  también `view`. Entrada resuelve el código exacto, sin GUID fijo. Si falta, está
+  inactivo, bloqueado, ausente físicamente o es WIP, deja el destino vacío con aviso.
+  El destino explícito se conserva al seleccionar productos y se puede cambiar.
+  Entrada normal y sus enlaces con `destinationLocationId` conservan su comportamiento.
+
+### Continuar desde el comprobante de STAGING
+
+- **Caso de uso:** entradas normales, documentales y de producción muestran acciones
+  por línea hacia su llegada exacta y «Registrar siguiente entrada» hacia Entrada
+  con `mode=staging`. Los flujos del documento/orden conservan sus acciones.
+- **Archivos:** `Pages/Operations/Receipt.cshtml(.cs)`, `Staging/Index.cshtml(.cs)`,
+  `PalletLabels/Index.cshtml(.cs)`, `OperationalInventoryQueryService.cs`,
+  `StagingArrivalQuery.cs` y `StagingEntryPlates.cs`.
+- **Contrato:** `InventoryReceiptLine.LineId` y `ForMovementAsync` enlazan líneas,
+  no SKU. `/Operations/Staging?arrivalLineId=...` muestra solo esa llegada,
+  incluso agotada, y conserva el contexto tras errores de identificación.
+  «Ver todas las llegadas» restaura la lista normal.
+- **Impresión:** `?handler=StagingArrival&arrivalLineId=...#label-preview`
+  reutiliza el motor existente. Valida placas, versión y cobertura por lotes antes
+  y después de construir la previsualización; no identifica ni mueve stock mediante GET.
+  Las llegadas históricas por identificar enlazan a su captura física existente.
+  Las agotadas muestran estado y seguimiento. Identificadores inválidos o de
+  movimientos corregidos devuelven 404; un reemplazo vigente conserva sus propias acciones.
+- **Dependencias:** recursos OperationsTexts ES/EN, Bootstrap, consulta de
+  llegadas registrada en DI y plantilla publicada PLT-LICENSE-PLATE.
+  Ejemplo: dos líneas del mismo SKU en una recepción imprimen sus placas por
+  separado, mientras una tercera línea destinada a otra ubicación conserva su flujo.
+
+### Dividir en pallets o rollos
+
+- **Caso de uso:** Entrada en `mode=staging` ofrece una distribución opcional de
+  2 a 100 cantidades cuya suma determina automáticamente la cantidad recibida.
+  Activarla oculta la cantidad manual y muestra solo el total recibido calculado.
+  Desactivarla recupera el campo manual con la suma actual; las partes permanecen
+  disponibles durante la captura y se recuperan al reactivarla.
+  Está disponible únicamente con destino real STAGING. Cambiar el destino desactiva
+  la opción; la captura normal conserva el comportamiento existente.
+- **Componente compartido:** `Pages/Operations/_PalletDistribution.cshtml`,
+  `PalletDistributionInput.cs` y `wwwroot/js/pallet-distribution.js`. Recibe
+  `PalletDistributionEditor` con cantidades, total, unidad, precisión y modalidad
+  opcional. `CalculateTotal: true` distingue el total calculado de Entrada del
+  total fijo al dividir una placa existente (valor predeterminado `false`).
+  Reutiliza Bootstrap y OperationsTexts ES/EN; valida totales con precisión
+  de cuatro decimales y respeta unidades enteras. `operations.js` le comunica
+  producto/destino/cantidad mediante `WarehousePalletDistribution.update` y añade
+  `summary()` a la revisión existente, conservando buscador, HID, cámara y NIP.
+  El editor notifica `palletdistributionchange` solo por interacción; `update`
+  sincroniza sin emitir otro evento. `isValid()` controla la revisión y
+  `quantityTarget()` dirige el foco a la primera parte cuando el total es automático.
+- **Integración real:** `EntryModel` valida las partes, calcula `Input.Quantity`
+  mediante `PalletDistribution.TryCalculateTotal` y reemplaza su `ModelState`
+  antes de la validación general, ignorando la cantidad manual enviada cuando se
+  divide. Entrega `PalletQuantities` al servicio de entrada existente:
+  capturar 40/35/25 calcula 100 y registra una sola
+  línea y tres PLT. No son tres llegadas. Un POST fallido conserva las cantidades.
+- **División posterior:** Lista de staging enlaza a
+  `/Operations/Staging/Split?arrivalLineId=...`; el operador selecciona una placa
+  y distribuye únicamente su remanente. `Split.cshtml(.cs)` reutiliza el editor
+  obligatorio, revisión Bootstrap, antiforgery y NIP. `StagingPlateSplit.cs`
+  valida llegada/placa/versiones, reservas, preparaciones y cobertura de lotes
+  bajo bloqueo de ubicación. Su clave de operación hace los reintentos idempotentes.
+- **Trazabilidad:** eventos `StagingSplitSource`/`StagingSplitChild`, ligados a la
+  línea original y al responsable, sustituyen la placa por nuevos folios con la
+  misma composición agregada por lote. No crean movimientos ni alteran saldos.
+  Las demás placas permanecen intactas. La original queda en cero, se muestra
+  «Dividida», no se imprime ni reutiliza; el seguimiento enlaza sus descendientes.
+  Una corrección incompatible posterior queda bloqueada por los eventos existentes.
+- **Consulta e impresión:** `StagingArrivalQuery` reconoce los hijos sin duplicar
+  recibido ni pendientes. `PalletLabels?handler=StagingArrival&arrivalLineId=...`
+  imprime placas actuales en grupos de 100 con `arrivalBatch`; el servidor comprueba
+  pertenencia, versión y lotes de cada grupo. El límite por llegada es 1000 placas
+  pendientes. Identificación histórica precede a la división si falta identidad.
+  Los GET consultan únicamente; no identifican, dividen ni mueven material.
+- **Alcance:** cantidades y folios PLT propios, sin número externo de rollo,
+  redistribución entre placas, migraciones ni cambios de permisos. La captura
+  opcional inicial no se añade a recepciones documentales o de producción.
+
+### Contador y acomodo de llegadas
+
+- **Antigüedad y prioridad (solo Lista de staging):** `StagingArrivalQuery.OverviewAsync`
+  recorre lotes de 100 y reutiliza la evaluación de pendientes para obtener página
+  de 25 y resumen global, incluyendo históricos por identificar. Busca por SKU,
+  descripción o referencia y filtra prioridad antes de paginar, con orden por
+  fecha e ID. `ListAsync` y `CountPendingAsync` conservan sus contratos anteriores.
+  `StagingArrivalAge` calcula duración UTC y clasifica Normal (<24 h), Atender
+  pronto (24–<48 h) y Urgente (>=48 h); los umbrales son fijos y continuos.
+  El PageModel captura `TimeProvider.GetUtcNow()` una vez y convierte las fechas
+  locales en lote con `WarehouseClock`. Una fecha futura tiene antigüedad cero.
+- **Integración real:** `/Operations/Staging?priority=urgent&search=SKU&pageNumber=2`
+  conserva el resumen global sin filtros. `priority` acepta `normal`, `soon`,
+  `urgent`; desconocido equivale a Todas. Buscar reinicia página, Actualizar
+  conserva filtros/página y Limpiar filtros restaura el listado completo.
+  El POST de identificación conserva el contexto ante errores. La vista por
+  `arrivalLineId` ignora filtros y omite urgencia si ya no hay pendiente.
+  Identificar, dividir o acomodar parcialmente no reinicia la fecha de llegada;
+  salir y regresar crea una llegada con fecha propia. Tarjetas Bootstrap y textos
+  OperationsTexts ES/EN presentan edad, fecha exacta y prioridad accesible sin
+  depender solo del color. No hay sondeo, configuración, escrituras GET ni cambios
+  en Entrada, comprobantes o el contador de Operaciones.
+
+- **Contador de llegadas:** `StagingArrivalQuery.CountPendingAsync` comparte la
+  evaluación de pendientes del listado y recorre lotes de 100, sin filtros ni
+  límite de página. Incluye pendientes por identificar; excluye agotados y
+  correcciones con las mismas reglas de la lista. Cuenta llegadas, no SKU ni unidades.
+- **Integración:** `Pages/Modules/Index.cshtml(.cs)` carga una vez el total solo
+  para Operaciones y lo muestra en la tarjeta Lista de staging con `notification-count`.
+  `Pages/Operations/Entry.cshtml(.cs)` lo carga solo en modo staging y presenta
+  «Lista de staging · N pendientes» encima del formulario, incluso con cero.
+  `Mode` se conserva mediante un input asociado al `id="operation-form"` del
+  formulario guiado; un POST con errores recalcula el total sin repetir la precarga.
+  Depende de la consulta registrada en DI, Bootstrap y recursos SharedTexts/OperationsTexts
+  ES/EN con singular/plural y nombres accesibles. Se actualiza al cargar, sin sondeo.
+
+- **Caso de uso:** `/Operations/Staging` lista cada llegada (entrada o traslado),
+  con su cantidad pendiente independiente; `/Operations/Staging/Putaway?arrival=...`
+  permite elegir únicamente el destino y confirmar con NIP.
+- **Archivos:** `Pages/Operations/Staging/*`, `OperationPageModel.cs`,
+  `_GuidedMovementForm.cshtml`, `wwwroot/js/operations.js` y
+  `Infrastructure/Inventory/StagingArrivalQuery.cs`.
+- **Dependencias:** buscador de `Operations/Lookup`, HID, cámara/ZXing, revisión
+  y confirmación de ubicación compartida del formulario guiado. `FixedTransfer`
+  fija producto, origen y cantidad, oculta cambios/cámara en esos pasos y conserva
+  solo la captura del destino. No es un controlador nuevo ni una copia del script.
+- **Integración real:** `Staging/PutawayModel` usa `ConfirmStagingAsync` con llegada,
+  versión, destino y NIP; el servidor reconstruye producto/origen y valida las placas
+  bajo bloqueo transaccional. Nunca usar una transferencia automática por SKU para
+  sustituir este contrato. La versión enviada no autoriza por sí sola un movimiento.
+- Los históricos ambiguos solicitan cantidad física en la lista y reutilizan
+  `IdentifyStagingEntryAsync` con `ArrivalLineId`; identificar no mueve existencias.
+  Fechas mediante `WarehouseClock`, textos ES/EN y paginación después de excluir agotados.
+
 Catálogo para agentes y desarrolladores. Consultarlo antes de implementar UI y
 preferir lo existente sin requerir una petición explícita del usuario.
 Las rutas enlazadas son la fuente de verdad; verificar su estado antes de usarlas.
@@ -353,3 +517,33 @@ sin cambiar las identidades ni las reglas de confirmación.
   10 MB descomprimidos por página y 10,000 filas antes de excluir agrupaciones.
 - **Interacción:** el desplegable enfoca la contraseña, informa carga y errores,
   y limpia el campo al regresar. Excel conserva su selector independiente.
+
+### Impresión por entrada en STAGING
+
+- **Caso de uso:** identificar e imprimir por separado entradas de un producto en
+  el área cuyo código es `STAGING`, incluidas las anteriores a esta función.
+- **Archivos:** `Pages/Operations/PalletLabels/Index.cshtml`, su PageModel y
+  `_StagingEntries.cshtml`; `Infrastructure/Inventory/StagingEntryPlates.cs` y
+  `PalletPlateEngine.cs`.
+- **Dependencias:** buscador bidireccional existente de `pallet-labels.js`, servicios
+  de seguimiento y etiquetas, plantilla publicada `PLT-LICENSE-PLATE`, hora del
+  almacén y recursos `OperationsTexts` ES/EN. El parcial depende del PageModel de
+  esta pantalla; no es un formulario genérico.
+- **Integración real:** `/Operations/PalletLabels?location=STAGING` muestra entradas
+  paginadas de 25 en 25; `productId` conserva el filtro del buscador existente.
+  Desde los movimientos recientes, `?handler=StagingEntry&movementId=...#label-preview`
+  previsualiza exclusivamente las placas vigentes de esa entrada mediante GET sin
+  escrituras. Si requiere identificación histórica, muestra únicamente esa entrada
+  para imprimir; no abre el listado completo del producto ni pide capturar cantidad.
+  `PrintStagingSelection` previsualiza una o varias placas vigentes mediante POST
+  con antiforgery. `IdentifyStagingEntry` obtiene en el servidor la cantidad recibida de la entrada
+  y registra la separación sin modificar movimientos ni saldos. Cada placa
+  conserva folio, origen y composición por lote.
+- **Límites:** las entradas deben estar vigentes y ser de una sola línea. Las
+  históricas sin identidad individual usan la cantidad recibida registrada y requieren
+  saldo disponible suficiente; no se deduce un remanente por entrada a partir del saldo acumulado. La recuperación
+  respeta lotes documentados cuando existen; para registros anteriores al detalle
+  por lote asigna lotes disponibles actuales y los registra en el evento nuevo.
+  No toma material de otras placas individuales ni de reservas/preparaciones.
+  Las placas agotadas o trasladadas no vuelven a identificarse automáticamente.
+  Las demás áreas conservan su flujo de impresión.

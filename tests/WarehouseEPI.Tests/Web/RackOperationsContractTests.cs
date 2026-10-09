@@ -84,7 +84,11 @@ public sealed class RackOperationsContractTests
         Assert.Contains("LoadSelectionAsync(cancellationToken)", model, StringComparison.Ordinal);
         Assert.Contains("Input.ExpectedBalanceVersion = LocationBalance.Version", model, StringComparison.Ordinal);
         Assert.Contains("new InventoryMovementCommand(", model, StringComparison.Ordinal);
-        Assert.Contains("public async Task<IActionResult> OnPostAsync", model, StringComparison.Ordinal);
+        var handler = typeof(WarehouseEPI.Web.Pages.Operations.OperationPageModel)
+            .GetMethod("OnPostAsync", [typeof(CancellationToken)]);
+        Assert.NotNull(handler);
+        Assert.True(handler.IsPublic);
+        Assert.Equal(typeof(Task<Microsoft.AspNetCore.Mvc.IActionResult>), handler.ReturnType);
     }
 
     private static string RepositoryPath(params string[] segments)

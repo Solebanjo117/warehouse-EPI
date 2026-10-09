@@ -32,6 +32,11 @@
                         {
                             <span class="notification-count" data-supply-count hidden>0</span>
                         }
+                        @if (action.Page == "/Operations/Staging/Index")
+                        {
+                            <span class="notification-count" data-staging-count="@Model.StagingPendingCount"
+                                  aria-label="@SharedTexts[Model.StagingPendingCount == 1 ? "{0} llegada pendiente de acomodo o identificación" : "{0} llegadas pendientes de acomodo o identificación", Model.StagingPendingCount]">@Model.StagingPendingCount</span>
+                        }
                         <span class="module-hub-arrow" aria-hidden="true">→</span>
                     </a>
                 }

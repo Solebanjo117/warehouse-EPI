@@ -5,6 +5,9 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using WarehouseEPI.Web.Navigation;
 using HubModel = WarehouseEPI.Web.Pages.Modules.IndexModel;
+using Microsoft.EntityFrameworkCore;
+using WarehouseEPI.Infrastructure.Inventory;
+using WarehouseEPI.Infrastructure.Persistence;
 
 namespace WarehouseEPI.Tests.Web;
 
@@ -39,8 +42,8 @@ public sealed class ModuleNavigationTests
     public void All_existing_destinations_are_preserved_once_with_role_specific_parameters()
     {
         string[] expected = [
-            "/Operations/Entry", "/Operations/Exit", "/Operations/Transfer", "/Operations/Adjustment",
-            "/Operations/CycleCounts/Index", "/Operations/Production/Index",
+            "/Operations/Entry", "/Operations/Entry", "/Operations/Exit", "/Operations/Transfer", "/Operations/Adjustment",
+            "/Operations/CycleCounts/Index", "/Operations/Production/Index", "/Operations/Staging/Index",
             "/Admin/Production/Processes",
             "/Admin/Production/Routes", "/Admin/Production/Schedule",
             "/Reports/Notifications/Index", "/Inventory/Index", "/Admin/Catalogs/Locations/Index", "/Admin/Inventory/Movements/Index",
@@ -97,7 +100,9 @@ public sealed class ModuleNavigationTests
     {
         var identity = new ClaimsIdentity(admin ? [new Claim(ClaimTypes.Role, "ADMIN")] : [],
             authenticated ? "test" : null);
-        var model = new HubModel(new RoleAuthorization())
+        await using var db = new WarehouseDbContext(new DbContextOptionsBuilder<WarehouseDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+        var model = new HubModel(new RoleAuthorization(), new StagingArrivalQuery(db))
         {
             PageContext = new PageContext { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) } }
         };

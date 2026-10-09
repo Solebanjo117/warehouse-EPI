@@ -14,6 +14,8 @@ public abstract class OperationPageModel(
     OperationalInventoryQueryService operationalQuery,
     IStringLocalizer<OperationsTexts> texts) : PageModel
 {
+    protected InventoryMovementService MovementService => movementService;
+    protected OperationalInventoryQueryService OperationalQuery => operationalQuery;
     protected string T(string key) => texts[key];
     [BindProperty]
     public OperationInput Input { get; set; } = new();
@@ -27,12 +29,18 @@ public abstract class OperationPageModel(
     public InventoryBalanceSnapshot? LocationBalance { get; private set; }
     public IReadOnlyList<SharedLocationConflict> SharingConflicts { get; private set; } = [];
     public bool RoleWarning { get; private set; }
-    public string? PrefillWarning { get; private set; }
+    public string? PrefillWarning { get; protected set; }
     public bool NeedsSharingApproval => SharingConflicts.Count > 0;
     public abstract InventoryMovementType MovementType { get; }
     public virtual InventoryMovementPurpose MovementPurpose => InventoryMovementPurpose.Standard;
     protected virtual InventoryMovementType CommandMovementType => MovementType;
     public virtual string OperationKey => MovementType.ToString().ToLowerInvariant();
+    public virtual bool FixedTransfer => false;
+    public virtual bool ShowDestinationProposals => false;
+    public IReadOnlyList<OperationalProductLocationResult> DestinationProposals { get; protected set; } = [];
+    public virtual string ReturnPage => "/Index";
+    public virtual Guid? ArrivalLineId => null;
+    public virtual string? ArrivalVersion => null;
     public abstract string PageTitle { get; }
     public abstract string PageHelp { get; }
 
@@ -80,7 +88,7 @@ public abstract class OperationPageModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
+    public virtual async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         ValidateInput();
         await LoadSelectionAsync(cancellationToken);
@@ -104,11 +112,11 @@ public abstract class OperationPageModel(
             MovementPurpose,
             MovementPurpose == InventoryMovementPurpose.ProductionIssue ? Input.DestinationLocationId : null);
 
-        var result = await movementService.ConfirmAsync(command, cancellationToken);
+        var result = await ConfirmMovementAsync(command, cancellationToken);
         ClearPin();
 
         if (result.Status == InventoryMovementStatus.Success && result.MovementId is Guid movementId)
-            return RedirectToPage("/Operations/Receipt", new { id = movementId });
+            return MovementCompleted(movementId);
 
         switch (result.Status)
         {
@@ -131,7 +139,8 @@ public abstract class OperationPageModel(
             case InventoryMovementStatus.BalanceChanged:
                 await RefreshAdjustmentBalanceAsync(cancellationToken);
                 ModelState.AddModelError(string.Empty,
-                    T("El saldo cambió. Se recargó el conteo actual; revísalo y vuelve a introducir tu NIP."));
+                    T(FixedTransfer ? "El pendiente de STAGING cambió. Vuelve a seleccionar la llegada." :
+                        "El saldo cambió. Se recargó el conteo actual; revísalo y vuelve a introducir tu NIP."));
                 break;
             case InventoryMovementStatus.IdempotencyConflict:
                 ModelState.AddModelError(string.Empty,
@@ -144,6 +153,11 @@ public abstract class OperationPageModel(
 
         return Page();
     }
+
+    protected virtual Task<InventoryMovementResult> ConfirmMovementAsync(InventoryMovementCommand command, CancellationToken token) =>
+        movementService.ConfirmAsync(command, token);
+
+    protected virtual IActionResult MovementCompleted(Guid movementId) => RedirectToPage("/Operations/Receipt", new { id = movementId });
 
     private void ValidateInput()
     {

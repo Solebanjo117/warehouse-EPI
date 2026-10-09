@@ -1,10 +1,19 @@
 namespace WarehouseEPI.Web.Navigation;
 
 public sealed record ModuleAction(string Title, string Description, string Icon, string Page,
-    bool AdminOnly = false, bool SupplyCount = false, string? View = null, bool SignedInOnly = false)
+    bool AdminOnly = false, bool SupplyCount = false, string? View = null, bool SignedInOnly = false,
+    string? Mode = null)
 {
-    public Dictionary<string, string> RouteValues =>
-        View is null ? [] : new() { ["view"] = View };
+    public Dictionary<string, string> RouteValues
+    {
+        get
+        {
+            Dictionary<string, string> values = [];
+            if (View is not null) values["view"] = View;
+            if (Mode is not null) values["mode"] = Mode;
+            return values;
+        }
+    }
 }
 
 public sealed record ModuleSection(string Title, IReadOnlyList<ModuleAction> Actions);
@@ -78,8 +87,10 @@ public static class ModuleNavigation
         [
             new("Movimientos", [
                 new("Entrada", "Recibir material en el almacén.", "entry", "/Operations/Entry"),
+                new("Recibir en STAGING", "Registrar una entrada con destino STAGING", "entry", "/Operations/Entry", Mode: "staging"),
                 new("Salida", "Retirar material o surtir WIP.", "exit", "/Operations/Exit"),
                 new("Transferencia", "Mover material entre ubicaciones.", "transfer", "/Operations/Transfer"),
+                new("Lista de staging", "Acomodar cada llegada de material.", "transfer", "/Operations/Staging/Index"),
                 new("Ajuste", "Corregir existencias con trazabilidad.", "adjust", "/Operations/Adjustment")]),
             new("Verificación", [new("Conteos cíclicos", "Capturar y revisar conteos de inventario.", "inventory", "/Operations/CycleCounts/Index")])
         ]),

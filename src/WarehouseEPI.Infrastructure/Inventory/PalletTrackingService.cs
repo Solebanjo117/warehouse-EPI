@@ -26,7 +26,7 @@ public sealed record PalletHistoryRow(PalletPlateEvent Event, decimal BeforeQuan
     string BeforeLocation, string AfterLocation, string Responsible, IReadOnlyList<Guid> RelatedPlates, string? Reason = null);
 public sealed record PalletOrderLink(Guid Id, string Number);
 
-public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService pins, TimeProvider timeProvider)
+public sealed partial class PalletTrackingService(WarehouseDbContext db, UserPinService pins, TimeProvider timeProvider)
 {
     private sealed record IdentificationState(IReadOnlyList<InventoryBalance> Balances,
         IReadOnlyList<ProductLot> Lots, Dictionary<Guid, decimal> FreeLots, PalletIdentificationProduct Summary);
@@ -59,6 +59,12 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
 
     public async Task<PalletIdentificationSuggestion?> SuggestionAsync(Guid movementId, CancellationToken token = default)
     {
+        var transferDestination = await db.InventoryMovementLines.AsNoTracking()
+            .Where(x => x.MovementId == movementId && x.Movement.Type == InventoryMovementType.Transfer && x.DestinationLocationId != null)
+            .OrderBy(x => x.LineNumber).ThenBy(x => x.Id)
+            .Select(x => new PalletIdentificationSuggestion(x.DestinationLocationId!.Value, x.DestinationLocation!.Code, x.ProductId))
+            .FirstOrDefaultAsync(token);
+        if (transferDestination is not null) return transferDestination;
         var linkedPlate = await db.PalletPlateEvents.AsNoTracking()
             .Where(x => x.MovementId == movementId)
             .OrderBy(x => x.Id)
@@ -118,6 +124,7 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
 
     public async Task<InventoryMovementResult> IdentifyAsync(PalletIdentificationCommand command, CancellationToken token = default)
     {
+        if (await IsStagingAsync(command.LocationId, token)) return Invalid("En STAGING selecciona Imprimir por entrada para conservar la identidad de cada pallet.");
         var fingerprint = Fingerprint(command);
         var prior = await db.PalletPlateEvents.AsNoTracking().SingleOrDefaultAsync(x => x.OperationId == command.OperationId && x.Kind == "Identification", token);
         if (prior is not null) return prior.Fingerprint == fingerprint
@@ -200,6 +207,7 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
 
     public async Task<InventoryMovementResult> ConsolidateAsync(PalletConsolidationCommand command, CancellationToken token = default)
     {
+        if (await IsStagingAsync(command.LocationId, token)) return Invalid("En STAGING selecciona Imprimir por entrada para conservar la identidad de cada pallet.");
         var fingerprint = Fingerprint(command);
         var prior = await db.PalletPlateEvents.AsNoTracking()
             .SingleOrDefaultAsync(x => x.OperationId == command.OperationId && x.Kind == "ConsolidationPrimary", token);
@@ -341,8 +349,10 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
             "void" => query.Where(x => x.IsVoided),
             _ => query
         };
-        return (await query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((Math.Clamp(page, 1, 100000) - 1) * 50).Take(50).ToListAsync(token))
-            .Select(x => Row(x)).ToArray();
+        var pagePlates = await query.OrderByDescending(x => x.CreatedAt).ThenBy(x => x.Id).Skip((Math.Clamp(page, 1, 100000) - 1) * 50).Take(50).ToListAsync(token);
+        var pageIds = pagePlates.Select(p => p.Id).ToArray();
+        var divided = await db.PalletPlateEvents.Where(e => pageIds.Contains(e.PlateId) && e.Kind == "StagingSplitSource").Select(e => e.PlateId).ToListAsync(token);
+        return pagePlates.Select(x => divided.Contains(x.Id) ? Row(x) with { Status = "Dividida" } : Row(x)).ToArray();
     }
 
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<PalletQueryRow>>> PrintablePlatesForMovementsAsync(
@@ -371,7 +381,14 @@ public sealed class PalletTrackingService(WarehouseDbContext db, UserPinService 
             .ToListAsync(token);
         var rows = plates.ToDictionary(x => x.Id, x => Row(x));
 
-        return links.Where(x => rows.ContainsKey(x.PlateId))
+        var transferDestinations = (await db.InventoryMovementLines.AsNoTracking()
+            .Where(x => ids.Contains(x.MovementId) && x.Movement.Type == InventoryMovementType.Transfer)
+            .Select(x => new { x.MovementId, x.ProductId, x.DestinationLocationId }).ToListAsync(token))
+            .ToLookup(x => x.MovementId);
+
+        return links.Where(x => rows.TryGetValue(x.PlateId, out var row) &&
+                (!transferDestinations.Contains(x.MovementId) ||
+                 (row.Quantity > 0 && transferDestinations[x.MovementId].Any(d => d.ProductId == row.ProductId && d.DestinationLocationId == row.LocationId))))
             .GroupBy(x => x.MovementId)
             .ToDictionary(
                 group => group.Key,
