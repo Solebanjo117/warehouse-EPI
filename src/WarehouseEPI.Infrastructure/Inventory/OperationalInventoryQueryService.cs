@@ -132,7 +132,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
         var normalized = CatalogNormalization.NormalizeCode(term);
         return await ProductQuery(true)
-            .Where(product => product.Sku.Contains(normalized) ||
+            .WhereProductText(term, product => product.Sku.Contains(normalized) ||
                 (product.Description != null && product.Description.ToUpper().Contains(normalized)) ||
                 (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(normalized)) ||
                 product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(normalized)))
@@ -185,7 +185,7 @@ public sealed class OperationalInventoryQueryService(WarehouseDbContext dbContex
 
         var normalized = CatalogNormalization.NormalizeCode(term);
         var products = await ProductQuery(false)
-            .Where(product => product.Sku.Contains(normalized) ||
+            .WhereProductText(term, product => product.Sku.Contains(normalized) ||
                 (product.Description != null && product.Description.ToUpper().Contains(normalized)) ||
                 (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(normalized)) ||
                 product.Barcodes.Any(barcode => barcode.IsActive && barcode.Barcode.ToUpper().Contains(normalized)))

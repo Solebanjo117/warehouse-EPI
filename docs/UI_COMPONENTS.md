@@ -11,6 +11,24 @@ intercambiables. Este catálogo cubre las piezas principales, no cada pantalla.
 
 ## Selección de productos y ubicaciones
 
+### Descripción por fragmentos
+
+`Infrastructure/Inventory/ProductTextSearch.cs` aporta `WhereProductText` para
+extender una consulta de productos: exige todos los fragmentos de descripción,
+separados por espacios, sin importar su orden ni mayúsculas. Por ejemplo,
+«transparente bolsa» encuentra «Bolsa de polietileno transparente». No corrige
+errores ortográficos ni elimina acentos. Conserva como alternativa el predicado
+original de SKU, referencia, códigos de barras y otros campos de cada consumidor.
+
+Depende de expresiones LINQ traducibles por EF Core y se aplica antes del límite
+o la paginación. Integración real: `OperationalInventoryQueryService` llama
+`ProductQuery(true).WhereProductText(term, product => ...)` para operaciones y
+usa `ProductQuery(false)` para Existencias/croquis. También lo usan
+`ProductPageSupport.ApplySearch` (catálogo y exportación), el handler `Products`
+de Kárdex y `ProductionDailyProductLookup` (sugerencias por grupo).
+Conserva los filtros de actividad, permisos, orden y contratos JSON existentes;
+la resolución exacta de SKU/código de barras para HID/cámara no cambia.
+
 Cuando un formulario necesite elegir un producto, partir del buscador que muestra
 coincidencias al escribir. Elegir la variante según el contexto:
 
@@ -21,6 +39,17 @@ coincidencias al escribir. Elegir la variante según el contexto:
 | Agregar productos a captura diaria de producción | [_CaptureGroup.cshtml](../src/WarehouseEPI.Web/Pages/Operations/Production/_CaptureGroup.cshtml) y [production-daily-products.js](../src/WarehouseEPI.Web/wwwroot/js/production-daily-products.js). | `[data-daily-product-field]`, `data-url`, `data-resolve-url`, `data-product-input`, `data-product-id`, `data-product-results` y `data-daily-product-add`. Mantener los grupos de productos programados, pendientes y otros, y la resolución del producto antes de agregarlo. |
 
 Antes de adaptar un buscador:
+
+- **Motor compartido de sugerencias de consulta:** `wwwroot/js/suggestion-lookup.js`
+  extrae de Kárdex la búsqueda con espera de 250 ms, descarte de respuestas anteriores,
+  lista Bootstrap, flechas/Enter/Escape y anuncios accesibles. Se configura mediante
+  `window.warehouseSuggestionLookup({ form, input, results, feedback, url, code,
+  describe, selected, edited, empty, found })`. No registra movimientos ni decide
+  las reglas del catálogo. Depende de `site.css` (`lookup-field`, `lookup-results`)
+  y `warehouseText`/`ClientTexts` para ES/EN. Cargarlo antes del adaptador de página.
+  Las opciones `.lookup-results > .list-group-item` de `site.css` no se comprimen
+  en el contenedor flex de Bootstrap: conservan altura natural, mínimo táctil de
+  44 px y ajuste de palabras largas; el desplazamiento ocurre en la lista.
 
 - En movimientos, el handler `ProductLocations` de `Lookup.cshtml.cs` reutiliza
   `OperationalInventoryQueryService.GetProductLocationsAsync` para las sugerencias

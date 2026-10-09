@@ -1,3 +1,4 @@
+using WarehouseEPI.Infrastructure.Inventory;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -110,7 +111,7 @@ internal static class ProductPageSupport
     public static IQueryable<Product> ApplySearch(IQueryable<Product> query, string search)
     {
         var term = search.Trim().ToUpperInvariant();
-        return query.Where(product =>
+        return query.WhereProductText(search, product =>
             product.Sku.ToUpper().Contains(term) ||
             (product.Description != null && product.Description.ToUpper().Contains(term)) ||
             (product.ExternalReference != null && product.ExternalReference.ToUpper().Contains(term)) ||

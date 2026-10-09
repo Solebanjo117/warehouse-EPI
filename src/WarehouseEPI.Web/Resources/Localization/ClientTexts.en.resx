@@ -441,4 +441,6 @@
   <data name="(obligatoria)" xml:space="preserve"><value>(required)</value></data>
   <data name="(opcional)" xml:space="preserve"><value>(optional)</value></data>
   <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>The quantity will be checked against the documentary pending amount upon confirmation.</value></data>
+  <data name="No hay coincidencias. Puedes buscar con el texto escrito." xml:space="preserve"><value>No matches. You can search using the text entered.</value></data>
+  <data name="Coincidencias: {0}. Usa flechas y Enter para elegir." xml:space="preserve"><value>Matches: {0}. Use arrows and Enter to choose.</value></data>
 </root>

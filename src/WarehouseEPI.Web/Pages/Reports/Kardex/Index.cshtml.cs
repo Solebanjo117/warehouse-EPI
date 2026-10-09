@@ -1,3 +1,4 @@
+using WarehouseEPI.Infrastructure.Inventory;
 using System.Globalization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -90,7 +91,7 @@ public sealed class IndexModel(
 
         var normalized = original.ToUpperInvariant();
         var items = await dbContext.Products.AsNoTracking()
-            .Where(p => p.Sku.ToUpper().Contains(normalized) ||
+            .WhereProductText(original, p => p.Sku.ToUpper().Contains(normalized) ||
                 (p.Description != null && p.Description.ToUpper().Contains(normalized)) ||
                 (p.ExternalReference != null && p.ExternalReference.ToUpper().Contains(normalized)) ||
                 p.Barcodes.Any(b => b.IsActive && b.Barcode.ToUpper().Contains(normalized)))

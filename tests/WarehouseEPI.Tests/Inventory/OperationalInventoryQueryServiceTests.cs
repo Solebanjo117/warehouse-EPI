@@ -7,6 +7,28 @@ namespace WarehouseEPI.Tests.Inventory;
 
 public sealed class OperationalInventoryQueryServiceTests
 {
+    [Theory]
+    [InlineData("bolsa transparente")]
+    [InlineData("TRANSPARENTE bolsa")]
+    [InlineData("  transpa\tbolsa  ")]
+    public async Task Description_fragments_match_in_any_order_without_changing_active_rules(string search)
+    {
+        await using var db = CreateDbContext();
+        var active = new Product { Sku = "PARTS-A", Description = "Bolsa de polietileno transparente", BaseUnitId = 1 };
+        var inactive = new Product { Sku = "PARTS-B", Description = active.Description, BaseUnitId = 1, IsActive = false };
+        db.AddRange(active, inactive,
+            new Product { Sku = "PARTS-C", Description = "Bolsa azul", BaseUnitId = 1 },
+            new Product { Sku = "PARTS-D", BaseUnitId = 1 });
+        await db.SaveChangesAsync();
+        var service = new OperationalInventoryQueryService(db);
+
+        Assert.Equal(active.Id, Assert.Single(await service.SearchProductsAsync(search)).Id);
+        Assert.Equal(new[] { active.Id, inactive.Id }, (await service.SearchInventoryAsync(search)).Products.Select(p => p.Id));
+        Assert.Null(await service.ResolveProductAsync(search));
+        Assert.Empty(await service.SearchProductsAsync("bolsa inexistente"));
+        Assert.Empty(await service.SearchProductsAsync(" \t "));
+    }
+
     [Fact]
     public async Task Resolves_active_sku_barcode_and_location_and_limits_search_results()
     {

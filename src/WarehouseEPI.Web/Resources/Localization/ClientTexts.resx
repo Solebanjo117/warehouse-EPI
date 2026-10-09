@@ -441,4 +441,6 @@
   <data name="(obligatoria)" xml:space="preserve"><value>(obligatoria)</value></data>
   <data name="(opcional)" xml:space="preserve"><value>(opcional)</value></data>
   <data name="La cantidad se validará contra el pendiente documental al confirmar." xml:space="preserve"><value>La cantidad se validará contra el pendiente documental al confirmar.</value></data>
+  <data name="No hay coincidencias. Puedes buscar con el texto escrito." xml:space="preserve"><value>No hay coincidencias. Puedes buscar con el texto escrito.</value></data>
+  <data name="Coincidencias: {0}. Usa flechas y Enter para elegir." xml:space="preserve"><value>Coincidencias: {0}. Usa flechas y Enter para elegir.</value></data>
 </root>

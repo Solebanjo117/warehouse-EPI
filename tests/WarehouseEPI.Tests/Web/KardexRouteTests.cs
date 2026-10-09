@@ -226,7 +226,7 @@ public sealed class KardexRouteTests
     public void Kardex_page_preserves_lookup_paging_and_admin_only_correction_details()
     {
         var page = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "Pages", "Reports", "Kardex", "Index.cshtml"));
-        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "kardex-product-lookup.js"));
+        var script = File.ReadAllText(RepositoryPath("src", "WarehouseEPI.Web", "wwwroot", "js", "suggestion-lookup.js"));
 
         Assert.Contains("data-kardex-product-input", page, StringComparison.Ordinal);
         Assert.Contains("asp-route-pageNumber", page, StringComparison.Ordinal);

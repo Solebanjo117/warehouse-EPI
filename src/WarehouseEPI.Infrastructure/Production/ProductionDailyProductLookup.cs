@@ -1,3 +1,4 @@
+using WarehouseEPI.Infrastructure.Inventory;
 using Microsoft.EntityFrameworkCore;
 using WarehouseEPI.Core.Entities;
 
@@ -46,7 +47,7 @@ public sealed partial class ProductionDailyCaptureService
                 1 => query.Where(x => pending.Contains(x.Id)),
                 _ => query.Where(x => !planned.Contains(x.Id) && !pending.Contains(x.Id))
             };
-            if (term.Length > 0) query = query.Where(x => x.Sku.ToUpper().Contains(term) ||
+            if (term.Length > 0) query = query.WhereProductText(term, x => x.Sku.ToUpper().Contains(term) ||
                 x.Description != null && x.Description.ToUpper().Contains(term));
             var start = Math.Clamp(offset, 0, 100_000);
             var matches = await query.OrderBy(x => x.Sku.ToUpper() == term ? 0 : x.Sku.ToUpper().StartsWith(term) ? 1 : 2)
