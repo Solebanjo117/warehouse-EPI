@@ -3100,3 +3100,35 @@ una salida de almacén con destino informativo WIP. Uso, merma y devoluciones
 se aplican a documentos comunes con producción. Véase [WIP documental](WIP_DOCUMENTARY.md)
 para persistencia, restricciones, conversión ADMIN y procedimiento de activación.
 La migración no ejecuta el corte operativo ni autoriza publicar.
+### 2026-10-07 — Importar productos desde Inventario interno
+
+Se añadió una fuente ADMIN con contraseña transitoria y URL fija al importador
+actual. Reutiliza vista previa, resolución y confirmación; fuerza solo altas,
+retira prefijos del SKU, deja CLASS vacío y conserva referencia y filas originales.
+No importa existencias ni modifica entidades o migraciones. El cliente valida
+orígenes, redirecciones, tamaño, tiempo y estructura; no guarda credenciales.
+Integración y contratos en `docs/UI_COMPONENTS.md`. Sin despliegue ni carga
+operativa; validación automatizada con respuestas HTTP simuladas y fixtures Razor.
+
+Verificación: 88 pruebas focales aprobadas (cliente HTTP, transformación,
+seguridad del handler, confirmación y regresión Excel). Fixtures Razor revisados
+con `tests/javascript/internal-inventory.browser.cjs` en ES/EN, anchos 800/1024/1440,
+Claro/Oscuro/Sistema, teclado, carga y limpieza de contraseña. Evidencia visual
+local en `artifacts/ui/playwright/internal-inventory-*.png`. Pendiente validación
+física en tablet y consulta operativa posterior al despliegue autorizado.
+
+### Inventario interno como fuente del catálogo (2026-10-09)
+
+La consulta ADMIN de Inventario interno compara altas y actualizaciones por SKU
+y solo escribe al confirmar. Actualiza descripción, referencia completa y U/M;
+conserva la clase existente y deja sin clase los productos nuevos. Descripción y
+U/M vacías conservan el valor existente. No importa cantidades ni elimina ausentes.
+
+Si hay movimientos, una U/M diferente se muestra como conflicto pendiente con
+ambas unidades, conserva la local y permite aplicar otros cambios válidos. El
+resumen y la confirmación cuentan estos conflictos; una discrepancia aislada no
+cuenta como actualización. Movimientos nuevos entre análisis y confirmación que
+impidan un cambio de unidad obligan a consultar de nuevo. Excel conserva su regla
+de omitir la fila con cambio de unidad bloqueado. Se reutilizan resolución de
+unidades/duplicados, propietario y caducidad del token, permisos y transacción.
+No requiere migraciones ni sincronización automática.

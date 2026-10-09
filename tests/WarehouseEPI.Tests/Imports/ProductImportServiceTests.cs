@@ -369,6 +369,139 @@ public sealed class ProductImportServiceTests
         Assert.Equal("YY-RM-BBAG:PBAG-BBAG-XS", (await fixture.Db.Products.SingleAsync()).ExternalReference);
     }
 
+    [Fact]
+    public async Task Internal_inventory_updates_catalog_preserves_classes_and_is_idempotent()
+    {
+        await using var fixture = Fixture.Create();
+        var productClass = await fixture.Db.ProductClasses.SingleAsync(x => x.Code == "RM");
+        productClass.IsActive = false;
+        var product = new Product { Sku = "OLD", Description = "Before", BaseUnitId = 1,
+            ProductClassId = productClass.Id, MinimumStock = 12, IsActive = false };
+        fixture.Db.Products.AddRange(product, new Product { Sku = "ABSENT", BaseUnitId = 1 });
+        await fixture.Db.SaveChangesAsync();
+        var source = Inventory(InternalInventoryReaderTests.Row("GROUP:OLD", "Box", "After"),
+            InternalInventoryReaderTests.Row("GROUP:NEW", "Each", "New"));
+
+        var preview = await fixture.Service.PrepareInternalInventoryAsync(source, fixture.Owner);
+        Assert.True(preview.UpdateExisting);
+        Assert.Equal("Before", product.Description);
+        Assert.Equal(1, preview.NewCount);
+        Assert.Equal(1, preview.UpdatedCount);
+        Assert.True((await fixture.Service.ConfirmAsync(preview.Token, fixture.Owner)).Succeeded);
+        Assert.Equal("After", product.Description);
+        Assert.Equal("GROUP:OLD", product.ExternalReference);
+        Assert.Equal(2, product.BaseUnitId);
+        Assert.Equal(productClass.Id, product.ProductClassId);
+        Assert.False(product.IsActive);
+        Assert.Equal(12, product.MinimumStock);
+        Assert.Null((await fixture.Db.Products.SingleAsync(x => x.Sku == "NEW")).ProductClassId);
+        Assert.True(await fixture.Db.Products.AnyAsync(x => x.Sku == "ABSENT"));
+        var repeated = await fixture.Service.PrepareInternalInventoryAsync(source, fixture.Owner);
+        Assert.False(repeated.CanConfirm);
+        Assert.Equal(2, repeated.UnchangedCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Internal_inventory_reports_unit_conflict_without_blocking_description(bool changeDescription)
+    {
+        await using var fixture = Fixture.Create();
+        var product = new Product { Sku = "MOVED", Description = "Before", ExternalReference = "GROUP:MOVED", BaseUnitId = 1 };
+        fixture.Db.Products.Add(product);
+        fixture.Db.InventoryMovementLines.Add(new InventoryMovementLine { ProductId = product.Id, UnitId = 1, Quantity = 7 });
+        await fixture.Db.SaveChangesAsync();
+        var source = Inventory(InternalInventoryReaderTests.Row("GROUP:MOVED", "Box", changeDescription ? "After" : "Before"));
+
+        var preview = await fixture.Service.PrepareInternalInventoryAsync(source, fixture.Owner);
+        var row = Assert.Single(preview.Rows);
+        Assert.False(row.HasError);
+        Assert.True(row.HasWarning);
+        Assert.Equal("BX", row.PendingUnitCode);
+        Assert.Equal("EA", row.UnitCode);
+        Assert.DoesNotContain(row.Changes, x => x.Field == "Unidad");
+        Assert.Equal(1, preview.PendingUnitCount);
+        Assert.Equal(1, preview.WarningCount);
+        Assert.Equal(changeDescription ? 1 : 0, preview.UpdatedCount);
+        Assert.Equal(changeDescription, preview.CanConfirm);
+        if (changeDescription)
+        {
+            var result = await fixture.Service.ConfirmAsync(preview.Token, fixture.Owner);
+            Assert.True(result.Succeeded);
+            Assert.Equal(1, result.PendingUnitCount);
+            Assert.Equal("After", product.Description);
+        }
+        Assert.Equal(1, product.BaseUnitId);
+        Assert.Equal(7, (await fixture.Db.InventoryMovementLines.SingleAsync()).Quantity);
+    }
+
+    [Fact]
+    public async Task Internal_inventory_rejects_new_movements_since_preview_then_recompares()
+    {
+        await using var fixture = Fixture.Create();
+        var product = new Product { Sku = "MOVED", Description = "Before", BaseUnitId = 1 };
+        fixture.Db.Products.Add(product);
+        await fixture.Db.SaveChangesAsync();
+        var source = Inventory(InternalInventoryReaderTests.Row("MOVED", "Box", "After"));
+        var preview = await fixture.Service.PrepareInternalInventoryAsync(source, fixture.Owner);
+        fixture.Db.InventoryMovementLines.Add(new InventoryMovementLine { ProductId = product.Id, UnitId = 1, Quantity = 1 });
+        await fixture.Db.SaveChangesAsync();
+        Assert.False((await fixture.Service.ConfirmAsync(preview.Token, fixture.Owner)).Succeeded);
+        Assert.Equal("Before", product.Description);
+        Assert.Equal(1, product.BaseUnitId);
+        var revised = await fixture.Service.PrepareInternalInventoryAsync(source, fixture.Owner);
+        Assert.Equal(1, revised.PendingUnitCount);
+        Assert.True((await fixture.Service.ConfirmAsync(revised.Token, fixture.Owner)).Succeeded);
+        Assert.Equal("After", product.Description);
+        Assert.Equal(1, product.BaseUnitId);
+    }
+
+    [Fact]
+    public async Task Internal_inventory_preserves_blanks_and_defaults_new_products()
+    {
+        await using var fixture = Fixture.Create();
+        var product = new Product { Sku = "OLD", Description = "Keep", BaseUnitId = 1 };
+        fixture.Db.Products.Add(product);
+        await fixture.Db.SaveChangesAsync();
+        var preview = await fixture.Service.PrepareInternalInventoryAsync(Inventory(
+            InternalInventoryReaderTests.Row("OLD"), InternalInventoryReaderTests.Row("NEW")), fixture.Owner);
+        Assert.True((await fixture.Service.ConfirmAsync(preview.Token, fixture.Owner)).Succeeded);
+        Assert.Equal("Keep", product.Description);
+        Assert.Equal(1, product.BaseUnitId);
+        var added = await fixture.Db.Products.Include(x => x.BaseUnit).SingleAsync(x => x.Sku == "NEW");
+        Assert.Null(added.ProductClassId);
+        Assert.Equal(CatalogDefaults.UnassignedUnitCode, added.BaseUnit.Code);
+    }
+
+    [Fact]
+    public async Task Internal_inventory_resolution_keeps_source_and_update_mode()
+    {
+        await using var fixture = Fixture.Create();
+        var product = new Product { Sku = "OLD", Description = "Before", BaseUnitId = 1 };
+        fixture.Db.Products.Add(product);
+        await fixture.Db.SaveChangesAsync();
+        var preview = await fixture.Service.PrepareInternalInventoryAsync(Inventory(
+            InternalInventoryReaderTests.Row("GROUP:OLD", "Unknown", "After"),
+            InternalInventoryReaderTests.Row("A:DUP", "Each", "A"),
+            InternalInventoryReaderTests.Row("B:DUP", "Each", "B")), fixture.Owner);
+        Assert.False(preview.CanConfirm);
+        var resolved = await fixture.Service.ResolveUnitAsync(preview.Token, fixture.Owner, "Unknown", "EA", default);
+        Assert.NotNull(resolved);
+        var final = await fixture.Service.ResolveDuplicateAsync(resolved.Token, fixture.Owner, "DUP",
+            new Dictionary<string, string> { ["Descripción"] = "A", ["Referencia completa"] = "A:DUP" }, default);
+        Assert.NotNull(final);
+        Assert.NotNull(final.Source!.InternalInventory);
+        Assert.True(final.UpdateExisting);
+        Assert.Empty(final.UnresolvedUnits);
+        Assert.Empty(final.Source.Conflicts);
+        Assert.True((await fixture.Service.ConfirmAsync(final.Token, fixture.Owner)).Succeeded);
+        Assert.Equal("After", product.Description);
+        Assert.Null((await fixture.Db.Products.SingleAsync(x => x.Sku == "DUP")).ProductClassId);
+    }
+
+    private static ProductSpreadsheetReadResult Inventory(params string[] rows) =>
+        InternalInventoryReader.Read(InternalInventoryReaderTests.Html(rows));
+
     private static MemoryStream Workbook((string Class, string Sku, string Description, string Unit, string Reference) row)
     {
         using var workbook = new XLWorkbook();

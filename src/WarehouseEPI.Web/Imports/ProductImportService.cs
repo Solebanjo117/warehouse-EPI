@@ -10,6 +10,10 @@ public sealed partial class ProductImportService(
     WarehouseDbContext dbContext,
     ProductImportPreviewStore store)
 {
+    public Task<ProductImportPreview> PrepareInternalInventoryAsync(ProductSpreadsheetReadResult source, Guid ownerUserId,
+        CancellationToken cancellationToken = default) =>
+        PrepareReadAsync(source, "Inventario interno", ownerUserId, true, cancellationToken);
+
     public Task<ProductImportPreview> PrepareAsync(Stream stream, string fileName, Guid ownerUserId,
         CancellationToken cancellationToken = default) =>
         PrepareAsync(stream, fileName, ownerUserId, false, cancellationToken);

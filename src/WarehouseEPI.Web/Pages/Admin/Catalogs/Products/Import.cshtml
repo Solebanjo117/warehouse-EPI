@@ -6,7 +6,7 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
     <div>
         <h1 class="h2 mb-1">@CatTexts["Importar productos"]</h1>
-        <p class="text-muted mb-0">@CatTexts["Compara el Excel con el catálogo y confirma las altas y actualizaciones."]</p>
+        <p class="text-muted mb-0">@CatTexts["Compara la fuente con el catálogo y confirma las altas y actualizaciones."]</p>
     </div>
     <a asp-page="Index" class="btn btn-outline-secondary">@CatTexts["Volver a productos"]</a>
 </div>
@@ -19,6 +19,36 @@
 {
     <div class="alert alert-danger" role="alert">@Model.ImportError</div>
 }
+
+<section class="card card-body mb-4" aria-labelledby="internal-inventory-heading">
+    <h2 id="internal-inventory-heading" class="h5">
+        <button type="button" class="btn btn-outline-primary btn-lg" data-bs-toggle="collapse"
+                data-bs-target="#internal-inventory-form" aria-controls="internal-inventory-form"
+                aria-expanded="@(Model.InternalInventoryOpen ? "true" : "false")">@CatTexts["Desde Inventario interno"]</button>
+    </h2>
+    <div id="internal-inventory-form" class="collapse @(Model.InternalInventoryOpen ? "show" : "")">
+        <p>@CatTexts["Consulta Inventario interno para agregar productos y actualizar descripciones, referencias y U/M. Se conservan las clases existentes; los productos nuevos quedan sin clase. Las existencias no se importan."]</p>
+        <p class="small">@CatTexts["Los campos vacíos conservan el valor actual. Si hay movimientos, se conserva la U/M local y se informa el conflicto; la descripción sí puede actualizarse."]</p>
+        <form method="post" asp-page-handler="InternalInventory" data-internal-inventory-form>
+            @if (Model.InternalInventoryErrorMessage is not null)
+            {
+                <div class="alert alert-danger" role="alert" tabindex="-1">@Model.InternalInventoryErrorMessage</div>
+            }
+            <label for="inventory-password" class="form-label fw-semibold">@CatTexts["Contraseña de Inventario interno"]</label>
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-8">
+                    <input id="inventory-password" name="inventoryPassword" type="password" required autocomplete="off"
+                           class="form-control form-control-lg" aria-describedby="inventory-password-help" />
+                </div>
+                <div class="col-12 col-md-4">
+                    <button type="submit" class="btn btn-primary btn-lg w-100">@CatTexts["Consultar y analizar"]</button>
+                </div>
+            </div>
+            <p id="inventory-password-help" class="form-text">@CatTexts["La contraseña se usa solo para esta consulta. Revisa la vista previa antes de confirmar."]</p>
+            <p class="mb-0" role="status" aria-live="polite" data-inventory-loading hidden>@CatTexts["Consultando Inventario interno…"]</p>
+        </form>
+    </div>
+</section>
 
 <div class="card card-body mb-4">
     <form method="post" enctype="multipart/form-data" asp-page-handler="Upload">
@@ -47,6 +77,14 @@
 
 @if (Model.Preview is { } preview)
 {
+    @if (preview.Source?.InternalInventory is { } inventory)
+    {
+        <div class="alert alert-info" role="status">
+            <strong>@CatTexts["Origen: Inventario interno"]</strong>
+            <div>@CatTexts["{0} filas consultadas · {1} agrupaciones excluidas · {2} productos analizados.", inventory.ConsultedRows, inventory.ExcludedGroups, inventory.AnalyzedProducts]</div>
+            <div>@CatTexts["Se agregarán productos nuevos y se actualizarán los existentes. SKU sin prefijos y referencia completa del origen. Las clases existentes se conservan; los nuevos quedan sin clase."]</div>
+        </div>
+    }
     @if (preview.Source is { Conflicts.Count: > 0 } source)
     {
         <section class="card card-body mb-3" aria-labelledby="resolve-duplicates-heading">
@@ -89,7 +127,7 @@
     @if (preview.UnresolvedUnits.Count > 0)
     {
         <section class="card card-body mb-3" aria-labelledby="resolve-unit-heading">
-            <h2 id="resolve-unit-heading" class="h4">@CatTexts["Resolver unidades del Excel"]</h2>
+            <h2 id="resolve-unit-heading" class="h4">@CatTexts[preview.Source?.InternalInventory is null ? "Resolver unidades del Excel" : "Resolver unidades de Inventario interno"]</h2>
             <p>@CatTexts["Selecciona la unidad del catálogo que corresponde a cada valor. Se recalculará la comparación para todas sus filas, sin guardar productos todavía."]</p>
             @for (var i = 0; i < preview.UnresolvedUnits.Count; i++)
             {
@@ -136,6 +174,12 @@
             <strong>@CatTexts["{0} por actualizar · {1} sin cambios.", preview.UpdatedCount, preview.UnchangedCount]</strong>
             Se aplicarán únicamente los productos válidos. Incidencias de error: @preview.ErrorCount.
             Las filas indicadas con error se omiten; revisa las incidencias antes de confirmar.
+        </div>
+    }
+    @if (preview.PendingUnitCount > 0)
+    {
+        <div class="alert alert-warning" role="status">
+            @CatTexts["{0} conflictos de U/M pendientes. Se conserva la unidad local por tener movimientos; los demás cambios válidos sí se aplican.", preview.PendingUnitCount]
         </div>
     }
     <div class="row row-cols-2 row-cols-lg-4 g-2 mb-3">
@@ -202,6 +246,10 @@
                             else { <span class="badge text-bg-success">@CatTexts["Nuevo"]</span> }
                             @if (row.HasWarning) { <span class="badge text-bg-warning">@CatTexts["Advertencia"]</span> }
                             @if (row.Message is not null) { <div class="small mt-1">@row.Message</div> }
+                            @if (row.PendingUnitCode is { } pendingUnit)
+                            {
+                                <div class="small mt-1">@CatTexts["U/M pendiente: Inventario interno indica {0}; se conserva {1} porque el producto tiene movimientos.", pendingUnit, row.UnitDisplay]</div>
+                            }
                             @if (preview.UpdateExisting && row.Changes.Count > 0)
                             {
                                 <dl class="small text-break mt-2 mb-0">
@@ -228,4 +276,8 @@
             <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : "")"><a class="page-link" asp-route-token="@preview.Token" asp-route-filter="@Model.Filter" asp-route-pageNumber="@(Model.CurrentPage + 1)">@CatTexts["Siguiente"]</a></li>
         </ul></nav>
     }
+}
+
+@section Scripts {
+    <script src="~/js/product-import.js" asp-append-version="true"></script>
 }

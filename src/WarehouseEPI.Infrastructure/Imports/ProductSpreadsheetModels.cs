@@ -23,7 +23,10 @@ public sealed record ProductSpreadsheetReadResult(
 {
     public bool HasErrors => Issues.Any(issue => issue.IsError);
     public IReadOnlyList<ProductSpreadsheetConflict> Conflicts { get; init; } = [];
+    public InternalInventorySourceSummary? InternalInventory { get; init; }
 }
+
+public sealed record InternalInventorySourceSummary(int ConsultedRows, int ExcludedGroups, int AnalyzedProducts);
 
 public sealed record ProductSpreadsheetConflict(string Sku, IReadOnlyList<ProductSpreadsheetRow> Rows)
 {

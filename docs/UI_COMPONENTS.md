@@ -282,3 +282,40 @@ El reporte permite borrar ambos límites de fecha para consultar todo el histori
 El selector «Mostrar» de la importación WIP reutiliza Bootstrap y `CatalogTexts`.
 Su opción `notImported` excluye las entregas ya importadas antes de paginar,
 sin cambiar las identidades ni las reglas de confirmación.
+
+### Importación de productos desde Inventario interno
+
+- **Caso de uso:** consultar la fuente fija de EP Industrial como alternativa al
+  Excel desde `/Admin/Catalogs/Products/Import`, exclusivamente para ADMIN.
+- **Archivos:** `Pages/Admin/Catalogs/Products/Import.cshtml(.cs)`,
+  `wwwroot/js/product-import.js`, `Imports/ProductImportService.cs` (Web) y
+  `Imports/InternalInventoryClient.cs`, `InternalInventoryReader.cs`,
+  `ProductImportRowProcessor.cs` (Infrastructure).
+- **Dependencias:** Bootstrap Collapse, CatalogTexts ES/EN, AngleSharp y el
+  almacén de vistas previas existente. Los lectores Excel y HTML comparten
+  validación, normalización y consolidación mediante `ProductImportRowProcessor`.
+- **Integración real:** `OnPostInternalInventoryAsync` obtiene un
+  `ProductSpreadsheetReadResult` y llama a `PrepareInternalInventoryAsync`.
+  El servidor fija altas y actualizaciones; reutiliza resolución de unidades/duplicados,
+  propietario, caducidad, antiforgery y confirmación existentes. Analizar no escribe.
+- **Contrato:** último segmento del SKU, referencia completa y descripción del origen;
+  conserva la clase existente y deja sin clase los productos nuevos. Los campos
+  vacíos conservan valores existentes. La U/M se actualiza solo sin movimientos;
+  con movimientos, `PendingUnitCode` muestra la unidad recibida como advertencia
+  y conserva la local, permitiendo actualizar los demás campos. El resumen y la
+  confirmación incluyen el número de conflictos pendientes. Ejemplo: un producto
+  en EA con movimientos recibe BX y otra descripción; se actualiza la descripción,
+  conserva EA y muestra BX como pendiente. Una discrepancia aislada no cuenta como
+  actualización. Depende también de `ProductImportComparison.cs` y
+  `ProductImportModels.cs`; Excel conserva su bloqueo por cambio de U/M.
+  Se conserva la exclusión de agrupaciones sin cantidades y sin descripción o
+  unidad. Las cantidades
+  únicamente identifican agrupaciones. Se conservan filas originales y un resumen
+  de origen, filas consultadas, agrupaciones excluidas y productos analizados.
+- **Credenciales y red:** campo de contraseña sin valor, nunca almacenado ni
+  devuelto; transporte/cookies por consulta. Autenticación solo en
+  `https://www.epindustrial.com`; visor en `https://extrapackaging.ws` sin cookies
+  WordPress. Redirecciones restringidas al origen de cada etapa; 30 segundos,
+  10 MB descomprimidos por página y 10,000 filas antes de excluir agrupaciones.
+- **Interacción:** el desplegable enfoca la contraseña, informa carga y errores,
+  y limpia el campo al regresar. Excel conserva su selector independiente.

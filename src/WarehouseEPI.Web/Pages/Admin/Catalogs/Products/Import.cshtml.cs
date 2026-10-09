@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Localization;
 using WarehouseEPI.Web.Imports;
 using WarehouseEPI.Web.Localization;
+using WarehouseEPI.Infrastructure.Imports;
 
 namespace WarehouseEPI.Web.Pages.Admin.Catalogs.Products;
 
 [Authorize(Policy = "AdminOnly")]
 [RequestSizeLimit(ProductImportLimits.MaxRequestBytes)]
-public sealed class ImportModel(ProductImportService importService, IStringLocalizer<CatalogTexts> text) : PageModel
+public sealed class ImportModel(ProductImportService importService, IStringLocalizer<CatalogTexts> text,
+    IInternalInventoryClient internalInventory) : PageModel
 {
     private const int PageSize = 25;
 
@@ -18,6 +20,8 @@ public sealed class ImportModel(ProductImportService importService, IStringLocal
     public IFormFile? Upload { get; set; }
     [BindProperty]
     public bool UpdateExisting { get; set; } = true;
+    public bool InternalInventoryOpen { get; private set; }
+    public string? InternalInventoryErrorMessage { get; private set; }
     public ProductImportPreview? Preview { get; private set; }
     public IReadOnlyList<ProductImportPreviewRow> Rows { get; private set; } = [];
     public string Filter { get; private set; } = "all";
@@ -64,6 +68,38 @@ public sealed class ImportModel(ProductImportService importService, IStringLocal
         return RedirectToPage(new { token = preview.Token });
     }
 
+    public async Task<IActionResult> OnPostInternalInventoryAsync(string? inventoryPassword, CancellationToken cancellationToken)
+    {
+        if (!TryOwnerId(out var ownerId)) return Forbid();
+        // Never echo a posted password through ModelState or an input tag helper.
+        ModelState.Remove(nameof(inventoryPassword));
+        InternalInventoryOpen = true;
+        if (string.IsNullOrWhiteSpace(inventoryPassword))
+        {
+            InternalInventoryErrorMessage = text["Escribe la contraseña de Inventario interno."].Value;
+            return Page();
+        }
+        try
+        {
+            var source = await internalInventory.ReadAsync(inventoryPassword, cancellationToken);
+            var preview = await importService.PrepareInternalInventoryAsync(source, ownerId, cancellationToken);
+            return RedirectToPage(new { token = preview.Token });
+        }
+        catch (InternalInventoryException exception)
+        {
+            InternalInventoryErrorMessage = text[exception.Error switch
+            {
+                InternalInventoryError.Password => "La contraseña de Inventario interno es incorrecta. Vuelve a escribirla.",
+                InternalInventoryError.Timeout => "Inventario interno tardó más de 30 segundos. Vuelve a consultar.",
+                InternalInventoryError.Connection => "No se pudo conectar con Inventario interno. Revisa la conexión y vuelve a consultar.",
+                InternalInventoryError.TooLarge => "La respuesta de Inventario interno supera 10 MB. No se analizó una lista parcial.",
+                InternalInventoryError.TooManyRows => "Inventario interno supera 10,000 filas. No se analizó una lista parcial.",
+                _ => "El formato de Inventario interno cambió o la respuesta está incompleta. No se importó ningún producto."
+            }].Value;
+            return Page();
+        }
+    }
+
     public async Task<IActionResult> OnPostResolveUnitAsync(string token, string sourceUnit, string targetUnit, CancellationToken cancellationToken)
     {
         if (!TryOwnerId(out var ownerId)) return Forbid();
@@ -102,8 +138,10 @@ public sealed class ImportModel(ProductImportService importService, IStringLocal
             return RedirectToPage(new { token });
         }
 
-        ImportMessage = $"Importación terminada: {result.Inserted:N0} productos insertados, " +
-            $"{result.Updated:N0} actualizados, {result.SkippedExisting:N0} existentes sin modificar y {result.Consolidated:N0} duplicados consolidados.";
+        ImportMessage = text["Importación terminada: {0} productos insertados, {1} actualizados, {2} existentes sin modificar y {3} duplicados consolidados.",
+            result.Inserted.ToString("N0"), result.Updated.ToString("N0"), result.SkippedExisting.ToString("N0"), result.Consolidated.ToString("N0")].Value;
+        if (result.PendingUnitCount > 0)
+            ImportMessage += " " + text["{0} conflictos de U/M pendientes; se conservaron las unidades locales.", result.PendingUnitCount].Value;
         return RedirectToPage();
     }
 

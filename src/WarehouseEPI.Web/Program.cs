@@ -128,6 +128,9 @@ builder.Services.AddHealthChecks()
     .AddCheck("process", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<DatabaseHealthCheck>("postgresql", tags: ["database"]);
 builder.Services.AddSingleton<IProductSpreadsheetReader, ProductSpreadsheetReader>();
+
+builder.Services.AddSingleton<InternalInventoryTransportFactory>();
+builder.Services.AddScoped<IInternalInventoryClient, InternalInventoryClient>();
 builder.Services.AddSingleton<ProductImportPreviewStore>();
 builder.Services.AddSingleton<WipTransferPreviewStore>();
 builder.Services.AddScoped<WarehouseEPI.Infrastructure.Imports.WipTransferImportService>();

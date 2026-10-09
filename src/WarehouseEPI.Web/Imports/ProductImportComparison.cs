@@ -10,6 +10,7 @@ public sealed partial class ProductImportService
 
     private async Task<ProductImportPreview> PrepareComparisonAsync(WarehouseEPI.Infrastructure.Imports.ProductSpreadsheetReadResult read, string fileName, Guid owner, CancellationToken ct)
     {
+        var isInternalInventory = read.InternalInventory is not null;
         var units = await dbContext.Units.AsNoTracking().ToDictionaryAsync(x => x.Id, ct);
         var classes = await dbContext.ProductClasses.AsNoTracking().ToDictionaryAsync(x => x.Id, ct);
         var skus = read.Rows.Select(x => x.Sku).ToList();
@@ -30,13 +31,24 @@ public sealed partial class ProductImportService
             var newClass = row.ClassCode is not null && !classes.Values.Any(x => x.Code == row.ClassCode);
             string? error = unit is null ? "La unidad no existe o está inactiva." : null;
             if (read.Issues.Any(issue => issue.Code == "invalid_unit" && issue.RowNumber is { } number && row.SourceRows.Contains(number)))
-                error = "Selecciona la unidad correspondiente en Resolver unidades del Excel.";
+                error = isInternalInventory
+                    ? "Selecciona la unidad correspondiente en Resolver unidades de Inventario interno."
+                    : "Selecciona la unidad correspondiente en Resolver unidades del Excel.";
             if (row.ClassCode is not null && productClass is null && !newClass)
                 error = $"La clase {row.ClassCode} está inactiva.";
             if (row.ClassCode?.Length > 60)
                 error = "El código de clase supera 60 caracteres.";
+            string? pendingUnitCode = null;
             if (product is not null && unit is not null && unit.Id != product.BaseUnitId && moved.Contains(product.Id))
-                error = "No se puede cambiar la unidad base: el producto tiene movimientos.";
+            {
+                if (isInternalInventory && error is null)
+                {
+                    pendingUnitCode = unit.Code;
+                    unit = units[product.BaseUnitId];
+                }
+                else
+                    error = "No se puede cambiar la unidad base: el producto tiene movimientos.";
+            }
             var proposed = new ProductImportValues(product?.Id ?? Guid.Empty, row.Description ?? product?.Description,
                 row.ExternalReference ?? product?.ExternalReference, unit?.Id ?? 0, productClass?.Id, product?.UpdatedAt ?? default);
             var changes = new List<ProductImportChange>();
@@ -49,18 +61,21 @@ public sealed partial class ProductImportService
             Compare("Unidad", product is null ? null : units.GetValueOrDefault(product.BaseUnitId)?.Code, unit?.Code);
             Compare("Clase", product?.ProductClassId is { } oldClass ? classes.GetValueOrDefault(oldClass)?.Code : null, productClass?.Code ?? row.ClassCode);
             rows.Add(new(row.SourceRows, row.Sku, proposed.Description, proposed.Reference, unit?.Code ?? row.UnitCode,
-                productClass?.Code ?? row.ClassCode, product is not null, row.IsConsolidated, row.UnitWasBlank || row.ClassCode is null || newClass,
+                productClass?.Code ?? row.ClassCode, product is not null, row.IsConsolidated,
+                row.UnitWasBlank || (!isInternalInventory && row.ClassCode is null) || newClass || pendingUnitCode is not null,
                 error is not null, error ?? (newClass ? $"Se creará la clase {row.ClassCode} al confirmar." : null))
             {
                 Current = current,
                 Proposed = proposed,
                 Changes = changes,
-                RequireActiveUnit = !row.UnitWasBlank || product is null,
+                RequireActiveUnit = pendingUnitCode is null && (!row.UnitWasBlank || product is null),
                 RequireActiveClass = row.ClassCode is not null,
-                IsNewClass = newClass
+                IsNewClass = newClass,
+                PendingUnitCode = pendingUnitCode
             });
         }
-        var issues = read.Issues.Select(issue => issue.Code is "missing_unit_defaulted" or "missing_class"
+        var issues = read.Issues.Where(issue => !isInternalInventory || issue.Code != "missing_class")
+            .Select(issue => issue.Code is "missing_unit_defaulted" or "missing_class"
             ? issue with { Message = "Celda vacía: se conserva el valor existente. Los productos nuevos usan unidad Sin asignar y pueden quedar sin clase." }
             : issue).ToList();
         return store.Save(owner, Path.GetFileName(fileName), rows, issues, read.SourceRowCount,
@@ -96,7 +111,9 @@ public sealed partial class ProductImportService
                     (proposed.ClassId is { } classId && (!classes.TryGetValue(classId, out var productClass) ||
                         productClass.Code != row.ClassCode || (row.RequireActiveClass && !productClass.IsActive))) ||
                     (product is not null && proposed.UnitId != product.BaseUnitId && moved.Contains(product.Id)))
-                    return new(false, 0, 0, 0, "El catálogo cambió desde la comparación. Vuelve a analizar el archivo; no se aplicaron cambios.");
+                    return new(false, 0, 0, 0, preview.Source?.InternalInventory is not null
+                        ? "El catálogo cambió desde la comparación. Vuelve a consultar Inventario interno; no se aplicaron cambios."
+                        : "El catálogo cambió desde la comparación. Vuelve a analizar el archivo; no se aplicaron cambios.");
             }
             var newClasses = accepted.Where(x => x.IsNewClass && (x.IsCandidate || x.IsUpdate))
                 .Select(x => x.ClassCode!).Distinct(StringComparer.Ordinal)
@@ -119,7 +136,8 @@ public sealed partial class ProductImportService
             await dbContext.SaveChangesAsync(ct);
             if (transaction is not null) await transaction.CommitAsync(ct);
             store.Remove(preview.Token);
-            return new(true, preview.NewCount, preview.UnchangedCount, preview.ConsolidatedCount) { Updated = preview.UpdatedCount };
+            return new(true, preview.NewCount, preview.UnchangedCount, preview.ConsolidatedCount)
+            { Updated = preview.UpdatedCount, PendingUnitCount = preview.PendingUnitCount };
         }
         catch (DbUpdateException)
         {

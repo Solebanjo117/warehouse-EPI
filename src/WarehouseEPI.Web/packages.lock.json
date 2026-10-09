@@ -241,6 +241,7 @@
       "warehouseepi.infrastructure": {
         "type": "Project",
         "dependencies": {
+          "AngleSharp": "[1.4.0, )",
           "ClosedXML": "[0.105.1, )",
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
@@ -248,6 +249,12 @@
           "WarehouseEPI.Core": "[1.0.0, )",
           "ZXing.Net": "[0.16.11, )"
         }
+      },
+      "AngleSharp": {
+        "type": "CentralTransitive",
+        "requested": "[1.4.0, )",
+        "resolved": "1.4.0",
+        "contentHash": "6ph8mpaQx0KL0COYRt0kI8MB9gSp1PtKijKMhJU//+aVFgKAJLKDesG/+26JSaVCOrHNgPf12wpfoyRcMYOeXg=="
       },
       "ClosedXML": {
         "type": "CentralTransitive",
